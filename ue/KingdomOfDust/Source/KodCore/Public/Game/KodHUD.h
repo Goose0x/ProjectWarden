@@ -7,7 +7,10 @@
 class UUserWidget;
 
 /**
- * Hosts UMG HUD root (WBP_KodHUD). DrawHUD kept minimal — prefer widgets.
+ * Hosts the in-game HUD. DrawHUD stays empty — the widget is the HUD.
+ * HudWidgetClass must be a Widget Blueprint parented to UKodHudRootWidget
+ * (Ironstock). Expected content path: /Game/UI/HUD/WBP_KodHUD.
+ * KodCore does not link KodUI; the soft class keeps that boundary.
  */
 UCLASS(Blueprintable)
 class KODCORE_API AKodHUD : public AHUD

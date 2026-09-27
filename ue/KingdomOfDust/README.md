@@ -52,6 +52,10 @@ KingdomOfDust (primary game module) depends on all runtime Kod*
 KodEditor — EditorOnly
 ```
 
+## UI shells
+
+Stamped HUD, Main Menu, and Lobby Versus are C++ widget roots in `KodUI`. Construction map (stamp region → class → `/Game/UI/...` path): [docs/ui/UE_CONSTRUCTION.md](../../docs/ui/UE_CONSTRUCTION.md). Widget Blueprints and materials are created in the Editor and are not in git.
+
 ## Naming
 
 Product-facing names: **Kingdom of Dust** / `Kod*`. No EA / C&C / Generals trademarks in APIs or UI strings.
