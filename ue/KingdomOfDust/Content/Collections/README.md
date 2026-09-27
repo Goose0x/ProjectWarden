@@ -1,0 +1,1 @@
+# Collections — editor asset collections.

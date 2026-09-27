@@ -73,3 +73,25 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+# `Name/*` does not match nested paths (`Binaries/Win64/...`). Ignore the
+# directories themselves so generated engine output never lands in git.
+Binaries/
+Intermediate/
+DerivedDataCache/
+Saved/
+
+# IDE / debugger files the engine or Rider/VS regenerate locally
+.idea/
+.vscode/
+*.user
+*.rsuser
+*.pdb
+*.exp
+*.ilk
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# OS junk
+.DS_Store

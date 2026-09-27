@@ -1,0 +1,92 @@
+{
+  "schema": "Kod.Warden.Slice0.Catalog",
+  "simHz": 16,
+  "buildTicksLaw": "RoundToInt(Seconds * 16)",
+  "contentRoot": "/Game/Warden/Data",
+  "note": "Bare asset ids only (no DA_ prefix). Binary .uasset created in editor; runtime UKodSlice0Bootstrap fills same FNames until then.",
+  "assets": [
+    {
+      "id": "RangerRifle",
+      "type": "Weapon",
+      "class": "KodWeaponDefinition",
+      "softPath": "/Game/Warden/Data/RangerRifle.RangerRifle",
+      "displayName": "Ranger Rifle",
+      "damage": 12,
+      "range": 900,
+      "cooldownSeconds": 0.35
+    },
+    {
+      "id": "Ranger",
+      "type": "Unit",
+      "class": "KodUnitDefinition",
+      "softPath": "/Game/Warden/Data/Ranger.Ranger",
+      "displayName": "Ranger",
+      "unitTag": "Kod.Unit.Ranger",
+      "maxHealth": 120,
+      "armor": 0,
+      "moveSpeed": 450,
+      "sightRadius": 1600,
+      "weaponId": "RangerRifle",
+      "buildCostDust": 75,
+      "buildTicks": 80,
+      "buildTimeSeconds": 5
+    },
+    {
+      "id": "Dozer",
+      "type": "Unit",
+      "class": "KodUnitDefinition",
+      "softPath": "/Game/Warden/Data/Dozer.Dozer",
+      "displayName": "Dozer",
+      "unitTag": "Kod.Unit.Dozer",
+      "maxHealth": 200,
+      "armor": 1,
+      "moveSpeed": 350,
+      "sightRadius": 1200,
+      "weaponId": null,
+      "buildCostDust": 100,
+      "buildTicks": 128,
+      "buildTimeSeconds": 8
+    },
+    {
+      "id": "CommandCenter",
+      "type": "Building",
+      "class": "KodBuildingDefinition",
+      "softPath": "/Game/Warden/Data/CommandCenter.CommandCenter",
+      "displayName": "Command Center",
+      "buildingTag": "Kod.Building.CommandCenter",
+      "maxHealth": 2500,
+      "buildCostDust": 0,
+      "buildTicks": 0,
+      "buildTimeSeconds": 0,
+      "powerProvided": 10,
+      "powerConsumed": 0,
+      "sightRadius": 2000,
+      "trainableUnitIds": ["Dozer"]
+    },
+    {
+      "id": "Barracks",
+      "type": "Building",
+      "class": "KodBuildingDefinition",
+      "softPath": "/Game/Warden/Data/Barracks.Barracks",
+      "displayName": "Barracks",
+      "buildingTag": "Kod.Building.Barracks",
+      "maxHealth": 1500,
+      "buildCostDust": 250,
+      "buildTicks": 320,
+      "buildTimeSeconds": 20,
+      "powerProvided": 0,
+      "powerConsumed": 2,
+      "sightRadius": 1400,
+      "trainableUnitIds": ["Ranger"]
+    },
+    {
+      "id": "USA",
+      "type": "Faction",
+      "class": "KodFactionDefinition",
+      "softPath": "/Game/Warden/Data/USA.USA",
+      "displayName": "USA",
+      "startingBuildingId": "CommandCenter",
+      "startingUnitIds": ["Dozer", "Ranger", "Ranger"]
+    }
+  ]
+}
