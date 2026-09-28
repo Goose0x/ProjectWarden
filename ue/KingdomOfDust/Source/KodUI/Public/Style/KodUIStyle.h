@@ -59,11 +59,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetCommitColor(EKodUIMaterialLanguage Language);
 
-	/** Retired rust swatch. Returns the interim RSF proud orange (HOLD pending v3), not a warm-rust language. */
+	/** Retired rust swatch. Returns the RSF v3 proud orange, not a warm-rust language. */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style", meta = (DeprecatedFunction, DeprecationMessage = "Use GetHudAccentColors(RSF_MetalStoneOrangeArch).Proud"))
 	static FLinearColor GetIronstockRustOrange();
 
-	/** Accent table. USA/RSF values are an interim hold pending v3 QA. CN/RU stay stamped v2. Proud, Frame, Field, and Mark stay separate. */
+	/** Accent table. USA/RSF paint is v3. CN/RU stay stamped v2. Proud, Frame, Field, and Mark stay separate. */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FKodHudAccentColors GetHudAccentColors(EKodFactionAccentTheme Theme);
 
@@ -74,12 +74,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static EKodFactionAccentTheme GetActiveHudAccent();
 
-	/** Accepts the four v2 languages. There is no cyan-glass theme. */
+	/** Accepts the four accent ids. USA/RSF paint is v3. CN/RU paint is v2. There is no cyan-glass theme. */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Style")
 	static bool SetActiveHudAccent(EKodFactionAccentTheme Theme);
 
 	/**
-	 * Maps a theme name onto a v2 id.
+	 * Maps a theme name onto an accent id.
 	 * USA_Ironstock aliases USA_TanGreenGold. RSF_RustOrange aliases RSF_MetalStoneOrangeArch.
 	 * CN_JadeStoneGoldRed and RU_SovietColdBlueIce resolve. Bare RU, CN, and the failed
 	 * RU_RustIndustrial / CN_ImperialGreenGold sheets do not.

@@ -27,7 +27,9 @@ Stand-in tints are not the final materials. Replace them in the Editor with the 
 | Versus chat component v1 | Right-rail internals: ChatRoot, ChannelTabs, MessageList, MessageRow, ChatInput. Cyan glass. Secondary to PLAY RANKED. |
 | Faction boards USA · RSF v1 | `FactionBoard` with `FactionTile_USA` and `FactionTile_RSF` only. States Idle / Hover / Selected / Disabled. |
 | Portrait panel pin v1.1 | **PASS.** `Img_Portrait` fills the art box. `Prog_Health` is flush on that art bottom, not a separate bay. `Slot_Energy` stays a fixed height under HP. One `Txt_Callsign`: Black Widow. |
-| HUD accent colors | **Split.** `CN_JadeStoneGoldRed` and `RU_SovietColdBlueIce` are stamped v2 HUD previews (**PASS / KEEP**). `USA_TanGreenGold` and `RSF_MetalStoneOrangeArch` are **HOLD** pending USA/RSF color-language v3 and the minimap-template QA PASS. Versus row stays USA · RSF. Portrait geometry stays v1.1. |
+| HUD accent USA · RSF v3 | **PASS.** `USA_TanGreenGold` is desert sand/tan, muted field green, patriotic gold. `RSF_MetalStoneOrangeArch` is sandstone/adobe, warm mortar, orange. Not olive, not gothic iron. No arch widget. |
+| Minimap template plate v3 | **PASS.** Three tools are tiny chips in `ToolChipStrip` (16px, half the retired 32px floor). `MinimapImage` fills the left bay. Column weight stays 18. |
+| HUD accent CN · RU v2 | **PASS / KEEP.** `CN_JadeStoneGoldRed` and `RU_SovietColdBlueIce` stay the prior v2 tables. Preview only. Not Versus tiles. |
 
 ## Content paths
 
@@ -105,12 +107,26 @@ Icon + number only. No CREDITS / OIL / SUPPLY captions.
 
 ### Minimap — `UKodMinimapWidget`
 
-Clock above/left, fixed-width digits. Tools are a vertical stack beside the square map: idle worker, army, ping. Optional size boxes enforce a 32px floor (24px minimum).
+Template plate v3. The left column (weight 18) is a vertical bay. A slim header holds the clock and `ToolChipStrip`. `MinimapImage` is the fill child under that header, so the map owns the bay. Do not build a vertical tool stack beside the map, and do not park a fat toolbar under it.
+
+Chips are idle worker, army, ping, in that order. `MapToolChipSizePx` is **16** (50% of the retired 32px floor, inside the stamped 40–50% band). The 24px minimum is retired. Optional size boxes receive that override.
+
+```
+Minimap (vertical bay, column weight 18)
+  Header (auto height)
+    ClockText
+    ToolChipStrip          horizontal, same header row as the clock
+      Tool_IdleWorker
+      Tool_Army
+      Tool_Ping
+  MinimapImage             fill — owns the left bay
+```
 
 | Name | Type | Required |
 |------|------|----------|
 | `ClockText` | `UCommonTextBlock` | yes |
 | `Size_Clock` | `USizeBox` | no |
+| `ToolChipStrip` | `UHorizontalBox` | yes |
 | `Tool_IdleWorker` | `UKodLabeledButton` | yes |
 | `Tool_Army` | `UKodLabeledButton` | yes |
 | `Tool_Ping` | `UKodLabeledButton` | yes |
@@ -277,25 +293,27 @@ Component sheet v1 names inside `WBP_LobbyChatRail`:
 
 `WBP_LadderRow` names: `RankText`, `NameText`, `MmrText`, `WinsText`, `LossesText`. Assign the row class on the lobby. The local row is the orange line. `GetStampPreviewRows` is fictional stamp copy for the designer, not a ranked service.
 
-## HUD accents — USA/RSF HOLD, CN/RU v2 kept
+## HUD accents — USA/RSF v3 PASS, CN/RU v2 kept
 
-`W_HUDShell` is `UKodHudRootWidget` (`WBP_KodHUD`). Layout v4 weights, the 5×3 card, and map-tool sizes are unchanged. Portrait geometry stays the v1.1 pin. No cyan glass on the HUD. HP stays green. Do not bake sheet labels such as "Portrait 15%" into widgets. Do not shrink the map tools or restack the minimap until the template plate passes QA.
+`W_HUDShell` is `UKodHudRootWidget` (`WBP_KodHUD`). Layout v4 weights and the 5×3 card are unchanged. Portrait geometry stays the v1.1 pin. No cyan glass on the HUD. HP stays green. Do not bake sheet labels such as "Portrait 15%" into widgets.
 
-`ApplyFactionAccentTheme` still loads `GetHudAccentColors`. Theme ids stay `USA_TanGreenGold` (alias `USA_Ironstock`) and `RSF_MetalStoneOrangeArch` (alias `RSF_RustOrange`).
+`ApplyFactionAccentTheme` loads `GetHudAccentColors`. Theme ids stay `USA_TanGreenGold` (alias `USA_Ironstock`) and `RSF_MetalStoneOrangeArch` (alias `RSF_RustOrange`). The prior HOLD soft-swap is superseded. USA and RSF paint is color-language **v3 PASS**.
 
-**USA and RSF paint is HOLD**, not a final v2 or v3 land. Director direction is lighter patriotic sand/tan for USA and rustic sandstone/adobe for RSF. Those sheets plus the minimap chip template are in QA review. The C++ values are an interim soft-swap away from dark olive and gothic black iron. They are not hex sampled from the v3 PNGs.
+**USA v3:** `Frame` is lighter desert sand/tan, `Field` is muted field green, `Proud` is patriotic gold. Not olive and not dark burnt Ironstock. Star and stripe rhythm is material art, not a new widget.
 
-**CN and RU stay stamped v2** HUD preview themes. Their color tables are unchanged.
+**RSF v3:** `Frame` is sandstone, `Field` is warm adobe mortar, `Proud` is accent orange. Gothic black iron is gone. Cause-safe: no faith text, scripture, calligraphy, or mosque labels. No new arch widget.
 
-CN and RU are not Versus tiles. `AccentForFaction` maps Versus USA and RSF only. `FactionBoard` still rejects CN, RU, and RANDOM. `IsRejectedHudAccentId` still rejects `RU_RustIndustrial` and `CN_ImperialGreenGold`.
+**CN and RU stay stamped v2.** Their color tables are unchanged. They are not Versus tiles. `AccentForFaction` maps Versus USA and RSF only. `FactionBoard` still rejects CN, RU, and RANDOM. `IsRejectedHudAccentId` still rejects `RU_RustIndustrial` and `CN_ImperialGreenGold`.
 
 | Theme id | Status | Language in this branch |
 |----------|--------|-------------------------|
-| `USA_TanGreenGold` | **HOLD** pending v3 QA. Versus USA | Interim lighter sand, muted field green, patriotic gold |
-| `RSF_MetalStoneOrangeArch` | **HOLD** pending v3 QA. Versus RSF | Interim sandstone / adobe / orange. Cause-safe. No arch widget |
+| `USA_TanGreenGold` | **v3 PASS.** Versus USA | Desert sand/tan frame, muted field green, patriotic gold |
+| `RSF_MetalStoneOrangeArch` | **v3 PASS.** Versus RSF | Sandstone frame, adobe mortar, orange. Cause-safe. No arch widget |
 | `CN_JadeStoneGoldRed` | Stamped v2 **PASS / KEEP**. Preview only | Jade, stone, gold, red |
 | `RU_SovietColdBlueIce` | Stamped v2 **PASS / KEEP**. Preview only | Cold metal, ice blue |
 | `RU_RustIndustrial` / `CN_ImperialGreenGold` | Rejected sheet names | None |
+
+Map tools are tiny chips. `ToolChipStrip` is a horizontal row with the clock. `MinimapImage` fills the left bay under that header. Column weight stays 18.
 
 Chat stays the right rail. `FactionBoard` stays `FactionTile_USA` and `FactionTile_RSF`. Portrait geometry v1.1 is unchanged: `Img_Portrait` edge-to-edge, `Prog_Health` on the art-box bottom, `Slot_Energy` fixed under HP, one `Txt_Callsign` reading **Black Widow**.
 
@@ -307,7 +325,7 @@ Handoff region names map onto the existing shell slots. Those slot names are not
 |---------|---------------------|
 | `W_HUDShell` | `UKodHudRootWidget` |
 | `W_ResourceStrip` | `ResourceBar` |
-| `W_MinimapCluster` | `Minimap` (column weight 18) |
+| `W_MinimapCluster` | `Minimap` (column weight 18). Header clock + `ToolChipStrip`. `MinimapImage` fills the bay |
 | `W_SelectionPanel` | `SelectionPanel` (42) |
 | `W_PortraitPanel` | `Portrait` (15). v1.1 geometry: art fill, HP on the art bottom, ENERGY slot under HP |
 | `W_CommandCard` | `CommandCard` (20, 5×3) |
@@ -337,6 +355,6 @@ Handoff region names map onto the existing shell slots. Those slot names are not
 - Command card has no title. Top row glyphs are Q W E R T. Selection has no title. Grid is 8×3.
 - `Img_Portrait` fills the art box with no margin. `Prog_Health` is on that art bottom, not a separate bay. `Slot_Energy` keeps `PortraitEnergySlotHeightPx` when `Prog_Energy` is `Hidden`.
 - `Txt_Callsign` is the only Black Widow text. No second copy of the label.
-- Portrait geometry v1.1 is unchanged. Map tools stay the current size until the minimap template passes QA.
-- USA and RSF accent paint is **HOLD** pending color-language v3 QA. CN and RU stay stamped v2 previews, not Versus tiles. `RU_RustIndustrial` and `CN_ImperialGreenGold` stay rejected names.
+- Portrait geometry v1.1 is unchanged. Map tools are 16px chips in `ToolChipStrip`. `MinimapImage` fills the left bay. No vertical tool stack.
+- USA and RSF accent paint is **v3 PASS**. CN and RU stay stamped v2 previews, not Versus tiles. `RU_RustIndustrial` and `CN_ImperialGreenGold` stay rejected names.
 - No binary UI assets in git.

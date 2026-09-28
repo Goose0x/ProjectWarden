@@ -128,21 +128,21 @@ FKodHudAccentColors UKodUIStyleLibrary::GetHudAccentColors(EKodFactionAccentThem
 	using namespace KodUIStylePrivate;
 	if (!IsLegalHudAccent(Theme))
 	{
-		UE_LOG(LogKodUI, Error, TEXT("HUD accent must be a v2 language. Cyan glass is not a HUD theme."));
+		UE_LOG(LogKodUI, Error, TEXT("HUD accent must be a legal theme id. Cyan glass is not a HUD theme."));
 		Theme = EKodFactionAccentTheme::USA_TanGreenGold;
 	}
 
 	switch (Theme)
 	{
 	case EKodFactionAccentTheme::RSF_MetalStoneOrangeArch:
-		// HOLD pending RSF color-language v3 QA. Interim sandstone / adobe / orange.
-		// Not gothic black iron, not a sampled v3 stamp, and not faith chrome.
+		// v3 PASS. Sandstone plate, adobe mortar, accent orange.
+		// Not gothic black iron. Cause-safe: no faith chrome, no arch widget.
 		return MakeColors(
-			FLinearColor(0.36f, 0.28f, 0.20f, 1.f),
-			FLinearColor(0.62f, 0.48f, 0.34f, 1.f),
-			FLinearColor(0.50f, 0.38f, 0.26f, 1.f),
-			FLinearColor(0.88f, 0.46f, 0.16f, 1.f),
-			FLinearColor(0.88f, 0.46f, 0.16f, 1.f));
+			FLinearColor(0.38f, 0.28f, 0.18f, 1.f),
+			FLinearColor(0.66f, 0.50f, 0.34f, 1.f),
+			FLinearColor(0.74f, 0.58f, 0.40f, 1.f),
+			FLinearColor(0.93f, 0.48f, 0.14f, 1.f),
+			FLinearColor(0.93f, 0.48f, 0.14f, 1.f));
 	case EKodFactionAccentTheme::CN_JadeStoneGoldRed:
 		// HUD preview. Jade, stone, gold, and a mandate red. Not a Versus tile.
 		return MakeColors(
@@ -161,14 +161,14 @@ FKodHudAccentColors UKodUIStyleLibrary::GetHudAccentColors(EKodFactionAccentThem
 			FLinearColor(0.62f, 0.76f, 0.84f, 1.f));
 	case EKodFactionAccentTheme::USA_TanGreenGold:
 	default:
-		// HOLD pending USA color-language v3 QA. Interim lighter sand, muted field green, patriotic gold.
-		// Not olive or burnt metal, and not a sampled v3 stamp.
+		// v3 PASS. Desert sand plate, muted field green, patriotic gold.
+		// Not olive and not dark burnt Ironstock. Star/stripe rhythm is material, not a widget.
 		return MakeColors(
-			FLinearColor(0.48f, 0.38f, 0.24f, 1.f),
-			FLinearColor(0.76f, 0.62f, 0.40f, 1.f),
-			FLinearColor(0.46f, 0.56f, 0.32f, 1.f),
-			FLinearColor(0.95f, 0.78f, 0.34f, 1.f),
-			FLinearColor(0.95f, 0.78f, 0.34f, 1.f));
+			FLinearColor(0.52f, 0.42f, 0.28f, 1.f),
+			FLinearColor(0.80f, 0.68f, 0.46f, 1.f),
+			FLinearColor(0.42f, 0.48f, 0.28f, 1.f),
+			FLinearColor(0.95f, 0.78f, 0.30f, 1.f),
+			FLinearColor(0.95f, 0.78f, 0.30f, 1.f));
 	}
 }
 

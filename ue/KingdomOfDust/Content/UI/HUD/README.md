@@ -18,7 +18,7 @@ Create these Widget Blueprints in the Editor. **Do not commit `.uasset` files.**
 
 Assign `WBP_KodHUD` (`W_HUDShell`) to `AKodHUD.HudWidgetClass`.
 
-`ApplyFactionAccentTheme` still uses `USA_TanGreenGold` and `RSF_MetalStoneOrangeArch`, but that paint is an interim hold until USA/RSF v3 and the minimap template pass QA. Do not shrink map tools yet. `CN_JadeStoneGoldRed` and `RU_SovietColdBlueIce` stay stamped v2 previews, not Versus factions. Column weights stay 18 / 42 / 15 / 20 / 5. Portrait geometry stays v1.1.
+`ApplyFactionAccentTheme` uses `USA_TanGreenGold` and `RSF_MetalStoneOrangeArch` at color-language v3 (sand/gold/field green, and sandstone/adobe/orange). `CN_JadeStoneGoldRed` and `RU_SovietColdBlueIce` stay stamped v2 previews, not Versus factions. Map tools are 16px chips in `ToolChipStrip`; the minimap image fills the left bay. Column weights stay 18 / 42 / 15 / 20 / 5. Portrait geometry stays v1.1.
 
 `WBP_PortraitFrame` (`W_PortraitPanel`, geometry PASS v1.1): `Img_Portrait` fills the art box, `Prog_Health` sits on that art bottom, `Slot_Energy` keeps a fixed height under HP, and `Txt_Callsign` is the only Black Widow label.
 

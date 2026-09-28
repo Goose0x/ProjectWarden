@@ -27,9 +27,11 @@ namespace KodUILayout
 	inline constexpr int32 CommandRows = 3;
 	inline constexpr int32 CommandCellCount = CommandColumns * CommandRows;
 
-	/** Map-tool hit targets stay readable on dark metal. */
-	inline constexpr float MapToolMinSizePx = 24.f;
-	inline constexpr float MapToolPreferredSizePx = 32.f;
+	/**
+	 * Template plate v3. Chips are half the retired 32px tool floor (inside the stamped 40–50% band).
+	 * The 24px minimum is retired with that fat toolbar.
+	 */
+	inline constexpr float MapToolChipSizePx = 16.f;
 	inline constexpr float ClockMinWidthPx = 72.f;
 
 	inline constexpr int32 VersusFactionCount = 2;
@@ -102,7 +104,7 @@ static_assert(KodUILayout::CommandCellCount == 15, "Command card is 5x3");
 static_assert(KodUILayout::VersusFactionCount == 2, "Versus row is USA and RSF only");
 static_assert(static_cast<uint8>(EKodVersusFaction::USA) == 0, "USA is the first Versus faction");
 static_assert(static_cast<uint8>(EKodVersusFaction::RSF) == 1, "RSF is the second Versus faction");
-static_assert(static_cast<uint8>(EKodFactionAccentTheme::USA_TanGreenGold) == 0, "USA v2 is the first accent language");
-static_assert(static_cast<uint8>(EKodFactionAccentTheme::RSF_MetalStoneOrangeArch) == 1, "RSF v2 is the second accent language");
+static_assert(static_cast<uint8>(EKodFactionAccentTheme::USA_TanGreenGold) == 0, "USA accent id stays first");
+static_assert(static_cast<uint8>(EKodFactionAccentTheme::RSF_MetalStoneOrangeArch) == 1, "RSF accent id stays second");
 static_assert(static_cast<uint8>(EKodFactionAccentTheme::CN_JadeStoneGoldRed) == 2, "CN v2 is a HUD preview accent");
 static_assert(static_cast<uint8>(EKodFactionAccentTheme::RU_SovietColdBlueIce) == 3, "RU v2 is a HUD preview accent");
