@@ -72,8 +72,8 @@ enum class EKodFactionTileState : uint8
 
 /**
  * HUD accent theme ids. Ironstock metal shell only. No cyan glass.
- * USA_TanGreenGold and RSF_MetalStoneOrangeArch are the Versus ids.
- * USA paint is HOLD pending v4 QA. RSF paint is color-language v3.
+ * USA_TanGreenGold and RSF_MetalStoneOrangeArch stay the Versus ids. Their paint is
+ * HOLD — not a v3 land and not v4. Wait for the next QA stamp.
  * CN_JadeStoneGoldRed and RU_SovietColdBlueIce stay stamped v2 HUD previews.
  * USA_Ironstock aliases USA_TanGreenGold. RSF_RustOrange aliases RSF_MetalStoneOrangeArch.
  * RU_RustIndustrial and CN_ImperialGreenGold are not ids.
@@ -99,19 +99,19 @@ struct FKodHudAccentColors
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|Style")
-	FLinearColor Metal = FLinearColor(0.52f, 0.42f, 0.28f, 1.f);
+	FLinearColor Metal = FLinearColor(0.22f, 0.16f, 0.09f, 1.f);
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|Style")
-	FLinearColor Frame = FLinearColor(0.80f, 0.68f, 0.46f, 1.f);
+	FLinearColor Frame = FLinearColor(0.55f, 0.40f, 0.22f, 1.f);
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|Style")
-	FLinearColor Field = FLinearColor(0.42f, 0.48f, 0.28f, 1.f);
+	FLinearColor Field = FLinearColor(0.42f, 0.52f, 0.18f, 1.f);
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|Style")
-	FLinearColor Proud = FLinearColor(0.95f, 0.78f, 0.30f, 1.f);
+	FLinearColor Proud = FLinearColor(0.93f, 0.74f, 0.28f, 1.f);
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|Style")
-	FLinearColor Mark = FLinearColor(0.95f, 0.78f, 0.30f, 1.f);
+	FLinearColor Mark = FLinearColor(0.93f, 0.74f, 0.28f, 1.f);
 };
 
 /** One Versus chat line. Speaker is cyan; body is white. */

@@ -1,14 +1,8 @@
 #include "KodMinimapWidget.h"
-#include "KodUI.h"
 #include "KodLabeledButton.h"
 #include "CommonTextBlock.h"
-#include "Components/CanvasPanelSlot.h"
-#include "Components/HorizontalBox.h"
-#include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
-#include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
-#include "Components/VerticalBoxSlot.h"
 #include "Style/KodUILayout.h"
 #include "Style/KodUIStyle.h"
 
@@ -74,7 +68,9 @@ void UKodMinimapWidget::NativePreConstruct()
 	{
 		Size_Clock->SetMinDesiredWidth(KodUILayout::ClockMinWidthPx);
 	}
-	ApplyChipLayout();
+	ApplyToolFloor(Size_IdleWorker);
+	ApplyToolFloor(Size_Army);
+	ApplyToolFloor(Size_Ping);
 	ApplyClockText();
 }
 
@@ -107,109 +103,14 @@ void UKodMinimapWidget::HandlePingClicked(UKodLabeledButton* Button)
 	PingWorldLocation(FVector::ZeroVector);
 }
 
-void UKodMinimapWidget::ApplyToolChip(USizeBox* Box) const
+void UKodMinimapWidget::ApplyToolFloor(USizeBox* Box) const
 {
 	if (!Box)
 	{
 		return;
 	}
-	const float Chip = KodUILayout::MapToolChipSizePx;
-	Box->SetWidthOverride(Chip);
-	Box->SetHeightOverride(Chip);
-	Box->SetMinDesiredWidth(Chip);
-	Box->SetMinDesiredHeight(Chip);
-}
-
-void UKodMinimapWidget::ApplyChipLayout()
-{
-	ApplyToolChip(Size_IdleWorker);
-	ApplyToolChip(Size_Army);
-	ApplyToolChip(Size_Ping);
-
-	if (ToolChipStrip)
-	{
-		if (UVerticalBoxSlot* StripSlot = Cast<UVerticalBoxSlot>(ToolChipStrip->Slot))
-		{
-			FSlateChildSize Auto(ESlateSizeRule::Automatic);
-			StripSlot->SetSize(Auto);
-			StripSlot->SetPadding(FMargin(0.f));
-			StripSlot->SetHorizontalAlignment(HAlign_Fill);
-			StripSlot->SetVerticalAlignment(VAlign_Center);
-		}
-		else if (UHorizontalBoxSlot* StripSlot = Cast<UHorizontalBoxSlot>(ToolChipStrip->Slot))
-		{
-			FSlateChildSize Auto(ESlateSizeRule::Automatic);
-			StripSlot->SetSize(Auto);
-			StripSlot->SetVerticalAlignment(VAlign_Center);
-		}
-		else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(ToolChipStrip->Slot))
-		{
-			OverlaySlot->SetHorizontalAlignment(HAlign_Left);
-			OverlaySlot->SetVerticalAlignment(VAlign_Top);
-			OverlaySlot->SetPadding(FMargin(0.f));
-		}
-		else if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(ToolChipStrip->Slot))
-		{
-			CanvasSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 0.f));
-			CanvasSlot->SetAlignment(FVector2D(0.f, 0.f));
-			CanvasSlot->SetAutoSize(true);
-			CanvasSlot->SetOffsets(FMargin(0.f));
-		}
-	}
-
-	auto PlaceChip = [this](UWidget* Chip, const TCHAR* Name)
-	{
-		if (!Chip)
-		{
-			return;
-		}
-		if (UVerticalBoxSlot* StackSlot = Cast<UVerticalBoxSlot>(Chip->Slot))
-		{
-			UE_LOG(LogKodUI, Warning, TEXT("%s is in a vertical tool stack. Tool placement is HOLD pending the updated template plate. Do not treat the header strip as the lock."), Name);
-			FSlateChildSize Auto(ESlateSizeRule::Automatic);
-			StackSlot->SetSize(Auto);
-		}
-		else if (ToolChipStrip && Chip->GetParent() != ToolChipStrip)
-		{
-			UE_LOG(LogKodUI, Warning, TEXT("%s is outside ToolChipStrip. That header strip is not the locked plate. Tool placement is HOLD pending the updated template."), Name);
-		}
-		else if (UHorizontalBoxSlot* ChipSlot = Cast<UHorizontalBoxSlot>(Chip->Slot))
-		{
-			FSlateChildSize Auto(ESlateSizeRule::Automatic);
-			ChipSlot->SetSize(Auto);
-			ChipSlot->SetPadding(FMargin(2.f, 0.f));
-			ChipSlot->SetVerticalAlignment(VAlign_Center);
-			ChipSlot->SetHorizontalAlignment(HAlign_Center);
-		}
-	};
-
-	PlaceChip(Size_IdleWorker ? static_cast<UWidget*>(Size_IdleWorker) : static_cast<UWidget*>(Tool_IdleWorker), TEXT("Tool_IdleWorker"));
-	PlaceChip(Size_Army ? static_cast<UWidget*>(Size_Army) : static_cast<UWidget*>(Tool_Army), TEXT("Tool_Army"));
-	PlaceChip(Size_Ping ? static_cast<UWidget*>(Size_Ping) : static_cast<UWidget*>(Tool_Ping), TEXT("Tool_Ping"));
-
-	if (!MinimapImage)
-	{
-		return;
-	}
-	if (UVerticalBoxSlot* ImageSlot = Cast<UVerticalBoxSlot>(MinimapImage->Slot))
-	{
-		FSlateChildSize Fill(ESlateSizeRule::Fill);
-		Fill.Value = 1.f;
-		ImageSlot->SetSize(Fill);
-		ImageSlot->SetPadding(FMargin(0.f));
-		ImageSlot->SetHorizontalAlignment(HAlign_Fill);
-		ImageSlot->SetVerticalAlignment(VAlign_Fill);
-	}
-	else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(MinimapImage->Slot))
-	{
-		OverlaySlot->SetHorizontalAlignment(HAlign_Fill);
-		OverlaySlot->SetVerticalAlignment(VAlign_Fill);
-		OverlaySlot->SetPadding(FMargin(0.f));
-	}
-	else if (!Cast<UCanvasPanelSlot>(MinimapImage->Slot))
-	{
-		UE_LOG(LogKodUI, Warning, TEXT("Parent MinimapImage under the chip header so it fills the left bay. Do not leave a fat tool stack beside the map."));
-	}
+	Box->SetMinDesiredWidth(KodUILayout::MapToolPreferredSizePx);
+	Box->SetMinDesiredHeight(KodUILayout::MapToolPreferredSizePx);
 }
 
 void UKodMinimapWidget::ApplyClockText()
