@@ -53,8 +53,8 @@ public:
 	UKodChatMenuClusterWidget* GetChatMenuCluster() const { return ChatMenuCluster; }
 
 	/**
-	 * Stores a HUD accent theme id. USA_Ironstock or RSF_RustOrange.
-	 * Does not retint materials or colors. USA, RSF, CN, and RU palettes are on HOLD.
+	 * Stores USA_Ironstock or RSF_RustOrange. Those ids stay valid.
+	 * Does not retint. Color and palette tables are on HOLD. RU and CN ids are rejected.
 	 * Proportions stay on layout v4. Cyan glass is rejected.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|HUD")

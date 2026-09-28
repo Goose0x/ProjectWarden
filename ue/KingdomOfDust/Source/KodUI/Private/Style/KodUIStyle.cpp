@@ -81,7 +81,7 @@ FLinearColor UKodUIStyleLibrary::GetCommitColor(EKodUIMaterialLanguage Language)
 
 FLinearColor UKodUIStyleLibrary::GetIronstockRustOrange()
 {
-	// HOLD reinstated. Do not paint USA, RSF, CN, or RU faction palettes.
+	// Color-table HOLD. Ids stay valid. Do not return a faction palette.
 	return GetIronstockAmber();
 }
 

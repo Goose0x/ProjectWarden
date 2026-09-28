@@ -60,8 +60,8 @@ public:
 	static FLinearColor GetCommitColor(EKodUIMaterialLanguage Language);
 
 	/**
-	 * HOLD. Not a faction palette. Returns paint v3 amber.
-	 * USA, RSF, CN, and RU color languages wait on revised sheets.
+	 * Not a faction palette. Returns paint v3 amber.
+	 * Color tables are on HOLD. USA_Ironstock and RSF_RustOrange ids stay valid.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetIronstockRustOrange();

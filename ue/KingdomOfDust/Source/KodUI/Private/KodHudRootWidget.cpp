@@ -58,7 +58,7 @@ void UKodHudRootWidget::ApplyFactionAccentTheme(EKodFactionAccentTheme Theme)
 		return;
 	}
 	AccentTheme = Theme;
-	// Id only. Do not retint. Faction HUD color languages are on HOLD for USA, RSF, CN, and RU.
+	// Id only. USA_Ironstock and RSF_RustOrange stay valid. Do not apply a palette table.
 }
 
 void UKodHudRootWidget::ApplyStampProportions()
