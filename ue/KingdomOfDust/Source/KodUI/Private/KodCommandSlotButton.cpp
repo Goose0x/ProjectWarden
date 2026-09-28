@@ -30,7 +30,7 @@ void UKodCommandSlotButton::HandleInternalClicked()
 void UKodCommandSlotButton::NativePreConstruct()
 {
 	Super::NativePreConstruct();
-	SetColorAndOpacity(UKodUIStyleLibrary::GetIronstockAmber());
+	SetColorAndOpacity(UKodUIStyleLibrary::GetActiveHudAccentColor());
 	ApplyPresentation();
 }
 

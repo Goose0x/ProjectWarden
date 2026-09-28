@@ -27,6 +27,9 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Kod|UI|HUD")
 	FKodChatMenuClicked OnHelpClicked;
 
+	UFUNCTION(BlueprintCallable, Category = "Kod|UI|HUD")
+	void ApplyHudAccent();
+
 protected:
 	virtual void NativeOnInitialized() override;
 	virtual void NativePreConstruct() override;

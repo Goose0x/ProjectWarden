@@ -16,7 +16,9 @@ Create these Widget Blueprints in the Editor. **Do not commit `.uasset` files.**
 | `WBP_CommandSlot` | `UKodCommandSlotButton` | `/Game/UI/HUD/WBP_CommandSlot` |
 | `WBP_ChatMenuCluster` | `UKodChatMenuClusterWidget` | `/Game/UI/HUD/WBP_ChatMenuCluster` |
 
-Assign `WBP_KodHUD` to `AKodHUD.HudWidgetClass`.
+Assign `WBP_KodHUD` (`W_HUDShell`) to `AKodHUD.HudWidgetClass`.
+
+`ApplyFactionAccentTheme` switches `USA_Ironstock` (olive/gold, paint v3) and `RSF_RustOrange` (rust/orange re-skin). Both stay Ironstock metal. Column weights stay 18 / 42 / 15 / 20 / 5. ENERGY stays under HP.
 
 BindWidget names, the 28% band, and the 18/42/15/20/5 columns are in [docs/ui/UE_CONSTRUCTION.md](../../../../../docs/ui/UE_CONSTRUCTION.md).
 

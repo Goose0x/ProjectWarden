@@ -25,6 +25,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Portrait")
 	void SetEnergyVisible(bool bVisible);
 
+	/** Retints the ENERGY slot. HP stays green. The ENERGY widget is not removed. */
+	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Portrait")
+	void ApplyHudAccent();
+
+	/** Face-card callsign when a portrait shows one. Two words. */
+	UFUNCTION(BlueprintPure, Category = "Kod|UI|Portrait")
+	static FText GetSilkCallsign();
+
 protected:
 	virtual void NativePreConstruct() override;
 	void ApplyBars();
@@ -58,4 +66,8 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Portrait")
 	TObjectPtr<UCommonTextBlock> EnergyCaption;
+
+	/** Optional. Reads "Black Widow" when a face card shows a callsign. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "Kod|UI|Portrait")
+	TObjectPtr<UCommonTextBlock> CallsignText;
 };

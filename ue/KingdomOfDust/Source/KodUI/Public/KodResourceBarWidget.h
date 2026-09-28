@@ -32,6 +32,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI")
 	void SetSupply(int32 Current, int32 Max);
 
+	/** Ironstock readout tint. USA amber or RSF rust. Never cyan. */
+	UFUNCTION(BlueprintCallable, Category = "Kod|UI")
+	void ApplyHudAccent();
+
 	UFUNCTION(BlueprintPure, Category = "Kod|UI")
 	int32 GetDisplayedCredits() const { return DisplayedCredits; }
 

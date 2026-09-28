@@ -1,6 +1,7 @@
 #include "KodCommandCardWidget.h"
 #include "KodCommandSlotButton.h"
 #include "Components/WidgetSwitcher.h"
+#include "Style/KodUIStyle.h"
 
 namespace KodCommandCardPrivate
 {
@@ -29,6 +30,23 @@ void UKodCommandCardWidget::OpenBuildSubmenu()
 	if (CardPages)
 	{
 		CardPages->SetActiveWidgetIndex(1);
+	}
+}
+
+void UKodCommandCardWidget::ApplyHudAccent()
+{
+	const FLinearColor Accent = UKodUIStyleLibrary::GetActiveHudAccentColor();
+	const TArray<UKodCommandSlotButton*> Slots = {
+		Slot_Q, Slot_W, Slot_E, Slot_R, Slot_T,
+		Slot_A, Slot_S, Slot_D, Slot_F, Slot_G,
+		Slot_Z, Slot_X, Slot_C, Slot_V, Slot_B
+	};
+	for (UKodCommandSlotButton* Slot : Slots)
+	{
+		if (Slot)
+		{
+			Slot->SetColorAndOpacity(Accent);
+		}
 	}
 }
 

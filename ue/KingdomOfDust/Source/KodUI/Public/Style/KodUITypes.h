@@ -60,6 +60,41 @@ enum class EKodLobbyChatTab : uint8
 	Party UMETA(DisplayName = "PARTY"),
 };
 
+/** Lobby tile chrome. Cyan glass only. Not a HUD material. */
+UENUM(BlueprintType)
+enum class EKodFactionTileState : uint8
+{
+	Idle UMETA(DisplayName = "Idle"),
+	Hover UMETA(DisplayName = "Hover"),
+	Selected UMETA(DisplayName = "Selected"),
+	Disabled UMETA(DisplayName = "Disabled"),
+};
+
+/**
+ * HUD accent on the locked v4 shell. Ironstock metal only.
+ * USA is the olive/gold baseline. RSF is a rust/orange re-skin.
+ * There is no cyan-glass enumerator.
+ */
+UENUM(BlueprintType)
+enum class EKodFactionAccentTheme : uint8
+{
+	USA_Ironstock UMETA(DisplayName = "USA Ironstock"),
+	RSF_RustOrange UMETA(DisplayName = "RSF Rust Orange"),
+};
+
+/** One Versus chat line. Speaker is cyan; body is white. */
+USTRUCT(BlueprintType)
+struct FKodChatLine
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|UI|Lobby")
+	FText Speaker;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|UI|Lobby")
+	FText Body;
+};
+
 /** Bottom-bar columns, left to right, matching layout stamp v4. */
 UENUM(BlueprintType)
 enum class EKodHudColumn : uint8

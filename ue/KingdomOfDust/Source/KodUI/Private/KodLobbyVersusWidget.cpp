@@ -1,5 +1,6 @@
 #include "KodLobbyVersusWidget.h"
 #include "KodUI.h"
+#include "KodFactionBoardWidget.h"
 #include "KodIdentityStripWidget.h"
 #include "KodLabeledButton.h"
 #include "KodLadderRowWidget.h"
@@ -22,7 +23,7 @@ namespace KodLobbyPrivate
 		}
 	}
 
-	void PrepareFaction(UKodLabeledButton* Button)
+	void PrepareSelectable(UKodLabeledButton* Button)
 	{
 		if (!Button)
 		{
@@ -207,15 +208,15 @@ void UKodLobbyVersusWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 	using namespace KodLobbyPrivate;
-	PrepareFaction(Faction_USA);
-	PrepareFaction(Faction_RSF);
-	PrepareFaction(Mode_Training);
-	PrepareFaction(Mode_OneVOne);
-	PrepareFaction(Mode_Teams);
-	PrepareFaction(Mode_Tournaments);
+	PrepareSelectable(Mode_Training);
+	PrepareSelectable(Mode_OneVOne);
+	PrepareSelectable(Mode_Teams);
+	PrepareSelectable(Mode_Tournaments);
 
-	if (Faction_USA) { Faction_USA->OnLabeledClicked.AddUniqueDynamic(this, &UKodLobbyVersusWidget::HandleFactionUSA); }
-	if (Faction_RSF) { Faction_RSF->OnLabeledClicked.AddUniqueDynamic(this, &UKodLobbyVersusWidget::HandleFactionRSF); }
+	if (FactionBoard)
+	{
+		FactionBoard->OnFactionChosen.AddUniqueDynamic(this, &UKodLobbyVersusWidget::HandleFactionChosen);
+	}
 	if (Mode_Training) { Mode_Training->OnLabeledClicked.AddUniqueDynamic(this, &UKodLobbyVersusWidget::HandleModeTraining); }
 	if (Mode_OneVOne) { Mode_OneVOne->OnLabeledClicked.AddUniqueDynamic(this, &UKodLobbyVersusWidget::HandleModeOneVOne); }
 	if (Mode_Teams) { Mode_Teams->OnLabeledClicked.AddUniqueDynamic(this, &UKodLobbyVersusWidget::HandleModeTeams); }
@@ -298,9 +299,6 @@ void UKodLobbyVersusWidget::ApplyStampCopy()
 	if (Mode_OneVOne) { Mode_OneVOne->SetStampLabel(NSLOCTEXT("KodUI", "Mode1v1", "1V1")); }
 	if (Mode_Teams) { Mode_Teams->SetStampLabel(NSLOCTEXT("KodUI", "ModeTeams", "TEAMS")); }
 	if (Mode_Tournaments) { Mode_Tournaments->SetStampLabel(NSLOCTEXT("KodUI", "ModeTournaments", "TOURNAMENTS")); }
-
-	if (Faction_USA) { Faction_USA->SetStampLabel(NSLOCTEXT("KodUI", "FactionUSA", "USA")); }
-	if (Faction_RSF) { Faction_RSF->SetStampLabel(NSLOCTEXT("KodUI", "FactionRSF", "RSF")); }
 
 	if (Button_PlayRanked)
 	{
@@ -385,19 +383,9 @@ void UKodLobbyVersusWidget::ApplyVariableCopy()
 
 void UKodLobbyVersusWidget::ApplyFactionSelection()
 {
-	const FLinearColor Cyan = UKodUIStyleLibrary::GetCyanActive();
-	const FLinearColor Dim(Cyan.R, Cyan.G, Cyan.B, 0.45f);
-	if (Faction_USA)
+	if (FactionBoard)
 	{
-		KodLobbyPrivate::PrepareFaction(Faction_USA);
-		Faction_USA->SetIsSelected(SelectedFaction == EKodVersusFaction::USA);
-		Faction_USA->SetColorAndOpacity(SelectedFaction == EKodVersusFaction::USA ? Cyan : Dim);
-	}
-	if (Faction_RSF)
-	{
-		KodLobbyPrivate::PrepareFaction(Faction_RSF);
-		Faction_RSF->SetIsSelected(SelectedFaction == EKodVersusFaction::RSF);
-		Faction_RSF->SetColorAndOpacity(SelectedFaction == EKodVersusFaction::RSF ? Cyan : Dim);
+		FactionBoard->SetSelectedFaction(SelectedFaction);
 	}
 }
 
@@ -411,7 +399,7 @@ void UKodLobbyVersusWidget::ApplyModeSelection()
 		{
 			return;
 		}
-		KodLobbyPrivate::PrepareFaction(Button);
+		KodLobbyPrivate::PrepareSelectable(Button);
 		const bool bSelected = SelectedMode == Mode;
 		Button->SetIsSelected(bSelected);
 		Button->SetColorAndOpacity(bSelected ? Cyan : Dim);
@@ -456,16 +444,9 @@ void UKodLobbyVersusWidget::ApplyChatRailLock()
 	}
 }
 
-void UKodLobbyVersusWidget::HandleFactionUSA(UKodLabeledButton* Button)
+void UKodLobbyVersusWidget::HandleFactionChosen(EKodVersusFaction Faction)
 {
-	(void)Button;
-	TrySetVersusFaction(EKodVersusFaction::USA);
-}
-
-void UKodLobbyVersusWidget::HandleFactionRSF(UKodLabeledButton* Button)
-{
-	(void)Button;
-	TrySetVersusFaction(EKodVersusFaction::RSF);
+	TrySetVersusFaction(Faction);
 }
 
 void UKodLobbyVersusWidget::HandleModeTraining(UKodLabeledButton* Button)

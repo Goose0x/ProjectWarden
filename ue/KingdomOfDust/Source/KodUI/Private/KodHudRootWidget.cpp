@@ -48,6 +48,26 @@ void UKodHudRootWidget::NativePreConstruct()
 {
 	Super::NativePreConstruct();
 	ApplyStampProportions();
+	ApplyFactionAccentTheme(AccentTheme);
+}
+
+void UKodHudRootWidget::ApplyFactionAccentTheme(EKodFactionAccentTheme Theme)
+{
+	if (!UKodUIStyleLibrary::SetActiveHudAccent(Theme))
+	{
+		return;
+	}
+	AccentTheme = Theme;
+	if (IronstockPlate)
+	{
+		IronstockPlate->SetColorAndOpacity(UKodUIStyleLibrary::GetIronstockMetal());
+	}
+	if (ResourceBar) { ResourceBar->ApplyHudAccent(); }
+	if (Minimap) { Minimap->ApplyHudAccent(); }
+	if (SelectionPanel) { SelectionPanel->ApplyHudAccent(); }
+	if (Portrait) { Portrait->ApplyHudAccent(); }
+	if (CommandCard) { CommandCard->ApplyHudAccent(); }
+	if (ChatMenuCluster) { ChatMenuCluster->ApplyHudAccent(); }
 }
 
 void UKodHudRootWidget::ApplyStampProportions()

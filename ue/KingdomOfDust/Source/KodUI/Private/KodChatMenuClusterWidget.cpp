@@ -22,22 +22,27 @@ void UKodChatMenuClusterWidget::NativeOnInitialized()
 void UKodChatMenuClusterWidget::NativePreConstruct()
 {
 	Super::NativePreConstruct();
-	const FLinearColor Amber = UKodUIStyleLibrary::GetIronstockAmber();
 	if (Button_Chat)
 	{
 		Button_Chat->SetStampLabel(NSLOCTEXT("KodUI", "HudChat", "CHAT"));
-		Button_Chat->SetColorAndOpacity(Amber);
 	}
 	if (Button_Menu)
 	{
 		Button_Menu->SetStampLabel(NSLOCTEXT("KodUI", "HudMenu", "MENU"));
-		Button_Menu->SetColorAndOpacity(Amber);
 	}
 	if (Button_Help)
 	{
 		Button_Help->SetStampLabel(NSLOCTEXT("KodUI", "HudHelp", "?"));
-		Button_Help->SetColorAndOpacity(Amber);
 	}
+	ApplyHudAccent();
+}
+
+void UKodChatMenuClusterWidget::ApplyHudAccent()
+{
+	const FLinearColor Accent = UKodUIStyleLibrary::GetActiveHudAccentColor();
+	if (Button_Chat) { Button_Chat->SetColorAndOpacity(Accent); }
+	if (Button_Menu) { Button_Menu->SetColorAndOpacity(Accent); }
+	if (Button_Help) { Button_Help->SetColorAndOpacity(Accent); }
 }
 
 void UKodChatMenuClusterWidget::HandleChat(UKodLabeledButton* Button)

@@ -57,6 +57,9 @@ namespace KodUILayout
 	inline constexpr const TCHAR* WBP_MainMenu = TEXT("/Game/UI/MainMenu/WBP_MainMenu");
 	inline constexpr const TCHAR* WBP_LobbyVersus = TEXT("/Game/UI/Lobby/WBP_LobbyVersus");
 	inline constexpr const TCHAR* WBP_LobbyChatRail = TEXT("/Game/UI/Lobby/WBP_LobbyChatRail");
+	inline constexpr const TCHAR* WBP_ChatMessageRow = TEXT("/Game/UI/Lobby/WBP_ChatMessageRow");
+	inline constexpr const TCHAR* WBP_FactionBoard = TEXT("/Game/UI/Lobby/WBP_FactionBoard");
+	inline constexpr const TCHAR* WBP_FactionTile = TEXT("/Game/UI/Lobby/WBP_FactionTile");
 	inline constexpr const TCHAR* WBP_LadderRow = TEXT("/Game/UI/Lobby/WBP_LadderRow");
 
 	inline int32 HudColumnWeight(EKodHudColumn Column)
@@ -92,3 +95,5 @@ static_assert(KodUILayout::CommandCellCount == 15, "Command card is 5x3");
 static_assert(KodUILayout::VersusFactionCount == 2, "Versus row is USA and RSF only");
 static_assert(static_cast<uint8>(EKodVersusFaction::USA) == 0, "USA is the first Versus faction");
 static_assert(static_cast<uint8>(EKodVersusFaction::RSF) == 1, "RSF is the second Versus faction");
+static_assert(static_cast<uint8>(EKodFactionAccentTheme::USA_Ironstock) == 0, "USA Ironstock is the HUD baseline");
+static_assert(static_cast<uint8>(EKodFactionAccentTheme::RSF_RustOrange) == 1, "RSF is the only HUD re-skin");

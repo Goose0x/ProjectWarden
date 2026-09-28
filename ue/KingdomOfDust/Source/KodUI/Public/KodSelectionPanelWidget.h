@@ -30,6 +30,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Selection")
 	UKodSelectionCellWidget* GetCell(int32 Index) const;
 
+	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Selection")
+	void ApplyHudAccent();
+
 	UPROPERTY(BlueprintAssignable, Category = "Kod|UI|Selection")
 	FKodControlGroupClicked OnControlGroupClicked;
 

@@ -44,6 +44,6 @@ void UKodSelectionCellWidget::HandleInternalClicked()
 void UKodSelectionCellWidget::NativePreConstruct()
 {
 	Super::NativePreConstruct();
-	SetColorAndOpacity(UKodUIStyleLibrary::GetIronstockAmber());
+	SetColorAndOpacity(UKodUIStyleLibrary::GetActiveHudAccentColor());
 	SetHealthFraction(bOccupied ? 1.f : 0.f);
 }

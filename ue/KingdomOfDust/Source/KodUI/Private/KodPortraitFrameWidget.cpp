@@ -1,6 +1,8 @@
 #include "KodPortraitFrameWidget.h"
+#include "KodUI.h"
 #include "CommonTextBlock.h"
 #include "Components/Image.h"
+#include "Components/PanelWidget.h"
 #include "Components/ProgressBar.h"
 #include "Style/KodUILayout.h"
 #include "Style/KodUIStyle.h"
@@ -21,12 +23,34 @@ void UKodPortraitFrameWidget::SetEnergyVisible(bool bVisible)
 	ApplyBars();
 }
 
+void UKodPortraitFrameWidget::ApplyHudAccent()
+{
+	ApplyBars();
+}
+
+FText UKodPortraitFrameWidget::GetSilkCallsign()
+{
+	return NSLOCTEXT("KodUI", "SilkCallsign", "Black Widow");
+}
+
 void UKodPortraitFrameWidget::NativePreConstruct()
 {
 	Super::NativePreConstruct();
 	if (EnergyCaption)
 	{
 		EnergyCaption->SetText(NSLOCTEXT("KodUI", "EnergyCaption", "ENERGY"));
+	}
+	if (CallsignText)
+	{
+		CallsignText->SetText(GetSilkCallsign());
+	}
+	if (HPBar && EnergyBar)
+	{
+		UPanelWidget* Parent = HPBar->GetParent();
+		if (Parent && Parent == EnergyBar->GetParent() && Parent->GetChildIndex(EnergyBar) < Parent->GetChildIndex(HPBar))
+		{
+			UE_LOG(LogKodUI, Warning, TEXT("ENERGY must sit under portrait HP. Keep the slot; hide it with Hidden, not Collapsed."));
+		}
 	}
 	if (IsDesignTime())
 	{
@@ -59,13 +83,13 @@ void UKodPortraitFrameWidget::ApplyBars()
 	const ESlateVisibility EnergyVisibility = bHasEnergy ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden;
 	if (EnergyCaption)
 	{
-		EnergyCaption->SetColorAndOpacity(FSlateColor(UKodUIStyleLibrary::GetIronstockAmber()));
+		EnergyCaption->SetColorAndOpacity(FSlateColor(UKodUIStyleLibrary::GetActiveHudAccentColor()));
 		EnergyCaption->SetVisibility(EnergyVisibility);
 	}
 	if (EnergyBar)
 	{
 		EnergyBar->SetPercent(FMath::Clamp(EnergyFraction, 0.f, 1.f));
-		EnergyBar->SetFillColorAndOpacity(UKodUIStyleLibrary::GetIronstockAmber());
+		EnergyBar->SetFillColorAndOpacity(UKodUIStyleLibrary::GetActiveHudAccentColor());
 		// Hidden keeps layout space. Collapsed would reflow the portrait column.
 		EnergyBar->SetVisibility(EnergyVisibility);
 	}

@@ -38,6 +38,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Command")
 	void CloseBuildSubmenu();
 
+	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Command")
+	void ApplyHudAccent();
+
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Command")
 	bool IsBuildSubmenuOpen() const { return bBuildSubmenuOpen; }
 

@@ -62,10 +62,7 @@ void UKodMinimapWidget::NativePreConstruct()
 		ClockMinutes = KodUILayout::StampPreviewClockMinutes;
 	}
 
-	const FLinearColor Amber = UKodUIStyleLibrary::GetIronstockAmber();
-	if (Tool_IdleWorker) { Tool_IdleWorker->SetColorAndOpacity(Amber); }
-	if (Tool_Army) { Tool_Army->SetColorAndOpacity(Amber); }
-	if (Tool_Ping) { Tool_Ping->SetColorAndOpacity(Amber); }
+	ApplyHudAccent();
 	if (MinimapImage) { MinimapImage->SetColorAndOpacity(UKodUIStyleLibrary::GetIronstockMetal()); }
 
 	if (Size_Clock)
@@ -75,6 +72,15 @@ void UKodMinimapWidget::NativePreConstruct()
 	ApplyToolFloor(Size_IdleWorker);
 	ApplyToolFloor(Size_Army);
 	ApplyToolFloor(Size_Ping);
+	ApplyClockText();
+}
+
+void UKodMinimapWidget::ApplyHudAccent()
+{
+	const FLinearColor Accent = UKodUIStyleLibrary::GetActiveHudAccentColor();
+	if (Tool_IdleWorker) { Tool_IdleWorker->SetColorAndOpacity(Accent); }
+	if (Tool_Army) { Tool_Army->SetColorAndOpacity(Accent); }
+	if (Tool_Ping) { Tool_Ping->SetColorAndOpacity(Accent); }
 	ApplyClockText();
 }
 
@@ -113,6 +119,6 @@ void UKodMinimapWidget::ApplyClockText()
 		return;
 	}
 	ClockText->SetText(FText::FromString(FString::Printf(TEXT("%02d:%02d"), ClockHours, ClockMinutes)));
-	ClockText->SetColorAndOpacity(FSlateColor(UKodUIStyleLibrary::GetIronstockAmber()));
+	ClockText->SetColorAndOpacity(FSlateColor(UKodUIStyleLibrary::GetActiveHudAccentColor()));
 	ClockText->SetJustification(ETextJustify::Center);
 }

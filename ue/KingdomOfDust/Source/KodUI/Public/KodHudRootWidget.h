@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KodUIScreenRoot.h"
+#include "Style/KodUITypes.h"
 #include "KodHudRootWidget.generated.h"
 
 class UHorizontalBox;
@@ -51,9 +52,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|HUD")
 	UKodChatMenuClusterWidget* GetChatMenuCluster() const { return ChatMenuCluster; }
 
+	/**
+	 * W_HUDShell accent. USA_Ironstock is paint v3 olive/gold.
+	 * RSF_RustOrange re-skins readouts only. Proportions stay on layout v4.
+	 * Cyan glass is rejected.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Kod|UI|HUD")
+	void ApplyFactionAccentTheme(EKodFactionAccentTheme Theme);
+
+	UFUNCTION(BlueprintPure, Category = "Kod|UI|HUD")
+	EKodFactionAccentTheme GetFactionAccentTheme() const { return AccentTheme; }
+
 protected:
 	virtual void NativePreConstruct() override;
 	void ApplyStampProportions();
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|HUD")
+	EKodFactionAccentTheme AccentTheme = EKodFactionAccentTheme::USA_Ironstock;
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|HUD")
 	TObjectPtr<UKodResourceBarWidget> ResourceBar;

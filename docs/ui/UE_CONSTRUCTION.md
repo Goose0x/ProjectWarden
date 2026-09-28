@@ -24,6 +24,9 @@ Stand-in tints are not the final materials. Replace them in the Editor with the 
 | HUD Ironstock paint v3 | Visual lock on that shell. Resources are icon + number (Credits, Oil, Supply). Map tools are idle worker, army, ping. |
 | Main Menu glass paint v1 | One orange **PLAY VERSUS**. Secondary nav and briefing. No Versus chrome. |
 | Lobby Versus glass v2.6 | Cyan glass. **USA · RSF only**. Chat on the **right** rail. Orange only on **PLAY RANKED** (and the local ladder row). Badge **v2.6**. |
+| Versus chat component v1 | Right-rail internals: ChatRoot, ChannelTabs, MessageList, MessageRow, ChatInput. Cyan glass. Secondary to PLAY RANKED. |
+| Faction boards USA · RSF v1 | `FactionBoard` with `FactionTile_USA` and `FactionTile_RSF` only. States Idle / Hover / Selected / Disabled. |
+| HUD accents v1 | `ApplyFactionAccentTheme` on the HUD shell. `USA_Ironstock` baseline. `RSF_RustOrange` re-skin. Same v4 proportions. No cyan glass. ENERGY stays under HP. |
 
 ## Content paths
 
@@ -44,7 +47,10 @@ Create these in the Editor. Parent class is the C++ type. Instance names inside 
 | `WBP_IdentityStrip` | `UKodIdentityStripWidget` | `/Game/UI/CommonUI/WBP_IdentityStrip` |
 | `WBP_MainMenu` | `UKodMainMenuWidget` | `/Game/UI/MainMenu/WBP_MainMenu` |
 | `WBP_LobbyVersus` | `UKodLobbyVersusWidget` | `/Game/UI/Lobby/WBP_LobbyVersus` |
-| `WBP_LobbyChatRail` | `UKodLobbyChatRailWidget` | `/Game/UI/Lobby/WBP_LobbyChatRail` |
+| `WBP_LobbyChatRail` (`W_ChatRail`) | `UKodLobbyChatRailWidget` | `/Game/UI/Lobby/WBP_LobbyChatRail` |
+| `WBP_ChatMessageRow` (`W_ChatMessageRow`) | `UKodChatMessageRowWidget` | `/Game/UI/Lobby/WBP_ChatMessageRow` |
+| `WBP_FactionBoard` (`W_FactionBoard`) | `UKodFactionBoardWidget` | `/Game/UI/Lobby/WBP_FactionBoard` |
+| `WBP_FactionTile` | `UKodFactionTileWidget` | `/Game/UI/Lobby/WBP_FactionTile` |
 | `WBP_LadderRow` | `UKodLadderRowWidget` | `/Game/UI/Lobby/WBP_LadderRow` |
 
 Constants for the same paths are in `KodUILayout`.
@@ -188,20 +194,35 @@ No faction tiles, ladder, matchmaking, or PLAY RANKED. Orange is `Button_PlayVer
 
 ### Faction lock
 
-The only faction widgets are `Faction_USA` and `Faction_RSF`. `EKodVersusFaction` has those two enumerators. `GetVersusFactions` returns USA then RSF. `TrySetVersusFactionById` accepts the `FName`s `USA` and `RSF` and rejects everything else, including `RU`, `CN`, and `RANDOM`. Rejected ids are not hidden slots.
+`Column_Left` holds `FactionBoard` (`UKodFactionBoardWidget`). The board's only tiles are `FactionTile_USA` and `FactionTile_RSF`. `EKodVersusFaction` has those two enumerators. `GetVersusFactions` returns USA then RSF. `TrySetVersusFactionById` accepts the `FName`s `USA` and `RSF` and rejects everything else, including `RU`, `CN`, and `RANDOM`. Rejected ids are not hidden slots.
+
+Each tile (`WBP_FactionTile`) names `IconImage`, `LabelText`, and `SelectionGlow`. `SetTileState` covers Idle, Hover, Selected, and Disabled. Hover does not override Selected or Disabled. A Disabled tile stays disabled when the board repaints, and it cannot become the selected faction. The board is cyan glass. USA starts Selected. RSF starts Idle.
 
 ### Chat on the right
 
-`ChatRail` (`UKodLobbyChatRailWidget`) is a **direct** child of `LobbyColumns` and is forced to the last slot. `GetRequiredChatRail()` is `Right`. There is no left-rail value. Friends / Help / Menu stay icon-only on the lower left (`SetShowLabel(false)`), not inside the rail.
+`ChatRail` (`UKodLobbyChatRailWidget`) is a **direct** child of `LobbyColumns` and is forced to the last slot. `GetRequiredChatRail()` is `Right`. There is no left-rail value. Friends / Help / Menu stay icon-only on the lower left (`SetShowLabel(false)`), not inside the rail. The rail stays quiet cyan glass, secondary to orange PLAY RANKED.
 
-`WBP_LobbyChatRail` names: `Tab_Lobby`, `Tab_Party`, `ChatHistory`, `ChatInput`, `ChatSend`.
+Component sheet v1 names inside `WBP_LobbyChatRail`:
+
+| Name | Type | Notes |
+|------|------|-------|
+| `ChatRoot` | `UBorder` | Quiet panel fill. Vertical stack lives inside it. |
+| `ChannelTabs` | `UWidget` | Host for the two tabs. |
+| `Tab_Lobby` | `UKodLabeledButton` | LOBBY. Default active. |
+| `Tab_Party` | `UKodLabeledButton` | PARTY. |
+| `Underline_Lobby` / `Underline_Party` | `UImage` | Optional cyan underline for the active tab. |
+| `MessageList` | `UScrollBox` | History. |
+| Message rows | `UKodChatMessageRowWidget` | Spawned from `MessageRowClass`. `SpeakerText` cyan, `BodyText` white. |
+| `ChatInput` | `UWidget` | Input bar container. |
+| `Text_Message` | `UEditableText` | Hint: Type message... |
+| `Btn_Send` | `UKodLabeledButton` | Cyan send. Not orange. |
 
 | Column (left → right) | Name | Contents |
 |-----------------------|------|----------|
-| Left | `Column_Left` | `Identity`, `Faction_USA`, `Faction_RSF`, utilities |
+| Left | `Column_Left` | `Identity`, `FactionBoard`, utilities |
 | Center | `Column_Center` | Season strip, PLAY RANKED, READY, UNRANKED, MAPS, map chip |
 | Ladder | `Column_Ladder` | `LadderHeader`, `LadderList` |
-| Chat | `ChatRail` | LOBBY / PARTY, history, input, send |
+| Chat | `ChatRail` | ChatRoot on the right |
 
 ### Other lobby slots
 
@@ -237,6 +258,33 @@ The only faction widgets are `Faction_USA` and `Faction_RSF`. `EKodVersusFaction
 
 `WBP_LadderRow` names: `RankText`, `NameText`, `MmrText`, `WinsText`, `LossesText`. Assign the row class on the lobby. The local row is the orange line. `GetStampPreviewRows` is fictional stamp copy for the designer, not a ranked service.
 
+## HUD accents — shell unchanged
+
+`W_HUDShell` is `UKodHudRootWidget` (`WBP_KodHUD`). Layout v4 weights, the 5×3 card, and the ENERGY slot under HP are unchanged. `ApplyFactionAccentTheme` only retints Ironstock readouts:
+
+| Theme | Color | Material |
+|-------|--------|----------|
+| `USA_Ironstock` | Olive/gold amber (`GetIronstockAmber`, paint v3 baseline) | Ironstock metal |
+| `RSF_RustOrange` | Rust/orange (`GetIronstockRustOrange`) | Same metal shell, accent only |
+
+`SetActiveHudAccent` rejects any other value. The accent color is never cyan and never the front-end commit orange. HP stays green. `Portrait.EnergyBar` and `EnergyCaption` stay in the hierarchy; unused energy uses `Hidden`, not `Collapsed`.
+
+Handoff region names map onto the existing shell slots. Those slot names are not renamed:
+
+| Handoff | Existing BindWidget |
+|---------|---------------------|
+| `W_HUDShell` | `UKodHudRootWidget` |
+| `W_ResourceStrip` | `ResourceBar` |
+| `W_MinimapCluster` | `Minimap` (column weight 18) |
+| `W_SelectionPanel` | `SelectionPanel` (42) |
+| `W_PortraitPanel` | `Portrait` (15), ENERGY under HP |
+| `W_CommandCard` | `CommandCard` (20, 5×3) |
+| `W_HUDUtilityCluster` | `ChatMenuCluster` |
+
+If a portrait shows a callsign, the copy is **Black Widow** (`CallsignText`, optional).
+
+Call `ApplyFactionAccentTheme` from match setup. `AccentForFaction` maps USA → `USA_Ironstock` and RSF → `RSF_RustOrange`.
+
 ## Editor pass (still required)
 
 1. Create the Widget Blueprints in the table above. Do not commit them.
@@ -255,6 +303,7 @@ The only faction widgets are `Faction_USA` and `Faction_RSF`. `EKodVersusFaction
 - Main Menu has one orange control: PLAY VERSUS.
 - Lobby orange is PLAY RANKED plus the local ladder row.
 - Lobby faction widgets are USA and RSF. No third tile.
-- `ChatRail` is the rightmost column of `LobbyColumns`.
+- `ChatRail` is the rightmost column of `LobbyColumns`. Its material is cyan glass, not Ironstock.
 - Command card has no title. Top row glyphs are Q W E R T. Selection has no title. Grid is 8×3. ENERGY is under HP.
+- HUD accent is `USA_Ironstock` or `RSF_RustOrange` only. RSF does not change column weights.
 - No binary UI assets in git.

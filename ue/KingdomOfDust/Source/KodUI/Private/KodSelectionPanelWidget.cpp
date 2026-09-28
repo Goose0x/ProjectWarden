@@ -9,6 +9,29 @@ UKodSelectionCellWidget* UKodSelectionPanelWidget::GetCell(int32 Index) const
 	return Cells.IsValidIndex(Index) ? Cells[Index] : nullptr;
 }
 
+void UKodSelectionPanelWidget::ApplyHudAccent()
+{
+	if (GroupButtons.Num() == 0)
+	{
+		CacheCells();
+	}
+	const FLinearColor Accent = UKodUIStyleLibrary::GetActiveHudAccentColor();
+	for (UKodLabeledButton* Button : GroupButtons)
+	{
+		if (Button)
+		{
+			Button->SetColorAndOpacity(Accent);
+		}
+	}
+	for (UKodSelectionCellWidget* Cell : Cells)
+	{
+		if (Cell)
+		{
+			Cell->SetColorAndOpacity(Accent);
+		}
+	}
+}
+
 void UKodSelectionPanelWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
@@ -63,7 +86,7 @@ void UKodSelectionPanelWidget::ApplyGroupLabels()
 		if (UKodLabeledButton* Button = GroupButtons[Visual])
 		{
 			Button->SetStampLabel(FText::FromString(Glyphs[Visual]));
-			Button->SetColorAndOpacity(UKodUIStyleLibrary::GetIronstockAmber());
+			Button->SetColorAndOpacity(UKodUIStyleLibrary::GetActiveHudAccentColor());
 		}
 	}
 }

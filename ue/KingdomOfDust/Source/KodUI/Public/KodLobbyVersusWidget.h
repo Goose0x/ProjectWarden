@@ -7,6 +7,7 @@
 class UCommonTextBlock;
 class UHorizontalBox;
 class UImage;
+class UKodFactionBoardWidget;
 class UKodIdentityStripWidget;
 class UKodLabeledButton;
 class UKodLadderRowWidget;
@@ -116,9 +117,7 @@ protected:
 	void ApplyVariableCopy();
 
 	UFUNCTION()
-	void HandleFactionUSA(UKodLabeledButton* Button);
-	UFUNCTION()
-	void HandleFactionRSF(UKodLabeledButton* Button);
+	void HandleFactionChosen(EKodVersusFaction Faction);
 	UFUNCTION()
 	void HandleModeTraining(UKodLabeledButton* Button);
 	UFUNCTION()
@@ -217,11 +216,9 @@ protected:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Lobby")
 	TObjectPtr<UKodIdentityStripWidget> Identity;
 
+	/** USA and RSF tiles only. Cyan glass. Lives in the left column. */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Lobby")
-	TObjectPtr<UKodLabeledButton> Faction_USA;
-
-	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Lobby")
-	TObjectPtr<UKodLabeledButton> Faction_RSF;
+	TObjectPtr<UKodFactionBoardWidget> FactionBoard;
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Lobby")
 	TObjectPtr<UCommonTextBlock> SeasonTitle;

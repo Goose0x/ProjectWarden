@@ -34,10 +34,7 @@ void UKodResourceBarWidget::NativePreConstruct()
 {
 	Super::NativePreConstruct();
 
-	const FLinearColor Amber = UKodUIStyleLibrary::GetIronstockAmber();
-	if (Icon_Credits) { Icon_Credits->SetColorAndOpacity(Amber); }
-	if (Icon_Oil) { Icon_Oil->SetColorAndOpacity(Amber); }
-	if (Icon_Supply) { Icon_Supply->SetColorAndOpacity(Amber); }
+	ApplyHudAccent();
 
 	if (IsDesignTime())
 	{
@@ -50,22 +47,31 @@ void UKodResourceBarWidget::NativePreConstruct()
 	ApplyValues();
 }
 
+void UKodResourceBarWidget::ApplyHudAccent()
+{
+	const FLinearColor Accent = UKodUIStyleLibrary::GetActiveHudAccentColor();
+	if (Icon_Credits) { Icon_Credits->SetColorAndOpacity(Accent); }
+	if (Icon_Oil) { Icon_Oil->SetColorAndOpacity(Accent); }
+	if (Icon_Supply) { Icon_Supply->SetColorAndOpacity(Accent); }
+	ApplyValues();
+}
+
 void UKodResourceBarWidget::ApplyValues()
 {
-	const FSlateColor Amber(UKodUIStyleLibrary::GetIronstockAmber());
+	const FSlateColor Accent(UKodUIStyleLibrary::GetActiveHudAccentColor());
 	if (Value_Credits)
 	{
 		Value_Credits->SetText(FText::AsNumber(DisplayedCredits));
-		Value_Credits->SetColorAndOpacity(Amber);
+		Value_Credits->SetColorAndOpacity(Accent);
 	}
 	if (Value_Oil)
 	{
 		Value_Oil->SetText(FText::AsNumber(DisplayedOil));
-		Value_Oil->SetColorAndOpacity(Amber);
+		Value_Oil->SetColorAndOpacity(Accent);
 	}
 	if (Value_Supply)
 	{
 		Value_Supply->SetText(FText::FromString(FString::Printf(TEXT("%d/%d"), DisplayedSupply, DisplayedSupplyMax)));
-		Value_Supply->SetColorAndOpacity(Amber);
+		Value_Supply->SetColorAndOpacity(Accent);
 	}
 }

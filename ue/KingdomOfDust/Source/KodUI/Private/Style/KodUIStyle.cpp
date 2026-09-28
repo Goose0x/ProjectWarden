@@ -78,3 +78,66 @@ FLinearColor UKodUIStyleLibrary::GetCommitColor(EKodUIMaterialLanguage Language)
 	}
 	return GetOrangeCta();
 }
+
+FLinearColor UKodUIStyleLibrary::GetIronstockRustOrange()
+{
+	return FLinearColor(0.78f, 0.30f, 0.08f, 1.f);
+}
+
+namespace KodUIStylePrivate
+{
+	EKodFactionAccentTheme& ActiveHudAccent()
+	{
+		static EKodFactionAccentTheme Theme = EKodFactionAccentTheme::USA_Ironstock;
+		return Theme;
+	}
+
+	bool IsLegalHudAccent(EKodFactionAccentTheme Theme)
+	{
+		return Theme == EKodFactionAccentTheme::USA_Ironstock || Theme == EKodFactionAccentTheme::RSF_RustOrange;
+	}
+}
+
+FLinearColor UKodUIStyleLibrary::GetHudAccentColor(EKodFactionAccentTheme Theme)
+{
+	if (!KodUIStylePrivate::IsLegalHudAccent(Theme))
+	{
+		UE_LOG(LogKodUI, Error, TEXT("HUD accent must be USA_Ironstock or RSF_RustOrange. Cyan glass is not a HUD theme."));
+		return GetIronstockAmber();
+	}
+	if (Theme == EKodFactionAccentTheme::RSF_RustOrange)
+	{
+		return GetIronstockRustOrange();
+	}
+	return GetIronstockAmber();
+}
+
+EKodFactionAccentTheme UKodUIStyleLibrary::GetActiveHudAccent()
+{
+	return KodUIStylePrivate::ActiveHudAccent();
+}
+
+bool UKodUIStyleLibrary::SetActiveHudAccent(EKodFactionAccentTheme Theme)
+{
+	if (!KodUIStylePrivate::IsLegalHudAccent(Theme))
+	{
+		UE_LOG(LogKodUI, Error, TEXT("Rejected HUD accent. Legal themes are USA_Ironstock and RSF_RustOrange."));
+		return false;
+	}
+	KodUIStylePrivate::ActiveHudAccent() = Theme;
+	return true;
+}
+
+FLinearColor UKodUIStyleLibrary::GetActiveHudAccentColor()
+{
+	return GetHudAccentColor(GetActiveHudAccent());
+}
+
+EKodFactionAccentTheme UKodUIStyleLibrary::AccentForFaction(EKodVersusFaction Faction)
+{
+	if (Faction == EKodVersusFaction::RSF)
+	{
+		return EKodFactionAccentTheme::RSF_RustOrange;
+	}
+	return EKodFactionAccentTheme::USA_Ironstock;
+}

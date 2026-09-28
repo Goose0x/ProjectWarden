@@ -35,6 +35,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI")
 	void NotifyArmy();
 
+	UFUNCTION(BlueprintCallable, Category = "Kod|UI")
+	void ApplyHudAccent();
+
 	UPROPERTY(BlueprintAssignable, Category = "Kod|UI")
 	FKodMapToolRequested OnIdleWorkersRequested;
 

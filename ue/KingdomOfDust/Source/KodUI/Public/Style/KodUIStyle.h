@@ -58,4 +58,24 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetCommitColor(EKodUIMaterialLanguage Language);
+
+	/** Rust/orange Ironstock re-skin. Not the front-end commit orange, and not cyan. */
+	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
+	static FLinearColor GetIronstockRustOrange();
+
+	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
+	static FLinearColor GetHudAccentColor(EKodFactionAccentTheme Theme);
+
+	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
+	static EKodFactionAccentTheme GetActiveHudAccent();
+
+	/** Rejects anything other than USA_Ironstock or RSF_RustOrange. */
+	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Style")
+	static bool SetActiveHudAccent(EKodFactionAccentTheme Theme);
+
+	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
+	static FLinearColor GetActiveHudAccentColor();
+
+	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
+	static EKodFactionAccentTheme AccentForFaction(EKodVersusFaction Faction);
 };
