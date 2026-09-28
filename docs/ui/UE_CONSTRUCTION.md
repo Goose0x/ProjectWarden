@@ -27,7 +27,7 @@ Stand-in tints are not the final materials. Replace them in the Editor with the 
 | Versus chat component v1 | Right-rail internals: ChatRoot, ChannelTabs, MessageList, MessageRow, ChatInput. Cyan glass. Secondary to PLAY RANKED. |
 | Faction boards USA · RSF v1 | `FactionBoard` with `FactionTile_USA` and `FactionTile_RSF` only. States Idle / Hover / Selected / Disabled. |
 | Portrait panel pin v1.1 | **PASS.** `Img_Portrait` fills the art box. `Prog_Health` is flush on that art bottom, not a separate bay. `Slot_Energy` stays a fixed height under HP. One `Txt_Callsign`: Black Widow. |
-| HUD accent colors v2 | **PASS.** `USA_TanGreenGold`, `RSF_MetalStoneOrangeArch`, `CN_JadeStoneGoldRed` (preview), `RU_SovietColdBlueIce` (preview). `ApplyFactionAccentTheme` retints. Geometry stays v1.1. Versus row stays USA · RSF. |
+| HUD accent colors | **Split.** `CN_JadeStoneGoldRed` and `RU_SovietColdBlueIce` are stamped v2 HUD previews (**PASS / KEEP**). `USA_TanGreenGold` and `RSF_MetalStoneOrangeArch` are **HOLD** pending USA/RSF color-language v3 and the minimap-template QA PASS. Versus row stays USA · RSF. Portrait geometry stays v1.1. |
 
 ## Content paths
 
@@ -277,22 +277,24 @@ Component sheet v1 names inside `WBP_LobbyChatRail`:
 
 `WBP_LadderRow` names: `RankText`, `NameText`, `MmrText`, `WinsText`, `LossesText`. Assign the row class on the lobby. The local row is the orange line. `GetStampPreviewRows` is fictional stamp copy for the designer, not a ranked service.
 
-## HUD accents — color languages v2
+## HUD accents — USA/RSF HOLD, CN/RU v2 kept
 
-`W_HUDShell` is `UKodHudRootWidget` (`WBP_KodHUD`). Layout v4 weights and the 5×3 card are unchanged. Portrait geometry stays the v1.1 pin. No cyan glass on the HUD. HP stays green. Do not bake sheet labels such as "Portrait 15%" into widgets.
+`W_HUDShell` is `UKodHudRootWidget` (`WBP_KodHUD`). Layout v4 weights, the 5×3 card, and map-tool sizes are unchanged. Portrait geometry stays the v1.1 pin. No cyan glass on the HUD. HP stays green. Do not bake sheet labels such as "Portrait 15%" into widgets. Do not shrink the map tools or restack the minimap until the template plate passes QA.
 
-The color-retint hold is lifted. `ApplyFactionAccentTheme` loads `GetHudAccentColors` and retints the shell. `FKodHudAccentColors` keeps the roles apart: `Frame` on the plate, `Proud` on icons and readouts, `Field` as the second hue, `Mark` as the extra hue. USA frame is desert tan, not a single olive. RSF is stone metal plus orange, with no faith chrome and no arch widget added to the shell. RU proud is ice blue, not warm rust and not lobby cyan.
+`ApplyFactionAccentTheme` still loads `GetHudAccentColors`. Theme ids stay `USA_TanGreenGold` (alias `USA_Ironstock`) and `RSF_MetalStoneOrangeArch` (alias `RSF_RustOrange`).
 
-`USA_Ironstock` resolves to `USA_TanGreenGold`. `RSF_RustOrange` resolves to `RSF_MetalStoneOrangeArch`. Those old names are not the retint targets.
+**USA and RSF paint is HOLD**, not a final v2 or v3 land. Director direction is lighter patriotic sand/tan for USA and rustic sandstone/adobe for RSF. Those sheets plus the minimap chip template are in QA review. The C++ values are an interim soft-swap away from dark olive and gothic black iron. They are not hex sampled from the v3 PNGs.
 
-CN and RU themes are HUD preview ids only. `AccentForFaction` maps Versus USA and RSF only. `FactionBoard` still rejects CN, RU, and RANDOM tiles. `IsRejectedHudAccentId` allows the four v2 ids (and the two retired aliases) and still rejects `RU_RustIndustrial` and `CN_ImperialGreenGold`.
+**CN and RU stay stamped v2** HUD preview themes. Their color tables are unchanged.
 
-| Theme id | Where it applies | Language |
-|----------|------------------|----------|
-| `USA_TanGreenGold` | Versus USA. `AccentForFaction(USA)` | Desert tan frame, field green, gold proud |
-| `RSF_MetalStoneOrangeArch` | Versus RSF. `AccentForFaction(RSF)` | Stone metal, orange. Cause-safe |
-| `CN_JadeStoneGoldRed` | `ApplyFactionAccentTheme` preview only | Jade, stone, gold, red |
-| `RU_SovietColdBlueIce` | `ApplyFactionAccentTheme` preview only | Cold metal, ice blue |
+CN and RU are not Versus tiles. `AccentForFaction` maps Versus USA and RSF only. `FactionBoard` still rejects CN, RU, and RANDOM. `IsRejectedHudAccentId` still rejects `RU_RustIndustrial` and `CN_ImperialGreenGold`.
+
+| Theme id | Status | Language in this branch |
+|----------|--------|-------------------------|
+| `USA_TanGreenGold` | **HOLD** pending v3 QA. Versus USA | Interim lighter sand, muted field green, patriotic gold |
+| `RSF_MetalStoneOrangeArch` | **HOLD** pending v3 QA. Versus RSF | Interim sandstone / adobe / orange. Cause-safe. No arch widget |
+| `CN_JadeStoneGoldRed` | Stamped v2 **PASS / KEEP**. Preview only | Jade, stone, gold, red |
+| `RU_SovietColdBlueIce` | Stamped v2 **PASS / KEEP**. Preview only | Cold metal, ice blue |
 | `RU_RustIndustrial` / `CN_ImperialGreenGold` | Rejected sheet names | None |
 
 Chat stays the right rail. `FactionBoard` stays `FactionTile_USA` and `FactionTile_RSF`. Portrait geometry v1.1 is unchanged: `Img_Portrait` edge-to-edge, `Prog_Health` on the art-box bottom, `Slot_Energy` fixed under HP, one `Txt_Callsign` reading **Black Widow**.
@@ -335,6 +337,6 @@ Handoff region names map onto the existing shell slots. Those slot names are not
 - Command card has no title. Top row glyphs are Q W E R T. Selection has no title. Grid is 8×3.
 - `Img_Portrait` fills the art box with no margin. `Prog_Health` is on that art bottom, not a separate bay. `Slot_Energy` keeps `PortraitEnergySlotHeightPx` when `Prog_Energy` is `Hidden`.
 - `Txt_Callsign` is the only Black Widow text. No second copy of the label.
-- Portrait geometry v1.1 is unchanged. Accent colors v2 are applied by `ApplyFactionAccentTheme`. USA keeps a readable desert tan plus field green and gold.
-- CN and RU accent ids are HUD previews. They are not Versus tiles. `RU_RustIndustrial` and `CN_ImperialGreenGold` stay rejected names.
+- Portrait geometry v1.1 is unchanged. Map tools stay the current size until the minimap template passes QA.
+- USA and RSF accent paint is **HOLD** pending color-language v3 QA. CN and RU stay stamped v2 previews, not Versus tiles. `RU_RustIndustrial` and `CN_ImperialGreenGold` stay rejected names.
 - No binary UI assets in git.

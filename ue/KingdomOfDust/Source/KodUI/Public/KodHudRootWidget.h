@@ -53,9 +53,10 @@ public:
 	UKodChatMenuClusterWidget* GetChatMenuCluster() const { return ChatMenuCluster; }
 
 	/**
-	 * Applies a v2 color language to the locked v4 shell.
-	 * USA_TanGreenGold, RSF_MetalStoneOrangeArch, plus CN and RU preview ids.
-	 * Proportions and portrait geometry stay put. Cyan glass is rejected.
+	 * Applies an accent theme to the locked v4 shell.
+	 * USA_TanGreenGold and RSF_MetalStoneOrangeArch paint is HOLD pending v3 QA.
+	 * CN and RU preview ids stay stamped v2. Proportions, map-tool size, and
+	 * portrait geometry stay put. Cyan glass is rejected.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|HUD")
 	void ApplyFactionAccentTheme(EKodFactionAccentTheme Theme);

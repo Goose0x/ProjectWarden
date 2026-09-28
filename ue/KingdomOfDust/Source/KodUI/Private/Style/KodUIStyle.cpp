@@ -135,13 +135,14 @@ FKodHudAccentColors UKodUIStyleLibrary::GetHudAccentColors(EKodFactionAccentThem
 	switch (Theme)
 	{
 	case EKodFactionAccentTheme::RSF_MetalStoneOrangeArch:
-		// Stone metal and orange. No faith chrome. Not the front-end commit orange.
+		// HOLD pending RSF color-language v3 QA. Interim sandstone / adobe / orange.
+		// Not gothic black iron, not a sampled v3 stamp, and not faith chrome.
 		return MakeColors(
-			FLinearColor(0.14f, 0.12f, 0.10f, 1.f),
-			FLinearColor(0.34f, 0.28f, 0.22f, 1.f),
-			FLinearColor(0.24f, 0.20f, 0.16f, 1.f),
-			FLinearColor(0.86f, 0.38f, 0.10f, 1.f),
-			FLinearColor(0.86f, 0.38f, 0.10f, 1.f));
+			FLinearColor(0.36f, 0.28f, 0.20f, 1.f),
+			FLinearColor(0.62f, 0.48f, 0.34f, 1.f),
+			FLinearColor(0.50f, 0.38f, 0.26f, 1.f),
+			FLinearColor(0.88f, 0.46f, 0.16f, 1.f),
+			FLinearColor(0.88f, 0.46f, 0.16f, 1.f));
 	case EKodFactionAccentTheme::CN_JadeStoneGoldRed:
 		// HUD preview. Jade, stone, gold, and a mandate red. Not a Versus tile.
 		return MakeColors(
@@ -160,13 +161,14 @@ FKodHudAccentColors UKodUIStyleLibrary::GetHudAccentColors(EKodFactionAccentThem
 			FLinearColor(0.62f, 0.76f, 0.84f, 1.f));
 	case EKodFactionAccentTheme::USA_TanGreenGold:
 	default:
-		// Desert tan stays on the frame. Field green and gold proud are separate.
+		// HOLD pending USA color-language v3 QA. Interim lighter sand, muted field green, patriotic gold.
+		// Not olive or burnt metal, and not a sampled v3 stamp.
 		return MakeColors(
-			FLinearColor(0.20f, 0.14f, 0.08f, 1.f),
-			FLinearColor(0.58f, 0.42f, 0.22f, 1.f),
-			FLinearColor(0.40f, 0.50f, 0.16f, 1.f),
-			FLinearColor(0.92f, 0.72f, 0.26f, 1.f),
-			FLinearColor(0.92f, 0.72f, 0.26f, 1.f));
+			FLinearColor(0.48f, 0.38f, 0.24f, 1.f),
+			FLinearColor(0.76f, 0.62f, 0.40f, 1.f),
+			FLinearColor(0.46f, 0.56f, 0.32f, 1.f),
+			FLinearColor(0.95f, 0.78f, 0.34f, 1.f),
+			FLinearColor(0.95f, 0.78f, 0.34f, 1.f));
 	}
 }
 

@@ -59,11 +59,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetCommitColor(EKodUIMaterialLanguage Language);
 
-	/** Retired rust swatch. Returns the RSF v2 proud orange, not a warm-rust language. */
+	/** Retired rust swatch. Returns the interim RSF proud orange (HOLD pending v3), not a warm-rust language. */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style", meta = (DeprecatedFunction, DeprecationMessage = "Use GetHudAccentColors(RSF_MetalStoneOrangeArch).Proud"))
 	static FLinearColor GetIronstockRustOrange();
 
-	/** v2 color language. Proud, Frame, Field, and Mark stay separate. */
+	/** Accent table. USA/RSF values are an interim hold pending v3 QA. CN/RU stay stamped v2. Proud, Frame, Field, and Mark stay separate. */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FKodHudAccentColors GetHudAccentColors(EKodFactionAccentTheme Theme);
 
