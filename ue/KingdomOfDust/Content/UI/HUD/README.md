@@ -18,7 +18,7 @@ Create these Widget Blueprints in the Editor. **Do not commit `.uasset` files.**
 
 Assign `WBP_KodHUD` (`W_HUDShell`) to `AKodHUD.HudWidgetClass`.
 
-`ApplyFactionAccentTheme` stores `USA_Ironstock` or `RSF_RustOrange` and does not retint. Accent-stamp re-skin paint is on HOLD; the shell stays Ironstock paint v3. Column weights stay 18 / 42 / 15 / 20 / 5.
+`ApplyFactionAccentTheme` stores `USA_Ironstock` or `RSF_RustOrange` and does not retint. USA/RSF re-skin paint is on HOLD (portrait v1.1 in flight); the shell stays Ironstock paint v3. Do not add `RU_RustIndustrial` or `CN_ImperialGreenGold` theme ids or materials. Column weights stay 18 / 42 / 15 / 20 / 5.
 
 `WBP_PortraitFrame` (`W_PortraitPanel`): portrait fills the frame edge-to-edge, HP is flush to the bottom of that frame, ENERGY is under HP. Hide unused energy with Hidden so the slot stays reserved.
 

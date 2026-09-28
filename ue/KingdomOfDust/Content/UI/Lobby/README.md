@@ -17,7 +17,7 @@ Chat rail inner names: `ChatRoot`, `ChannelTabs`, `Tab_Lobby`, `Tab_Party`, `Mes
 
 Faction board names: `FactionBoardRoot`, `FactionTile_USA`, `FactionTile_RSF`. Tile names: `IconImage`, `LabelText`, `SelectionGlow`.
 
-Do not add RU, CN, or RANDOM tiles. Do not parent `ChatRail` anywhere but as the last direct child of `LobbyColumns`. Do not put Ironstock on the chat rail or the faction tiles.
+Do not add RU, CN, or RANDOM tiles. Do not add `RU_RustIndustrial` or `CN_ImperialGreenGold` accent materials. Do not parent `ChatRail` anywhere but as the last direct child of `LobbyColumns`. Do not put Ironstock on the chat rail or the faction tiles.
 
 Orange: **PLAY RANKED** and the local ladder row. Badge copy is **v2.6**.
 

@@ -27,7 +27,7 @@ Stand-in tints are not the final materials. Replace them in the Editor with the 
 | Versus chat component v1 | Right-rail internals: ChatRoot, ChannelTabs, MessageList, MessageRow, ChatInput. Cyan glass. Secondary to PLAY RANKED. |
 | Faction boards USA · RSF v1 | `FactionBoard` with `FactionTile_USA` and `FactionTile_RSF` only. States Idle / Hover / Selected / Disabled. |
 | Portrait panel pin | `W_PortraitPanel`: image fills the frame edge-to-edge. HP is flush to the bottom of that frame. ENERGY stays under HP. Hide with `Hidden`, never `Collapsed`. |
-| HUD accents v1 | **HOLD** on re-skin paint. Theme ids `USA_Ironstock` / `RSF_RustOrange` and `ApplyFactionAccentTheme` are stubs. Accent stamps are not final paint. Shell stays Ironstock paint v3. |
+| HUD accents v1 | **HOLD.** `USA_Ironstock` / `RSF_RustOrange` are id stubs only. Re-skin paint is not final (portrait v1.1 in flight). **CONDITIONAL/FAIL:** do not wire `RU_RustIndustrial` or `CN_ImperialGreenGold`. |
 
 ## Content paths
 
@@ -203,7 +203,7 @@ No faction tiles, ladder, matchmaking, or PLAY RANKED. Orange is `Button_PlayVer
 
 ### Faction lock
 
-`Column_Left` holds `FactionBoard` (`UKodFactionBoardWidget`). The board's only tiles are `FactionTile_USA` and `FactionTile_RSF`. `EKodVersusFaction` has those two enumerators. `GetVersusFactions` returns USA then RSF. `TrySetVersusFactionById` accepts the `FName`s `USA` and `RSF` and rejects everything else, including `RU`, `CN`, and `RANDOM`. Rejected ids are not hidden slots.
+`Column_Left` holds `FactionBoard` (`UKodFactionBoardWidget`). The board's only tiles are `FactionTile_USA` and `FactionTile_RSF`. `EKodVersusFaction` has those two enumerators. `GetVersusFactions` returns USA then RSF. `TrySetVersusFactionById` accepts the `FName`s `USA` and `RSF` and rejects everything else, including `RU`, `CN`, and `RANDOM`. Rejected ids are not hidden slots. Do not add a tile or accent material for `RU_RustIndustrial` or `CN_ImperialGreenGold`.
 
 Each tile (`WBP_FactionTile`) names `IconImage`, `LabelText`, and `SelectionGlow`. `SetTileState` covers Idle, Hover, Selected, and Disabled. Hover does not override Selected or Disabled. A Disabled tile stays disabled when the board repaints, and it cannot become the selected faction. The board is cyan glass. USA starts Selected. RSF starts Idle.
 
@@ -267,18 +267,25 @@ Component sheet v1 names inside `WBP_LobbyChatRail`:
 
 `WBP_LadderRow` names: `RankText`, `NameText`, `MmrText`, `WinsText`, `LossesText`. Assign the row class on the lobby. The local row is the orange line. `GetStampPreviewRows` is fictional stamp copy for the designer, not a ranked service.
 
-## HUD accents — HOLD, shell unchanged
+## HUD accents — HOLDs, shell unchanged
 
-`W_HUDShell` is `UKodHudRootWidget` (`WBP_KodHUD`). Layout v4 weights and the 5×3 card are unchanged. QA has the USA/RSF accent sheets on hold for a possible UI Dev revision. Do not treat that stamp art as final paint.
+`W_HUDShell` is `UKodHudRootWidget` (`WBP_KodHUD`). Layout v4 weights and the 5×3 card are unchanged. No cyan glass on the HUD. HP stays green.
 
-`ApplyFactionAccentTheme` stores the theme id and does not retint the shell. `SetActiveHudAccent` still rejects anything other than the two ids. `GetHudAccentColor` and `GetIronstockRustOrange` return paint v3 amber while the hold is in place, so a caller cannot paint the unapproved rust swatch. No cyan glass on the HUD. HP stays green.
+Two holds:
+
+1. **RU_RustIndustrial and CN_ImperialGreenGold — CONDITIONAL/FAIL.** Do not add theme ids, enumerators, materials, or colors for those sheets. `IsRejectedHudAccentId` returns true for both names. The Versus roster stays USA · RSF only.
+2. **USA / RSF re-skin paint — HOLD.** Portrait v1.1 revisions are in flight. `USA_Ironstock` and `RSF_RustOrange` stay as theme-id stubs already on the shell. `ApplyFactionAccentTheme` stores the id and does not retint. Do not treat the current accent stamp art as final paint. `GetHudAccentColor` and `GetIronstockRustOrange` return Ironstock paint v3 amber while this hold is in place.
 
 | Theme id | What is hooked now | Paint |
 |----------|--------------------|-------|
 | `USA_Ironstock` | Id stored. `AccentForFaction(USA)` | Ironstock paint v3 amber on metal |
 | `RSF_RustOrange` | Id stored. `AccentForFaction(RSF)` | Same paint v3. Re-skin not applied |
+| `RU_RustIndustrial` | Not an id. Do not author a material. | None |
+| `CN_ImperialGreenGold` | Not an id. Do not author a material. | None |
 
-Call `ApplyFactionAccentTheme` from match setup when the faction is known. It is a stub until the hold lifts.
+Chat stays the right rail. `FactionBoard` stays `FactionTile_USA` and `FactionTile_RSF`. The portrait pin stays: image edge-to-edge, HP flush to the bottom of the frame, ENERGY under HP with `Hidden` when unused.
+
+Call `ApplyFactionAccentTheme` from match setup when the faction is known. It is a stub until the USA/RSF paint hold lifts.
 
 Handoff region names map onto the existing shell slots. Those slot names are not renamed:
 
@@ -315,5 +322,6 @@ If a portrait shows a callsign, the copy is **Black Widow** (`CallsignText`, opt
 - `ChatRail` is the rightmost column of `LobbyColumns`. Its material is cyan glass, not Ironstock.
 - Command card has no title. Top row glyphs are Q W E R T. Selection has no title. Grid is 8×3.
 - `PortraitImage` has no margin. `HPBar` is flush to the bottom of the portrait frame. `EnergyBar` is under HP. Unused energy is `Hidden`, not `Collapsed`.
-- Accent theme ids are `USA_Ironstock` or `RSF_RustOrange` only. Re-skin paint is on HOLD. The HUD still shows Ironstock paint v3. RSF does not change column weights.
+- Accent theme ids are `USA_Ironstock` or `RSF_RustOrange` only, and their re-skin paint is on HOLD (portrait v1.1 in flight). The HUD still shows Ironstock paint v3. RSF does not change column weights.
+- `RU_RustIndustrial` and `CN_ImperialGreenGold` are CONDITIONAL/FAIL. No theme id, no material, no Versus tile.
 - No binary UI assets in git.

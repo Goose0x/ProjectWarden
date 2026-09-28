@@ -103,4 +103,4 @@ static_assert(KodUILayout::VersusFactionCount == 2, "Versus row is USA and RSF o
 static_assert(static_cast<uint8>(EKodVersusFaction::USA) == 0, "USA is the first Versus faction");
 static_assert(static_cast<uint8>(EKodVersusFaction::RSF) == 1, "RSF is the second Versus faction");
 static_assert(static_cast<uint8>(EKodFactionAccentTheme::USA_Ironstock) == 0, "USA Ironstock is the HUD baseline");
-static_assert(static_cast<uint8>(EKodFactionAccentTheme::RSF_RustOrange) == 1, "RSF is the only HUD re-skin");
+static_assert(static_cast<uint8>(EKodFactionAccentTheme::RSF_RustOrange) == 1, "Accent ids are USA and RSF only; no RU or CN enumerator");

@@ -119,11 +119,32 @@ bool UKodUIStyleLibrary::SetActiveHudAccent(EKodFactionAccentTheme Theme)
 {
 	if (!KodUIStylePrivate::IsLegalHudAccent(Theme))
 	{
-		UE_LOG(LogKodUI, Error, TEXT("Rejected HUD accent. Legal themes are USA_Ironstock and RSF_RustOrange."));
+		UE_LOG(LogKodUI, Error, TEXT("Rejected HUD accent. Legal theme ids are USA_Ironstock and RSF_RustOrange. RU_RustIndustrial and CN_ImperialGreenGold are not ids."));
 		return false;
 	}
 	KodUIStylePrivate::ActiveHudAccent() = Theme;
 	return true;
+}
+
+bool UKodUIStyleLibrary::IsRejectedHudAccentId(FName AccentId)
+{
+	const FString Id = AccentId.ToString();
+	// CONDITIONAL/FAIL. Not hidden theme ids, and not materials to author.
+	const TCHAR* FailedSheets[] = {
+		TEXT("RU_RustIndustrial"),
+		TEXT("CN_ImperialGreenGold"),
+		TEXT("RU"),
+		TEXT("CN"),
+	};
+	for (const TCHAR* Name : FailedSheets)
+	{
+		if (Id.Equals(Name, ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+	}
+	return !Id.Equals(TEXT("USA_Ironstock"), ESearchCase::IgnoreCase)
+		&& !Id.Equals(TEXT("RSF_RustOrange"), ESearchCase::IgnoreCase);
 }
 
 FLinearColor UKodUIStyleLibrary::GetActiveHudAccentColor()

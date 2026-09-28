@@ -73,9 +73,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static EKodFactionAccentTheme GetActiveHudAccent();
 
-	/** Rejects anything other than USA_Ironstock or RSF_RustOrange. */
+	/** Rejects anything other than USA_Ironstock or RSF_RustOrange. Does not apply re-skin paint. */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Style")
 	static bool SetActiveHudAccent(EKodFactionAccentTheme Theme);
+
+	/**
+	 * True for RU_RustIndustrial, CN_ImperialGreenGold, and every id other than
+	 * USA_Ironstock or RSF_RustOrange. Those two failed sheets are not theme ids.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
+	static bool IsRejectedHudAccentId(FName AccentId);
 
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetActiveHudAccentColor();
