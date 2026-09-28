@@ -28,8 +28,8 @@ namespace KodUILayout
 	inline constexpr int32 CommandCellCount = CommandColumns * CommandRows;
 
 	/**
-	 * Template plate v3. Chips are half the retired 32px tool floor (inside the stamped 40–50% band).
-	 * The 24px minimum is retired with that fat toolbar.
+	 * Chip height used by the in-tree minimap tools. Placement of those tools is HOLD
+	 * pending the updated template plate. This size is not a license to move them.
 	 */
 	inline constexpr float MapToolChipSizePx = 16.f;
 	inline constexpr float ClockMinWidthPx = 72.f;

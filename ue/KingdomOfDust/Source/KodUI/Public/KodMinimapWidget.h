@@ -14,9 +14,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FKodMapToolRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FKodMinimapPingRequested, FVector, WorldLocation);
 
 /**
- * Minimap cluster. Ironstock. Template plate v3.
- * Clock and a slim ToolChipStrip share the header. Idle worker, army, and ping are tiny chips in that strip.
- * MinimapImage fills the rest of the left bay. A vertical tool stack is retired.
+ * Minimap cluster. Ironstock.
+ * Tool placement is HOLD pending the updated template plate QA PASS.
+ * The in-tree header strip is not that plate. Do not move the three tools to the right until it passes.
  * Parent WBP: /Game/UI/HUD/WBP_Minimap.
  */
 UCLASS(Abstract, Blueprintable)

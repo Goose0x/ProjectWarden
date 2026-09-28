@@ -72,7 +72,8 @@ enum class EKodFactionTileState : uint8
 
 /**
  * HUD accent theme ids. Ironstock metal shell only. No cyan glass.
- * USA_TanGreenGold and RSF_MetalStoneOrangeArch are the Versus ids. Their paint is color-language v3.
+ * USA_TanGreenGold and RSF_MetalStoneOrangeArch are the Versus ids.
+ * USA paint is HOLD pending v4 QA. RSF paint is color-language v3.
  * CN_JadeStoneGoldRed and RU_SovietColdBlueIce stay stamped v2 HUD previews.
  * USA_Ironstock aliases USA_TanGreenGold. RSF_RustOrange aliases RSF_MetalStoneOrangeArch.
  * RU_RustIndustrial and CN_ImperialGreenGold are not ids.

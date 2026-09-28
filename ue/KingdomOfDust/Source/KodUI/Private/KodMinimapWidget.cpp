@@ -165,13 +165,13 @@ void UKodMinimapWidget::ApplyChipLayout()
 		}
 		if (UVerticalBoxSlot* StackSlot = Cast<UVerticalBoxSlot>(Chip->Slot))
 		{
-			UE_LOG(LogKodUI, Error, TEXT("%s is in a vertical tool stack. Parent it under ToolChipStrip. The fat toolbar is retired."), Name);
+			UE_LOG(LogKodUI, Warning, TEXT("%s is in a vertical tool stack. Tool placement is HOLD pending the updated template plate. Do not treat the header strip as the lock."), Name);
 			FSlateChildSize Auto(ESlateSizeRule::Automatic);
 			StackSlot->SetSize(Auto);
 		}
 		else if (ToolChipStrip && Chip->GetParent() != ToolChipStrip)
 		{
-			UE_LOG(LogKodUI, Warning, TEXT("%s should be a child of ToolChipStrip, in order: idle worker, army, ping."), Name);
+			UE_LOG(LogKodUI, Warning, TEXT("%s is outside ToolChipStrip. That header strip is not the locked plate. Tool placement is HOLD pending the updated template."), Name);
 		}
 		else if (UHorizontalBoxSlot* ChipSlot = Cast<UHorizontalBoxSlot>(Chip->Slot))
 		{

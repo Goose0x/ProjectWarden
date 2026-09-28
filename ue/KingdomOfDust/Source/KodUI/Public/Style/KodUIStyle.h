@@ -63,7 +63,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style", meta = (DeprecatedFunction, DeprecationMessage = "Use GetHudAccentColors(RSF_MetalStoneOrangeArch).Proud"))
 	static FLinearColor GetIronstockRustOrange();
 
-	/** Accent table. USA/RSF paint is v3. CN/RU stay stamped v2. Proud, Frame, Field, and Mark stay separate. */
+	/** Accent table. USA paint is HOLD pending v4 QA. RSF is v3. CN/RU stay stamped v2. Proud, Frame, Field, and Mark stay separate. */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FKodHudAccentColors GetHudAccentColors(EKodFactionAccentTheme Theme);
 
@@ -74,7 +74,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static EKodFactionAccentTheme GetActiveHudAccent();
 
-	/** Accepts the four accent ids. USA/RSF paint is v3. CN/RU paint is v2. There is no cyan-glass theme. */
+	/** Accepts the four accent ids. USA paint is HOLD pending v4. RSF paint is v3. CN/RU paint is v2. There is no cyan-glass theme. */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Style")
 	static bool SetActiveHudAccent(EKodFactionAccentTheme Theme);
 

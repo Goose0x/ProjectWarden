@@ -54,7 +54,7 @@ public:
 
 	/**
 	 * Applies an accent theme to the locked v4 shell.
-	 * USA_TanGreenGold and RSF_MetalStoneOrangeArch paint is color-language v3.
+	 * USA_TanGreenGold paint is HOLD pending v4 QA. RSF paint is color-language v3.
 	 * CN and RU preview ids stay stamped v2. Column weights and portrait
 	 * geometry stay put. Cyan glass is rejected.
 	 */

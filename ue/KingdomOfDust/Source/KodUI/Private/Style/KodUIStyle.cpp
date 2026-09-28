@@ -161,8 +161,8 @@ FKodHudAccentColors UKodUIStyleLibrary::GetHudAccentColors(EKodFactionAccentThem
 			FLinearColor(0.62f, 0.76f, 0.84f, 1.f));
 	case EKodFactionAccentTheme::USA_TanGreenGold:
 	default:
-		// v3 PASS. Desert sand plate, muted field green, patriotic gold.
-		// Not olive and not dark burnt Ironstock. Star/stripe rhythm is material, not a widget.
+		// HOLD pending USA v4 QA. These values are not the lock.
+		// Do not treat tan/patriotic v3 as final. Olive drab, gunmetal, and gold are not landed.
 		return MakeColors(
 			FLinearColor(0.52f, 0.42f, 0.28f, 1.f),
 			FLinearColor(0.80f, 0.68f, 0.46f, 1.f),
