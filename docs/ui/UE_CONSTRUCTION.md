@@ -26,7 +26,8 @@ Stand-in tints are not the final materials. Replace them in the Editor with the 
 | Lobby Versus glass v2.6 | Cyan glass. **USA · RSF only**. Chat on the **right** rail. Orange only on **PLAY RANKED** (and the local ladder row). Badge **v2.6**. |
 | Versus chat component v1 | Right-rail internals: ChatRoot, ChannelTabs, MessageList, MessageRow, ChatInput. Cyan glass. Secondary to PLAY RANKED. |
 | Faction boards USA · RSF v1 | `FactionBoard` with `FactionTile_USA` and `FactionTile_RSF` only. States Idle / Hover / Selected / Disabled. |
-| HUD accents v1 | `ApplyFactionAccentTheme` on the HUD shell. `USA_Ironstock` baseline. `RSF_RustOrange` re-skin. Same v4 proportions. No cyan glass. ENERGY stays under HP. |
+| Portrait panel pin | `W_PortraitPanel`: image fills the frame edge-to-edge. HP is flush to the bottom of that frame. ENERGY stays under HP. Hide with `Hidden`, never `Collapsed`. |
+| HUD accents v1 | **HOLD** on re-skin paint. Theme ids `USA_Ironstock` / `RSF_RustOrange` and `ApplyFactionAccentTheme` are stubs. Accent stamps are not final paint. Shell stays Ironstock paint v3. |
 
 ## Content paths
 
@@ -124,15 +125,23 @@ Cells are row-major, 8×3: `Cell_00` … `Cell_23` (`UKodSelectionCellWidget`). 
 
 `OverflowTabRail` (`UWidget`, optional) is the page rail. It stays in the hierarchy and starts Hidden. It is not extra permanent cells.
 
-### Portrait — `UKodPortraitFrameWidget`
+### Portrait — `UKodPortraitFrameWidget` (`W_PortraitPanel`)
+
+Director pin. Parent the named widgets to a canvas (the Widget Blueprint root). `ApplyPortraitGeometry` runs in pre-construct and enforces:
+
+1. `PortraitImage` fills the portrait frame edge-to-edge (anchors stretch, margin 0, brush margin 0).
+2. `HPBar` is flush to the bottom of that frame (full width, bottom offset 0, height `PortraitHpBarHeightPx`). Green. `HPValue` sits on that bottom edge.
+3. `EnergyCaption` then `EnergyBar` sit under the frame, directly beneath HP. The block height is reserved (`PortraitEnergyCaptionHeightPx` + `PortraitEnergyBarHeightPx`). Unused energy uses `Hidden`, not `Collapsed`, so the slot is not given away.
 
 | Name | Type | Notes |
 |------|------|-------|
-| `PortraitImage` | `UImage` | |
-| `HPBar` | `UProgressBar` | Green |
-| `HPValue` | `UCommonTextBlock` | `current/max` |
-| `EnergyBar` | `UProgressBar` | Under HP. Unused → `Hidden`, not `Collapsed`, so the column does not reflow. |
-| `EnergyCaption` | `UCommonTextBlock` | Reads ENERGY |
+| `PortraitImage` | `UImage` | Fills the frame. No inset. |
+| `HPBar` | `UProgressBar` | Green. Bottom edge of the frame. |
+| `HPValue` | `UCommonTextBlock` | `current/max`, on the HP bar. |
+| `EnergyCaption` | `UCommonTextBlock` | Reads ENERGY. Under HP. |
+| `EnergyBar` | `UProgressBar` | Under the caption. Reserved even when hidden. |
+
+Paint on this panel stays Ironstock paint v3. Accent re-skin color is not applied here.
 
 ### Command card — `UKodCommandCardWidget`
 
@@ -258,16 +267,18 @@ Component sheet v1 names inside `WBP_LobbyChatRail`:
 
 `WBP_LadderRow` names: `RankText`, `NameText`, `MmrText`, `WinsText`, `LossesText`. Assign the row class on the lobby. The local row is the orange line. `GetStampPreviewRows` is fictional stamp copy for the designer, not a ranked service.
 
-## HUD accents — shell unchanged
+## HUD accents — HOLD, shell unchanged
 
-`W_HUDShell` is `UKodHudRootWidget` (`WBP_KodHUD`). Layout v4 weights, the 5×3 card, and the ENERGY slot under HP are unchanged. `ApplyFactionAccentTheme` only retints Ironstock readouts:
+`W_HUDShell` is `UKodHudRootWidget` (`WBP_KodHUD`). Layout v4 weights and the 5×3 card are unchanged. QA has the USA/RSF accent sheets on hold for a possible UI Dev revision. Do not treat that stamp art as final paint.
 
-| Theme | Color | Material |
-|-------|--------|----------|
-| `USA_Ironstock` | Olive/gold amber (`GetIronstockAmber`, paint v3 baseline) | Ironstock metal |
-| `RSF_RustOrange` | Rust/orange (`GetIronstockRustOrange`) | Same metal shell, accent only |
+`ApplyFactionAccentTheme` stores the theme id and does not retint the shell. `SetActiveHudAccent` still rejects anything other than the two ids. `GetHudAccentColor` and `GetIronstockRustOrange` return paint v3 amber while the hold is in place, so a caller cannot paint the unapproved rust swatch. No cyan glass on the HUD. HP stays green.
 
-`SetActiveHudAccent` rejects any other value. The accent color is never cyan and never the front-end commit orange. HP stays green. `Portrait.EnergyBar` and `EnergyCaption` stay in the hierarchy; unused energy uses `Hidden`, not `Collapsed`.
+| Theme id | What is hooked now | Paint |
+|----------|--------------------|-------|
+| `USA_Ironstock` | Id stored. `AccentForFaction(USA)` | Ironstock paint v3 amber on metal |
+| `RSF_RustOrange` | Id stored. `AccentForFaction(RSF)` | Same paint v3. Re-skin not applied |
+
+Call `ApplyFactionAccentTheme` from match setup when the faction is known. It is a stub until the hold lifts.
 
 Handoff region names map onto the existing shell slots. Those slot names are not renamed:
 
@@ -277,13 +288,11 @@ Handoff region names map onto the existing shell slots. Those slot names are not
 | `W_ResourceStrip` | `ResourceBar` |
 | `W_MinimapCluster` | `Minimap` (column weight 18) |
 | `W_SelectionPanel` | `SelectionPanel` (42) |
-| `W_PortraitPanel` | `Portrait` (15), ENERGY under HP |
+| `W_PortraitPanel` | `Portrait` (15). Image edge-to-edge, HP flush to the frame bottom, ENERGY reserved under HP |
 | `W_CommandCard` | `CommandCard` (20, 5×3) |
 | `W_HUDUtilityCluster` | `ChatMenuCluster` |
 
-If a portrait shows a callsign, the copy is **Black Widow** (`CallsignText`, optional).
-
-Call `ApplyFactionAccentTheme` from match setup. `AccentForFaction` maps USA → `USA_Ironstock` and RSF → `RSF_RustOrange`.
+If a portrait shows a callsign, the copy is **Black Widow** (`CallsignText`, optional). `AccentForFaction` maps USA → `USA_Ironstock` and RSF → `RSF_RustOrange`.
 
 ## Editor pass (still required)
 
@@ -304,6 +313,7 @@ Call `ApplyFactionAccentTheme` from match setup. `AccentForFaction` maps USA →
 - Lobby orange is PLAY RANKED plus the local ladder row.
 - Lobby faction widgets are USA and RSF. No third tile.
 - `ChatRail` is the rightmost column of `LobbyColumns`. Its material is cyan glass, not Ironstock.
-- Command card has no title. Top row glyphs are Q W E R T. Selection has no title. Grid is 8×3. ENERGY is under HP.
-- HUD accent is `USA_Ironstock` or `RSF_RustOrange` only. RSF does not change column weights.
+- Command card has no title. Top row glyphs are Q W E R T. Selection has no title. Grid is 8×3.
+- `PortraitImage` has no margin. `HPBar` is flush to the bottom of the portrait frame. `EnergyBar` is under HP. Unused energy is `Hidden`, not `Collapsed`.
+- Accent theme ids are `USA_Ironstock` or `RSF_RustOrange` only. Re-skin paint is on HOLD. The HUD still shows Ironstock paint v3. RSF does not change column weights.
 - No binary UI assets in git.

@@ -59,10 +59,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetCommitColor(EKodUIMaterialLanguage Language);
 
-	/** Rust/orange Ironstock re-skin. Not the front-end commit orange, and not cyan. */
+	/**
+	 * HOLD. Accent-stamp rust is not final paint, so this returns paint v3 amber.
+	 * Not the front-end commit orange, and not cyan.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetIronstockRustOrange();
 
+	/** Theme id is accepted. While accent paint is on HOLD, every legal theme returns paint v3 amber. */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetHudAccentColor(EKodFactionAccentTheme Theme);
 

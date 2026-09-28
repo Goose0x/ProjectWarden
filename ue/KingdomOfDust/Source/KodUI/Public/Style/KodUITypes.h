@@ -71,8 +71,9 @@ enum class EKodFactionTileState : uint8
 };
 
 /**
- * HUD accent on the locked v4 shell. Ironstock metal only.
- * USA is the olive/gold baseline. RSF is a rust/orange re-skin.
+ * HUD accent theme ids on the locked v4 shell. Ironstock metal only.
+ * Paint for these ids is on HOLD — the accent stamps are not final.
+ * USA_Ironstock remains the paint v3 id. RSF_RustOrange is an id hook only.
  * There is no cyan-glass enumerator.
  */
 UENUM(BlueprintType)

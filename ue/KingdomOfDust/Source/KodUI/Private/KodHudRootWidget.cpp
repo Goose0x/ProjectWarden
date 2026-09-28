@@ -58,16 +58,7 @@ void UKodHudRootWidget::ApplyFactionAccentTheme(EKodFactionAccentTheme Theme)
 		return;
 	}
 	AccentTheme = Theme;
-	if (IronstockPlate)
-	{
-		IronstockPlate->SetColorAndOpacity(UKodUIStyleLibrary::GetIronstockMetal());
-	}
-	if (ResourceBar) { ResourceBar->ApplyHudAccent(); }
-	if (Minimap) { Minimap->ApplyHudAccent(); }
-	if (SelectionPanel) { SelectionPanel->ApplyHudAccent(); }
-	if (Portrait) { Portrait->ApplyHudAccent(); }
-	if (CommandCard) { CommandCard->ApplyHudAccent(); }
-	if (ChatMenuCluster) { ChatMenuCluster->ApplyHudAccent(); }
+	// Stub: theme id only. Accent-stamp re-skin paint is on HOLD.
 }
 
 void UKodHudRootWidget::ApplyStampProportions()

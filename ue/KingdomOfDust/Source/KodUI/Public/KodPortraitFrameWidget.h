@@ -8,10 +8,10 @@ class UImage;
 class UProgressBar;
 
 /**
- * Portrait column. Ironstock.
- * HP bar, then the ENERGY slot under it. ENERGY hides with Hidden (not Collapsed)
- * so the column does not reflow when a unit has no energy.
- * Parent WBP: /Game/UI/HUD/WBP_PortraitFrame.
+ * W_PortraitPanel. Ironstock paint v3.
+ * PortraitImage fills the frame edge-to-edge. HPBar is flush to the bottom of that frame.
+ * ENERGY sits under HP. Hide it with Hidden, never Collapsed, so the slot stays reserved.
+ * Parent WBP: /Game/UI/HUD/WBP_PortraitFrame. Root should be a canvas.
  */
 UCLASS(Abstract, Blueprintable)
 class KODUI_API UKodPortraitFrameWidget : public UCommonUserWidget
@@ -25,7 +25,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Portrait")
 	void SetEnergyVisible(bool bVisible);
 
-	/** Retints the ENERGY slot. HP stays green. The ENERGY widget is not removed. */
+	/** Reapplies the portrait pin. Does not paint an accent re-skin. HP stays green. */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Portrait")
 	void ApplyHudAccent();
 
@@ -35,6 +35,7 @@ public:
 
 protected:
 	virtual void NativePreConstruct() override;
+	void ApplyPortraitGeometry();
 	void ApplyBars();
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|Portrait")

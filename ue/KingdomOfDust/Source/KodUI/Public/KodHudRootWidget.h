@@ -53,9 +53,9 @@ public:
 	UKodChatMenuClusterWidget* GetChatMenuCluster() const { return ChatMenuCluster; }
 
 	/**
-	 * W_HUDShell accent. USA_Ironstock is paint v3 olive/gold.
-	 * RSF_RustOrange re-skins readouts only. Proportions stay on layout v4.
-	 * Cyan glass is rejected.
+	 * Stores a HUD accent theme id. USA_Ironstock or RSF_RustOrange.
+	 * Visual re-skin is on HOLD — this does not retint the shell.
+	 * Proportions stay on layout v4. Cyan glass is rejected.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|HUD")
 	void ApplyFactionAccentTheme(EKodFactionAccentTheme Theme);

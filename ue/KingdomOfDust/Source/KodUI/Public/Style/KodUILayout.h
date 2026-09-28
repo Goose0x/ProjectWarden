@@ -43,6 +43,13 @@ namespace KodUILayout
 	inline constexpr int32 StampPreviewHp = 75;
 	inline constexpr int32 StampPreviewHpMax = 75;
 
+	/** Portrait frame pin. The image fills the frame; this bar sits on its bottom edge. */
+	inline constexpr float PortraitHpBarHeightPx = 8.f;
+	/** Reserved under HP. Hidden keeps the height. Collapsed is not legal. */
+	inline constexpr float PortraitEnergyBarHeightPx = 8.f;
+	inline constexpr float PortraitEnergyCaptionHeightPx = 14.f;
+	inline constexpr float PortraitHpValueInsetPx = 4.f;
+
 	inline constexpr const TCHAR* WBP_KodHUD = TEXT("/Game/UI/HUD/WBP_KodHUD");
 	inline constexpr const TCHAR* WBP_ResourceBar = TEXT("/Game/UI/HUD/WBP_ResourceBar");
 	inline constexpr const TCHAR* WBP_Minimap = TEXT("/Game/UI/HUD/WBP_Minimap");
