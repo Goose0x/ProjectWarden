@@ -81,33 +81,98 @@ FLinearColor UKodUIStyleLibrary::GetCommitColor(EKodUIMaterialLanguage Language)
 
 FLinearColor UKodUIStyleLibrary::GetIronstockRustOrange()
 {
-	// Color-table HOLD. Ids stay valid. Do not return a faction palette.
-	return GetIronstockAmber();
+	return GetHudAccentColors(EKodFactionAccentTheme::RSF_MetalStoneOrangeArch).Proud;
 }
 
 namespace KodUIStylePrivate
 {
 	EKodFactionAccentTheme& ActiveHudAccent()
 	{
-		static EKodFactionAccentTheme Theme = EKodFactionAccentTheme::USA_Ironstock;
+		static EKodFactionAccentTheme Theme = EKodFactionAccentTheme::USA_TanGreenGold;
 		return Theme;
 	}
 
 	bool IsLegalHudAccent(EKodFactionAccentTheme Theme)
 	{
-		return Theme == EKodFactionAccentTheme::USA_Ironstock || Theme == EKodFactionAccentTheme::RSF_RustOrange;
+		switch (Theme)
+		{
+		case EKodFactionAccentTheme::USA_TanGreenGold:
+		case EKodFactionAccentTheme::RSF_MetalStoneOrangeArch:
+		case EKodFactionAccentTheme::CN_JadeStoneGoldRed:
+		case EKodFactionAccentTheme::RU_SovietColdBlueIce:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	FKodHudAccentColors MakeColors(const FLinearColor& Metal, const FLinearColor& Frame, const FLinearColor& Field, const FLinearColor& Proud, const FLinearColor& Mark)
+	{
+		FKodHudAccentColors Colors;
+		Colors.Metal = Metal;
+		Colors.Frame = Frame;
+		Colors.Field = Field;
+		Colors.Proud = Proud;
+		Colors.Mark = Mark;
+		return Colors;
+	}
+
+	bool EqualsId(const FString& Id, const TCHAR* Name)
+	{
+		return Id.Equals(Name, ESearchCase::IgnoreCase);
+	}
+}
+
+FKodHudAccentColors UKodUIStyleLibrary::GetHudAccentColors(EKodFactionAccentTheme Theme)
+{
+	using namespace KodUIStylePrivate;
+	if (!IsLegalHudAccent(Theme))
+	{
+		UE_LOG(LogKodUI, Error, TEXT("HUD accent must be a v2 language. Cyan glass is not a HUD theme."));
+		Theme = EKodFactionAccentTheme::USA_TanGreenGold;
+	}
+
+	switch (Theme)
+	{
+	case EKodFactionAccentTheme::RSF_MetalStoneOrangeArch:
+		// Stone metal and orange. No faith chrome. Not the front-end commit orange.
+		return MakeColors(
+			FLinearColor(0.14f, 0.12f, 0.10f, 1.f),
+			FLinearColor(0.34f, 0.28f, 0.22f, 1.f),
+			FLinearColor(0.24f, 0.20f, 0.16f, 1.f),
+			FLinearColor(0.86f, 0.38f, 0.10f, 1.f),
+			FLinearColor(0.86f, 0.38f, 0.10f, 1.f));
+	case EKodFactionAccentTheme::CN_JadeStoneGoldRed:
+		// HUD preview. Jade, stone, gold, and a mandate red. Not a Versus tile.
+		return MakeColors(
+			FLinearColor(0.08f, 0.12f, 0.09f, 1.f),
+			FLinearColor(0.16f, 0.32f, 0.22f, 1.f),
+			FLinearColor(0.24f, 0.48f, 0.32f, 1.f),
+			FLinearColor(0.82f, 0.64f, 0.24f, 1.f),
+			FLinearColor(0.62f, 0.14f, 0.12f, 1.f));
+	case EKodFactionAccentTheme::RU_SovietColdBlueIce:
+		// HUD preview. Cold steel and ice. Not warm rust, and not lobby cyan.
+		return MakeColors(
+			FLinearColor(0.10f, 0.13f, 0.16f, 1.f),
+			FLinearColor(0.28f, 0.36f, 0.42f, 1.f),
+			FLinearColor(0.18f, 0.28f, 0.36f, 1.f),
+			FLinearColor(0.62f, 0.76f, 0.84f, 1.f),
+			FLinearColor(0.62f, 0.76f, 0.84f, 1.f));
+	case EKodFactionAccentTheme::USA_TanGreenGold:
+	default:
+		// Desert tan stays on the frame. Field green and gold proud are separate.
+		return MakeColors(
+			FLinearColor(0.20f, 0.14f, 0.08f, 1.f),
+			FLinearColor(0.58f, 0.42f, 0.22f, 1.f),
+			FLinearColor(0.40f, 0.50f, 0.16f, 1.f),
+			FLinearColor(0.92f, 0.72f, 0.26f, 1.f),
+			FLinearColor(0.92f, 0.72f, 0.26f, 1.f));
 	}
 }
 
 FLinearColor UKodUIStyleLibrary::GetHudAccentColor(EKodFactionAccentTheme Theme)
 {
-	if (!KodUIStylePrivate::IsLegalHudAccent(Theme))
-	{
-		UE_LOG(LogKodUI, Error, TEXT("HUD accent must be USA_Ironstock or RSF_RustOrange. Cyan glass is not a HUD theme."));
-		return GetIronstockAmber();
-	}
-	// HOLD: no faction palette. USA_Ironstock and RSF_RustOrange both stay paint v3 amber.
-	return GetIronstockAmber();
+	return GetHudAccentColors(Theme).Proud;
 }
 
 EKodFactionAccentTheme UKodUIStyleLibrary::GetActiveHudAccent()
@@ -119,32 +184,58 @@ bool UKodUIStyleLibrary::SetActiveHudAccent(EKodFactionAccentTheme Theme)
 {
 	if (!KodUIStylePrivate::IsLegalHudAccent(Theme))
 	{
-		UE_LOG(LogKodUI, Error, TEXT("Rejected HUD accent. Legal theme ids are USA_Ironstock and RSF_RustOrange. RU_RustIndustrial and CN_ImperialGreenGold are not ids."));
+		UE_LOG(LogKodUI, Error, TEXT("Rejected HUD accent. Legal ids are USA_TanGreenGold, RSF_MetalStoneOrangeArch, CN_JadeStoneGoldRed, and RU_SovietColdBlueIce."));
 		return false;
 	}
 	KodUIStylePrivate::ActiveHudAccent() = Theme;
 	return true;
 }
 
-bool UKodUIStyleLibrary::IsRejectedHudAccentId(FName AccentId)
+bool UKodUIStyleLibrary::TryResolveHudAccentId(FName AccentId, EKodFactionAccentTheme& OutTheme)
 {
 	const FString Id = AccentId.ToString();
-	// CONDITIONAL/FAIL. Not hidden theme ids, and not materials to author.
-	const TCHAR* FailedSheets[] = {
-		TEXT("RU_RustIndustrial"),
-		TEXT("CN_ImperialGreenGold"),
-		TEXT("RU"),
-		TEXT("CN"),
-	};
-	for (const TCHAR* Name : FailedSheets)
+	using namespace KodUIStylePrivate;
+	if (EqualsId(Id, TEXT("USA_TanGreenGold")) || EqualsId(Id, TEXT("USA_Ironstock")))
 	{
-		if (Id.Equals(Name, ESearchCase::IgnoreCase))
-		{
-			return true;
-		}
+		OutTheme = EKodFactionAccentTheme::USA_TanGreenGold;
+		return true;
 	}
-	return !Id.Equals(TEXT("USA_Ironstock"), ESearchCase::IgnoreCase)
-		&& !Id.Equals(TEXT("RSF_RustOrange"), ESearchCase::IgnoreCase);
+	if (EqualsId(Id, TEXT("RSF_MetalStoneOrangeArch")) || EqualsId(Id, TEXT("RSF_RustOrange")))
+	{
+		OutTheme = EKodFactionAccentTheme::RSF_MetalStoneOrangeArch;
+		return true;
+	}
+	if (EqualsId(Id, TEXT("CN_JadeStoneGoldRed")))
+	{
+		OutTheme = EKodFactionAccentTheme::CN_JadeStoneGoldRed;
+		return true;
+	}
+	if (EqualsId(Id, TEXT("RU_SovietColdBlueIce")))
+	{
+		OutTheme = EKodFactionAccentTheme::RU_SovietColdBlueIce;
+		return true;
+	}
+	return false;
+}
+
+bool UKodUIStyleLibrary::IsRejectedHudAccentId(FName AccentId)
+{
+	EKodFactionAccentTheme Resolved = EKodFactionAccentTheme::USA_TanGreenGold;
+	if (TryResolveHudAccentId(AccentId, Resolved))
+	{
+		return false;
+	}
+	const FString Id = AccentId.ToString();
+	if (KodUIStylePrivate::EqualsId(Id, TEXT("RU_RustIndustrial")) || KodUIStylePrivate::EqualsId(Id, TEXT("CN_ImperialGreenGold")))
+	{
+		UE_LOG(LogKodUI, Error, TEXT("HUD accent '%s' is a failed sheet. It is not a v2 theme id."), *Id);
+	}
+	return true;
+}
+
+FKodHudAccentColors UKodUIStyleLibrary::GetActiveHudAccentColors()
+{
+	return GetHudAccentColors(GetActiveHudAccent());
 }
 
 FLinearColor UKodUIStyleLibrary::GetActiveHudAccentColor()
@@ -156,7 +247,7 @@ EKodFactionAccentTheme UKodUIStyleLibrary::AccentForFaction(EKodVersusFaction Fa
 {
 	if (Faction == EKodVersusFaction::RSF)
 	{
-		return EKodFactionAccentTheme::RSF_RustOrange;
+		return EKodFactionAccentTheme::RSF_MetalStoneOrangeArch;
 	}
-	return EKodFactionAccentTheme::USA_Ironstock;
+	return EKodFactionAccentTheme::USA_TanGreenGold;
 }

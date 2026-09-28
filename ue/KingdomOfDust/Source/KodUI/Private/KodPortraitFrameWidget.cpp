@@ -279,8 +279,7 @@ void UKodPortraitFrameWidget::ApplyBars()
 	if (Prog_Energy)
 	{
 		Prog_Energy->SetPercent(FMath::Clamp(EnergyFraction, 0.f, 1.f));
-		// Paint v3 amber only. Not a USA/RSF/CN/RU palette swap.
-		Prog_Energy->SetFillColorAndOpacity(UKodUIStyleLibrary::GetIronstockAmber());
+		Prog_Energy->SetFillColorAndOpacity(UKodUIStyleLibrary::GetActiveHudAccentColor());
 		Prog_Energy->SetVisibility(bHasEnergy ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 	}
 	if (Img_Portrait)

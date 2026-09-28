@@ -63,7 +63,6 @@ void UKodMinimapWidget::NativePreConstruct()
 	}
 
 	ApplyHudAccent();
-	if (MinimapImage) { MinimapImage->SetColorAndOpacity(UKodUIStyleLibrary::GetIronstockMetal()); }
 
 	if (Size_Clock)
 	{
@@ -77,7 +76,9 @@ void UKodMinimapWidget::NativePreConstruct()
 
 void UKodMinimapWidget::ApplyHudAccent()
 {
-	const FLinearColor Accent = UKodUIStyleLibrary::GetActiveHudAccentColor();
+	const FKodHudAccentColors Colors = UKodUIStyleLibrary::GetActiveHudAccentColors();
+	const FLinearColor Accent = Colors.Proud;
+	if (MinimapImage) { MinimapImage->SetColorAndOpacity(Colors.Metal); }
 	if (Tool_IdleWorker) { Tool_IdleWorker->SetColorAndOpacity(Accent); }
 	if (Tool_Army) { Tool_Army->SetColorAndOpacity(Accent); }
 	if (Tool_Ping) { Tool_Ping->SetColorAndOpacity(Accent); }

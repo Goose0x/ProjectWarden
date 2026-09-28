@@ -18,7 +18,7 @@ Create these Widget Blueprints in the Editor. **Do not commit `.uasset` files.**
 
 Assign `WBP_KodHUD` (`W_HUDShell`) to `AKodHUD.HudWidgetClass`.
 
-`ApplyFactionAccentTheme` stores `USA_Ironstock` or `RSF_RustOrange` and does not retint. Those ids stay valid. The hold is color and palette tables only, until new color-language sheets PASS. Do not add `RU_RustIndustrial` or `CN_ImperialGreenGold`. Column weights stay 18 / 42 / 15 / 20 / 5.
+`ApplyFactionAccentTheme` retints with v2 languages: `USA_TanGreenGold`, `RSF_MetalStoneOrangeArch`, `CN_JadeStoneGoldRed`, `RU_SovietColdBlueIce`. CN and RU are preview themes, not Versus factions. Column weights stay 18 / 42 / 15 / 20 / 5. Portrait geometry stays v1.1.
 
 `WBP_PortraitFrame` (`W_PortraitPanel`, geometry PASS v1.1): `Img_Portrait` fills the art box, `Prog_Health` sits on that art bottom, `Slot_Energy` keeps a fixed height under HP, and `Txt_Callsign` is the only Black Widow label.
 

@@ -71,17 +71,45 @@ enum class EKodFactionTileState : uint8
 };
 
 /**
- * HUD accent theme ids on the locked v4 shell. Ironstock metal only.
- * USA_Ironstock and RSF_RustOrange stay valid id stubs.
- * Color and palette tables are on HOLD until new color-language sheets PASS.
- * RU_RustIndustrial and CN_ImperialGreenGold are not enumerators.
- * There is no cyan-glass enumerator.
+ * HUD accent color languages, v2. Ironstock metal shell only. No cyan glass.
+ * USA and RSF are the Versus playable accents. CN and RU are HUD preview themes only.
+ * USA_Ironstock and RSF_RustOrange are retired names; resolve them to the v2 ids.
+ * RU_RustIndustrial and CN_ImperialGreenGold are not ids.
  */
 UENUM(BlueprintType)
 enum class EKodFactionAccentTheme : uint8
 {
-	USA_Ironstock UMETA(DisplayName = "USA Ironstock"),
-	RSF_RustOrange UMETA(DisplayName = "RSF Rust Orange"),
+	USA_TanGreenGold UMETA(DisplayName = "USA Tan Green Gold"),
+	RSF_MetalStoneOrangeArch UMETA(DisplayName = "RSF Metal Stone Orange"),
+	CN_JadeStoneGoldRed UMETA(DisplayName = "CN Jade Stone Gold Red"),
+	RU_SovietColdBlueIce UMETA(DisplayName = "RU Soviet Cold Blue Ice"),
+};
+
+/**
+ * One faction color language. Roles stay distinct so USA does not collapse to a single olive.
+ * Metal and Frame are the shell. Field is the second hue. Proud is icon and readout.
+ * Mark is an extra hue (CN red). Other languages set Mark equal to Proud.
+ * Arch and Mandate are material motifs, not extra widgets.
+ */
+USTRUCT(BlueprintType)
+struct FKodHudAccentColors
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|Style")
+	FLinearColor Metal = FLinearColor(0.22f, 0.16f, 0.09f, 1.f);
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|Style")
+	FLinearColor Frame = FLinearColor(0.55f, 0.40f, 0.22f, 1.f);
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|Style")
+	FLinearColor Field = FLinearColor(0.42f, 0.52f, 0.18f, 1.f);
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|Style")
+	FLinearColor Proud = FLinearColor(0.93f, 0.74f, 0.28f, 1.f);
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|Style")
+	FLinearColor Mark = FLinearColor(0.93f, 0.74f, 0.28f, 1.f);
 };
 
 /** One Versus chat line. Speaker is cyan; body is white. */

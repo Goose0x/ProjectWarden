@@ -53,9 +53,9 @@ public:
 	UKodChatMenuClusterWidget* GetChatMenuCluster() const { return ChatMenuCluster; }
 
 	/**
-	 * Stores USA_Ironstock or RSF_RustOrange. Those ids stay valid.
-	 * Does not retint. Color and palette tables are on HOLD. RU and CN ids are rejected.
-	 * Proportions stay on layout v4. Cyan glass is rejected.
+	 * Applies a v2 color language to the locked v4 shell.
+	 * USA_TanGreenGold, RSF_MetalStoneOrangeArch, plus CN and RU preview ids.
+	 * Proportions and portrait geometry stay put. Cyan glass is rejected.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|HUD")
 	void ApplyFactionAccentTheme(EKodFactionAccentTheme Theme);
@@ -68,7 +68,7 @@ protected:
 	void ApplyStampProportions();
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|HUD")
-	EKodFactionAccentTheme AccentTheme = EKodFactionAccentTheme::USA_Ironstock;
+	EKodFactionAccentTheme AccentTheme = EKodFactionAccentTheme::USA_TanGreenGold;
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|HUD")
 	TObjectPtr<UKodResourceBarWidget> ResourceBar;

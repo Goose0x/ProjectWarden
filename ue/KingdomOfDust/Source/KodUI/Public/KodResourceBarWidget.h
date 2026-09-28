@@ -32,7 +32,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI")
 	void SetSupply(int32 Current, int32 Max);
 
-	/** Ironstock paint v3 amber. Accent re-skin paint is on HOLD. Never cyan. */
+	/** Icon and number tint from the active v2 color language. Never cyan. */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI")
 	void ApplyHudAccent();
 

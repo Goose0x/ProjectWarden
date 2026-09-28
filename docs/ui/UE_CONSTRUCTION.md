@@ -27,7 +27,7 @@ Stand-in tints are not the final materials. Replace them in the Editor with the 
 | Versus chat component v1 | Right-rail internals: ChatRoot, ChannelTabs, MessageList, MessageRow, ChatInput. Cyan glass. Secondary to PLAY RANKED. |
 | Faction boards USA · RSF v1 | `FactionBoard` with `FactionTile_USA` and `FactionTile_RSF` only. States Idle / Hover / Selected / Disabled. |
 | Portrait panel pin v1.1 | **PASS.** `Img_Portrait` fills the art box. `Prog_Health` is flush on that art bottom, not a separate bay. `Slot_Energy` stays a fixed height under HP. One `Txt_Callsign`: Black Widow. |
-| HUD accent colors | **HOLD — palette retint only.** Do not author color or material tables. `USA_Ironstock` and `RSF_RustOrange` stay valid id stubs until new color-language sheets PASS. `RU_RustIndustrial` and `CN_ImperialGreenGold` stay rejected. |
+| HUD accent colors v2 | **PASS.** `USA_TanGreenGold`, `RSF_MetalStoneOrangeArch`, `CN_JadeStoneGoldRed` (preview), `RU_SovietColdBlueIce` (preview). `ApplyFactionAccentTheme` retints. Geometry stays v1.1. Versus row stays USA · RSF. |
 
 ## Content paths
 
@@ -277,26 +277,27 @@ Component sheet v1 names inside `WBP_LobbyChatRail`:
 
 `WBP_LadderRow` names: `RankText`, `NameText`, `MmrText`, `WinsText`, `LossesText`. Assign the row class on the lobby. The local row is the orange line. `GetStampPreviewRows` is fictional stamp copy for the designer, not a ranked service.
 
-## HUD accents — color retint HOLD, ids kept
+## HUD accents — color languages v2
 
-`W_HUDShell` is `UKodHudRootWidget` (`WBP_KodHUD`). Layout v4 weights and the 5×3 card are unchanged. No cyan glass on the HUD. HP stays green.
+`W_HUDShell` is `UKodHudRootWidget` (`WBP_KodHUD`). Layout v4 weights and the 5×3 card are unchanged. Portrait geometry stays the v1.1 pin. No cyan glass on the HUD. HP stays green. Do not bake sheet labels such as "Portrait 15%" into widgets.
 
-The hold is only on accent **color and palette retints**. Do not author or commit new faction color tables or accent materials. New color-language sheets will supersede identity colors after they PASS. Until then, `GetHudAccentColor` and `GetIronstockRustOrange` return Ironstock paint v3 amber and do not switch palettes.
+The color-retint hold is lifted. `ApplyFactionAccentTheme` loads `GetHudAccentColors` and retints the shell. `FKodHudAccentColors` keeps the roles apart: `Frame` on the plate, `Proud` on icons and readouts, `Field` as the second hue, `Mark` as the extra hue. USA frame is desert tan, not a single olive. RSF is stone metal plus orange, with no faith chrome and no arch widget added to the shell. RU proud is ice blue, not warm rust and not lobby cyan.
 
-`USA_Ironstock` and `RSF_RustOrange` remain valid theme-id stubs. `ApplyFactionAccentTheme` stores that id and does not retint. `AccentForFaction` still maps USA and RSF onto those ids.
+`USA_Ironstock` resolves to `USA_TanGreenGold`. `RSF_RustOrange` resolves to `RSF_MetalStoneOrangeArch`. Those old names are not the retint targets.
 
-`RU_RustIndustrial` and `CN_ImperialGreenGold` are rejected, not deferred ids. `IsRejectedHudAccentId` returns true for both. Do not wire them. The Versus roster stays USA · RSF.
+CN and RU themes are HUD preview ids only. `AccentForFaction` maps Versus USA and RSF only. `FactionBoard` still rejects CN, RU, and RANDOM tiles. `IsRejectedHudAccentId` allows the four v2 ids (and the two retired aliases) and still rejects `RU_RustIndustrial` and `CN_ImperialGreenGold`.
 
-| Theme id | Status | Paint |
-|----------|--------|-------|
-| `USA_Ironstock` | Valid stub. `AccentForFaction(USA)` | No new palette. Paint v3 amber stays. |
-| `RSF_RustOrange` | Valid stub. `AccentForFaction(RSF)` | No new palette. Same paint v3. |
-| `RU_RustIndustrial` | Rejected. Not an id. | None |
-| `CN_ImperialGreenGold` | Rejected. Not an id. | None |
+| Theme id | Where it applies | Language |
+|----------|------------------|----------|
+| `USA_TanGreenGold` | Versus USA. `AccentForFaction(USA)` | Desert tan frame, field green, gold proud |
+| `RSF_MetalStoneOrangeArch` | Versus RSF. `AccentForFaction(RSF)` | Stone metal, orange. Cause-safe |
+| `CN_JadeStoneGoldRed` | `ApplyFactionAccentTheme` preview only | Jade, stone, gold, red |
+| `RU_SovietColdBlueIce` | `ApplyFactionAccentTheme` preview only | Cold metal, ice blue |
+| `RU_RustIndustrial` / `CN_ImperialGreenGold` | Rejected sheet names | None |
 
-Chat stays the right rail. `FactionBoard` stays `FactionTile_USA` and `FactionTile_RSF`. Portrait geometry v1.1 is **PASS**: `Img_Portrait` edge-to-edge, `Prog_Health` on the art-box bottom, `Slot_Energy` fixed under HP, one `Txt_Callsign`.
+Chat stays the right rail. `FactionBoard` stays `FactionTile_USA` and `FactionTile_RSF`. Portrait geometry v1.1 is unchanged: `Img_Portrait` edge-to-edge, `Prog_Health` on the art-box bottom, `Slot_Energy` fixed under HP, one `Txt_Callsign` reading **Black Widow**.
 
-Call `ApplyFactionAccentTheme` from match setup to record the id. Do not attach a color table to that call.
+Call `ApplyFactionAccentTheme` from match setup for USA or RSF, and from a preview hook for CN or RU. It does not add a Versus tile.
 
 Handoff region names map onto the existing shell slots. Those slot names are not renamed:
 
@@ -310,7 +311,7 @@ Handoff region names map onto the existing shell slots. Those slot names are not
 | `W_CommandCard` | `CommandCard` (20, 5×3) |
 | `W_HUDUtilityCluster` | `ChatMenuCluster` |
 
-`Txt_Callsign` is the only Black Widow label. `AccentForFaction` maps USA → `USA_Ironstock` and RSF → `RSF_RustOrange` and does not change colors.
+`Txt_Callsign` is the only Black Widow label, including when the RU preview theme is applied. `AccentForFaction` maps USA → `USA_TanGreenGold` and RSF → `RSF_MetalStoneOrangeArch`.
 
 ## Editor pass (still required)
 
@@ -334,6 +335,6 @@ Handoff region names map onto the existing shell slots. Those slot names are not
 - Command card has no title. Top row glyphs are Q W E R T. Selection has no title. Grid is 8×3.
 - `Img_Portrait` fills the art box with no margin. `Prog_Health` is on that art bottom, not a separate bay. `Slot_Energy` keeps `PortraitEnergySlotHeightPx` when `Prog_Energy` is `Hidden`.
 - `Txt_Callsign` is the only Black Widow text. No second copy of the label.
-- Portrait geometry v1.1 is PASS. Accent **color** retint is the only hold. `USA_Ironstock` and `RSF_RustOrange` stay valid ids. `ApplyFactionAccentTheme` stores an id and does not recolor. No new palette table.
-- `RU_RustIndustrial` and `CN_ImperialGreenGold` stay rejected. No theme id, material, or Versus tile.
+- Portrait geometry v1.1 is unchanged. Accent colors v2 are applied by `ApplyFactionAccentTheme`. USA keeps a readable desert tan plus field green and gold.
+- CN and RU accent ids are HUD previews. They are not Versus tiles. `RU_RustIndustrial` and `CN_ImperialGreenGold` stay rejected names.
 - No binary UI assets in git.

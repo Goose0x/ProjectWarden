@@ -58,7 +58,17 @@ void UKodHudRootWidget::ApplyFactionAccentTheme(EKodFactionAccentTheme Theme)
 		return;
 	}
 	AccentTheme = Theme;
-	// Id only. USA_Ironstock and RSF_RustOrange stay valid. Do not apply a palette table.
+	const FKodHudAccentColors Colors = UKodUIStyleLibrary::GetHudAccentColors(Theme);
+	if (IronstockPlate)
+	{
+		IronstockPlate->SetColorAndOpacity(Colors.Frame);
+	}
+	if (ResourceBar) { ResourceBar->ApplyHudAccent(); }
+	if (Minimap) { Minimap->ApplyHudAccent(); }
+	if (SelectionPanel) { SelectionPanel->ApplyHudAccent(); }
+	if (Portrait) { Portrait->ApplyHudAccent(); }
+	if (CommandCard) { CommandCard->ApplyHudAccent(); }
+	if (ChatMenuCluster) { ChatMenuCluster->ApplyHudAccent(); }
 }
 
 void UKodHudRootWidget::ApplyStampProportions()

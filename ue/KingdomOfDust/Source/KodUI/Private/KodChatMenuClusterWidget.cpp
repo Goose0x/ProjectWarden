@@ -39,7 +39,7 @@ void UKodChatMenuClusterWidget::NativePreConstruct()
 
 void UKodChatMenuClusterWidget::ApplyHudAccent()
 {
-	const FLinearColor Accent = UKodUIStyleLibrary::GetActiveHudAccentColor();
+	const FLinearColor Accent = UKodUIStyleLibrary::GetActiveHudAccentColors().Mark;
 	if (Button_Chat) { Button_Chat->SetColorAndOpacity(Accent); }
 	if (Button_Menu) { Button_Menu->SetColorAndOpacity(Accent); }
 	if (Button_Help) { Button_Help->SetColorAndOpacity(Accent); }

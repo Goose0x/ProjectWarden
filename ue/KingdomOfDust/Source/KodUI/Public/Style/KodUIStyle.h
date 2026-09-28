@@ -59,34 +59,45 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetCommitColor(EKodUIMaterialLanguage Language);
 
-	/**
-	 * Not a faction palette. Returns paint v3 amber.
-	 * Color tables are on HOLD. USA_Ironstock and RSF_RustOrange ids stay valid.
-	 */
-	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
+	/** Retired rust swatch. Returns the RSF v2 proud orange, not a warm-rust language. */
+	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style", meta = (DeprecatedFunction, DeprecationMessage = "Use GetHudAccentColors(RSF_MetalStoneOrangeArch).Proud"))
 	static FLinearColor GetIronstockRustOrange();
 
-	/** Theme id is accepted. Palette retint is on HOLD, so every legal theme returns paint v3 amber. */
+	/** v2 color language. Proud, Frame, Field, and Mark stay separate. */
+	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
+	static FKodHudAccentColors GetHudAccentColors(EKodFactionAccentTheme Theme);
+
+	/** Icon and readout color for the language (the Proud role). */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetHudAccentColor(EKodFactionAccentTheme Theme);
 
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static EKodFactionAccentTheme GetActiveHudAccent();
 
-	/** Rejects anything other than USA_Ironstock or RSF_RustOrange. Does not apply re-skin paint. */
+	/** Accepts the four v2 languages. There is no cyan-glass theme. */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Style")
 	static bool SetActiveHudAccent(EKodFactionAccentTheme Theme);
 
 	/**
-	 * True for RU_RustIndustrial, CN_ImperialGreenGold, and every id other than
-	 * USA_Ironstock or RSF_RustOrange. Those two failed sheets are not theme ids.
+	 * Maps a theme name onto a v2 id.
+	 * USA_Ironstock aliases USA_TanGreenGold. RSF_RustOrange aliases RSF_MetalStoneOrangeArch.
+	 * CN_JadeStoneGoldRed and RU_SovietColdBlueIce resolve. Bare RU, CN, and the failed
+	 * RU_RustIndustrial / CN_ImperialGreenGold sheets do not.
 	 */
+	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
+	static bool TryResolveHudAccentId(FName AccentId, EKodFactionAccentTheme& OutTheme);
+
+	/** True when TryResolveHudAccentId fails. Failed v1 sheet names stay rejected. */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static bool IsRejectedHudAccentId(FName AccentId);
 
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
+	static FKodHudAccentColors GetActiveHudAccentColors();
+
+	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetActiveHudAccentColor();
 
+	/** Versus factions only. USA and RSF. CN and RU are not roster factions. */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static EKodFactionAccentTheme AccentForFaction(EKodVersusFaction Faction);
 };
