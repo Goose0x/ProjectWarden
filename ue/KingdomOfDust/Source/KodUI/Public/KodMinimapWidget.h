@@ -8,14 +8,16 @@
 class UCommonTextBlock;
 class UImage;
 class USizeBox;
+class UVerticalBox;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FKodMapToolRequested);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FKodMinimapPingRequested, FVector, WorldLocation);
 
 /**
- * Minimap cluster. Ironstock.
- * Clock sits above/left. Map tools are idle worker, army, and ping — a vertical stack beside the square map.
- * Tiny-chip placement and tools-on-the-right are HOLD pending the next QA stamp. Neither is landed.
+ * Minimap cluster. Ironstock. Template plate v4.
+ * MinimapImage is flush and owns the left bay. Idle worker, army, and ping are tiny chips
+ * in ToolChipColumn on the RIGHT of that image. A header strip above the map is retired.
+ * ClockText is a thin tab on the frame, not a row that steals bay height.
  * Parent WBP: /Game/UI/HUD/WBP_Minimap.
  */
 UCLASS(Abstract, Blueprintable)
@@ -61,7 +63,8 @@ protected:
 	UFUNCTION()
 	void HandlePingClicked(UKodLabeledButton* Button);
 
-	void ApplyToolFloor(USizeBox* Box) const;
+	void ApplyChipLayout();
+	void ApplyToolChip(USizeBox* Box) const;
 	void ApplyClockText();
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI")
@@ -75,6 +78,10 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "Kod|UI|Minimap")
 	TObjectPtr<USizeBox> Size_Clock;
+
+	/** Vertical chip column on the right of MinimapImage. Not a header strip. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Minimap")
+	TObjectPtr<UVerticalBox> ToolChipColumn;
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Minimap")
 	TObjectPtr<UKodLabeledButton> Tool_IdleWorker;

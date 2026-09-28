@@ -54,9 +54,9 @@ public:
 
 	/**
 	 * Applies an accent theme to the locked v4 shell.
-	 * USA and RSF paint is HOLD pending the next QA stamp. v3 is not landed. v4 is not implemented.
-	 * CN and RU preview ids stay stamped v2. Proportions, map-tool placement, and
-	 * portrait geometry stay put. Cyan glass is rejected.
+	 * USA_TanGreenGold paint is color-language v4 (olive, gunmetal, gold). RSF paint is v3.
+	 * CN and RU preview ids stay stamped v2. Column weights and portrait
+	 * geometry stay put. Map tools sit on the right of the minimap. Cyan glass is rejected.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|HUD")
 	void ApplyFactionAccentTheme(EKodFactionAccentTheme Theme);

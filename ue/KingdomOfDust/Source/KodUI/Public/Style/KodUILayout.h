@@ -27,9 +27,8 @@ namespace KodUILayout
 	inline constexpr int32 CommandRows = 3;
 	inline constexpr int32 CommandCellCount = CommandColumns * CommandRows;
 
-	/** Prior tool floor. Chip scale and a right-side strip are HOLD pending the next QA stamp. */
-	inline constexpr float MapToolMinSizePx = 24.f;
-	inline constexpr float MapToolPreferredSizePx = 32.f;
+	/** Template plate v4. Chips are half the retired 32px tool floor. */
+	inline constexpr float MapToolChipSizePx = 16.f;
 	inline constexpr float ClockMinWidthPx = 72.f;
 
 	inline constexpr int32 VersusFactionCount = 2;

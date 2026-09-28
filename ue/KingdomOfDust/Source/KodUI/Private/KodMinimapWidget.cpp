@@ -1,8 +1,15 @@
 #include "KodMinimapWidget.h"
+#include "KodUI.h"
 #include "KodLabeledButton.h"
 #include "CommonTextBlock.h"
+#include "Components/CanvasPanelSlot.h"
+#include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
+#include "Components/OverlaySlot.h"
+#include "Components/PanelWidget.h"
 #include "Components/SizeBox.h"
+#include "Components/VerticalBox.h"
+#include "Components/VerticalBoxSlot.h"
 #include "Style/KodUILayout.h"
 #include "Style/KodUIStyle.h"
 
@@ -68,9 +75,7 @@ void UKodMinimapWidget::NativePreConstruct()
 	{
 		Size_Clock->SetMinDesiredWidth(KodUILayout::ClockMinWidthPx);
 	}
-	ApplyToolFloor(Size_IdleWorker);
-	ApplyToolFloor(Size_Army);
-	ApplyToolFloor(Size_Ping);
+	ApplyChipLayout();
 	ApplyClockText();
 }
 
@@ -103,14 +108,138 @@ void UKodMinimapWidget::HandlePingClicked(UKodLabeledButton* Button)
 	PingWorldLocation(FVector::ZeroVector);
 }
 
-void UKodMinimapWidget::ApplyToolFloor(USizeBox* Box) const
+void UKodMinimapWidget::ApplyToolChip(USizeBox* Box) const
 {
 	if (!Box)
 	{
 		return;
 	}
-	Box->SetMinDesiredWidth(KodUILayout::MapToolPreferredSizePx);
-	Box->SetMinDesiredHeight(KodUILayout::MapToolPreferredSizePx);
+	const float Chip = KodUILayout::MapToolChipSizePx;
+	Box->SetWidthOverride(Chip);
+	Box->SetHeightOverride(Chip);
+	Box->SetMinDesiredWidth(Chip);
+	Box->SetMinDesiredHeight(Chip);
+}
+
+void UKodMinimapWidget::ApplyChipLayout()
+{
+	ApplyToolChip(Size_IdleWorker);
+	ApplyToolChip(Size_Army);
+	ApplyToolChip(Size_Ping);
+
+	if (ToolChipColumn)
+	{
+		if (UHorizontalBoxSlot* ColumnSlot = Cast<UHorizontalBoxSlot>(ToolChipColumn->Slot))
+		{
+			FSlateChildSize Auto(ESlateSizeRule::Automatic);
+			ColumnSlot->SetSize(Auto);
+			ColumnSlot->SetPadding(FMargin(2.f, 0.f, 0.f, 0.f));
+			ColumnSlot->SetHorizontalAlignment(HAlign_Right);
+			ColumnSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		else if (UVerticalBoxSlot* ColumnSlot = Cast<UVerticalBoxSlot>(ToolChipColumn->Slot))
+		{
+			UE_LOG(LogKodUI, Error, TEXT("ToolChipColumn is stacked with the minimap. Put it on the RIGHT of MinimapImage. Tools above the map are retired."));
+			FSlateChildSize Auto(ESlateSizeRule::Automatic);
+			ColumnSlot->SetSize(Auto);
+		}
+		else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(ToolChipColumn->Slot))
+		{
+			OverlaySlot->SetHorizontalAlignment(HAlign_Right);
+			OverlaySlot->SetVerticalAlignment(VAlign_Center);
+			OverlaySlot->SetPadding(FMargin(0.f));
+		}
+		else if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(ToolChipColumn->Slot))
+		{
+			CanvasSlot->SetAnchors(FAnchors(1.f, 0.f, 1.f, 1.f));
+			CanvasSlot->SetAlignment(FVector2D(1.f, 0.5f));
+			CanvasSlot->SetAutoSize(true);
+			CanvasSlot->SetOffsets(FMargin(0.f));
+		}
+
+		if (MinimapImage && ToolChipColumn->GetParent() && MinimapImage->GetParent() == ToolChipColumn->GetParent())
+		{
+			if (UPanelWidget* Bay = ToolChipColumn->GetParent())
+			{
+				const int32 ToolIndex = Bay->GetChildIndex(ToolChipColumn);
+				const int32 MapIndex = Bay->GetChildIndex(MinimapImage);
+				if (ToolIndex != INDEX_NONE && MapIndex != INDEX_NONE && ToolIndex < MapIndex && Cast<UVerticalBoxSlot>(ToolChipColumn->Slot))
+				{
+					UE_LOG(LogKodUI, Error, TEXT("Map tools are above MinimapImage. Move ToolChipColumn to the right of the map."));
+				}
+			}
+		}
+	}
+
+	auto PlaceChip = [this](UWidget* Chip, const TCHAR* Name)
+	{
+		if (!Chip)
+		{
+			return;
+		}
+		if (Cast<UHorizontalBoxSlot>(Chip->Slot))
+		{
+			UE_LOG(LogKodUI, Error, TEXT("%s is in a horizontal tool strip. Parent it under ToolChipColumn, on the right of the minimap."), Name);
+		}
+		else if (ToolChipColumn && Chip->GetParent() != ToolChipColumn)
+		{
+			UE_LOG(LogKodUI, Warning, TEXT("%s should be a child of ToolChipColumn, in order: idle worker, army, ping."), Name);
+		}
+		else if (UVerticalBoxSlot* ChipSlot = Cast<UVerticalBoxSlot>(Chip->Slot))
+		{
+			FSlateChildSize Auto(ESlateSizeRule::Automatic);
+			ChipSlot->SetSize(Auto);
+			ChipSlot->SetPadding(FMargin(0.f, 2.f));
+			ChipSlot->SetHorizontalAlignment(HAlign_Center);
+			ChipSlot->SetVerticalAlignment(VAlign_Center);
+		}
+	};
+
+	PlaceChip(Size_IdleWorker ? static_cast<UWidget*>(Size_IdleWorker) : static_cast<UWidget*>(Tool_IdleWorker), TEXT("Tool_IdleWorker"));
+	PlaceChip(Size_Army ? static_cast<UWidget*>(Size_Army) : static_cast<UWidget*>(Tool_Army), TEXT("Tool_Army"));
+	PlaceChip(Size_Ping ? static_cast<UWidget*>(Size_Ping) : static_cast<UWidget*>(Tool_Ping), TEXT("Tool_Ping"));
+
+	if (!MinimapImage)
+	{
+		return;
+	}
+	if (UHorizontalBoxSlot* ImageSlot = Cast<UHorizontalBoxSlot>(MinimapImage->Slot))
+	{
+		FSlateChildSize Fill(ESlateSizeRule::Fill);
+		Fill.Value = 1.f;
+		ImageSlot->SetSize(Fill);
+		ImageSlot->SetPadding(FMargin(0.f));
+		ImageSlot->SetHorizontalAlignment(HAlign_Fill);
+		ImageSlot->SetVerticalAlignment(VAlign_Fill);
+	}
+	else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(MinimapImage->Slot))
+	{
+		OverlaySlot->SetHorizontalAlignment(HAlign_Fill);
+		OverlaySlot->SetVerticalAlignment(VAlign_Fill);
+		OverlaySlot->SetPadding(FMargin(0.f));
+	}
+	else if (UVerticalBoxSlot* ImageSlot = Cast<UVerticalBoxSlot>(MinimapImage->Slot))
+	{
+		UE_LOG(LogKodUI, Error, TEXT("MinimapImage is in a vertical stack. Parent it beside ToolChipColumn so the map is flush and owns the bay."));
+		FSlateChildSize Fill(ESlateSizeRule::Fill);
+		Fill.Value = 1.f;
+		ImageSlot->SetSize(Fill);
+	}
+	else if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(MinimapImage->Slot))
+	{
+		CanvasSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+		CanvasSlot->SetOffsets(FMargin(0.f));
+		CanvasSlot->SetAlignment(FVector2D(0.f, 0.f));
+		CanvasSlot->SetAutoSize(false);
+	}
+
+	if (ClockText && MinimapImage && ClockText->GetParent() && ClockText->GetParent() == MinimapImage->GetParent())
+	{
+		if (Cast<UVerticalBoxSlot>(ClockText->Slot) && Cast<UVerticalBoxSlot>(MinimapImage->Slot))
+		{
+			UE_LOG(LogKodUI, Warning, TEXT("ClockText is a row above the minimap. Keep it a thin tab on the frame so the map stays flush."));
+		}
+	}
 }
 
 void UKodMinimapWidget::ApplyClockText()

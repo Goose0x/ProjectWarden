@@ -18,7 +18,7 @@ Create these Widget Blueprints in the Editor. **Do not commit `.uasset` files.**
 
 Assign `WBP_KodHUD` (`W_HUDShell`) to `AKodHUD.HudWidgetClass`.
 
-`USA_TanGreenGold` and `RSF_MetalStoneOrangeArch` paint is **HOLD**. Do not treat v3 as landed or final. Olive drab, gunmetal, and gold are not implemented. `CN_JadeStoneGoldRed` and `RU_SovietColdBlueIce` stay stamped v2 previews, not Versus factions. Minimap tools stay the 32px vertical stack. Tiny chips and tools-on-the-right are **HOLD**, not landed. Column weights stay 18 / 42 / 15 / 20 / 5. Portrait geometry stays v1.1.
+`USA_TanGreenGold` paint is color-language **v4** (olive drab, gunmetal, gold). The id string stays. `RSF_MetalStoneOrangeArch` stays **v3** (sandstone, adobe, orange). `CN_JadeStoneGoldRed` and `RU_SovietColdBlueIce` stay stamped v2 previews, not Versus factions. Map tools are 16px chips in `ToolChipColumn` on the right of a flush minimap. Column weights stay 18 / 42 / 15 / 20 / 5. Portrait geometry stays v1.1.
 
 `WBP_PortraitFrame` (`W_PortraitPanel`, geometry PASS v1.1): `Img_Portrait` fills the art box, `Prog_Health` sits on that art bottom, `Slot_Energy` keeps a fixed height under HP, and `Txt_Callsign` is the only Black Widow label.
 
