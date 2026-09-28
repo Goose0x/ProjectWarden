@@ -7,6 +7,7 @@
 #include "Components/PanelWidget.h"
 #include "Components/ProgressBar.h"
 #include "Components/SizeBox.h"
+#include "Components/SizeBoxSlot.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Style/KodUILayout.h"
 #include "Style/KodUIStyle.h"
@@ -26,28 +27,22 @@ namespace KodPortraitPrivate
 		Bar->SetWidgetStyle(Style);
 	}
 
-	void KeepEnergySlot(UWidget* Widget)
+	void FillCanvas(UCanvasPanelSlot* CanvasSlot, float BottomMargin, int32 ZOrder)
 	{
-		if (!Widget)
-		{
-			return;
-		}
-		if (Widget->GetVisibility() == ESlateVisibility::Collapsed)
-		{
-			Widget->SetVisibility(ESlateVisibility::Hidden);
-			UE_LOG(LogKodUI, Warning, TEXT("%s was Collapsed. ENERGY stays Hidden so the slot is not eaten."), *Widget->GetName());
-		}
-		if (UVerticalBoxSlot* BoxSlot = Cast<UVerticalBoxSlot>(Widget->Slot))
-		{
-			FSlateChildSize Size(ESlateSizeRule::Automatic);
-			BoxSlot->SetSize(Size);
-			BoxSlot->SetPadding(FMargin(0.f));
-			BoxSlot->SetHorizontalAlignment(HAlign_Fill);
-		}
-		if (USizeBox* Box = Cast<USizeBox>(Widget->GetParent()))
-		{
-			Box->SetMinDesiredHeight(KodUILayout::PortraitEnergyBarHeightPx);
-		}
+		CanvasSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+		CanvasSlot->SetOffsets(FMargin(0.f, 0.f, 0.f, BottomMargin));
+		CanvasSlot->SetAlignment(FVector2D(0.f, 0.f));
+		CanvasSlot->SetAutoSize(false);
+		CanvasSlot->SetZOrder(ZOrder);
+	}
+
+	void DockHealthToArtBottom(UCanvasPanelSlot* CanvasSlot, float ArtBottomInset)
+	{
+		CanvasSlot->SetAnchors(FAnchors(0.f, 1.f, 1.f, 1.f));
+		CanvasSlot->SetAlignment(FVector2D(0.f, 1.f));
+		CanvasSlot->SetOffsets(FMargin(0.f, -ArtBottomInset, 0.f, KodUILayout::PortraitHpBarHeightPx));
+		CanvasSlot->SetAutoSize(false);
+		CanvasSlot->SetZOrder(2);
 	}
 
 	bool SharesCanvas(const UWidget* A, const UWidget* B)
@@ -87,13 +82,9 @@ FText UKodPortraitFrameWidget::GetSilkCallsign()
 void UKodPortraitFrameWidget::NativePreConstruct()
 {
 	Super::NativePreConstruct();
-	if (EnergyCaption)
+	if (Txt_Callsign)
 	{
-		EnergyCaption->SetText(NSLOCTEXT("KodUI", "EnergyCaption", "ENERGY"));
-	}
-	if (CallsignText)
-	{
-		CallsignText->SetText(GetSilkCallsign());
+		Txt_Callsign->SetText(GetSilkCallsign());
 	}
 	if (IsDesignTime())
 	{
@@ -111,34 +102,29 @@ void UKodPortraitFrameWidget::ApplyPortraitGeometry()
 {
 	using namespace KodPortraitPrivate;
 
-	const bool bEnergyOnFrame = SharesCanvas(PortraitImage, EnergyBar);
-	const float CaptionHeight = (bEnergyOnFrame && EnergyCaption) ? KodUILayout::PortraitEnergyCaptionHeightPx : 0.f;
-	const float EnergyHeight = bEnergyOnFrame ? KodUILayout::PortraitEnergyBarHeightPx : 0.f;
-	const float EnergyBlock = CaptionHeight + EnergyHeight;
+	const float SlotHeight = KodUILayout::PortraitEnergySlotHeightPx;
+	const bool bSlotOnArtCanvas = SharesCanvas(Img_Portrait, Slot_Energy);
+	const float ArtBottomInset = bSlotOnArtCanvas ? SlotHeight : 0.f;
 
-	if (PortraitImage)
+	if (Img_Portrait)
 	{
-		FSlateBrush Brush = PortraitImage->GetBrush();
+		FSlateBrush Brush = Img_Portrait->GetBrush();
 		Brush.DrawAs = ESlateBrushDrawType::Image;
 		Brush.Margin = FMargin(0.f);
 		Brush.Tiling = ESlateBrushTileType::NoTile;
-		PortraitImage->SetBrush(Brush);
+		Img_Portrait->SetBrush(Brush);
 
-		if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(PortraitImage->Slot))
+		if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Img_Portrait->Slot))
 		{
-			CanvasSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
-			CanvasSlot->SetOffsets(FMargin(0.f, 0.f, 0.f, EnergyBlock));
-			CanvasSlot->SetAlignment(FVector2D(0.f, 0.f));
-			CanvasSlot->SetAutoSize(false);
-			CanvasSlot->SetZOrder(0);
+			FillCanvas(CanvasSlot, ArtBottomInset, 0);
 		}
-		else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(PortraitImage->Slot))
+		else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(Img_Portrait->Slot))
 		{
 			OverlaySlot->SetHorizontalAlignment(HAlign_Fill);
 			OverlaySlot->SetVerticalAlignment(VAlign_Fill);
 			OverlaySlot->SetPadding(FMargin(0.f));
 		}
-		else if (UVerticalBoxSlot* BoxSlot = Cast<UVerticalBoxSlot>(PortraitImage->Slot))
+		else if (UVerticalBoxSlot* BoxSlot = Cast<UVerticalBoxSlot>(Img_Portrait->Slot))
 		{
 			FSlateChildSize Size(ESlateSizeRule::Fill);
 			Size.Value = 1.f;
@@ -149,52 +135,49 @@ void UKodPortraitFrameWidget::ApplyPortraitGeometry()
 		}
 		else
 		{
-			UE_LOG(LogKodUI, Warning, TEXT("Parent PortraitImage to a canvas or overlay so the portrait fills the frame edge-to-edge."));
+			UE_LOG(LogKodUI, Warning, TEXT("Parent Img_Portrait to the art overlay or canvas so the face fills the box edge-to-edge."));
 		}
 	}
 
-	if (HPBar)
+	if (Prog_Health)
 	{
-		LockBarHeight(HPBar, KodUILayout::PortraitHpBarHeightPx);
-		if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(HPBar->Slot))
+		LockBarHeight(Prog_Health, KodUILayout::PortraitHpBarHeightPx);
+		const bool bSeparateBay = Img_Portrait
+			&& Img_Portrait->GetParent() == Prog_Health->GetParent()
+			&& Cast<UVerticalBoxSlot>(Img_Portrait->Slot)
+			&& Cast<UVerticalBoxSlot>(Prog_Health->Slot);
+		if (bSeparateBay)
 		{
-			// Bottom of the bar meets the bottom of the portrait frame. No gap.
-			CanvasSlot->SetAnchors(FAnchors(0.f, 1.f, 1.f, 1.f));
-			CanvasSlot->SetAlignment(FVector2D(0.f, 1.f));
-			CanvasSlot->SetOffsets(FMargin(0.f, -EnergyBlock, 0.f, KodUILayout::PortraitHpBarHeightPx));
-			CanvasSlot->SetAutoSize(false);
-			CanvasSlot->SetZOrder(1);
+			UE_LOG(LogKodUI, Error, TEXT("Prog_Health is a row under Img_Portrait. Dock it to the bottom of the art box. Do not build a separate HP bay."));
 		}
-		else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(HPBar->Slot))
+
+		if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Prog_Health->Slot))
+		{
+			DockHealthToArtBottom(CanvasSlot, ArtBottomInset);
+		}
+		else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(Prog_Health->Slot))
 		{
 			OverlaySlot->SetHorizontalAlignment(HAlign_Fill);
 			OverlaySlot->SetVerticalAlignment(VAlign_Bottom);
 			OverlaySlot->SetPadding(FMargin(0.f));
 		}
-		else if (UVerticalBoxSlot* BoxSlot = Cast<UVerticalBoxSlot>(HPBar->Slot))
+		else if (!bSeparateBay)
 		{
-			FSlateChildSize Size(ESlateSizeRule::Automatic);
-			BoxSlot->SetSize(Size);
-			BoxSlot->SetPadding(FMargin(0.f));
-			BoxSlot->SetHorizontalAlignment(HAlign_Fill);
-		}
-		else
-		{
-			UE_LOG(LogKodUI, Warning, TEXT("Parent HPBar to the portrait canvas so it sits flush on the bottom of the frame."));
+			UE_LOG(LogKodUI, Warning, TEXT("Parent Prog_Health to the same art overlay or canvas as Img_Portrait, flush to that box's bottom edge."));
 		}
 	}
 
-	if (HPValue)
+	if (Txt_Health)
 	{
-		if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(HPValue->Slot))
+		if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Txt_Health->Slot))
 		{
 			CanvasSlot->SetAnchors(FAnchors(1.f, 1.f, 1.f, 1.f));
 			CanvasSlot->SetAlignment(FVector2D(1.f, 1.f));
 			CanvasSlot->SetAutoSize(true);
-			CanvasSlot->SetOffsets(FMargin(-KodUILayout::PortraitHpValueInsetPx, -EnergyBlock, 0.f, 0.f));
-			CanvasSlot->SetZOrder(2);
+			CanvasSlot->SetOffsets(FMargin(-KodUILayout::PortraitHpValueInsetPx, -ArtBottomInset, 0.f, 0.f));
+			CanvasSlot->SetZOrder(3);
 		}
-		else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(HPValue->Slot))
+		else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(Txt_Health->Slot))
 		{
 			OverlaySlot->SetHorizontalAlignment(HAlign_Right);
 			OverlaySlot->SetVerticalAlignment(VAlign_Bottom);
@@ -202,46 +185,71 @@ void UKodPortraitFrameWidget::ApplyPortraitGeometry()
 		}
 	}
 
-	if (bEnergyOnFrame)
+	if (Txt_Callsign)
 	{
-		if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(EnergyBar->Slot))
+		if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Txt_Callsign->Slot))
+		{
+			CanvasSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 0.f));
+			CanvasSlot->SetAlignment(FVector2D(0.5f, 0.f));
+			CanvasSlot->SetAutoSize(true);
+			CanvasSlot->SetOffsets(FMargin(0.f, KodUILayout::PortraitCallsignInsetPx, 0.f, 0.f));
+			CanvasSlot->SetZOrder(4);
+		}
+		else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(Txt_Callsign->Slot))
+		{
+			OverlaySlot->SetHorizontalAlignment(HAlign_Center);
+			OverlaySlot->SetVerticalAlignment(VAlign_Top);
+			OverlaySlot->SetPadding(FMargin(0.f, KodUILayout::PortraitCallsignInsetPx, 0.f, 0.f));
+		}
+	}
+
+	if (Slot_Energy)
+	{
+		Slot_Energy->SetHeightOverride(SlotHeight);
+		Slot_Energy->SetMinDesiredHeight(SlotHeight);
+		if (Slot_Energy->GetVisibility() == ESlateVisibility::Collapsed)
+		{
+			Slot_Energy->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			UE_LOG(LogKodUI, Warning, TEXT("Slot_Energy was Collapsed. The ENERGY slot keeps a fixed height."));
+		}
+		if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Slot_Energy->Slot))
 		{
 			CanvasSlot->SetAnchors(FAnchors(0.f, 1.f, 1.f, 1.f));
 			CanvasSlot->SetAlignment(FVector2D(0.f, 1.f));
-			CanvasSlot->SetOffsets(FMargin(0.f, 0.f, 0.f, KodUILayout::PortraitEnergyBarHeightPx));
+			CanvasSlot->SetOffsets(FMargin(0.f, 0.f, 0.f, SlotHeight));
 			CanvasSlot->SetAutoSize(false);
 			CanvasSlot->SetZOrder(1);
 		}
-		if (EnergyCaption)
+		else if (UVerticalBoxSlot* BoxSlot = Cast<UVerticalBoxSlot>(Slot_Energy->Slot))
 		{
-			if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(EnergyCaption->Slot))
-			{
-				CanvasSlot->SetAnchors(FAnchors(0.f, 1.f, 1.f, 1.f));
-				CanvasSlot->SetAlignment(FVector2D(0.f, 1.f));
-				CanvasSlot->SetAutoSize(false);
-				CanvasSlot->SetOffsets(FMargin(0.f, -KodUILayout::PortraitEnergyBarHeightPx, 0.f, CaptionHeight));
-				CanvasSlot->SetZOrder(1);
-			}
+			FSlateChildSize Size(ESlateSizeRule::Automatic);
+			BoxSlot->SetSize(Size);
+			BoxSlot->SetPadding(FMargin(0.f));
+			BoxSlot->SetHorizontalAlignment(HAlign_Fill);
+		}
+		else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(Slot_Energy->Slot))
+		{
+			UE_LOG(LogKodUI, Warning, TEXT("Slot_Energy is inside the art overlay. Place it under the art box, directly beneath HP."));
+			OverlaySlot->SetPadding(FMargin(0.f));
 		}
 	}
-	else if (EnergyBar && PortraitImage && EnergyBar->GetParent() == PortraitImage->GetParent())
-	{
-		UE_LOG(LogKodUI, Warning, TEXT("Place PortraitImage, HPBar, and EnergyBar on one canvas so ENERGY stays under the frame without covering the portrait."));
-	}
 
-	KeepEnergySlot(EnergyBar);
-	KeepEnergySlot(EnergyCaption);
-	LockBarHeight(EnergyBar, KodUILayout::PortraitEnergyBarHeightPx);
-
-	if (HPBar && EnergyBar)
+	if (Prog_Energy)
 	{
-		UPanelWidget* Parent = HPBar->GetParent();
-		if (Parent && Parent == EnergyBar->GetParent() && !Cast<UCanvasPanelSlot>(HPBar->Slot))
+		LockBarHeight(Prog_Energy, KodUILayout::PortraitHpBarHeightPx);
+		if (Slot_Energy && Prog_Energy->GetParent() != Slot_Energy)
 		{
-			if (Parent->GetChildIndex(EnergyBar) < Parent->GetChildIndex(HPBar))
-			{
-				UE_LOG(LogKodUI, Warning, TEXT("ENERGY must sit under portrait HP. Keep the slot; hide it with Hidden, not Collapsed."));
-			}
+			UE_LOG(LogKodUI, Warning, TEXT("Parent Prog_Energy inside Slot_Energy. Hide the fill, not the slot."));
+		}
+		if (USizeBoxSlot* EnergySlot = Cast<USizeBoxSlot>(Prog_Energy->Slot))
+		{
+			EnergySlot->SetPadding(FMargin(0.f));
+			EnergySlot->SetHorizontalAlignment(HAlign_Fill);
+			EnergySlot->SetVerticalAlignment(VAlign_Fill);
+		}
+		if (Prog_Energy->GetVisibility() == ESlateVisibility::Collapsed)
+		{
+			Prog_Energy->SetVisibility(ESlateVisibility::Hidden);
 		}
 	}
 }
@@ -250,35 +258,33 @@ void UKodPortraitFrameWidget::ApplyBars()
 {
 	const float HpFraction = HitPointsMax > 0.f ? HitPoints / HitPointsMax : 0.f;
 	const float EnergyFraction = EnergyMax > 0.f ? Energy / EnergyMax : 0.f;
-	const FLinearColor Readout = UKodUIStyleLibrary::GetIronstockAmber();
 
-	if (HPBar)
+	if (Prog_Health)
 	{
-		HPBar->SetPercent(FMath::Clamp(HpFraction, 0.f, 1.f));
-		HPBar->SetFillColorAndOpacity(UKodUIStyleLibrary::GetHpGreen());
+		Prog_Health->SetPercent(FMath::Clamp(HpFraction, 0.f, 1.f));
+		Prog_Health->SetFillColorAndOpacity(UKodUIStyleLibrary::GetHpGreen());
 	}
-	if (HPValue)
+	if (Txt_Health)
 	{
 		const int32 Current = FMath::RoundToInt(HitPoints);
 		const int32 Max = FMath::RoundToInt(HitPointsMax);
-		HPValue->SetText(FText::FromString(FString::Printf(TEXT("%d/%d"), Current, Max)));
-		HPValue->SetColorAndOpacity(FSlateColor(UKodUIStyleLibrary::GetWhiteText()));
+		Txt_Health->SetText(FText::FromString(FString::Printf(TEXT("%d/%d"), Current, Max)));
+		Txt_Health->SetColorAndOpacity(FSlateColor(UKodUIStyleLibrary::GetWhiteText()));
 	}
-	const ESlateVisibility EnergyVisibility = bHasEnergy ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden;
-	if (EnergyCaption)
+	if (Txt_Callsign)
 	{
-		EnergyCaption->SetColorAndOpacity(FSlateColor(Readout));
-		EnergyCaption->SetVisibility(EnergyVisibility);
+		Txt_Callsign->SetText(GetSilkCallsign());
+		Txt_Callsign->SetColorAndOpacity(FSlateColor(UKodUIStyleLibrary::GetWhiteText()));
 	}
-	if (EnergyBar)
+	if (Prog_Energy)
 	{
-		EnergyBar->SetPercent(FMath::Clamp(EnergyFraction, 0.f, 1.f));
-		EnergyBar->SetFillColorAndOpacity(Readout);
-		// Hidden keeps the reserved slot. Collapsed would give that space away for good.
-		EnergyBar->SetVisibility(EnergyVisibility);
+		Prog_Energy->SetPercent(FMath::Clamp(EnergyFraction, 0.f, 1.f));
+		// Paint v3 amber only. Not a USA/RSF/CN/RU palette swap.
+		Prog_Energy->SetFillColorAndOpacity(UKodUIStyleLibrary::GetIronstockAmber());
+		Prog_Energy->SetVisibility(bHasEnergy ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 	}
-	if (PortraitImage)
+	if (Img_Portrait)
 	{
-		PortraitImage->SetColorAndOpacity(UKodUIStyleLibrary::GetIronstockMetal());
+		Img_Portrait->SetColorAndOpacity(FLinearColor::White);
 	}
 }

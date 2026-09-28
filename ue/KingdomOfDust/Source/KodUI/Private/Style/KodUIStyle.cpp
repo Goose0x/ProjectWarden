@@ -81,7 +81,7 @@ FLinearColor UKodUIStyleLibrary::GetCommitColor(EKodUIMaterialLanguage Language)
 
 FLinearColor UKodUIStyleLibrary::GetIronstockRustOrange()
 {
-	// Accent-stamp rust is not applied. UI Dev may revise those sheets.
+	// HOLD reinstated. Do not paint USA, RSF, CN, or RU faction palettes.
 	return GetIronstockAmber();
 }
 
@@ -106,7 +106,7 @@ FLinearColor UKodUIStyleLibrary::GetHudAccentColor(EKodFactionAccentTheme Theme)
 		UE_LOG(LogKodUI, Error, TEXT("HUD accent must be USA_Ironstock or RSF_RustOrange. Cyan glass is not a HUD theme."));
 		return GetIronstockAmber();
 	}
-	// HOLD: do not paint RSF from the current accent stamps. Both ids stay on paint v3.
+	// HOLD: no faction palette. USA_Ironstock and RSF_RustOrange both stay paint v3 amber.
 	return GetIronstockAmber();
 }
 

@@ -43,12 +43,12 @@ namespace KodUILayout
 	inline constexpr int32 StampPreviewHp = 75;
 	inline constexpr int32 StampPreviewHpMax = 75;
 
-	/** Portrait frame pin. The image fills the frame; this bar sits on its bottom edge. */
+	/** v1.1 portrait pin. HP is this tall and sits on the bottom edge of the art box. */
 	inline constexpr float PortraitHpBarHeightPx = 8.f;
-	/** Reserved under HP. Hidden keeps the height. Collapsed is not legal. */
-	inline constexpr float PortraitEnergyBarHeightPx = 8.f;
-	inline constexpr float PortraitEnergyCaptionHeightPx = 14.f;
+	/** Fixed ENERGY slot under the art box. Hiding the fill does not change this height. */
+	inline constexpr float PortraitEnergySlotHeightPx = 18.f;
 	inline constexpr float PortraitHpValueInsetPx = 4.f;
+	inline constexpr float PortraitCallsignInsetPx = 4.f;
 
 	inline constexpr const TCHAR* WBP_KodHUD = TEXT("/Game/UI/HUD/WBP_KodHUD");
 	inline constexpr const TCHAR* WBP_ResourceBar = TEXT("/Game/UI/HUD/WBP_ResourceBar");

@@ -54,7 +54,7 @@ public:
 
 	/**
 	 * Stores a HUD accent theme id. USA_Ironstock or RSF_RustOrange.
-	 * Visual re-skin is on HOLD — this does not retint the shell.
+	 * Does not retint materials or colors. USA, RSF, CN, and RU palettes are on HOLD.
 	 * Proportions stay on layout v4. Cyan glass is rejected.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|HUD")

@@ -18,9 +18,9 @@ Create these Widget Blueprints in the Editor. **Do not commit `.uasset` files.**
 
 Assign `WBP_KodHUD` (`W_HUDShell`) to `AKodHUD.HudWidgetClass`.
 
-`ApplyFactionAccentTheme` stores `USA_Ironstock` or `RSF_RustOrange` and does not retint. USA/RSF re-skin paint is on HOLD (portrait v1.1 in flight); the shell stays Ironstock paint v3. Do not add `RU_RustIndustrial` or `CN_ImperialGreenGold` theme ids or materials. Column weights stay 18 / 42 / 15 / 20 / 5.
+`ApplyFactionAccentTheme` stores `USA_Ironstock` or `RSF_RustOrange` and does not retint. Palette retint is on HOLD for USA, RSF, CN, and RU until revised sheets pass. Do not add `RU_RustIndustrial` or `CN_ImperialGreenGold` theme ids or materials. Column weights stay 18 / 42 / 15 / 20 / 5.
 
-`WBP_PortraitFrame` (`W_PortraitPanel`): portrait fills the frame edge-to-edge, HP is flush to the bottom of that frame, ENERGY is under HP. Hide unused energy with Hidden so the slot stays reserved.
+`WBP_PortraitFrame` (`W_PortraitPanel`, v1.1 geometry): `Img_Portrait` fills the art box, `Prog_Health` sits on that art bottom, `Slot_Energy` keeps a fixed height under HP, and `Txt_Callsign` is the only Black Widow label.
 
 BindWidget names, the 28% band, and the 18/42/15/20/5 columns are in [docs/ui/UE_CONSTRUCTION.md](../../../../../docs/ui/UE_CONSTRUCTION.md).
 

@@ -60,13 +60,13 @@ public:
 	static FLinearColor GetCommitColor(EKodUIMaterialLanguage Language);
 
 	/**
-	 * HOLD. Accent-stamp rust is not final paint, so this returns paint v3 amber.
-	 * Not the front-end commit orange, and not cyan.
+	 * HOLD. Not a faction palette. Returns paint v3 amber.
+	 * USA, RSF, CN, and RU color languages wait on revised sheets.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetIronstockRustOrange();
 
-	/** Theme id is accepted. While accent paint is on HOLD, every legal theme returns paint v3 amber. */
+	/** Theme id is accepted. Palette retint is on HOLD, so every legal theme returns paint v3 amber. */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Style")
 	static FLinearColor GetHudAccentColor(EKodFactionAccentTheme Theme);
 

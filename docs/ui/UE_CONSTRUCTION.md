@@ -26,8 +26,8 @@ Stand-in tints are not the final materials. Replace them in the Editor with the 
 | Lobby Versus glass v2.6 | Cyan glass. **USA · RSF only**. Chat on the **right** rail. Orange only on **PLAY RANKED** (and the local ladder row). Badge **v2.6**. |
 | Versus chat component v1 | Right-rail internals: ChatRoot, ChannelTabs, MessageList, MessageRow, ChatInput. Cyan glass. Secondary to PLAY RANKED. |
 | Faction boards USA · RSF v1 | `FactionBoard` with `FactionTile_USA` and `FactionTile_RSF` only. States Idle / Hover / Selected / Disabled. |
-| Portrait panel pin | `W_PortraitPanel`: image fills the frame edge-to-edge. HP is flush to the bottom of that frame. ENERGY stays under HP. Hide with `Hidden`, never `Collapsed`. |
-| HUD accents v1 | **HOLD.** `USA_Ironstock` / `RSF_RustOrange` are id stubs only. Re-skin paint is not final (portrait v1.1 in flight). **CONDITIONAL/FAIL:** do not wire `RU_RustIndustrial` or `CN_ImperialGreenGold`. |
+| Portrait panel pin v1.1 | **Authoritative geometry.** `Img_Portrait` fills the art box. `Prog_Health` is flush on that art bottom, not a separate bay. `Slot_Energy` stays a fixed height under HP. One `Txt_Callsign`: Black Widow. |
+| HUD accents | **HOLD reinstated.** Do not retint USA, RSF, CN, or RU palettes. `ApplyFactionAccentTheme` stores an id only. `RU_RustIndustrial` and `CN_ImperialGreenGold` stay unwired. Wait for QA PASS on revised sheets. |
 
 ## Content paths
 
@@ -127,21 +127,31 @@ Cells are row-major, 8×3: `Cell_00` … `Cell_23` (`UKodSelectionCellWidget`). 
 
 ### Portrait — `UKodPortraitFrameWidget` (`W_PortraitPanel`)
 
-Director pin. Parent the named widgets to a canvas (the Widget Blueprint root). `ApplyPortraitGeometry` runs in pre-construct and enforces:
+Geometry is the v1.1 pin (`hud-accent-usa-ironstock-v1.1` / `hud-accent-rsf-v1.1`). Palette retint is not part of this pin. Do not bake sheet labels such as "Portrait 15%" into the widget.
 
-1. `PortraitImage` fills the portrait frame edge-to-edge (anchors stretch, margin 0, brush margin 0).
-2. `HPBar` is flush to the bottom of that frame (full width, bottom offset 0, height `PortraitHpBarHeightPx`). Green. `HPValue` sits on that bottom edge.
-3. `EnergyCaption` then `EnergyBar` sit under the frame, directly beneath HP. The block height is reserved (`PortraitEnergyCaptionHeightPx` + `PortraitEnergyBarHeightPx`). Unused energy uses `Hidden`, not `Collapsed`, so the slot is not given away.
+```
+W_PortraitPanel
+  Art box (overlay or canvas)
+    Img_Portrait     fill, margin 0, no letterbox
+    Prog_Health      bottom of that same art box (integrated, not a row underneath)
+    Txt_Callsign     one text widget, top of the art, "Black Widow"
+    Txt_Health       optional numeral on the health bar
+  Slot_Energy        fixed height, directly under the art box
+    Prog_Energy      hide when unused; slot height stays
+```
+
+`ApplyPortraitGeometry` fills `Img_Portrait` edge-to-edge, docks `Prog_Health` to the art-box bottom, and sets `Slot_Energy` to `PortraitEnergySlotHeightPx`. A vertical-box row of HP under the image is logged as an error. `Prog_Energy` uses `Hidden` when unused. `Slot_Energy` is never `Collapsed`.
 
 | Name | Type | Notes |
 |------|------|-------|
-| `PortraitImage` | `UImage` | Fills the frame. No inset. |
-| `HPBar` | `UProgressBar` | Green. Bottom edge of the frame. |
-| `HPValue` | `UCommonTextBlock` | `current/max`, on the HP bar. |
-| `EnergyCaption` | `UCommonTextBlock` | Reads ENERGY. Under HP. |
-| `EnergyBar` | `UProgressBar` | Under the caption. Reserved even when hidden. |
+| `Img_Portrait` | `UImage` | Art box fill. Brush margin 0. |
+| `Prog_Health` | `UProgressBar` | Green. Flush to the art bottom. |
+| `Txt_Health` | `UCommonTextBlock` | Optional. `current/max` on the health bar. Not a callsign. |
+| `Txt_Callsign` | `UCommonTextBlock` | The only callsign. Exactly **Black Widow**. Do not add a second label. |
+| `Slot_Energy` | `USizeBox` | Fixed height under HP. |
+| `Prog_Energy` | `UProgressBar` | Child of `Slot_Energy`. Hidden when the unit has no energy. |
 
-Paint on this panel stays Ironstock paint v3. Accent re-skin color is not applied here.
+`Txt_Callsign` is the only widget set to Black Widow. QA's stacked double-print on the stamp is not copied.
 
 ### Command card — `UKodCommandCardWidget`
 
@@ -267,25 +277,24 @@ Component sheet v1 names inside `WBP_LobbyChatRail`:
 
 `WBP_LadderRow` names: `RankText`, `NameText`, `MmrText`, `WinsText`, `LossesText`. Assign the row class on the lobby. The local row is the orange line. `GetStampPreviewRows` is fictional stamp copy for the designer, not a ranked service.
 
-## HUD accents — HOLDs, shell unchanged
+## HUD accents — retint HOLD reinstated
 
 `W_HUDShell` is `UKodHudRootWidget` (`WBP_KodHUD`). Layout v4 weights and the 5×3 card are unchanged. No cyan glass on the HUD. HP stays green.
 
-Two holds:
+**Palette retint is on HOLD for all four factions.** USA, RSF, CN, and RU HUD color languages are being re-painted. Do not commit `ApplyFactionAccentTheme` color or material retints until QA passes the revised sheets. `ApplyFactionAccentTheme` may store `USA_Ironstock` or `RSF_RustOrange` and must not retint. `GetHudAccentColor` and `GetIronstockRustOrange` return Ironstock paint v3 amber.
 
-1. **RU_RustIndustrial and CN_ImperialGreenGold — CONDITIONAL/FAIL.** Do not add theme ids, enumerators, materials, or colors for those sheets. `IsRejectedHudAccentId` returns true for both names. The Versus roster stays USA · RSF only.
-2. **USA / RSF re-skin paint — HOLD.** Portrait v1.1 revisions are in flight. `USA_Ironstock` and `RSF_RustOrange` stay as theme-id stubs already on the shell. `ApplyFactionAccentTheme` stores the id and does not retint. Do not treat the current accent stamp art as final paint. `GetHudAccentColor` and `GetIronstockRustOrange` return Ironstock paint v3 amber while this hold is in place.
+`RU_RustIndustrial` and `CN_ImperialGreenGold` are still not theme ids. `IsRejectedHudAccentId` returns true for both. Do not author those materials. The Versus roster stays USA · RSF.
 
 | Theme id | What is hooked now | Paint |
 |----------|--------------------|-------|
-| `USA_Ironstock` | Id stored. `AccentForFaction(USA)` | Ironstock paint v3 amber on metal |
-| `RSF_RustOrange` | Id stored. `AccentForFaction(RSF)` | Same paint v3. Re-skin not applied |
+| `USA_Ironstock` | Id stored. `AccentForFaction(USA)` | No faction retint. Paint v3 amber stays. |
+| `RSF_RustOrange` | Id stored. `AccentForFaction(RSF)` | No faction retint. Same paint v3. |
 | `RU_RustIndustrial` | Not an id. Do not author a material. | None |
 | `CN_ImperialGreenGold` | Not an id. Do not author a material. | None |
 
-Chat stays the right rail. `FactionBoard` stays `FactionTile_USA` and `FactionTile_RSF`. The portrait pin stays: image edge-to-edge, HP flush to the bottom of the frame, ENERGY under HP with `Hidden` when unused.
+Chat stays the right rail. `FactionBoard` stays `FactionTile_USA` and `FactionTile_RSF`. Portrait geometry v1.1 stays authoritative: `Img_Portrait` edge-to-edge, `Prog_Health` on the art-box bottom, `Slot_Energy` fixed under HP, one `Txt_Callsign`.
 
-Call `ApplyFactionAccentTheme` from match setup when the faction is known. It is a stub until the USA/RSF paint hold lifts.
+Call `ApplyFactionAccentTheme` from match setup only to record the id.
 
 Handoff region names map onto the existing shell slots. Those slot names are not renamed:
 
@@ -295,11 +304,11 @@ Handoff region names map onto the existing shell slots. Those slot names are not
 | `W_ResourceStrip` | `ResourceBar` |
 | `W_MinimapCluster` | `Minimap` (column weight 18) |
 | `W_SelectionPanel` | `SelectionPanel` (42) |
-| `W_PortraitPanel` | `Portrait` (15). Image edge-to-edge, HP flush to the frame bottom, ENERGY reserved under HP |
+| `W_PortraitPanel` | `Portrait` (15). v1.1 geometry: art fill, HP on the art bottom, ENERGY slot under HP |
 | `W_CommandCard` | `CommandCard` (20, 5×3) |
 | `W_HUDUtilityCluster` | `ChatMenuCluster` |
 
-If a portrait shows a callsign, the copy is **Black Widow** (`CallsignText`, optional). `AccentForFaction` maps USA → `USA_Ironstock` and RSF → `RSF_RustOrange`.
+`Txt_Callsign` is the only Black Widow label. `AccentForFaction` maps USA → `USA_Ironstock` and RSF → `RSF_RustOrange` and does not change colors.
 
 ## Editor pass (still required)
 
@@ -321,7 +330,8 @@ If a portrait shows a callsign, the copy is **Black Widow** (`CallsignText`, opt
 - Lobby faction widgets are USA and RSF. No third tile.
 - `ChatRail` is the rightmost column of `LobbyColumns`. Its material is cyan glass, not Ironstock.
 - Command card has no title. Top row glyphs are Q W E R T. Selection has no title. Grid is 8×3.
-- `PortraitImage` has no margin. `HPBar` is flush to the bottom of the portrait frame. `EnergyBar` is under HP. Unused energy is `Hidden`, not `Collapsed`.
-- Accent theme ids are `USA_Ironstock` or `RSF_RustOrange` only, and their re-skin paint is on HOLD (portrait v1.1 in flight). The HUD still shows Ironstock paint v3. RSF does not change column weights.
-- `RU_RustIndustrial` and `CN_ImperialGreenGold` are CONDITIONAL/FAIL. No theme id, no material, no Versus tile.
+- `Img_Portrait` fills the art box with no margin. `Prog_Health` is on that art bottom, not a separate bay. `Slot_Energy` keeps `PortraitEnergySlotHeightPx` when `Prog_Energy` is `Hidden`.
+- `Txt_Callsign` is the only Black Widow text. No second copy of the label.
+- Accent retint is on HOLD for USA, RSF, CN, and RU. `ApplyFactionAccentTheme` stores an id and does not recolor. The HUD still shows Ironstock paint v3.
+- `RU_RustIndustrial` and `CN_ImperialGreenGold` have no theme id, material, or Versus tile.
 - No binary UI assets in git.

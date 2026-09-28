@@ -6,12 +6,19 @@
 class UCommonTextBlock;
 class UImage;
 class UProgressBar;
+class USizeBox;
 
 /**
- * W_PortraitPanel. Ironstock paint v3.
- * PortraitImage fills the frame edge-to-edge. HPBar is flush to the bottom of that frame.
- * ENERGY sits under HP. Hide it with Hidden, never Collapsed, so the slot stays reserved.
- * Parent WBP: /Game/UI/HUD/WBP_PortraitFrame. Root should be a canvas.
+ * W_PortraitPanel. Geometry is the v1.1 pin. Faction palette retint is not applied here.
+ *
+ * Art box (overlay or canvas):
+ *   Img_Portrait fills the art edge-to-edge. No letterbox.
+ *   Prog_Health is integrated on the bottom of that art box. Not a bay under the frame.
+ *   Txt_Callsign is the only callsign text. Copy is "Black Widow".
+ * Slot_Energy is directly under the art box at a fixed height.
+ *   Prog_Energy hides when unused. The slot height stays.
+ *
+ * Parent WBP: /Game/UI/HUD/WBP_PortraitFrame.
  */
 UCLASS(Abstract, Blueprintable)
 class KODUI_API UKodPortraitFrameWidget : public UCommonUserWidget
@@ -25,11 +32,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Portrait")
 	void SetEnergyVisible(bool bVisible);
 
-	/** Reapplies the portrait pin. Does not paint an accent re-skin. HP stays green. */
+	/** Reapplies v1.1 geometry. Does not retint a faction palette. HP stays green. */
 	UFUNCTION(BlueprintCallable, Category = "Kod|UI|Portrait")
 	void ApplyHudAccent();
 
-	/** Face-card callsign when a portrait shows one. Two words. */
+	/** The only face-card callsign. Two words. */
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|Portrait")
 	static FText GetSilkCallsign();
 
@@ -54,21 +61,22 @@ protected:
 	bool bHasEnergy = false;
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Portrait")
-	TObjectPtr<UImage> PortraitImage;
+	TObjectPtr<UImage> Img_Portrait;
 
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Portrait")
-	TObjectPtr<UProgressBar> HPBar;
+	TObjectPtr<UProgressBar> Prog_Health;
 
-	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Portrait")
-	TObjectPtr<UCommonTextBlock> HPValue;
-
-	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Portrait")
-	TObjectPtr<UProgressBar> EnergyBar;
-
-	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Portrait")
-	TObjectPtr<UCommonTextBlock> EnergyCaption;
-
-	/** Optional. Reads "Black Widow" when a face card shows a callsign. */
+	/** Optional numeral on the health bar (75/75). Not a callsign. */
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "Kod|UI|Portrait")
-	TObjectPtr<UCommonTextBlock> CallsignText;
+	TObjectPtr<UCommonTextBlock> Txt_Health;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Portrait")
+	TObjectPtr<USizeBox> Slot_Energy;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Portrait")
+	TObjectPtr<UProgressBar> Prog_Energy;
+
+	/** The only callsign widget. Do not add a second Black Widow label. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidget), Category = "Kod|UI|Portrait")
+	TObjectPtr<UCommonTextBlock> Txt_Callsign;
 };

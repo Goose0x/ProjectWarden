@@ -58,7 +58,7 @@ void UKodHudRootWidget::ApplyFactionAccentTheme(EKodFactionAccentTheme Theme)
 		return;
 	}
 	AccentTheme = Theme;
-	// Stub: theme id only. Accent-stamp re-skin paint is on HOLD.
+	// Id only. Do not retint. Faction HUD color languages are on HOLD for USA, RSF, CN, and RU.
 }
 
 void UKodHudRootWidget::ApplyStampProportions()
