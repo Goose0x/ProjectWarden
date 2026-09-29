@@ -129,19 +129,19 @@ void UKodMinimapWidget::ApplyChipLayout()
 
 	if (ToolChipColumn)
 	{
-		if (UHorizontalBoxSlot* ColumnSlot = Cast<UHorizontalBoxSlot>(ToolChipColumn->Slot))
+		if (UHorizontalBoxSlot* HColumnSlot = Cast<UHorizontalBoxSlot>(ToolChipColumn->Slot))
 		{
 			FSlateChildSize Auto(ESlateSizeRule::Automatic);
-			ColumnSlot->SetSize(Auto);
-			ColumnSlot->SetPadding(FMargin(2.f, 0.f, 0.f, 0.f));
-			ColumnSlot->SetHorizontalAlignment(HAlign_Right);
-			ColumnSlot->SetVerticalAlignment(VAlign_Center);
+			HColumnSlot->SetSize(Auto);
+			HColumnSlot->SetPadding(FMargin(2.f, 0.f, 0.f, 0.f));
+			HColumnSlot->SetHorizontalAlignment(HAlign_Right);
+			HColumnSlot->SetVerticalAlignment(VAlign_Center);
 		}
-		else if (UVerticalBoxSlot* ColumnSlot = Cast<UVerticalBoxSlot>(ToolChipColumn->Slot))
+		else if (UVerticalBoxSlot* VColumnSlot = Cast<UVerticalBoxSlot>(ToolChipColumn->Slot))
 		{
 			UE_LOG(LogKodUI, Error, TEXT("ToolChipColumn is stacked with the minimap. Put it on the RIGHT of MinimapImage. Tools above the map are retired."));
 			FSlateChildSize Auto(ESlateSizeRule::Automatic);
-			ColumnSlot->SetSize(Auto);
+			VColumnSlot->SetSize(Auto);
 		}
 		else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(ToolChipColumn->Slot))
 		{
@@ -203,14 +203,14 @@ void UKodMinimapWidget::ApplyChipLayout()
 	{
 		return;
 	}
-	if (UHorizontalBoxSlot* ImageSlot = Cast<UHorizontalBoxSlot>(MinimapImage->Slot))
+	if (UHorizontalBoxSlot* HImageSlot = Cast<UHorizontalBoxSlot>(MinimapImage->Slot))
 	{
 		FSlateChildSize Fill(ESlateSizeRule::Fill);
 		Fill.Value = 1.f;
-		ImageSlot->SetSize(Fill);
-		ImageSlot->SetPadding(FMargin(0.f));
-		ImageSlot->SetHorizontalAlignment(HAlign_Fill);
-		ImageSlot->SetVerticalAlignment(VAlign_Fill);
+		HImageSlot->SetSize(Fill);
+		HImageSlot->SetPadding(FMargin(0.f));
+		HImageSlot->SetHorizontalAlignment(HAlign_Fill);
+		HImageSlot->SetVerticalAlignment(VAlign_Fill);
 	}
 	else if (UOverlaySlot* OverlaySlot = Cast<UOverlaySlot>(MinimapImage->Slot))
 	{
@@ -218,12 +218,12 @@ void UKodMinimapWidget::ApplyChipLayout()
 		OverlaySlot->SetVerticalAlignment(VAlign_Fill);
 		OverlaySlot->SetPadding(FMargin(0.f));
 	}
-	else if (UVerticalBoxSlot* ImageSlot = Cast<UVerticalBoxSlot>(MinimapImage->Slot))
+	else if (UVerticalBoxSlot* VImageSlot = Cast<UVerticalBoxSlot>(MinimapImage->Slot))
 	{
 		UE_LOG(LogKodUI, Error, TEXT("MinimapImage is in a vertical stack. Parent it beside ToolChipColumn so the map is flush and owns the bay."));
 		FSlateChildSize Fill(ESlateSizeRule::Fill);
 		Fill.Value = 1.f;
-		ImageSlot->SetSize(Fill);
+		VImageSlot->SetSize(Fill);
 	}
 	else if (UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(MinimapImage->Slot))
 	{

@@ -41,11 +41,11 @@ void UKodCommandCardWidget::ApplyHudAccent()
 		Slot_A, Slot_S, Slot_D, Slot_F, Slot_G,
 		Slot_Z, Slot_X, Slot_C, Slot_V, Slot_B
 	};
-	for (UKodCommandSlotButton* Slot : Slots)
+	for (UKodCommandSlotButton* SlotButton : Slots)
 	{
-		if (Slot)
+		if (SlotButton)
 		{
-			Slot->SetColorAndOpacity(Accent);
+			SlotButton->SetColorAndOpacity(Accent);
 		}
 	}
 }
@@ -93,20 +93,20 @@ void UKodCommandCardWidget::NativePreConstruct()
 void UKodCommandCardWidget::ApplyStandardOrders()
 {
 	using namespace KodCommandCardPrivate;
-	auto SetTop = [](UKodCommandSlotButton* Slot, FName Id, const TCHAR* Glyph, const FText& OrderName)
+	auto SetTop = [](UKodCommandSlotButton* InSlot, FName Id, const TCHAR* Glyph, const FText& OrderName)
 	{
-		if (Slot)
+		if (InSlot)
 		{
-			Slot->SetSlotIdentity(Id, FText::FromString(Glyph), OrderName);
-			Slot->SetChargeCount(INDEX_NONE);
+			InSlot->SetSlotIdentity(Id, FText::FromString(Glyph), OrderName);
+			InSlot->SetChargeCount(INDEX_NONE);
 		}
 	};
-	auto SetGlyph = [](UKodCommandSlotButton* Slot, const TCHAR* Glyph)
+	auto SetGlyph = [](UKodCommandSlotButton* InSlot, const TCHAR* Glyph)
 	{
-		if (Slot)
+		if (InSlot)
 		{
-			Slot->SetSlotIdentity(NAME_None, FText::FromString(Glyph), FText::GetEmpty());
-			Slot->SetChargeCount(INDEX_NONE);
+			InSlot->SetSlotIdentity(NAME_None, FText::FromString(Glyph), FText::GetEmpty());
+			InSlot->SetChargeCount(INDEX_NONE);
 		}
 	};
 
@@ -128,11 +128,11 @@ void UKodCommandCardWidget::ApplyStandardOrders()
 	SetGlyph(Slot_B, TEXT("B"));
 }
 
-void UKodCommandCardWidget::BindSlot(UKodCommandSlotButton* Slot)
+void UKodCommandCardWidget::BindSlot(UKodCommandSlotButton* InSlot)
 {
-	if (Slot)
+	if (InSlot)
 	{
-		Slot->OnSlotClicked.AddUniqueDynamic(this, &UKodCommandCardWidget::HandleSlotClicked);
+		InSlot->OnSlotClicked.AddUniqueDynamic(this, &UKodCommandCardWidget::HandleSlotClicked);
 	}
 }
 

@@ -52,7 +52,7 @@ protected:
 	virtual void NativePreConstruct() override;
 
 	void ApplyStandardOrders();
-	void BindSlot(UKodCommandSlotButton* Slot);
+	void BindSlot(UKodCommandSlotButton* InSlot);
 
 	UFUNCTION()
 	void HandleSlotClicked(UKodCommandSlotButton* InSlot);
