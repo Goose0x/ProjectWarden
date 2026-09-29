@@ -12,6 +12,6 @@
 | MoveSpeed | 450 |
 | SightRadius | 1600 |
 | PrimaryWeapon | `RangerRifle` |
-| BuildCostDust | 75 |
+| BuildCostCash | 75 |
 | BuildTicks | 80 (5×16) |
 | BuildTimeSeconds | 5 |

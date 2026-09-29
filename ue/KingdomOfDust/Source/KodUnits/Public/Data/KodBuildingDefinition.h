@@ -32,8 +32,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Combat")
 	float MaxHealth = 1000.f;
 
+	/** Cash spent to build. Not a gather-node field. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
-	int32 BuildCostDust = 200;
+	int32 BuildCostCash = 200;
 
 	/** Authoritative build duration in sim ticks. Barracks=320 (20×16). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")

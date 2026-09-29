@@ -17,7 +17,7 @@ struct KODECONOMY_API FKodTechNode
 	FGameplayTagContainer Prerequisites;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod")
-	int32 DustCost = 0;
+	int32 CashCost = 0;
 };
 
 UCLASS(BlueprintType)

@@ -43,6 +43,12 @@
 
 Folders mirror `02-ue-project-skeleton.md`. Each leaf has a **README.md** describing assets to create in-editor. **No** binary `.uasset` / `.umap` files.
 
+USA Recon hover **v2.3** is the ship lock in [06-usa-recon-anim-lock.md](06-usa-recon-anim-lock.md). Import Drive folder `1J2iypSWZsuXkG2DiraRX55WQ5cEqBXz3` only. Grounded leftovers, v2.1, and v2.2 are rejected. Slice 0 still uses the Ranger PROXY.
+
+USA Engineer torch **v1** is the ship lock in [07-usa-engineer-torch-anim-lock.md](07-usa-engineer-torch-anim-lock.md). Import Drive `1HyzSEqiiVICvBxFrJIQGkoi5mtjW6-Q7` at the torch_v1b byte sizes only. Reject the older Idle twin (616652 bytes).
+
+Playtest #1 spend wallet is **Cash** (`BuildCostCash`, `Kod.Resource.Cash`). Oil is the second store. Supply hard cap is **200** (`KodSupplyHardCap`). Dust Storm stays a power. Gather nodes are not renamed to Cash — see the shop-floor note in `docs/slice0/SLICE0_SHOP_FLOOR.md`.
+
 ## Still editor-only / manual
 
 - Landscape map `L_SandboxSkirmish` + NavMesh  
@@ -50,7 +56,7 @@ Folders mirror `02-ue-project-skeleton.md`. Each leaf has a **README.md** descri
 - Slice 0 Warden bare ids under `/Game/Warden/Data/` (`RangerRifle`, `Ranger`, `Dozer`, `CommandCenter`, `Barracks`, `USA`) — see `04-slice0-warden.md`
 - `DA_PowerSet_Starter` (later; not Slice 0 gate)  
 - `BP_KodUnit`, `BP_KodBuilding`  
-- WBP HUD / command card / resource bar / minimap  
+- WBP shells for HUD, Main Menu, and Lobby Versus — C++ parents and BindWidget names are in [docs/ui/UE_CONSTRUCTION.md](ui/UE_CONSTRUCTION.md). Create them in the Editor; do not commit `.uasset` files.
 - Niagara `NS_DustStorm`, MetaSounds  
 - Generate IDE project files & first compile on a machine with UE 5.8  
 - Wire PC input bindings → selection → `UKodCommandSubsystem::Enqueue` end-to-end  

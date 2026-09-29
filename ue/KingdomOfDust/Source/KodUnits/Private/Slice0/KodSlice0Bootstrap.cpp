@@ -111,7 +111,7 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeRanger(UObject* Outer, UKodWeaponDe
 	U->Armor = 0.f;
 	U->MoveSpeed = 450.f;
 	U->SightRadius = 1600.f;
-	U->BuildCostDust = 75;
+	U->BuildCostCash = 75;
 	U->BuildTicks = 80; // 5 × 16
 	U->BuildTimeSeconds = KodBuildTicks::BuildTicksToSeconds(80);
 	if (Rifle)
@@ -131,7 +131,7 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeDozer(UObject* Outer)
 	U->Armor = 1.f;
 	U->MoveSpeed = 350.f;
 	U->SightRadius = 1200.f;
-	U->BuildCostDust = 100;
+	U->BuildCostCash = 100;
 	U->BuildTicks = 128; // 8 × 16
 	U->BuildTimeSeconds = KodBuildTicks::BuildTicksToSeconds(128);
 	U->PrimaryWeapon.Reset();
@@ -145,7 +145,7 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeCommandCenter(UObject* Outer, U
 	B->DisplayName = NSLOCTEXT("Kod", "Building_CommandCenter", "Command Center");
 	B->BuildingTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Building.CommandCenter")), false);
 	B->MaxHealth = 2500.f;
-	B->BuildCostDust = 0;
+	B->BuildCostCash = 0;
 	B->BuildTicks = 0;
 	B->BuildTimeSeconds = 0.f;
 	B->PowerProvided = 10.f;
@@ -166,7 +166,7 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeBarracks(UObject* Outer, UKodUn
 	B->DisplayName = NSLOCTEXT("Kod", "Building_Barracks", "Barracks");
 	B->BuildingTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Building.Barracks")), false);
 	B->MaxHealth = 1500.f;
-	B->BuildCostDust = 250;
+	B->BuildCostCash = 250;
 	B->BuildTicks = 320; // 20 × 16
 	B->BuildTimeSeconds = KodBuildTicks::BuildTicksToSeconds(320);
 	B->PowerConsumed = 2.f;
