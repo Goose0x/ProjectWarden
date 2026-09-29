@@ -105,6 +105,20 @@ bool AKodPlayerController::GetGroundHitUnderCursor(FHitResult& OutHit) const
 	return const_cast<AKodPlayerController*>(this)->GetHitResultUnderCursor(ECC_Visibility, true, OutHit);
 }
 
+TArray<AActor*> AKodPlayerController::GetLocalSelection() const
+{
+	TArray<AActor*> Actors;
+	Actors.Reserve(LocalSelection.Num());
+	for (const TWeakObjectPtr<AActor>& Ptr : LocalSelection)
+	{
+		if (AActor* Actor = Ptr.Get())
+		{
+			Actors.Add(Actor);
+		}
+	}
+	return Actors;
+}
+
 TArray<FKodEntityId> AKodPlayerController::GetLocalSelectedEntityIds() const
 {
 	TArray<FKodEntityId> Ids;

@@ -55,7 +55,7 @@ protected:
 	void BindSlot(UKodCommandSlotButton* Slot);
 
 	UFUNCTION()
-	void HandleSlotClicked(UKodCommandSlotButton* Slot);
+	void HandleSlotClicked(UKodCommandSlotButton* InSlot);
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|UI|Command")
 	bool bBuildSubmenuOpen = false;
