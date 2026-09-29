@@ -43,7 +43,7 @@
 
 Folders mirror `02-ue-project-skeleton.md`. Each leaf has a **README.md** describing assets to create in-editor. **No** binary `.uasset` / `.umap` files.
 
-USA Recon hover loco is pinned in [06-usa-recon-anim-lock.md](06-usa-recon-anim-lock.md). Slice 0 still uses the Ranger PROXY. Do not import grounded leftovers or the older hover_v2 folder.
+USA Recon hover v2.1 is **HOLD** — Director rejected it after QA PASS. See [06-usa-recon-anim-lock.md](06-usa-recon-anim-lock.md). That Drive folder is not ship loco. Slice 0 still uses the Ranger PROXY.
 
 ## Still editor-only / manual
 
