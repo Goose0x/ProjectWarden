@@ -51,6 +51,20 @@ void UKodSelectionManager::DeselectActor(AActor* Actor)
 	OnSelectionChanged.Broadcast();
 }
 
+TArray<AActor*> UKodSelectionManager::GetSelectedActors() const
+{
+	TArray<AActor*> Actors;
+	Actors.Reserve(SelectedActors.Num());
+	for (const TWeakObjectPtr<AActor>& Ptr : SelectedActors)
+	{
+		if (AActor* Actor = Ptr.Get())
+		{
+			Actors.Add(Actor);
+		}
+	}
+	return Actors;
+}
+
 TArray<FKodEntityId> UKodSelectionManager::GetSelectedEntityIds() const
 {
 	TArray<FKodEntityId> Ids;

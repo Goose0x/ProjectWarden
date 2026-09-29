@@ -136,10 +136,10 @@ void UKodCommandCardWidget::BindSlot(UKodCommandSlotButton* Slot)
 	}
 }
 
-void UKodCommandCardWidget::HandleSlotClicked(UKodCommandSlotButton* Slot)
+void UKodCommandCardWidget::HandleSlotClicked(UKodCommandSlotButton* InSlot)
 {
-	if (Slot)
+	if (InSlot)
 	{
-		OnCommandButtonClicked(Slot->GetCommandId());
+		OnCommandButtonClicked(InSlot->GetCommandId());
 	}
 }

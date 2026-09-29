@@ -47,8 +47,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Camera")
 	void ZoomCamera(float AxisValue);
 
+	/** Resolved selection. Stale weak refs are omitted; LocalSelection stays weak. */
 	UFUNCTION(BlueprintPure, Category = "Kod|Selection")
-	const TArray<TWeakObjectPtr<AActor>>& GetLocalSelection() const { return LocalSelection; }
+	TArray<AActor*> GetLocalSelection() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Selection")
 	TArray<FKodEntityId> GetLocalSelectedEntityIds() const;

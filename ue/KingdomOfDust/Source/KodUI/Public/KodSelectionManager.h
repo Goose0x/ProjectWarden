@@ -33,8 +33,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Selection")
 	void DeselectActor(AActor* Actor);
 
+	/** Resolved selection. Stale weak refs are omitted; SelectedActors stays weak. */
 	UFUNCTION(BlueprintPure, Category = "Kod|Selection")
-	const TArray<TWeakObjectPtr<AActor>>& GetSelectedActors() const { return SelectedActors; }
+	TArray<AActor*> GetSelectedActors() const;
 
 	UFUNCTION(BlueprintPure, Category = "Kod|Selection")
 	TArray<FKodEntityId> GetSelectedEntityIds() const;
