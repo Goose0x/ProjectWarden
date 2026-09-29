@@ -23,7 +23,7 @@ Module map, default GameMode classes, and enabled plugins are in [`ue/KingdomOfD
 
 C++ and the Warden catalog are a **conditional pass**. The playable gate is still open:
 
-- Create the map **`L_Slice0`** in the editor (intended path `Content/Maps/Sandbox/L_Slice0`, game mode `AKodSlice0GameMode`).
+- Create the map **`L_Slice0`** in the editor (intended path `Content/Maps/Sandbox/L_Slice0`). World Settings GameMode Override: `/Script/KingdomOfDust.KodSlice0GameMode` (`AKodSlice0GameMode` in the KingdomOfDust module — not `/Script/KoD_alpha.…`).
 - Run the PIE walk checklist in [`docs/04-slice0-warden.md`](docs/04-slice0-warden.md).
 
 Law sheet for the six bare asset ids (`RangerRifle`, `Ranger`, `Dozer`, `CommandCenter`, `Barracks`, `USA`): [`docs/slice0/SLICE0_SHOP_FLOOR.md`](docs/slice0/SLICE0_SHOP_FLOOR.md).

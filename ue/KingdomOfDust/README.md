@@ -24,7 +24,17 @@ Configured in `Config/DefaultEngine.ini` / `AKodGameMode`:
 |------|------------|
 | Game Instance | `/Script/KodCore.KodGameInstance` |
 | Game Mode | `/Script/KodCore.KodGameMode` |
+| Slice 0 Game Mode | `/Script/KingdomOfDust.KodSlice0GameMode` |
+| Slice 0 Player Controller | `/Script/KingdomOfDust.KodSlice0PlayerController` |
 | Game State / PC / PS / HUD | `AKodGameState`, `AKodPlayerController`, `AKodPlayerState`, `AKodHUD` |
+
+### Local `KoD_alpha.uproject` is not a module
+
+Open **`ue/KingdomOfDust/KingdomOfDust.uproject`**. The file name is not a `/Script/` module.
+
+`AKodSlice0GameMode` is exported from the **KingdomOfDust** module. L_Slice0 World Settings → GameMode Override must be `/Script/KingdomOfDust.KodSlice0GameMode`. That mode sets `AKodSlice0PlayerController` and `AKodRTSCameraPawn`.
+
+A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDust.uproject` (`KingdomOfDust`, `KodCore`, `KodUnits`, `KodEconomy`, `KodGenerals`, `KodAI`, `KodNet`, `KodUI`, `KodEditor`) — not a single `KoD_alpha` module. Never use `/Script/KoD_alpha.…` unless a module named `KoD_alpha` exists. A missing class falls PIE back to `GameModeBase` (dark view, no RTS camera or Slice0 commands). After the class path is fixed, delete and re-place PROXY actors (`KodProxyUnit_*`); saved outers were created against the missing class.
 
 ### Plugins enabled in `.uproject`
 

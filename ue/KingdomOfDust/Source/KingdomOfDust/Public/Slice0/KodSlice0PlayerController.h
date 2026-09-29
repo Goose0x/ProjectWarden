@@ -6,9 +6,11 @@
 
 /**
  * L_Slice0 PC: left select/box, right move/attack through UKodCommandSubsystem.
+ *
+ * Script class path: /Script/KingdomOfDust.KodSlice0PlayerController
  */
 UCLASS(Blueprintable)
-class AKodSlice0PlayerController : public AKodPlayerController
+class KINGDOMOFDUST_API AKodSlice0PlayerController : public AKodPlayerController
 {
 	GENERATED_BODY()
 
