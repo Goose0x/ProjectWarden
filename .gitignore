@@ -95,3 +95,14 @@ Saved/
 
 # OS junk
 .DS_Store
+
+# Local Unreal Content (keep on disk; not in git until LFS post-PASS)
+Content/
+*.uasset
+*.umap
+
+# Extra IDE / automation
+*.slnx
+*.sln
+Automation_*.*
+*.code-workspace
