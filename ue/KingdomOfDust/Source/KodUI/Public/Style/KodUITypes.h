@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Style/KodUITypes.generated.h"
+#include "KodUITypes.generated.h"
 
 /**
  * Material language is a stamp lock, not a skin swap.
