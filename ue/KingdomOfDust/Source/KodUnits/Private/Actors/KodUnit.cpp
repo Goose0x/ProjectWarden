@@ -47,7 +47,7 @@ void AKodUnit::BeginPlay()
 	UKodUnitDefinition* Def = GetDefinition();
 	if (!Def && !Definition.IsNull())
 	{
-		Def = Cast<UKodUnitDefinition>(UKodSlice0Bootstrap::ResolveDefinition(Definition.GetAssetFName(), this));
+		Def = Cast<UKodUnitDefinition>(UKodSlice0Bootstrap::ResolveDefinition(Definition.ToSoftObjectPath().GetAssetFName(), this));
 	}
 	if (Def)
 	{
@@ -68,7 +68,7 @@ UKodUnitDefinition* AKodUnit::GetDefinition() const
 	}
 	if (!Definition.IsNull())
 	{
-		return UKodSlice0Bootstrap::ResolveUnit(Definition.GetAssetFName(), const_cast<AKodUnit*>(this));
+		return UKodSlice0Bootstrap::ResolveUnit(Definition.ToSoftObjectPath().GetAssetFName(), const_cast<AKodUnit*>(this));
 	}
 	return nullptr;
 }
@@ -93,7 +93,7 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 	}
 	else if (!Def->PrimaryWeapon.IsNull())
 	{
-		if (UKodWeaponDefinition* BootWeapon = UKodSlice0Bootstrap::ResolveWeapon(Def->PrimaryWeapon.GetAssetFName(), this))
+		if (UKodWeaponDefinition* BootWeapon = UKodSlice0Bootstrap::ResolveWeapon(Def->PrimaryWeapon.ToSoftObjectPath().GetAssetFName(), this))
 		{
 			WeaponDamage = BootWeapon->Damage;
 			WeaponRange = BootWeapon->Range;

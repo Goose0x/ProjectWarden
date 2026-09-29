@@ -47,7 +47,7 @@ UKodBuildingDefinition* AKodBuilding::GetDefinition() const
 	}
 	if (!Definition.IsNull())
 	{
-		return UKodSlice0Bootstrap::ResolveBuilding(Definition.GetAssetFName(), const_cast<AKodBuilding*>(this));
+		return UKodSlice0Bootstrap::ResolveBuilding(Definition.ToSoftObjectPath().GetAssetFName(), const_cast<AKodBuilding*>(this));
 	}
 	return nullptr;
 }
