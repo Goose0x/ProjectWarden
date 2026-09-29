@@ -2,7 +2,7 @@
 
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Style/KodUITypes.h"
-#include "Style/KodUIStyle.generated.h"
+#include "KodUIStyle.generated.h"
 
 /**
  * Color tokens for Widget Blueprints until Editor materials exist.
