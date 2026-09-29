@@ -63,16 +63,24 @@ Helper: `KodBuildTicks::SecondsToBuildTicks` / `BuildTicksToSeconds` / `ResolveB
 |------|-------|
 | Camera | `AKodRTSCameraPawn` |
 | PC (base) | `AKodPlayerController` (select / marquee / mouse fallback) |
-| PC (command path) | `AKodSlice0PlayerController` → `UKodCommandSubsystem` |
-| GameMode | `AKodSlice0GameMode` (bootstrap + optional smoke Ranger) |
+| PC (command path) | `AKodSlice0PlayerController` → `UKodCommandSubsystem` — `/Script/KingdomOfDust.KodSlice0PlayerController` |
+| GameMode | `AKodSlice0GameMode` (bootstrap + optional smoke Ranger) — `/Script/KingdomOfDust.KodSlice0GameMode` |
 | Move bridge | `UKodMoveComponent` → `Sim->IssueMove` |
 | Attack bridge | `UKodAttackComponent` → `Sim->IssueAttack` (hitscan) |
 | Spawn | `UKodSlice0Bootstrap::SpawnRanger` |
 | Faction PDA | `UKodFactionDefinition` (not TechTree) |
 
+## Script path vs `KoD_alpha.uproject`
+
+Open `ue/KingdomOfDust/KingdomOfDust.uproject` (UE 5.8). The `.uproject` file name is not a C++ module.
+
+World Settings → GameMode Override: `/Script/KingdomOfDust.KodSlice0GameMode`.
+
+A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDust.uproject` (`KingdomOfDust`, `KodCore`, `KodUnits`, `KodEconomy`, `KodGenerals`, `KodAI`, `KodNet`, `KodUI`, `KodEditor`) — not a single `KoD_alpha` module. Never `/Script/KoD_alpha.…` unless that module exists. A missing class falls the map back to `GameModeBase`. After the class path is fixed, delete and re-place PROXY actors (`KodProxyUnit_*`).
+
 ## L_Slice0 acceptance checklist
 
-- [ ] Map `Content/Maps/Sandbox/L_Slice0` (editor) with `AKodSlice0GameMode`
+- [ ] Map `Content/Maps/Sandbox/L_Slice0` (editor). World Settings GameMode Override: `/Script/KingdomOfDust.KodSlice0GameMode`
 - [ ] Iso camera pans/zooms
 - [ ] Left-click select + drag box select
 - [ ] Right-click ground → Move through command subsystem / sim seek

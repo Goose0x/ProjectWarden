@@ -6,9 +6,12 @@
 
 /**
  * L_Slice0 PIE wiring: RTS camera pawn, Slice0 PC, ensure Warden bootstrap catalog.
+ *
+ * World Settings class path (module KingdomOfDust, not the .uproject file name):
+ * /Script/KingdomOfDust.KodSlice0GameMode
  */
 UCLASS(Blueprintable)
-class AKodSlice0GameMode : public AKodGameMode
+class KINGDOMOFDUST_API AKodSlice0GameMode : public AKodGameMode
 {
 	GENERATED_BODY()
 
