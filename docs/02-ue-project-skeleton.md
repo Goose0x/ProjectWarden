@@ -201,7 +201,8 @@ Content/
       BP_KodBuilding.uasset
     Meshes/
   Economy/
-    DA_Resource_DustCrystal.uasset
+    DA_Resource_Cash.uasset           # Playtest #1 primary spend wallet
+    DA_Resource_Oil.uasset            # second wallet stub; no gather loop
     DataTables/
       DT_TechPrereqs.uasset         # optional; or keep on DataAssets
   Generals/
@@ -295,7 +296,7 @@ The GPL Generals / Zero Hour tree is **not** in this repository. Do not add it, 
 | DataAssets (Slice 0) | bare id | `Ranger`, `Barracks`, `USA` under `/Game/Warden/Data/` |
 | Widgets | `WBP_` | `WBP_CommandCard` |
 | Input | `IMC_`, `IA_` | `IA_CommandMove` |
-| Gameplay Tags | `Kod.Unit.*`, `Kod.Power.*`, `Kod.UI.*` | `Kod.Power.DustStorm` |
+| Gameplay Tags | `Kod.Unit.*`, `Kod.Power.*`, `Kod.Resource.*`, `Kod.UI.*` | `Kod.Resource.Cash`, `Kod.Power.DustStorm` |
 | Abilities | `GA_Kod*` | `GA_KodPower_DustStorm` |
 
 Never ship public APIs named `GameLogic`, `ThingTemplate`, `SpecialPowerModule`, etc.

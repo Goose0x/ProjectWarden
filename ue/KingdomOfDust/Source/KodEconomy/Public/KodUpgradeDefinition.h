@@ -18,7 +18,7 @@ public:
 	FGameplayTag UpgradeTag;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Upgrade")
-	int32 DustCost = 100;
+	int32 CashCost = 100;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Upgrade")
 	FGameplayTagContainer RequiredTech;

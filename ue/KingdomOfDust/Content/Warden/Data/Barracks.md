@@ -8,7 +8,7 @@
 | DisplayName | Barracks |
 | BuildingTag | `Kod.Building.Barracks` |
 | MaxHealth | 1500 |
-| BuildCostDust | 250 |
+| BuildCostCash | 250 |
 | BuildTicks | 320 (20×16) |
 | BuildTimeSeconds | 20 |
 | PowerConsumed | 2 |

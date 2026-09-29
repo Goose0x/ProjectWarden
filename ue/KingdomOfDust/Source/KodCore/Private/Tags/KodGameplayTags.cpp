@@ -11,5 +11,6 @@ namespace KodGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Building_CommandCenter, "Kod.Building.CommandCenter");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Power, "Kod.Power");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Power_DustStorm, "Kod.Power.DustStorm");
-	UE_DEFINE_GAMEPLAY_TAG(Kod_Resource_DustCrystal, "Kod.Resource.DustCrystal");
+	UE_DEFINE_GAMEPLAY_TAG(Kod_Resource_Cash, "Kod.Resource.Cash");
+	UE_DEFINE_GAMEPLAY_TAG(Kod_Resource_Oil, "Kod.Resource.Oil");
 }

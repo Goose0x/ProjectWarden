@@ -21,7 +21,7 @@ Stand-in tints are not the final materials. Replace them in the Editor with the 
 | Stamp | What it locks |
 |-------|----------------|
 | HUD layout v4 | Bottom band **28%** of viewport height. Columns **18 / 42 / 15 / 20** plus a trailing gutter **5**. Weights are `KodUILayout` and sum to 100. |
-| HUD Ironstock paint v3 | Visual lock on that shell. Resources are icon + number (Credits, Oil, Supply). Map tools are idle worker, army, ping. |
+| HUD Ironstock paint v3 | Visual lock on that shell. Resources are icon + number (Cash, Oil, Supply). Map tools are idle worker, army, ping. |
 | Main Menu glass paint v1 | One orange **PLAY VERSUS**. Secondary nav and briefing. No Versus chrome. |
 | Lobby Versus glass v2.6 | Cyan glass. **USA · RSF only**. Chat on the **right** rail. Orange only on **PLAY RANKED** (and the local ladder row). Badge **v2.6**. |
 | Versus chat component v1 | Right-rail internals: ChatRoot, ChannelTabs, MessageList, MessageRow, ChatInput. Cyan glass. Secondary to PLAY RANKED. |
@@ -66,7 +66,7 @@ Constants for the same paths are in `KodUILayout`.
 | `/Game/UI/Styles/Ironstock/` | HUD plates, rivets, amber readouts, HP green. No cyan glass. |
 | `/Game/UI/Styles/CyanGlass/` | Front-end panes, cyan borders, orange commit for PLAY VERSUS and PLAY RANKED only. No riveted metal. |
 
-Resource icon brushes on the HUD: a credits mark, an oil drop, a people mark. Not crystal / gas icons.
+Resource icon brushes on the HUD: a cash mark, an oil drop, a people mark. Not crystal / gas icons. No Credits chip.
 
 Hero art is a texture on `HeroArt` (hangar for the main menu, lobby backdrop for Versus). Do not ship a flat empty plate as the final look.
 
@@ -93,18 +93,18 @@ Hero art is a texture on `HeroArt` (hangar for the main menu, lobby backdrop for
 
 ### Resource bar — `UKodResourceBarWidget`
 
-Icon + number only. No CREDITS / OIL / SUPPLY captions.
+Icon + number only. No CASH / OIL / SUPPLY captions.
 
 | Name | Type |
 |------|------|
-| `Icon_Credits` | `UImage` |
-| `Value_Credits` | `UCommonTextBlock` |
+| `Icon_Cash` | `UImage` |
+| `Value_Cash` | `UCommonTextBlock` |
 | `Icon_Oil` | `UImage` |
 | `Value_Oil` | `UCommonTextBlock` |
 | `Icon_Supply` | `UImage` |
 | `Value_Supply` | `UCommonTextBlock` (`current/max`) |
 
-`SetDustDisplay` still writes the Credits chip so the M1 Dust Crystal wallet has a place to land. `SetOil` and `SetSupply` are ready for later wallets. Designer preview shows 1250 / 680 / 48/60.
+`SetCash` writes the primary spend chip. `SetOil` writes the second wallet. `SetSupply` clamps the max to `KodSupplyHardCap` (200). Designer preview stays **1250 / 680 / 48/60** — that 60 is art, not the gameplay cap.
 
 ### Minimap — `UKodMinimapWidget`
 
@@ -337,7 +337,7 @@ Handoff region names map onto the existing shell slots. Those slot names are not
 
 1. Create the Widget Blueprints in the table above. Do not commit them.
 2. Author Ironstock and cyan-glass materials. Hook them to Common Button styles. Drop the C++ tint once a style exists.
-3. Paint icon brushes: credits, oil, supply, idle worker, army, ping, faction marks, send.
+3. Paint icon brushes: cash, oil, supply, idle worker, army, ping, faction marks, send.
 4. Assign hero textures.
 5. Set `AKodHUD.HudWidgetClass` to `WBP_KodHUD`.
 6. Push `WBP_MainMenu` and `WBP_LobbyVersus` on a CommonUI activatable stack (front-end only).

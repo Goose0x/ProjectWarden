@@ -50,19 +50,27 @@ Editor recipe (when UE opens): create six assets → set fields → Save. One Bl
 DisplayName Ranger Rifle · Damage 12 · Range 900 · CooldownSeconds 0.35
 
 ### Ranger
-Tag `Kod.Unit.Ranger` · MaxHealth 120 · Armor 0 · MoveSpeed 450 · Sight 1600 · PrimaryWeapon → RangerRifle · BuildCostDust 75 · BuildTicks 80 (5×16)
+Tag `Kod.Unit.Ranger` · MaxHealth 120 · Armor 0 · MoveSpeed 450 · Sight 1600 · PrimaryWeapon → RangerRifle · BuildCostCash 75 · BuildTicks 80 (5×16)
 
 ### Dozer
-Tag `Kod.Unit.Dozer` · MaxHealth 200 · Armor 1 · MoveSpeed 350 · Sight 1200 · no weapon · BuildCostDust 100 · BuildTicks 128 (8×16)
+Tag `Kod.Unit.Dozer` · MaxHealth 200 · Armor 1 · MoveSpeed 350 · Sight 1200 · no weapon · BuildCostCash 100 · BuildTicks 128 (8×16)
 
 ### CommandCenter
-Tag `Kod.Building.CommandCenter` · MaxHealth 2500 · cost 0 preplaced · PowerProvided 10 · Sight 2000 · Trainable: Dozer (Barracks owns Ranger)
+Tag `Kod.Building.CommandCenter` · MaxHealth 2500 · BuildCostCash 0 preplaced · PowerProvided 10 · Sight 2000 · Trainable: Dozer (Barracks owns Ranger)
 
 ### Barracks
-Tag `Kod.Building.Barracks` · MaxHealth 1500 · BuildCostDust 250 · BuildTicks 320 (20×16) · PowerConsumed 2 · Sight 1400 · Trainable: Ranger
+Tag `Kod.Building.Barracks` · MaxHealth 1500 · BuildCostCash 250 · BuildTicks 320 (20×16) · PowerConsumed 2 · Sight 1400 · Trainable: Ranger
 
 ### USA
 StartingBuilding CommandCenter · StartingUnits: 1 Dozer + 2 Ranger (PROXY)
+
+## Playtest #1 economy (2026-09-29)
+
+Primary spend wallet is **Cash** (`BuildCostCash`, tag `Kod.Resource.Cash`). **Oil** (`Kod.Resource.Oil`) is the second store. This sheet has no Oil cost column. Do not use Credits.
+
+Supply hard cap is **200** (`KodSupplyHardCap` on `UKodResourceWallet`). The HUD designer preview 48/60 is art and is not that cap.
+
+**Dust gather collision (do not conflate):** spend fields that were `BuildCostDust` are Cash. World gather nodes are not renamed to Cash. This repo has no Dust-named gather node type; `UKodGatherComponent` stays a generic gather stub. Dust Storm (`Kod.Power.DustStorm`) and the Kingdom of Dust title stay. Purple-black / orange-red Dust node art is not in this lock. Escalate to PM if a design sheet still calls the spend crystal Dust.
 
 ## Ownership
 - **Lead:** C++ sim fixed tick, bootstrap or uassets, select/move, L_Slice0 PIE, faction class

@@ -47,6 +47,8 @@ USA Recon hover **v2.3** is the ship lock in [06-usa-recon-anim-lock.md](06-usa-
 
 USA Engineer torch **v1** is the ship lock in [07-usa-engineer-torch-anim-lock.md](07-usa-engineer-torch-anim-lock.md). Import Drive `1HyzSEqiiVICvBxFrJIQGkoi5mtjW6-Q7` at the torch_v1b byte sizes only. Reject the older Idle twin (616652 bytes).
 
+Playtest #1 spend wallet is **Cash** (`BuildCostCash`, `Kod.Resource.Cash`). Oil is the second store. Supply hard cap is **200** (`KodSupplyHardCap`). Dust Storm stays a power. Gather nodes are not renamed to Cash — see the shop-floor note in `docs/slice0/SLICE0_SHOP_FLOOR.md`.
+
 ## Still editor-only / manual
 
 - Landscape map `L_SandboxSkirmish` + NavMesh  

@@ -12,6 +12,6 @@
 | MoveSpeed | 350 |
 | SightRadius | 1200 |
 | PrimaryWeapon | none |
-| BuildCostDust | 100 |
+| BuildCostCash | 100 |
 | BuildTicks | 128 (8×16) |
 | BuildTimeSeconds | 8 |

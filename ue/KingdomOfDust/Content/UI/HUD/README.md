@@ -24,4 +24,4 @@ Assign `WBP_KodHUD` (`W_HUDShell`) to `AKodHUD.HudWidgetClass`.
 
 BindWidget names, the 28% band, and the 18/42/15/20/5 columns are in [docs/ui/UE_CONSTRUCTION.md](../../../../../docs/ui/UE_CONSTRUCTION.md).
 
-Resource brushes: credits mark, oil drop, people mark. Map tools: idle worker, army, ping. No command-card or control-group titles.
+Resource brushes: cash mark, oil drop, people mark. BindWidgets are `Icon_Cash` / `Value_Cash`, Oil, and Supply. No Credits chip. Map tools: idle worker, army, ping. No command-card or control-group titles. Gameplay supply cap is 200; the 48/60 preview is art.

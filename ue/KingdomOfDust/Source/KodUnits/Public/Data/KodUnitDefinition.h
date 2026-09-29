@@ -44,8 +44,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Combat")
 	TSoftObjectPtr<UKodWeaponDefinition> PrimaryWeapon;
 
+	/** Cash spent to train. Not a gather-node field. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
-	int32 BuildCostDust = 50;
+	int32 BuildCostCash = 50;
 
 	/**
 	 * Authoritative build duration in sim ticks (SimHz=16).

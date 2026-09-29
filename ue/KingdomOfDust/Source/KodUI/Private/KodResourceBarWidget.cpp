@@ -1,32 +1,27 @@
 #include "KodResourceBarWidget.h"
+#include "KodResourceWallet.h"
 #include "CommonTextBlock.h"
 #include "Components/Image.h"
 #include "Style/KodUILayout.h"
 #include "Style/KodUIStyle.h"
 
-void UKodResourceBarWidget::SetDustDisplay(int32 Amount)
+void UKodResourceBarWidget::SetCash(int32 Amount)
 {
-	DisplayedDust = Amount;
-	SetCredits(Amount);
-}
-
-void UKodResourceBarWidget::SetCredits(int32 Amount)
-{
-	DisplayedCredits = Amount;
-	DisplayedDust = Amount;
+	DisplayedCash = FMath::Max(0, Amount);
 	ApplyValues();
 }
 
 void UKodResourceBarWidget::SetOil(int32 Amount)
 {
-	DisplayedOil = Amount;
+	DisplayedOil = FMath::Max(0, Amount);
 	ApplyValues();
 }
 
 void UKodResourceBarWidget::SetSupply(int32 Current, int32 Max)
 {
-	DisplayedSupply = Current;
-	DisplayedSupplyMax = Max;
+	const int32 Cap = FMath::Clamp(Max, 0, KodSupplyHardCap);
+	DisplayedSupplyMax = Cap;
+	DisplayedSupply = FMath::Clamp(Current, 0, Cap);
 	ApplyValues();
 }
 
@@ -38,11 +33,9 @@ void UKodResourceBarWidget::NativePreConstruct()
 
 	if (IsDesignTime())
 	{
-		DisplayedCredits = KodUILayout::StampPreviewCredits;
-		DisplayedDust = KodUILayout::StampPreviewCredits;
-		DisplayedOil = KodUILayout::StampPreviewOil;
-		DisplayedSupply = KodUILayout::StampPreviewSupply;
-		DisplayedSupplyMax = KodUILayout::StampPreviewSupplyMax;
+		SetCash(KodUILayout::StampPreviewCash);
+		SetOil(KodUILayout::StampPreviewOil);
+		SetSupply(KodUILayout::StampPreviewSupply, KodUILayout::StampPreviewSupplyMax);
 	}
 	ApplyValues();
 }
@@ -50,7 +43,7 @@ void UKodResourceBarWidget::NativePreConstruct()
 void UKodResourceBarWidget::ApplyHudAccent()
 {
 	const FLinearColor Accent = UKodUIStyleLibrary::GetActiveHudAccentColor();
-	if (Icon_Credits) { Icon_Credits->SetColorAndOpacity(Accent); }
+	if (Icon_Cash) { Icon_Cash->SetColorAndOpacity(Accent); }
 	if (Icon_Oil) { Icon_Oil->SetColorAndOpacity(Accent); }
 	if (Icon_Supply) { Icon_Supply->SetColorAndOpacity(Accent); }
 	ApplyValues();
@@ -59,10 +52,10 @@ void UKodResourceBarWidget::ApplyHudAccent()
 void UKodResourceBarWidget::ApplyValues()
 {
 	const FSlateColor Accent(UKodUIStyleLibrary::GetActiveHudAccentColor());
-	if (Value_Credits)
+	if (Value_Cash)
 	{
-		Value_Credits->SetText(FText::AsNumber(DisplayedCredits));
-		Value_Credits->SetColorAndOpacity(Accent);
+		Value_Cash->SetText(FText::AsNumber(DisplayedCash));
+		Value_Cash->SetColorAndOpacity(Accent);
 	}
 	if (Value_Oil)
 	{

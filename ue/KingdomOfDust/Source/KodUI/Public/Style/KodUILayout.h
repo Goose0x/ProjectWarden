@@ -33,7 +33,8 @@ namespace KodUILayout
 
 	inline constexpr int32 VersusFactionCount = 2;
 
-	inline constexpr int32 StampPreviewCredits = 1250;
+	/** Art preview only. Gameplay supply ceiling is KodSupplyHardCap (200), not StampPreviewSupplyMax. */
+	inline constexpr int32 StampPreviewCash = 1250;
 	inline constexpr int32 StampPreviewOil = 680;
 	inline constexpr int32 StampPreviewSupply = 48;
 	inline constexpr int32 StampPreviewSupplyMax = 60;
