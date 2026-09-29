@@ -1,32 +1,50 @@
-# USA Recon hover anim — v2.1 HOLD
+# USA Recon hover anim lock (v2.3)
 
-**Status: HOLD — Director rejected v2.1 after QA PASS.**  
-**Not ship-final.** Do not import this package as Recon loco. Art must rework it and QA must re-stamp before Soft Dev treats any folder as authoritative.
+**Status: PASS / AUTHORITATIVE hover v2.3.**  
+**QA PASS:** 2026-09-28 ~21:23 PT  
+**Scope:** T1/T2 hover loco and combat holds for USA Infantry Recon.
 
-QA had passed v2.1 on 2026-09-28 ~21:05 PT. The Director rejected it after that pass. This file keeps the rejected clip names and the pose history so the next stamp can supersede them. It is not a ship lock.
+This is the Soft Dev ship lock. Import from the Drive folder below only when mounting Recon. Do not commit `.fbx`, previews, Mixamo donors, or other binary anim assets.
 
-Slice 0 still uses the Ranger PROXY. Do not swap Slice 0 to Recon. Do not commit `.fbx`, previews, Mixamo donors, or other binary anim assets.
+Slice 0 still uses the Ranger PROXY. Do not swap Slice 0 to Recon yet.
 
-## Not authoritative
+## Drive pin
 
-Drive folder `1pStr5gDAzGkdSZSztBPuYaYJdP0yYgJe` is **not** the ship source until Art reworks the clips and QA re-stamps:
+https://drive.google.com/drive/folders/1J2iypSWZsuXkG2DiraRX55WQ5cEqBXz3
 
-https://drive.google.com/drive/folders/1pStr5gDAzGkdSZSztBPuYaYJdP0yYgJe
+Folder id: `1J2iypSWZsuXkG2DiraRX55WQ5cEqBXz3`
 
-Also do not use:
+## Reject
 
-- Parent `04_anims` grounded leftovers
+Do not import:
+
+- Grounded parent `04_anims` leftovers
+- v2.1 folder `1pStr5gDAzGkdSZSztBPuYaYJdP0yYgJe` (Director-rejected after its QA pass: muzzle facing wrong, Walk/Run full Superman prone fly)
+- v2.2 folder `1dcYJXuu8M1S4R493lfS5G4pTtDaVRqW-` (Run lean over 45°)
+- Any interim Run lean-only patches
 - Older hover_v2 folder `14lRuC6mN9POdDj0mdYj_1S6evLfSYNjI`
 - Mixamo donor FBXs
 
-## Director fails on v2.1
+Those folders are a reject trail. They are not the current lock.
 
-1. **SMG muzzle / facing is the wrong way.**
-2. **Walk / Run is full Superman aero** (prone fly, upright ≈ 0.21). Director wants **~45° pitch max**, not a prone fly.
+## Editor import
 
-## Rejected package (history only)
+When Recon is mounted, import the seven ship clips below from the v2.3 Drive folder only. Do not drop the FBXs into git.
 
-These names and poses are the rejected v2.1 set. They are superseded pending the next stamp. Do not mount them.
+Slice 0 walk, train, and spawn stay on the Ranger PROXY (`Ranger` under `/Game/Warden/Data/`). See [04-slice0-warden.md](04-slice0-warden.md).
+
+## Pose lock
+
+- **Idle** — upright Floating hover plus cross-body SMG carry (right hand near the hip, not arms-up)
+- **Walk** — about **42°** forward lean (stamped ≈ 41.8°). Pitch is forward, not falling back. Not Superman prone
+- **Run** — about **45°** forward lean (stamped ≈ 44.8°). **≤ 45° tops**
+- **Aim / Fire** — cheek weld. Idle→Aim Δ rhH ≈ **0.449**
+- **Muzzle** — **+Y** forward on every clip
+- **SMG** — parented to `RightHand` on every clip, including Hit and Fall
+- **Hit** — cross-body carry (not cheek weld)
+- **Fall_Down** — Ranger collapse retained (a ground fall, not mid-air hover)
+
+## Ship clips
 
 | Clip | File |
 |------|------|
@@ -37,15 +55,3 @@ These names and poses are the rejected v2.1 set. They are superseded pending the
 | Fire | `US_Infantry_Recon_anim_Fire.fbx` |
 | Hit | `US_Infantry_Recon_anim_Hit_Reaction.fbx` |
 | Fall | `US_Infantry_Recon_anim_Fall_Down.fbx` |
-
-Recorded v2.1 poses (rejected, not a target to match):
-
-- Idle was upright Floating with lower-torso muzzle-down low-ready (rhH ≈ 0.438, muzzle_z ≈ −0.484)
-- Walk / Run were Superman aero; Walk was root-locked
-- Aim / Fire were cheek weld, muzzle about horizontal (Idle→Aim Δ rhH ≈ 0.366)
-- SMG was parented to `RightHand` on every clip
-- Fall_Down kept the Ranger collapse
-
-## Slice 0
-
-Walk, train, and spawn stay on the Ranger PROXY (`Ranger` under `/Game/Warden/Data/`). See [04-slice0-warden.md](04-slice0-warden.md).
