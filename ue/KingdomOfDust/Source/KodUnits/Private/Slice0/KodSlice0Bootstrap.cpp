@@ -204,13 +204,16 @@ UKodFactionDefinition* UKodSlice0Bootstrap::MakeUSA(UObject* Outer, UKodBuilding
 
 AKodUnit* UKodSlice0Bootstrap::SpawnRanger(UWorld* World, const FTransform& Transform, int32 TeamId)
 {
+	const FVector Location = Transform.GetLocation();
 	if (!World)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnRanger failed: no world (requested %s)"), *Location.ToString());
 		return nullptr;
 	}
 	UKodUnitDefinition* Def = ResolveUnit(FName(KodWardenPaths::Id_Ranger), GetTransientPackage());
 	if (!Def)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnRanger failed: Ranger definition missing at %s"), *Location.ToString());
 		return nullptr;
 	}
 
@@ -219,10 +222,12 @@ AKodUnit* UKodSlice0Bootstrap::SpawnRanger(UWorld* World, const FTransform& Tran
 	AKodUnit* Unit = World->SpawnActor<AKodUnit>(AKodUnit::StaticClass(), Transform, Params);
 	if (!Unit)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnRanger failed: SpawnActor returned null at %s"), *Location.ToString());
 		return nullptr;
 	}
 	Unit->Definition = Def;
 	Unit->TeamId = TeamId;
 	Unit->ApplyDefinition(Def);
+	UE_LOG(LogTemp, Warning, TEXT("SpawnRanger spawned %s at %s"), *Unit->GetName(), *Unit->GetActorLocation().ToString());
 	return Unit;
 }
