@@ -11,6 +11,7 @@ class UKodAbilitySystemComponent;
 class UKodCombatAttributeSet;
 class UKodMoveComponent;
 class UKodAttackComponent;
+class UStaticMeshComponent;
 
 /**
  * Selectable mobile combatant. Definition soft-ref drives stats at BeginPlay.
@@ -54,4 +55,8 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Kod|Components")
 	TObjectPtr<UKodAttackComponent> AttackComponent;
+
+	/** Placeholder body until a skeletal mesh is assigned. Query-only Pawn collision. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Kod|Mesh")
+	TObjectPtr<UStaticMeshComponent> UnitMesh;
 };

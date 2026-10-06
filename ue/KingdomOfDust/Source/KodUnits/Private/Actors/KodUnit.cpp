@@ -8,6 +8,10 @@
 #include "Sim/KodSimSubsystem.h"
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/CollisionProfile.h"
+#include "Engine/StaticMesh.h"
+#include "UObject/ConstructorHelpers.h"
 
 AKodUnit::AKodUnit()
 {
@@ -20,6 +24,21 @@ AKodUnit::AKodUnit()
 
 	MoveComponent = CreateDefaultSubobject<UKodMoveComponent>(TEXT("KodMove"));
 	AttackComponent = CreateDefaultSubobject<UKodAttackComponent>(TEXT("KodAttack"));
+
+	// Engine cube so smoke-spawned units are visible. Capsule stays the movement body.
+	// Query-only Pawn: ECC_Pawn click-select hits the visible shape; Visibility is ignored
+	// (same as the pawn capsule) so ground traces still pass through.
+	UnitMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("UnitMesh"));
+	UnitMesh->SetupAttachment(GetCapsuleComponent());
+	UnitMesh->SetCanEverAffectNavigation(false);
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeFinder(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (CubeFinder.Succeeded())
+	{
+		UnitMesh->SetStaticMesh(CubeFinder.Object);
+	}
+	UnitMesh->SetRelativeScale3D(FVector(0.8f, 0.8f, 1.7f));
+	UnitMesh->SetCollisionProfileName(UCollisionProfile::Pawn_ProfileName);
+	UnitMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
 	// CharacterMovement may exist for animation/capsule but is NOT match-state truth (sim owns pose).
 	if (UCharacterMovementComponent* CMC = GetCharacterMovement())
