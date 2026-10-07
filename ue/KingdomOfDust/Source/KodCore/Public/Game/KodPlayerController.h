@@ -43,6 +43,11 @@ struct KODCORE_API FKodSelectionHighlightState
  * blocking ImpactPoint is the Move point for ground and other non-sim props —
  * never an actor pivot. A sim-registered actor on that ray, other than the
  * current selection, is Attack.
+ *
+ * LMB drag past BoxSelectDragThresholdPx is a screen-space marquee. On release,
+ * every sim-registered actor whose viewport projection lies in the rect is
+ * selected. Left Shift adds; a fresh drag replaces. A shorter drag stays
+ * click-select. AKodHUD paints the rect with the engine canvas (no Content asset).
  */
 UCLASS(Blueprintable)
 class KODCORE_API AKodPlayerController : public APlayerController
@@ -81,6 +86,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Selection")
 	TArray<FKodEntityId> GetLocalSelectedEntityIds() const;
+
+	/**
+	 * Drag rect in GetMousePosition pixels. False until the pressed drag
+	 * reaches BoxSelectDragThresholdPx. AKodHUD reads this to paint the box.
+	 */
+	bool GetSelectionMarqueeRect(FVector2D& OutMin, FVector2D& OutMax) const;
 
 	/** Ground hit under cursor (channel Visibility / camera). */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Input")
@@ -138,7 +149,11 @@ protected:
 	 * OutHitLog lists each blocker as Name(Channel,sim,id,loc) for PIE.
 	 */
 	AActor* TraceSelectableUnderCursor(FString& OutHitLog) const;
+	/** Sim-registered actors (not the camera pawn) whose screen point lies in the marquee. */
 	void CollectActorsInMarquee(TArray<AActor*>& OutActors) const;
+	void GetMarqueeBounds(FVector2D& OutMin, FVector2D& OutMax) const;
+	/** Viewport-relative projection, matching GetMousePosition and the marquee corners. */
+	bool ProjectActorToMarqueeSpace(const AActor* Actor, FVector2D& OutScreen) const;
 
 	UPROPERTY()
 	TArray<TWeakObjectPtr<AActor>> LocalSelection;

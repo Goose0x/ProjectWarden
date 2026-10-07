@@ -107,6 +107,6 @@ void UKodSelectionManager::EndBoxSelect(bool bAddToSelection)
 {
 	bBoxSelecting = false;
 	(void)bAddToSelection;
-	// M1: frustum / HUD box hit-test against selectable actors — implement with PC deproject
+	// Slice 0 drag-select is AKodPlayerController::CollectActorsInMarquee, not this stub.
 	OnSelectionChanged.Broadcast();
 }

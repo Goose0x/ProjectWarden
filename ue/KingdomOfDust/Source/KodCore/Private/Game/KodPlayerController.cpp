@@ -74,8 +74,11 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 	if (bSelectPressed)
 	{
 		float X = 0.f, Y = 0.f;
-		GetMousePosition(X, Y);
-		UpdateMarquee(FVector2D(X, Y));
+		// A failed read used to snap the corner to (0,0) and turn a click into a box.
+		if (GetMousePosition(X, Y))
+		{
+			UpdateMarquee(FVector2D(X, Y));
+		}
 	}
 	if (WasInputKeyJustReleased(EKeys::LeftMouseButton))
 	{
@@ -416,9 +419,46 @@ void AKodPlayerController::UpdateMarquee(FVector2D ScreenPos)
 	}
 }
 
+void AKodPlayerController::GetMarqueeBounds(FVector2D& OutMin, FVector2D& OutMax) const
+{
+	OutMin.X = FMath::Min(MarqueeStart.X, MarqueeEnd.X);
+	OutMin.Y = FMath::Min(MarqueeStart.Y, MarqueeEnd.Y);
+	OutMax.X = FMath::Max(MarqueeStart.X, MarqueeEnd.X);
+	OutMax.Y = FMath::Max(MarqueeStart.Y, MarqueeEnd.Y);
+}
+
+bool AKodPlayerController::GetSelectionMarqueeRect(FVector2D& OutMin, FVector2D& OutMax) const
+{
+	if (!bSelectPressed || !bMarqueeActive)
+	{
+		return false;
+	}
+	if (FVector2D::Distance(MarqueeStart, MarqueeEnd) < BoxSelectDragThresholdPx)
+	{
+		return false;
+	}
+	GetMarqueeBounds(OutMin, OutMax);
+	return true;
+}
+
+bool AKodPlayerController::ProjectActorToMarqueeSpace(const AActor* Actor, FVector2D& OutScreen) const
+{
+	if (!Actor)
+	{
+		return false;
+	}
+	// Viewport-relative pixels match GetMousePosition. The default includes the
+	// constrained view-rect origin, so a PIE box would miss every unit.
+	return ProjectWorldLocationToScreen(Actor->GetActorLocation(), OutScreen, /*bPlayerViewportRelative*/ true);
+}
+
 void AKodPlayerController::EndMarquee(bool bAddToSelection)
 {
 	bMarqueeActive = false;
+	FVector2D BoxMin;
+	FVector2D BoxMax;
+	GetMarqueeBounds(BoxMin, BoxMax);
+
 	TArray<AActor*> Hits;
 	CollectActorsInMarquee(Hits);
 	if (!bAddToSelection)
@@ -429,6 +469,40 @@ void AKodPlayerController::EndMarquee(bool bAddToSelection)
 	{
 		LocalSelection.AddUnique(A);
 	}
+
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	FString HitLog;
+	for (AActor* A : Hits)
+	{
+		if (!A)
+		{
+			continue;
+		}
+		if (!HitLog.IsEmpty())
+		{
+			HitLog += TEXT(",");
+		}
+		FVector2D Screen = FVector2D::ZeroVector;
+		ProjectActorToMarqueeSpace(A, Screen);
+		const FKodEntityId Id = Sim ? Sim->FindIdForActor(A) : FKodEntityId();
+		HitLog += FString::Printf(
+			TEXT("%s(id=%d,screen=%.0f,%.0f)"),
+			*A->GetName(),
+			Id.Value,
+			Screen.X,
+			Screen.Y);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("DragSelect LocalSelection=%d Additive=%d Box=%.0f,%.0f-%.0f,%.0f Hits=%s"),
+		LocalSelection.Num(),
+		bAddToSelection ? 1 : 0,
+		BoxMin.X,
+		BoxMin.Y,
+		BoxMax.X,
+		BoxMax.Y,
+		HitLog.IsEmpty() ? TEXT("none") : *HitLog);
+
 	ApplySelectionHighlight();
 }
 
@@ -712,24 +786,24 @@ void AKodPlayerController::CollectActorsInMarquee(TArray<AActor*>& OutActors) co
 		return;
 	}
 
-	const float MinX = FMath::Min(MarqueeStart.X, MarqueeEnd.X);
-	const float MaxX = FMath::Max(MarqueeStart.X, MarqueeEnd.X);
-	const float MinY = FMath::Min(MarqueeStart.Y, MarqueeEnd.Y);
-	const float MaxY = FMath::Max(MarqueeStart.Y, MarqueeEnd.Y);
+	FVector2D Min;
+	FVector2D Max;
+	GetMarqueeBounds(Min, Max);
+	const AActor* ControlledPawn = GetPawn();
 
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
 		AActor* Actor = *It;
-		if (!Actor || !Sim->FindIdForActor(Actor).IsValid())
+		if (!Actor || Actor == ControlledPawn || !Sim->FindIdForActor(Actor).IsValid())
 		{
 			continue;
 		}
 		FVector2D Screen;
-		if (!ProjectWorldLocationToScreen(Actor->GetActorLocation(), Screen))
+		if (!ProjectActorToMarqueeSpace(Actor, Screen))
 		{
 			continue;
 		}
-		if (Screen.X >= MinX && Screen.X <= MaxX && Screen.Y >= MinY && Screen.Y <= MaxY)
+		if (Screen.X >= Min.X && Screen.X <= Max.X && Screen.Y >= Min.Y && Screen.Y <= Max.Y)
 		{
 			OutActors.Add(Actor);
 		}

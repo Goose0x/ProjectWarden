@@ -44,6 +44,8 @@ Editor recipe (when UE opens): create six assets → set fields → Save. One Bl
 
 **L_Slice0 walk:** iso cam · left select/box · right move · one Ranger walks · idle hash stable · HP from DataAsset only (no hardcoded HP in unit Tick).
 
+**Box select:** LMB drag past 6px replaces the selection with every sim-registered actor whose viewport projection lies in the rect. Left Shift adds, same as click. A shorter drag stays click-select. `AKodHUD` draws the rect with the engine canvas (no Content asset).
+
 ## Field sheet (TEMP balance)
 
 ### RangerRifle
