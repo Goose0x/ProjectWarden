@@ -11,7 +11,8 @@
 #include "GameFramework/HUD.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
+#include "UObject/SoftObjectPath.h"
 
 AKodPlayerController::AKodPlayerController()
 {
@@ -652,7 +653,7 @@ void AKodPlayerController::ClickSelectAtCursor(bool bAddToSelection)
 namespace KodSelectionHighlight
 {
 	constexpr int32 StencilValue = 1;
-	const FLinearColor TintColor(1.f, 0.42f, 0.05f, 1.f);
+	constexpr const TCHAR* OverlayMaterialPath = TEXT("/Game/Warden/FX/Selection/M_SelectionRim.M_SelectionRim");
 
 	bool IsHighlightMesh(const UMeshComponent* Mesh)
 	{
@@ -690,6 +691,8 @@ void AKodPlayerController::ClearSelectionHighlight()
 		{
 			continue;
 		}
+		Mesh->SetOverlayMaterial(nullptr);
+		// Slot restore is unused after the rim overlay. An empty OriginalMaterials list is a no-op.
 		const int32 Slots = Mesh->GetNumMaterials();
 		for (int32 Index = 0; Index < State.OriginalMaterials.Num() && Index < Slots; ++Index)
 		{
@@ -701,35 +704,29 @@ void AKodPlayerController::ClearSelectionHighlight()
 	SelectionHighlights.Reset();
 }
 
-UMaterialInstanceDynamic* AKodPlayerController::GetSelectionTintMaterial()
+UMaterialInterface* AKodPlayerController::GetSelectionOverlayMaterial()
 {
-	if (SelectionTintMid)
+	if (bSelectionOverlayResolved)
 	{
-		return SelectionTintMid;
+		return SelectionOverlayMaterial;
 	}
+	bSelectionOverlayResolved = true;
 
-	UMaterialInterface* Base = LoadObject<UMaterialInterface>(
-		nullptr,
-		TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
-	if (!Base)
+	const FSoftObjectPath Path(KodSelectionHighlight::OverlayMaterialPath);
+	SelectionOverlayMaterial = Cast<UMaterialInterface>(Path.TryLoad());
+	if (!SelectionOverlayMaterial)
 	{
-		return nullptr;
+		UE_LOG(LogTemp, Warning, TEXT("SelectionHighlight overlay failed to load %s; using stencil only"),
+			*Path.ToString());
 	}
-
-	SelectionTintMid = UMaterialInstanceDynamic::Create(Base, this);
-	if (SelectionTintMid)
-	{
-		SelectionTintMid->SetVectorParameterValue(TEXT("Color"), KodSelectionHighlight::TintColor);
-		SelectionTintMid->SetVectorParameterValue(TEXT("BaseColor"), KodSelectionHighlight::TintColor);
-	}
-	return SelectionTintMid;
+	return SelectionOverlayMaterial;
 }
 
 void AKodPlayerController::ApplySelectionHighlight()
 {
 	ClearSelectionHighlight();
 
-	UMaterialInstanceDynamic* Tint = GetSelectionTintMaterial();
+	UMaterialInterface* Overlay = GetSelectionOverlayMaterial();
 	int32 MeshCount = 0;
 	for (AActor* Actor : GetLocalSelection())
 	{
@@ -751,15 +748,9 @@ void AKodPlayerController::ApplySelectionHighlight()
 			State.bHadCustomDepth = Mesh->bRenderCustomDepth;
 			State.OriginalStencil = Mesh->CustomDepthStencilValue;
 
-			const int32 Slots = Mesh->GetNumMaterials();
-			State.OriginalMaterials.Reserve(Slots);
-			for (int32 Index = 0; Index < Slots; ++Index)
+			if (Overlay)
 			{
-				State.OriginalMaterials.Add(Mesh->GetMaterial(Index));
-				if (Tint)
-				{
-					Mesh->SetMaterial(Index, Tint);
-				}
+				Mesh->SetOverlayMaterial(Overlay);
 			}
 
 			Mesh->SetRenderCustomDepth(true);
@@ -769,10 +760,10 @@ void AKodPlayerController::ApplySelectionHighlight()
 		}
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("SelectionHighlight LocalSelection=%d Meshes=%d Tint=%d Stencil=%d"),
+	UE_LOG(LogTemp, Log, TEXT("SelectionHighlight LocalSelection=%d Meshes=%d Overlay=%d Stencil=%d"),
 		LocalSelection.Num(),
 		MeshCount,
-		Tint ? 1 : 0,
+		Overlay ? 1 : 0,
 		KodSelectionHighlight::StencilValue);
 }
 
