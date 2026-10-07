@@ -23,6 +23,14 @@ void AKodPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// PIE: GameAndUI + unlocked cursor so LMB/RMB reach PlayerTick (WasInputKeyJustPressed).
+	// Viewport capture is CaptureDuringMouseDown (DefaultInput.ini).
+	FInputModeGameAndUI Mode;
+	Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	Mode.SetHideCursorDuringCapture(false);
+	SetInputMode(Mode);
+	bShowMouseCursor = true;
+
 	if (ULocalPlayer* LP = GetLocalPlayer())
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
@@ -281,6 +289,8 @@ void AKodPlayerController::ClickSelectAtCursor(bool bAddToSelection)
 	{
 		LocalSelection.AddUnique(Picked);
 	}
+
+	UE_LOG(LogTemp, Log, TEXT("ClickSelectAtCursor LocalSelection=%d"), LocalSelection.Num());
 }
 
 void AKodPlayerController::CollectActorsInMarquee(TArray<AActor*>& OutActors) const
