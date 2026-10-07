@@ -15,18 +15,39 @@ namespace
 		return Name.Contains(TEXT("PROXY_"));
 	}
 
-	bool IsSlice0GreyboxProxy(const AActor* Actor)
+	bool IsSlice0GroundFloorName(const FString& Name)
 	{
-		if (!Actor)
+		// Outliner label is exactly PROXY_GROUND. PIE prefixes the object name
+		// (UEDPIE_0_PROXY_GROUND) when the asset itself uses that name.
+		// PROXY_LBL_GROUND is a text label and must stay in the mute set.
+		return Name.Equals(TEXT("PROXY_GROUND"), ESearchCase::IgnoreCase)
+			|| Name.EndsWith(TEXT("_PROXY_GROUND"), ESearchCase::IgnoreCase);
+	}
+
+	bool ActorNameOrLabelMatches(const AActor* Actor, bool (*Predicate)(const FString&))
+	{
+		if (!Actor || !Predicate)
 		{
 			return false;
 		}
-		if (IsSlice0GreyboxProxyName(Actor->GetName()))
+		if (Predicate(Actor->GetName()))
 		{
 			return true;
 		}
 		// Outliner label when it differs from the object name (StaticMeshActor_* labeled PROXY_*).
-		return IsSlice0GreyboxProxyName(Actor->GetActorNameOrLabel());
+		// GetActorNameOrLabel returns that label only in editor builds (WITH_EDITORONLY_DATA).
+		// Packaged builds fall back to GetName(), which is StaticMeshActor_* and will not match.
+		return Predicate(Actor->GetActorNameOrLabel());
+	}
+
+	bool IsSlice0GreyboxProxy(const AActor* Actor)
+	{
+		return ActorNameOrLabelMatches(Actor, &IsSlice0GreyboxProxyName);
+	}
+
+	bool IsSlice0GroundFloor(const AActor* Actor)
+	{
+		return ActorNameOrLabelMatches(Actor, &IsSlice0GroundFloorName);
 	}
 }
 
@@ -48,16 +69,25 @@ void AKodSlice0GameMode::MuteGreyboxProxyCollision()
 	UWorld* World = GetWorld();
 	if (!World)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Slice0 PROXY collision muted Count=0"));
+		UE_LOG(LogTemp, Log, TEXT("Slice0 PROXY collision muted Count=0 KeptGround=0"));
 		return;
 	}
 
 	int32 Muted = 0;
+	int32 KeptGround = 0;
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
 		AActor* Actor = *It;
 		if (!IsSlice0GreyboxProxy(Actor))
 		{
+			continue;
+		}
+
+		// Floor stays BlockAll: ECC_Pawn / ECC_Visibility move traces, and the pawn capsule.
+		// Props (CC, Dozer, crate, dock, pads, bounds, dirt, labels) still go NoCollision.
+		if (IsSlice0GroundFloor(Actor))
+		{
+			++KeptGround;
 			continue;
 		}
 
@@ -79,7 +109,11 @@ void AKodSlice0GameMode::MuteGreyboxProxyCollision()
 		}
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("Slice0 PROXY collision muted Count=%d"), Muted);
+	UE_LOG(LogTemp, Log, TEXT("Slice0 PROXY collision muted Count=%d KeptGround=%d"), Muted, KeptGround);
+	if (Muted > 0 && KeptGround == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Slice0 PROXY ground floor not kept (label PROXY_GROUND). Floor traces will miss."));
+	}
 }
 
 void AKodSlice0GameMode::StartPlay()
