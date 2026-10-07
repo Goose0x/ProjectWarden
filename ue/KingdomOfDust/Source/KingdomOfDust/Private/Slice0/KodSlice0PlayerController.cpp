@@ -23,6 +23,11 @@ void AKodSlice0PlayerController::IssueMoveToSelection_Implementation(FVector Wor
 	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
 	Cmd.SourceEntities = GetLocalSelectedEntityIds();
 	Cmd.TargetLocation = WorldLocation;
+	UE_LOG(LogTemp, Log, TEXT("Move Issued Sources=%d Dest=%.0f,%.0f,%.0f"),
+		Cmd.SourceEntities.Num(),
+		WorldLocation.X,
+		WorldLocation.Y,
+		WorldLocation.Z);
 	if (Cmd.SourceEntities.Num() > 0)
 	{
 		Commands->Enqueue(Cmd);
@@ -43,7 +48,8 @@ void AKodSlice0PlayerController::IssueAttackToSelection_Implementation(AActor* T
 	const FKodEntityId TargetId = Sim->FindIdForActor(Target);
 	if (!TargetId.IsValid())
 	{
-		IssueMoveToSelection(Target->GetActorLocation());
+		// Do not Move to the actor pivot. RMB already Moves to ImpactPoint for non-sim hits.
+		UE_LOG(LogTemp, Log, TEXT("Attack Reject NonSim Target=%s"), *Target->GetName());
 		return;
 	}
 
@@ -51,10 +57,17 @@ void AKodSlice0PlayerController::IssueAttackToSelection_Implementation(AActor* T
 	Cmd.Type = EKodCommandType::Attack;
 	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
 	Cmd.SourceEntities = GetLocalSelectedEntityIds();
+	Cmd.SourceEntities.Remove(TargetId);
 	Cmd.TargetEntity = TargetId;
 	Cmd.TargetLocation = Target->GetActorLocation();
-	if (Cmd.SourceEntities.Num() > 0)
+	if (Cmd.SourceEntities.Num() == 0)
 	{
-		Commands->Enqueue(Cmd);
+		UE_LOG(LogTemp, Log, TEXT("Attack Reject Self Target=%s Id=%d"), *Target->GetName(), TargetId.Value);
+		return;
 	}
+	UE_LOG(LogTemp, Log, TEXT("Attack Issued Sources=%d Target=%s Id=%d"),
+		Cmd.SourceEntities.Num(),
+		*Target->GetName(),
+		TargetId.Value);
+	Commands->Enqueue(Cmd);
 }
