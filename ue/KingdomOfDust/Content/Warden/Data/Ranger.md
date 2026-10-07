@@ -15,3 +15,5 @@
 | BuildCostCash | 75 |
 | BuildTicks | 80 (5×16) |
 | BuildTimeSeconds | 5 |
+| SkeletalMesh | empty until anims land |
+| StaticMesh | empty on bootstrap. After local import: `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body.SM_Ranger_Body` |

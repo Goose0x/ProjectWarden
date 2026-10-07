@@ -48,6 +48,34 @@ Helper: `KodBuildTicks::SecondsToBuildTicks` / `BuildTicksToSeconds` / `ResolveB
 
 **Do not commit fake binary `.uasset` / `.umap` files.**
 
+## Ranger body mesh (presentation)
+
+The Ranger DataAsset stays `/Game/Warden/Data/Ranger.Ranger`. The mesh is not a new Primary Asset id. `AKodUnit` reads it off `UKodUnitDefinition` and draws it on the existing static mesh child `UnitMesh`.
+
+Constants: `KodWardenPaths::RangerCharacterRoot`, `KodWardenPaths::RangerBodyStaticMesh`.
+
+| Role | Soft path |
+|------|-----------|
+| Mount folder | `/Game/Warden/Characters/USA/Ranger/` |
+| Slice 0 static mesh | `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body.SM_Ranger_Body` |
+| Skeletal mesh | Leave empty until anims land |
+| Rejected folder | `/Game/Units/Meshes/` |
+
+`UKodSlice0Bootstrap::MakeRanger` leaves `SkeletalMesh` and `StaticMesh` null. PIE with only the catalog still shows `/Engine/BasicShapes/Cube` at scale `0.8×0.8×1.7`. A set soft path that fails to load does the same. PIE log: `KodUnitBody <name> Source=Cube` or `Source=StaticMesh`.
+
+### Editor import (local only — no binaries in git)
+
+1. Open `ue/KingdomOfDust/KingdomOfDust.uproject` in UE **5.8**.
+2. Content Browser → add `/Game/Warden/Characters/USA/Ranger/` (this mount, not `Units/Meshes`).
+3. Import the baked USA Ranger LOW FBX as a **static mesh**. Skeletal mesh and anims wait for a later pass.
+4. If Import keeps the source asset name, rename the static mesh to **`SM_Ranger_Body`**. The soft path above has to match the package name.
+5. Open `/Game/Warden/Data/Ranger` (create it with the six-DA recipe above if it is not there yet). Set **Static Mesh** to `SM_Ranger_Body`. Leave **Skeletal Mesh** empty.
+6. Save. Do not commit the `.uasset`, the FBX, or the map.
+
+On the next PIE, `ApplyDefinition` puts that mesh on `UnitMesh` at relative scale `1` and relative location `0` (still attached to the capsule) and logs `KodUnitBody … Source=StaticMesh`. The cube placeholder stays scale `0.8×0.8×1.7` at the same attachment.
+
+Select collision is unchanged: after the mesh swap, `UnitMesh` is set again to the **Pawn** profile and **QueryOnly** (Visibility stays ignored by that profile). The capsule is not modified. Click-select and drag-select still use the same traces. The orange tint and custom-depth stencil `1` still walk visible mesh components, so the Ranger body highlights the same way the cube did. A skeletal mesh, when one is assigned later, shows on the Character mesh; `UnitMesh` is hidden but keeps this QueryOnly Pawn collision.
+
 ## Sim + movement law
 
 - `UKodSimSubsystem`: fixed step **SimHz=16**, catch-up capped (`MaxCatchUpSteps=4`).
@@ -91,6 +119,7 @@ A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDu
 - [ ] Idle hash stable across frames when no orders
 - [ ] HP from DA (Ranger 120) — no hardcoded HP in unit Tick
 - [ ] Soft path or bootstrap resolves all six ids
+- [ ] Ranger body uses `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body` when that static mesh is imported and set on `/Game/Warden/Data/Ranger`. Until then the unit stays the Engine cube (`KodUnitBody … Source=Cube`). Select / move / drag-select stay on the existing QueryOnly Pawn body.
 
 ## Blockers
 

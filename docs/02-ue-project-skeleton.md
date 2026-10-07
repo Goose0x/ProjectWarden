@@ -191,7 +191,7 @@ Content/
       # Slice 0 gate DAs are bare ids under /Game/Warden/Data/ (Ranger, Dozer) — not DA_Unit_*
     Blueprints/
       BP_KodUnit.uasset
-    Meshes/
+    Meshes/                         # not the Slice 0 Ranger body — /Game/Warden/Characters/USA/Ranger/SM_Ranger_Body
     Anims/
     Niagara/
   Buildings/

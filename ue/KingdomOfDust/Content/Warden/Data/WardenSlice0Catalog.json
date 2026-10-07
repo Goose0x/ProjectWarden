@@ -3,7 +3,7 @@
   "simHz": 16,
   "buildTicksLaw": "RoundToInt(Seconds * 16)",
   "contentRoot": "/Game/Warden/Data",
-  "note": "Bare asset ids only (no DA_ prefix). Binary .uasset created in editor; runtime UKodSlice0Bootstrap fills same FNames until then. Playtest #1 spend is Cash (buildCostCash). Oil is the second wallet and is not a cost on these rows. Supply hard cap is 200. No Credits.",
+  "note": "Bare asset ids only (no DA_ prefix). Binary .uasset created in editor; runtime UKodSlice0Bootstrap fills same FNames until then. Playtest #1 spend is Cash (buildCostCash). Oil is the second wallet and is not a cost on these rows. Supply hard cap is 200. No Credits. Ranger body is presentation on the Ranger DA, not a seventh id. Local import soft path: /Game/Warden/Characters/USA/Ranger/SM_Ranger_Body.SM_Ranger_Body. Bootstrap leaves mesh refs null (Engine cube).",
   "assets": [
     {
       "id": "RangerRifle",
@@ -29,7 +29,10 @@
       "weaponId": "RangerRifle",
       "buildCostCash": 75,
       "buildTicks": 80,
-      "buildTimeSeconds": 5
+      "buildTimeSeconds": 5,
+      "skeletalMesh": null,
+      "staticMesh": null,
+      "staticMeshLocalImport": "/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body.SM_Ranger_Body"
     },
     {
       "id": "Dozer",

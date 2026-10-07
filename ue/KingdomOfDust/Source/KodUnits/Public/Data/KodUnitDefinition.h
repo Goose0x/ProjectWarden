@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
 #include "GameplayTagContainer.h"
 #include "Sim/KodBuildTicks.h"
 #include "KodUnitDefinition.generated.h"
@@ -71,6 +73,23 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Vision")
 	float SightRadius = 1500.f;
+
+	/**
+	 * Preferred body once anims land. Slice 0 leaves this empty.
+	 * When the soft path loads, AKodUnit shows it on the Character skeletal mesh and hides the static placeholder.
+	 * Presentation only — not a Warden Data id, and not select-collision truth.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	TSoftObjectPtr<USkeletalMesh> SkeletalMesh;
+
+	/**
+	 * Slice 0 visible body on AKodUnit::UnitMesh (the static mesh child).
+	 * Local import soft path: /Game/Warden/Characters/USA/Ranger/SM_Ranger_Body.SM_Ranger_Body
+	 * (KodWardenPaths::RangerBodyStaticMesh). Null keeps the Engine cube.
+	 * Do not point this at /Game/Units/Meshes/.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	TSoftObjectPtr<UStaticMesh> StaticMesh;
 
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override
 	{

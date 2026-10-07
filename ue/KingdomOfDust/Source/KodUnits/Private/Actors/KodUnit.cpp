@@ -9,10 +9,18 @@
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "UObject/ConstructorHelpers.h"
+
+namespace
+{
+	constexpr const TCHAR* EngineCubePath = TEXT("/Engine/BasicShapes/Cube.Cube");
+	const FVector EngineCubeScale(0.8f, 0.8f, 1.7f);
+}
 
 AKodUnit::AKodUnit()
 {
@@ -26,20 +34,29 @@ AKodUnit::AKodUnit()
 	MoveComponent = CreateDefaultSubobject<UKodMoveComponent>(TEXT("KodMove"));
 	AttackComponent = CreateDefaultSubobject<UKodAttackComponent>(TEXT("KodAttack"));
 
-	// Engine cube so smoke-spawned units are visible. Capsule stays the movement body.
+	// Engine cube so smoke-spawned units are visible until ApplyDefinition resolves a mesh.
+	// Capsule stays the movement body and is not retuned here.
 	// Query-only Pawn: ECC_Pawn click-select hits the visible shape; Visibility is ignored
 	// (same as the pawn capsule) so ground traces still pass through.
 	UnitMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("UnitMesh"));
 	UnitMesh->SetupAttachment(GetCapsuleComponent());
 	UnitMesh->SetCanEverAffectNavigation(false);
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeFinder(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeFinder(EngineCubePath);
 	if (CubeFinder.Succeeded())
 	{
 		UnitMesh->SetStaticMesh(CubeFinder.Object);
 	}
-	UnitMesh->SetRelativeScale3D(FVector(0.8f, 0.8f, 1.7f));
-	UnitMesh->SetCollisionProfileName(UCollisionProfile::Pawn_ProfileName);
-	UnitMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	UnitMesh->SetRelativeScale3D(EngineCubeScale);
+	KeepSelectCollision();
+
+	// Character skeletal mesh stays hidden until a definition skeletal mesh actually loads.
+	// Its collision profile is left at the Character default so it does not join select traces.
+	if (USkeletalMeshComponent* Body = GetMesh())
+	{
+		Body->SetCanEverAffectNavigation(false);
+		Body->SetHiddenInGame(true);
+		Body->SetVisibility(false);
+	}
 
 	// CharacterMovement may exist for animation/capsule but is NOT match-state truth (sim owns pose).
 	if (UCharacterMovementComponent* CMC = GetCharacterMovement())
@@ -156,6 +173,123 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 		CMC->MaxWalkSpeed = 0.f;
 		CMC->SetMovementMode(MOVE_None);
 	}
+
+	ApplyBodyMesh(Def);
+}
+
+void AKodUnit::KeepSelectCollision()
+{
+	if (!UnitMesh)
+	{
+		return;
+	}
+
+	// Same two calls as construction. Do not retune Visibility, and do not touch the capsule.
+	UnitMesh->SetCollisionProfileName(UCollisionProfile::Pawn_ProfileName);
+	UnitMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+}
+
+void AKodUnit::ApplyBodyMesh(const UKodUnitDefinition* Def)
+{
+	if (!Def)
+	{
+		MountCubePlaceholder();
+		return;
+	}
+
+	// Skeletal wins when the asset actually loads. A set-but-missing path falls through
+	// so PIE never drops the visible body. Slice 0 leaves SkeletalMesh null.
+	if (!Def->SkeletalMesh.IsNull())
+	{
+		if (USkeletalMesh* SkelMesh = Def->SkeletalMesh.LoadSynchronous())
+		{
+			MountResolvedSkeletalMesh(SkelMesh);
+			return;
+		}
+	}
+
+	if (!Def->StaticMesh.IsNull())
+	{
+		if (UStaticMesh* StaticBody = Def->StaticMesh.LoadSynchronous())
+		{
+			MountResolvedStaticMesh(StaticBody);
+			return;
+		}
+	}
+
+	MountCubePlaceholder();
+}
+
+void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
+{
+	if (USkeletalMeshComponent* Body = GetMesh())
+	{
+		Body->SetSkeletalMeshAsset(SkelMesh);
+		Body->SetCanEverAffectNavigation(false);
+		Body->SetHiddenInGame(false);
+		Body->SetVisibility(true);
+	}
+
+	// Hide the cube draw. Keep its QueryOnly Pawn collision so click-select does not move
+	// onto the Character mesh profile or the capsule.
+	if (UnitMesh)
+	{
+		UnitMesh->SetHiddenInGame(true);
+		UnitMesh->SetVisibility(false);
+		KeepSelectCollision();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("KodUnitBody %s Source=SkeletalMesh"), *GetName());
+}
+
+void AKodUnit::MountResolvedStaticMesh(UStaticMesh* StaticBody)
+{
+	if (USkeletalMeshComponent* Body = GetMesh())
+	{
+		Body->SetSkeletalMeshAsset(nullptr);
+		Body->SetHiddenInGame(true);
+		Body->SetVisibility(false);
+	}
+
+	if (UnitMesh && StaticBody)
+	{
+		UnitMesh->SetStaticMesh(StaticBody);
+		// Cube scale would squash an imported body. Real mesh stays at 1.
+		UnitMesh->SetRelativeScale3D(FVector::OneVector);
+		UnitMesh->SetHiddenInGame(false);
+		UnitMesh->SetVisibility(true);
+		KeepSelectCollision();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("KodUnitBody %s Source=StaticMesh Mesh=%s"),
+		*GetName(),
+		StaticBody ? *StaticBody->GetName() : TEXT("None"));
+}
+
+void AKodUnit::MountCubePlaceholder()
+{
+	if (USkeletalMeshComponent* Body = GetMesh())
+	{
+		Body->SetSkeletalMeshAsset(nullptr);
+		Body->SetHiddenInGame(true);
+		Body->SetVisibility(false);
+	}
+
+	if (!UnitMesh)
+	{
+		return;
+	}
+
+	if (UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, EngineCubePath))
+	{
+		UnitMesh->SetStaticMesh(Cube);
+	}
+	UnitMesh->SetRelativeScale3D(EngineCubeScale);
+	UnitMesh->SetHiddenInGame(false);
+	UnitMesh->SetVisibility(true);
+	KeepSelectCollision();
+
+	UE_LOG(LogTemp, Log, TEXT("KodUnitBody %s Source=Cube"), *GetName());
 }
 
 void AKodUnit::EndPlay(const EEndPlayReason::Type EndPlayReason)

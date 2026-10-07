@@ -54,6 +54,8 @@ DisplayName Ranger Rifle · Damage 12 · Range 900 · CooldownSeconds 0.35
 ### Ranger
 Tag `Kod.Unit.Ranger` · MaxHealth 120 · Armor 0 · MoveSpeed 450 · Sight 1600 · PrimaryWeapon → RangerRifle · BuildCostCash 75 · BuildTicks 80 (5×16)
 
+Presentation only (not a seventh Data id): after local import, set the Ranger DA **Static Mesh** to `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body.SM_Ranger_Body`. Mount folder is `/Game/Warden/Characters/USA/Ranger/`, not `/Game/Units/Meshes/`. Bootstrap leaves the soft ref null (Engine cube). Skeletal mesh stays empty until anims land. See `docs/04-slice0-warden.md`.
+
 ### Dozer
 Tag `Kod.Unit.Dozer` · MaxHealth 200 · Armor 1 · MoveSpeed 350 · Sight 1200 · no weapon · BuildCostCash 100 · BuildTicks 128 (8×16)
 
