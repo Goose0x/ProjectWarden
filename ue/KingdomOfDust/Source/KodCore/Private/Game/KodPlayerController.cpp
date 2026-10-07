@@ -242,9 +242,9 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 	const FVector End = Origin + Direction * HitResultTraceDistance;
 
 	FCollisionQueryParams Params(TEXT("KodRMB"), /*bTraceComplex*/ false);
-	if (AActor* Pawn = GetPawn())
+	if (AActor* ControlledPawn = GetPawn())
 	{
-		Params.AddIgnoredActor(Pawn);
+		Params.AddIgnoredActor(ControlledPawn);
 	}
 
 	// Ground and PROXY_* are often the first Pawn hit, in front of the unit.
