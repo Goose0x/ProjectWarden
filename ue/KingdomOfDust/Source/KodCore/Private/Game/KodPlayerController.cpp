@@ -241,11 +241,11 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 	UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>();
 	const FVector End = Origin + Direction * HitResultTraceDistance;
 
-		FCollisionQueryParams Params(TEXT("KodRMB"), /*bTraceComplex*/ false);
-		if (AActor* ControlledPawn = GetPawn())
-		{
-			Params.AddIgnoredActor(ControlledPawn);
-		}
+	FCollisionQueryParams Params(TEXT("KodRMB"), /*bTraceComplex*/ false);
+	if (AActor* ControlledPawn = GetPawn())
+	{
+		Params.AddIgnoredActor(ControlledPawn);
+	}
 
 	// Ground and PROXY_* are often the first Pawn hit, in front of the unit.
 	// Keep that surface as the Move point, and keep walking until a foreign sim entity.
