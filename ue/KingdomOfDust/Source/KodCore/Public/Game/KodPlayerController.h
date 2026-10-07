@@ -9,10 +9,9 @@
 
 class UInputMappingContext;
 class UInputAction;
-class UMaterialInstanceDynamic;
 class AActor;
 
-/** Saved mesh look so selection tint / custom depth can be cleared. */
+/** Saved mesh custom-depth state so a selection highlight can be cleared. */
 USTRUCT()
 struct KODCORE_API FKodSelectionHighlightState
 {
@@ -126,7 +125,8 @@ protected:
 
 	void ApplySelectionHighlight();
 	void ClearSelectionHighlight();
-	UMaterialInstanceDynamic* GetSelectionTintMaterial();
+	/** Soft-load M_SelectionRim once and cache it. Null after a failed load. */
+	UMaterialInterface* GetSelectionOverlayMaterial();
 
 	/** Override / BlueprintImplementable for UKodCommandSubsystem enqueue. Default: sim IssueMove. */
 	UFUNCTION(BlueprintNativeEvent, Category = "Kod|Command")
@@ -161,8 +161,11 @@ protected:
 	UPROPERTY(Transient)
 	TArray<FKodSelectionHighlightState> SelectionHighlights;
 
+	/** Cached rim overlay. Null when the soft path failed to load. */
 	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInstanceDynamic> SelectionTintMid;
+	TObjectPtr<UMaterialInterface> SelectionOverlayMaterial;
+
+	bool bSelectionOverlayResolved = false;
 
 	bool bSelectPressed = false;
 	bool bMarqueeActive = false;
