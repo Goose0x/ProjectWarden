@@ -8,6 +8,7 @@
 #include "Sim/KodSimSubsystem.h"
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
