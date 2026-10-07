@@ -77,6 +77,14 @@ protected:
 	void UpdateMarquee(FVector2D ScreenPos);
 	void EndMarquee(bool bAddToSelection);
 	void ClickSelectAtCursor(bool bAddToSelection);
+	/**
+	 * First sim-registered actor along the cursor ray.
+	 * ECC_Pawn is walked past blockers with no sim id (greybox PROXY_* / ground).
+	 * Visibility is used only when the pawn channel hits nothing.
+	 * Unregistered-only rays return null so the click clears selection.
+	 * OutHitLog lists each blocker as Name(Channel,sim,id,loc) for PIE.
+	 */
+	AActor* TraceSelectableUnderCursor(FString& OutHitLog) const;
 	void CollectActorsInMarquee(TArray<AActor*>& OutActors) const;
 
 	UPROPERTY()
