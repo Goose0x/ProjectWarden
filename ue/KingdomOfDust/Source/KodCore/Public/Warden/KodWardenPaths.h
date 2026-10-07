@@ -26,6 +26,16 @@ namespace KodWardenPaths
 	constexpr const TCHAR* Id_Barracks = TEXT("Barracks");
 	constexpr const TCHAR* Id_USA = TEXT("USA");
 
+	/**
+	 * Ranger body presentation (not a DataAsset id).
+	 * Mount folder is /Game/Warden/Characters/USA/Ranger/ — not /Game/Units/Meshes/.
+	 * Soft Dev imports the LOW FBX locally and renames the static mesh to SM_Ranger_Body.
+	 * Bootstrap must leave UKodUnitDefinition mesh refs null; this path 404s until that import.
+	 * Skeletal mesh is a later anim pass. Slice 0 uses the static mesh on AKodUnit::UnitMesh.
+	 */
+	constexpr const TCHAR* RangerCharacterRoot = TEXT("/Game/Warden/Characters/USA/Ranger");
+	constexpr const TCHAR* RangerBodyStaticMesh = TEXT("/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body.SM_Ranger_Body");
+
 	FORCEINLINE FSoftObjectPath MakeSoftPath(const TCHAR* AssetId)
 	{
 		return FSoftObjectPath(FString::Printf(TEXT("%s/%s.%s"), DataRoot, AssetId, AssetId));

@@ -118,6 +118,11 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeRanger(UObject* Outer, UKodWeaponDe
 	{
 		U->PrimaryWeapon = Rifle;
 	}
+	// Presentation stays unset. Soft Dev wires StaticMesh to KodWardenPaths::RangerBodyStaticMesh
+	// on /Game/Warden/Data/Ranger after the local SM_Ranger_Body import. Do not assign that path
+	// here — the uasset is local, and a miss would log a load error on every spawn.
+	U->SkeletalMesh.Reset();
+	U->StaticMesh.Reset();
 	return U;
 }
 
@@ -135,6 +140,8 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeDozer(UObject* Outer)
 	U->BuildTicks = 128; // 8 × 16
 	U->BuildTimeSeconds = KodBuildTicks::BuildTicksToSeconds(128);
 	U->PrimaryWeapon.Reset();
+	U->SkeletalMesh.Reset();
+	U->StaticMesh.Reset();
 	return U;
 }
 
