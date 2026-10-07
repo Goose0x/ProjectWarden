@@ -8,6 +8,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "CollisionQueryParams.h"
+#include "GameFramework/HUD.h"
 
 AKodPlayerController::AKodPlayerController()
 {
@@ -261,25 +262,131 @@ void AKodPlayerController::EndMarquee(bool bAddToSelection)
 	}
 }
 
-void AKodPlayerController::ClickSelectAtCursor(bool bAddToSelection)
+AActor* AKodPlayerController::TraceSelectableUnderCursor(FString& OutHitLog) const
 {
-	FHitResult Hit;
-	AActor* Picked = nullptr;
-	if (GetHitResultUnderCursor(ECC_Pawn, false, Hit))
-	{
-		Picked = Hit.GetActor();
-	}
-	if (!Picked && GetHitResultUnderCursor(ECC_Visibility, false, Hit))
-	{
-		Picked = Hit.GetActor();
-	}
+	OutHitLog.Reset();
 
 	UWorld* World = GetWorld();
-	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
-	if (Picked && Sim && !Sim->FindIdForActor(Picked).IsValid())
+	if (!World)
 	{
-		Picked = nullptr; // only selectables registered in sim
+		OutHitLog = TEXT("no_world");
+		return nullptr;
 	}
+
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY))
+	{
+		OutHitLog = TEXT("no_mouse");
+		return nullptr;
+	}
+	// Same HUD hit-box early-out as GetHitResultUnderCursor.
+	if (AHUD* HUD = GetHUD())
+	{
+		if (HUD->GetHitBoxAtCoordinates(FVector2D(MouseX, MouseY), true))
+		{
+			OutHitLog = TEXT("hud");
+			return nullptr;
+		}
+	}
+
+	FVector Origin;
+	FVector Direction;
+	if (!DeprojectScreenPositionToWorld(MouseX, MouseY, Origin, Direction))
+	{
+		OutHitLog = TEXT("deproject_failed");
+		return nullptr;
+	}
+
+	UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>();
+	// Same length GetHitResultUnderCursor uses. A channel trace stops on the first
+	// BlockAll hit, so a PROXY mesh in front of a KodUnit used to win and get discarded.
+	// Re-trace, ignoring actors with no sim id, until a registered entity or a miss.
+	const FVector End = Origin + Direction * HitResultTraceDistance;
+
+	struct FChannelWalk
+	{
+		AActor* Picked = nullptr;
+		bool bSawBlocker = false;
+	};
+
+	auto WalkChannel = [&](ECollisionChannel Channel, const TCHAR* ChannelName) -> FChannelWalk
+	{
+		FChannelWalk Result;
+		FCollisionQueryParams Params(TEXT("ClickSelect"), /*bTraceComplex*/ false);
+		constexpr int32 MaxSteps = 32;
+		for (int32 Step = 0; Step < MaxSteps; ++Step)
+		{
+			FHitResult Hit;
+			if (!World->LineTraceSingleByChannel(Hit, Origin, End, Channel, Params))
+			{
+				return Result;
+			}
+
+			Result.bSawBlocker = true;
+			AActor* HitActor = Hit.GetActor();
+			if (!HitActor)
+			{
+				if (!OutHitLog.IsEmpty())
+				{
+					OutHitLog += TEXT(",");
+				}
+				OutHitLog += FString::Printf(TEXT("null(%s,sim=0)"), ChannelName);
+				return Result;
+			}
+
+			const FKodEntityId Id = Sim ? Sim->FindIdForActor(HitActor) : FKodEntityId();
+			const FVector Loc = HitActor->GetActorLocation();
+			if (!OutHitLog.IsEmpty())
+			{
+				OutHitLog += TEXT(",");
+			}
+			OutHitLog += FString::Printf(
+				TEXT("%s(%s,sim=%d,id=%d,loc=%.0f,%.0f,%.0f)"),
+				*HitActor->GetName(),
+				ChannelName,
+				Id.IsValid() ? 1 : 0,
+				Id.Value,
+				Loc.X,
+				Loc.Y,
+				Loc.Z);
+
+			if (Id.IsValid())
+			{
+				Result.Picked = HitActor;
+				return Result;
+			}
+
+			Params.AddIgnoredActor(HitActor);
+		}
+
+		if (!OutHitLog.IsEmpty())
+		{
+			OutHitLog += TEXT(",");
+		}
+		OutHitLog += TEXT("truncated");
+		return Result;
+	};
+
+	const FChannelWalk PawnWalk = WalkChannel(ECC_Pawn, TEXT("Pawn"));
+	if (PawnWalk.Picked)
+	{
+		return PawnWalk.Picked;
+	}
+	// Pawn already hit unregistered blockers (PROXY_* / ground). That click clears.
+	// Visibility runs only when the pawn channel hit nothing at all.
+	if (PawnWalk.bSawBlocker)
+	{
+		return nullptr;
+	}
+
+	return WalkChannel(ECC_Visibility, TEXT("Visibility")).Picked;
+}
+
+void AKodPlayerController::ClickSelectAtCursor(bool bAddToSelection)
+{
+	FString HitLog;
+	AActor* Picked = TraceSelectableUnderCursor(HitLog);
 
 	if (!bAddToSelection)
 	{
@@ -290,7 +397,10 @@ void AKodPlayerController::ClickSelectAtCursor(bool bAddToSelection)
 		LocalSelection.AddUnique(Picked);
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("ClickSelectAtCursor LocalSelection=%d"), LocalSelection.Num());
+	UE_LOG(LogTemp, Log, TEXT("ClickSelectAtCursor LocalSelection=%d Picked=%s Hits=%s"),
+		LocalSelection.Num(),
+		Picked ? *Picked->GetName() : TEXT("None"),
+		HitLog.IsEmpty() ? TEXT("none") : *HitLog);
 }
 
 void AKodPlayerController::CollectActorsInMarquee(TArray<AActor*>& OutActors) const

@@ -82,7 +82,7 @@ A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDu
 
 - [ ] Map `Content/Maps/Sandbox/L_Slice0` (editor). World Settings GameMode Override: `/Script/KingdomOfDust.KodSlice0GameMode`
 - [ ] Iso camera pans/zooms
-- [ ] Left-click select + drag box select
+- [ ] Left-click select + drag box select. Click walks ECC_Pawn past unregistered greybox (`PROXY_*`, ground) and selects the first sim-registered actor on the ray. A ray that only hits those props clears selection. PIE log: `ClickSelectAtCursor LocalSelection=… Picked=… Hits=Actor(Pawn,sim=0|1,id=…,loc=…)`
 - [ ] Right-click ground → Move through command subsystem / sim seek
 - [ ] Right-click enemy → Attack hitscan (RangerRifle damage 12 / range 900)
 - [ ] One Ranger walks; arrival stops in acceptance radius
