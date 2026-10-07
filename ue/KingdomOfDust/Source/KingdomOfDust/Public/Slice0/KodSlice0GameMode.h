@@ -6,7 +6,8 @@
 
 /**
  * L_Slice0 PIE wiring: RTS camera pawn, Slice0 PC, ensure Warden bootstrap catalog.
- * StartPlay turns collision off on greybox PROXY_* actors so ECC_Pawn traces reach KodUnit.
+ * StartPlay turns collision off on greybox PROXY_* props so ECC_Pawn traces reach KodUnit.
+ * The floor labeled PROXY_GROUND keeps BlockAll (move traces and the pawn capsule).
  *
  * World Settings class path (module KingdomOfDust, not the .uproject file name):
  * /Script/KingdomOfDust.KodSlice0GameMode
@@ -30,6 +31,6 @@ public:
 	FVector SmokeRangerOffset = FVector(400.f, 0.f, 100.f);
 
 private:
-	/** NoCollision on primitive components. Actors stay placed and visible. */
+	/** NoCollision on PROXY_* primitives except the PROXY_GROUND floor. Actors stay placed and visible. */
 	void MuteGreyboxProxyCollision();
 };
