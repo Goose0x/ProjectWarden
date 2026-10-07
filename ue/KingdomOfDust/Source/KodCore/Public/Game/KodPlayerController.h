@@ -9,6 +9,7 @@
 
 class UInputMappingContext;
 class UInputAction;
+class UMaterialInterface;
 class AActor;
 
 /** Saved mesh custom-depth state so a selection highlight can be cleared. */

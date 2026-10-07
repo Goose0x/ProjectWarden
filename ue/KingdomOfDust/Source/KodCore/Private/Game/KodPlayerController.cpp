@@ -11,6 +11,7 @@
 #include "GameFramework/HUD.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Materials/MaterialInterface.h"
 #include "UObject/SoftObjectPath.h"
 
 AKodPlayerController::AKodPlayerController()
