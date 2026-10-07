@@ -254,8 +254,20 @@ void AKodUnit::MountResolvedStaticMesh(UStaticMesh* StaticBody)
 	if (UnitMesh && StaticBody)
 	{
 		UnitMesh->SetStaticMesh(StaticBody);
-		// Cube scale would squash an imported body. Real mesh stays at 1.
-		UnitMesh->SetRelativeScale3D(FVector::OneVector);
+		// Slice 0 presentation band-aid. SM_Ranger_Body (and any other static body on this
+		// path) was imported in meters; Unreal is centimeters, so bounds are ~2 cm tall at
+		// scale 1 and the unit looks missing next to the Engine cube. Fit a uniform scale
+		// from local bounds so height lands near a human (~170 cm). Cube placeholder does
+		// not use this. MountCubePlaceholder still applies EngineCubeScale. Drop this once
+		// Art reimports SM_Ranger_Body at cm scale, or once a skeletal mesh lands.
+		// MeshHeight is BoxExtent.Z * 2 (full local Z). Invalid bounds stay at scale 1.
+		// BoxExtent is double (UE5 large-world FVector); keep the scale in double too.
+		constexpr double TargetHeightCm = 170.0;
+		const double MeshHeight = StaticBody->GetBounds().BoxExtent.Z * 2.0;
+		const bool bSaneHeight = FMath::IsFinite(MeshHeight) && MeshHeight > static_cast<double>(KINDA_SMALL_NUMBER);
+		const double UniformScale = bSaneHeight ? (TargetHeightCm / MeshHeight) : 1.0;
+		const double AppliedScale = FMath::IsFinite(UniformScale) ? UniformScale : 1.0;
+		UnitMesh->SetRelativeScale3D(FVector(AppliedScale, AppliedScale, AppliedScale));
 		UnitMesh->SetHiddenInGame(false);
 		UnitMesh->SetVisibility(true);
 		KeepSelectCollision();
