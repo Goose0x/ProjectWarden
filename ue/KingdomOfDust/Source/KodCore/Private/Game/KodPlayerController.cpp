@@ -9,6 +9,9 @@
 #include "GameFramework/Actor.h"
 #include "CollisionQueryParams.h"
 #include "GameFramework/HUD.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 
 AKodPlayerController::AKodPlayerController()
 {
@@ -18,6 +21,12 @@ AKodPlayerController::AKodPlayerController()
 	DefaultMouseCursor = EMouseCursor::Default;
 	bEnableClickEvents = true;
 	PrimaryActorTick.bCanEverTick = true;
+}
+
+void AKodPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	ClearSelectionHighlight();
+	Super::EndPlay(EndPlayReason);
 }
 
 void AKodPlayerController::BeginPlay()
@@ -74,22 +83,7 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 	}
 	if (WasInputKeyJustPressed(EKeys::RightMouseButton))
 	{
-		// Shift+RMB attack if hovering selectable enemy later; default move / attack smart
-		AActor* HitActor = nullptr;
-		FHitResult Hit;
-		if (GetHitResultUnderCursor(ECC_Pawn, false, Hit) && Hit.GetActor())
-		{
-			HitActor = Hit.GetActor();
-		}
-		if (HitActor && HitActor != GetPawn())
-		{
-			// Prefer attack if target is a registered sim entity distinct from selection
-			IssueAttackToSelection(HitActor);
-		}
-		else
-		{
-			HandleCommandMove();
-		}
+		HandleRightClickCommand();
 	}
 }
 
@@ -186,23 +180,186 @@ void AKodPlayerController::HandleCommandMove()
 
 void AKodPlayerController::HandleCommandAttack()
 {
-	FHitResult Hit;
-	if (GetHitResultUnderCursor(ECC_Pawn, false, Hit) && Hit.GetActor())
+	const FKodCursorCommand Cmd = TraceCursorCommand();
+	if (Cmd.AttackActor)
 	{
-		IssueAttackToSelection(Hit.GetActor());
+		IssueAttackToSelection(Cmd.AttackActor);
 	}
+}
+
+bool AKodPlayerController::IsInLocalSelection(const AActor* Actor) const
+{
+	if (!Actor)
+	{
+		return false;
+	}
+	for (const TWeakObjectPtr<AActor>& Ptr : LocalSelection)
+	{
+		if (Ptr.Get() == Actor)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand() const
+{
+	FKodCursorCommand Cmd;
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		Cmd.HitName = TEXT("no_world");
+		return Cmd;
+	}
+
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY))
+	{
+		Cmd.HitName = TEXT("no_mouse");
+		return Cmd;
+	}
+	if (AHUD* HUD = GetHUD())
+	{
+		if (HUD->GetHitBoxAtCoordinates(FVector2D(MouseX, MouseY), true))
+		{
+			Cmd.HitName = TEXT("hud");
+			return Cmd;
+		}
+	}
+
+	FVector Origin;
+	FVector Direction;
+	if (!DeprojectScreenPositionToWorld(MouseX, MouseY, Origin, Direction))
+	{
+		Cmd.HitName = TEXT("deproject_failed");
+		return Cmd;
+	}
+
+	UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>();
+	const FVector End = Origin + Direction * HitResultTraceDistance;
+
+	FCollisionQueryParams Params(TEXT("KodRMB"), /*bTraceComplex*/ false);
+	if (AActor* Pawn = GetPawn())
+	{
+		Params.AddIgnoredActor(Pawn);
+	}
+
+	// Ground and PROXY_* are often the first Pawn hit, in front of the unit.
+	// Keep that surface as the Move point, and keep walking until a foreign sim entity.
+	bool bSawPawnHit = false;
+	constexpr int32 MaxSteps = 32;
+	for (int32 Step = 0; Step < MaxSteps; ++Step)
+	{
+		FHitResult Hit;
+		if (!World->LineTraceSingleByChannel(Hit, Origin, End, ECC_Pawn, Params) || !Hit.bBlockingHit)
+		{
+			break;
+		}
+
+		bSawPawnHit = true;
+		AActor* HitActor = Hit.GetActor();
+		if (!Cmd.bHasMovePoint)
+		{
+			Cmd.bHasMovePoint = true;
+			Cmd.MovePoint = Hit.ImpactPoint;
+			Cmd.HitName = HitActor ? HitActor->GetName() : TEXT("None");
+			const FKodEntityId FirstId = (Sim && HitActor) ? Sim->FindIdForActor(HitActor) : FKodEntityId();
+			Cmd.bSim = FirstId.IsValid();
+		}
+		if (!HitActor)
+		{
+			break;
+		}
+
+		const FKodEntityId Id = Sim ? Sim->FindIdForActor(HitActor) : FKodEntityId();
+		if (Id.IsValid() && !IsInLocalSelection(HitActor))
+		{
+			Cmd.AttackActor = HitActor;
+			Cmd.AttackId = Id;
+			return Cmd;
+		}
+
+		Params.AddIgnoredActor(HitActor);
+	}
+
+	if (bSawPawnHit && Cmd.bHasMovePoint)
+	{
+		return Cmd;
+	}
+
+	FHitResult GroundHit;
+	if (GetGroundHitUnderCursor(GroundHit) && GroundHit.bBlockingHit)
+	{
+		AActor* HitActor = GroundHit.GetActor();
+		if (!HitActor || HitActor != GetPawn())
+		{
+			Cmd.bHasMovePoint = true;
+			Cmd.MovePoint = GroundHit.ImpactPoint;
+			Cmd.HitName = HitActor ? HitActor->GetName() : TEXT("None");
+			const FKodEntityId Id = (Sim && HitActor) ? Sim->FindIdForActor(HitActor) : FKodEntityId();
+			Cmd.bSim = Id.IsValid();
+			if (Id.IsValid() && HitActor && !IsInLocalSelection(HitActor))
+			{
+				Cmd.AttackActor = HitActor;
+				Cmd.AttackId = Id;
+			}
+		}
+	}
+
+	if (Cmd.HitName.IsEmpty())
+	{
+		Cmd.HitName = TEXT("none");
+	}
+	return Cmd;
+}
+
+void AKodPlayerController::HandleRightClickCommand()
+{
+	const FKodCursorCommand Cmd = TraceCursorCommand();
+	if (Cmd.AttackActor)
+	{
+		UE_LOG(LogTemp, Log, TEXT("RMB Attack LocalSelection=%d Target=%s Id=%d"),
+			LocalSelection.Num(),
+			*Cmd.AttackActor->GetName(),
+			Cmd.AttackId.Value);
+		IssueAttackToSelection(Cmd.AttackActor);
+		return;
+	}
+	if (Cmd.bHasMovePoint)
+	{
+		UE_LOG(LogTemp, Log, TEXT("RMB Move LocalSelection=%d Dest=%.0f,%.0f,%.0f Hit=%s sim=%d"),
+			LocalSelection.Num(),
+			Cmd.MovePoint.X,
+			Cmd.MovePoint.Y,
+			Cmd.MovePoint.Z,
+			Cmd.HitName.IsEmpty() ? TEXT("None") : *Cmd.HitName,
+			Cmd.bSim ? 1 : 0);
+		IssueMoveToSelection(Cmd.MovePoint);
+		return;
+	}
+	UE_LOG(LogTemp, Log, TEXT("RMB Miss %s"), Cmd.HitName.IsEmpty() ? TEXT("none") : *Cmd.HitName);
 }
 
 void AKodPlayerController::IssueMoveToSelection_Implementation(FVector WorldLocation)
 {
 	// Default path: sim IssueMove (walk gate). Prefer UKodCommandSubsystem via Slice0 PC subclass.
+	const TArray<FKodEntityId> Sources = GetLocalSelectedEntityIds();
+	UE_LOG(LogTemp, Log, TEXT("Move Issued Sources=%d Dest=%.0f,%.0f,%.0f"),
+		Sources.Num(),
+		WorldLocation.X,
+		WorldLocation.Y,
+		WorldLocation.Z);
+
 	UWorld* World = GetWorld();
 	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
 	if (!Sim)
 	{
 		return;
 	}
-	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	for (const FKodEntityId& Id : Sources)
 	{
 		Sim->IssueMove(Id, WorldLocation);
 	}
@@ -219,17 +376,29 @@ void AKodPlayerController::IssueAttackToSelection_Implementation(AActor* Target)
 	const FKodEntityId TargetId = Sim->FindIdForActor(Target);
 	if (!TargetId.IsValid())
 	{
-		// Not a sim entity — fall back to move-to location
-		IssueMoveToSelection(Target->GetActorLocation());
+		// Pivot fallback used to walk the selection to the actor origin (~0,0) on greybox floors.
+		UE_LOG(LogTemp, Log, TEXT("Attack Reject NonSim Target=%s"), *Target->GetName());
 		return;
 	}
+
+	int32 Issued = 0;
 	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
 	{
 		if (Id != TargetId)
 		{
 			Sim->IssueAttack(Id, TargetId);
+			++Issued;
 		}
 	}
+	if (Issued == 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Attack Reject Self Target=%s Id=%d"), *Target->GetName(), TargetId.Value);
+		return;
+	}
+	UE_LOG(LogTemp, Log, TEXT("Attack Issued Sources=%d Target=%s Id=%d"),
+		Issued,
+		*Target->GetName(),
+		TargetId.Value);
 }
 
 void AKodPlayerController::BeginMarquee(FVector2D ScreenPos)
@@ -260,6 +429,7 @@ void AKodPlayerController::EndMarquee(bool bAddToSelection)
 	{
 		LocalSelection.AddUnique(A);
 	}
+	ApplySelectionHighlight();
 }
 
 AActor* AKodPlayerController::TraceSelectableUnderCursor(FString& OutHitLog) const
@@ -397,10 +567,139 @@ void AKodPlayerController::ClickSelectAtCursor(bool bAddToSelection)
 		LocalSelection.AddUnique(Picked);
 	}
 
+	ApplySelectionHighlight();
+
 	UE_LOG(LogTemp, Log, TEXT("ClickSelectAtCursor LocalSelection=%d Picked=%s Hits=%s"),
 		LocalSelection.Num(),
 		Picked ? *Picked->GetName() : TEXT("None"),
 		HitLog.IsEmpty() ? TEXT("none") : *HitLog);
+}
+
+namespace KodSelectionHighlight
+{
+	constexpr int32 StencilValue = 1;
+	const FLinearColor TintColor(1.f, 0.42f, 0.05f, 1.f);
+
+	bool IsHighlightMesh(const UMeshComponent* Mesh)
+	{
+		if (!Mesh || !Mesh->IsVisible() || Mesh->bHiddenInGame)
+		{
+			return false;
+		}
+		if (const UStaticMeshComponent* StaticMesh = Cast<UStaticMeshComponent>(Mesh))
+		{
+			return StaticMesh->GetStaticMesh() != nullptr;
+		}
+		if (const USkeletalMeshComponent* Skel = Cast<USkeletalMeshComponent>(Mesh))
+		{
+			return Skel->GetSkeletalMeshAsset() != nullptr;
+		}
+		return Mesh->GetNumMaterials() > 0;
+	}
+}
+
+void AKodPlayerController::ClearSelectionHighlight()
+{
+	if (const UWorld* World = GetWorld())
+	{
+		if (World->bIsTearingDown)
+		{
+			SelectionHighlights.Reset();
+			return;
+		}
+	}
+
+	for (const FKodSelectionHighlightState& State : SelectionHighlights)
+	{
+		UMeshComponent* Mesh = State.Mesh;
+		if (!Mesh)
+		{
+			continue;
+		}
+		const int32 Slots = Mesh->GetNumMaterials();
+		for (int32 Index = 0; Index < State.OriginalMaterials.Num() && Index < Slots; ++Index)
+		{
+			Mesh->SetMaterial(Index, State.OriginalMaterials[Index]);
+		}
+		Mesh->SetRenderCustomDepth(State.bHadCustomDepth);
+		Mesh->SetCustomDepthStencilValue(State.OriginalStencil);
+	}
+	SelectionHighlights.Reset();
+}
+
+UMaterialInstanceDynamic* AKodPlayerController::GetSelectionTintMaterial()
+{
+	if (SelectionTintMid)
+	{
+		return SelectionTintMid;
+	}
+
+	UMaterialInterface* Base = LoadObject<UMaterialInterface>(
+		nullptr,
+		TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	if (!Base)
+	{
+		return nullptr;
+	}
+
+	SelectionTintMid = UMaterialInstanceDynamic::Create(Base, this);
+	if (SelectionTintMid)
+	{
+		SelectionTintMid->SetVectorParameterValue(TEXT("Color"), KodSelectionHighlight::TintColor);
+		SelectionTintMid->SetVectorParameterValue(TEXT("BaseColor"), KodSelectionHighlight::TintColor);
+	}
+	return SelectionTintMid;
+}
+
+void AKodPlayerController::ApplySelectionHighlight()
+{
+	ClearSelectionHighlight();
+
+	UMaterialInstanceDynamic* Tint = GetSelectionTintMaterial();
+	int32 MeshCount = 0;
+	for (AActor* Actor : GetLocalSelection())
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+		TInlineComponentArray<UMeshComponent*> Meshes;
+		Actor->GetComponents(Meshes);
+		for (UMeshComponent* Mesh : Meshes)
+		{
+			if (!KodSelectionHighlight::IsHighlightMesh(Mesh))
+			{
+				continue;
+			}
+
+			FKodSelectionHighlightState State;
+			State.Mesh = Mesh;
+			State.bHadCustomDepth = Mesh->bRenderCustomDepth;
+			State.OriginalStencil = Mesh->CustomDepthStencilValue;
+
+			const int32 Slots = Mesh->GetNumMaterials();
+			State.OriginalMaterials.Reserve(Slots);
+			for (int32 Index = 0; Index < Slots; ++Index)
+			{
+				State.OriginalMaterials.Add(Mesh->GetMaterial(Index));
+				if (Tint)
+				{
+					Mesh->SetMaterial(Index, Tint);
+				}
+			}
+
+			Mesh->SetRenderCustomDepth(true);
+			Mesh->SetCustomDepthStencilValue(KodSelectionHighlight::StencilValue);
+			SelectionHighlights.Add(State);
+			++MeshCount;
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("SelectionHighlight LocalSelection=%d Meshes=%d Tint=%d Stencil=%d"),
+		LocalSelection.Num(),
+		MeshCount,
+		Tint ? 1 : 0,
+		KodSelectionHighlight::StencilValue);
 }
 
 void AKodPlayerController::CollectActorsInMarquee(TArray<AActor*>& OutActors) const

@@ -36,7 +36,7 @@ Editor recipe (when UE opens): create six assets → set fields → Save. One Bl
 | Layer | Owns |
 |-------|------|
 | **Sim (16 Hz)** | Position, yaw, current order, arrival. Seek toward goal; stop inside acceptance radius (`Radius * 0.5`). Optional simple separation. |
-| **Command** | Right-click ground → `Move` on selection via `UKodCommandSubsystem` (not AI MoveTo). |
+| **Command** | Right-click ground or a non-sim prop → `Move` to the cursor **ImpactPoint** via `UKodCommandSubsystem` (not AI MoveTo, never the actor pivot). Right-click a sim entity that is not the current selection → `Attack`. |
 | **Presentation** | Actor interpolates between last/current sim pose. No CharacterMovement driving match state. |
 | **NavMesh** | Forbidden as truth this slice. Later: static obstacle query / flow field only — never Path Following Component as sim. |
 

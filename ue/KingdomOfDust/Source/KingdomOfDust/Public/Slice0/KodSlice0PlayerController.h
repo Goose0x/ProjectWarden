@@ -6,6 +6,8 @@
 
 /**
  * L_Slice0 PC: left select/box, right move/attack through UKodCommandSubsystem.
+ * Attack requires a sim entity. Non-sim actors are not retargeted to the actor pivot;
+ * the base RMB path Moves to the cursor ImpactPoint instead.
  *
  * Script class path: /Script/KingdomOfDust.KodSlice0PlayerController
  */

@@ -83,8 +83,9 @@ A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDu
 - [ ] Map `Content/Maps/Sandbox/L_Slice0` (editor). World Settings GameMode Override: `/Script/KingdomOfDust.KodSlice0GameMode`
 - [ ] Iso camera pans/zooms
 - [ ] Left-click select + drag box select. Click walks ECC_Pawn past unregistered greybox (`PROXY_*`, ground) and selects the first sim-registered actor on the ray. A ray that only hits those props clears selection. PIE log: `ClickSelectAtCursor LocalSelection=… Picked=… Hits=Actor(Pawn,sim=0|1,id=…,loc=…)`
-- [ ] Right-click ground → Move through command subsystem / sim seek
+- [ ] Right-click empty ground or a non-sim prop (`StaticMeshActor_*` floor, `PROXY_*`) → Move to the **first** cursor ImpactPoint (never the actor pivot). The ray walks past those Pawn blockers the same way click-select does: a sim-registered actor on the ray that is not the current selection → Attack. Self / selection is not an attack target (Move at the first ImpactPoint instead). PIE: `RMB Move LocalSelection=… Dest=x,y,z Hit=… sim=0|1` or `RMB Attack LocalSelection=… Target=… Id=…`, then `Move Issued Sources=… Dest=…` / `Attack Issued Sources=… Target=… Id=…`. `Attack Reject NonSim` means the pivot fallback did not run.
 - [ ] Right-click enemy → Attack hitscan (RangerRifle damage 12 / range 900)
+- [ ] Selected actors show an orange tint (engine `BasicShapeMaterial` `Color`, no Content asset) and custom-depth stencil `1` on their meshes. Both clear when the selection is cleared or replaced. `DefaultEngine.ini` sets `r.CustomDepth=3` so the stencil is written. PIE: `SelectionHighlight LocalSelection=… Meshes=… Tint=1`
 - [ ] One Ranger walks; arrival stops in acceptance radius
 - [ ] Idle hash stable across frames when no orders
 - [ ] HP from DA (Ranger 120) — no hardcoded HP in unit Tick
