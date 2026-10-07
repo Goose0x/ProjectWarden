@@ -72,7 +72,7 @@ Constants: `KodWardenPaths::RangerCharacterRoot`, `KodWardenPaths::RangerBodySta
 5. Open `/Game/Warden/Data/Ranger` (create it with the six-DA recipe above if it is not there yet). Set **Static Mesh** to `SM_Ranger_Body`. Leave **Skeletal Mesh** empty.
 6. Save. Do not commit the `.uasset`, the FBX, or the map.
 
-On the next PIE, `ApplyDefinition` puts that mesh on `UnitMesh` at relative scale `1` and relative location `0` (still attached to the capsule) and logs `KodUnitBody … Source=StaticMesh`. The cube placeholder stays scale `0.8×0.8×1.7` at the same attachment.
+On the next PIE, `ApplyDefinition` puts that mesh on `UnitMesh` at relative location `0` (still attached to the capsule) and logs `KodUnitBody … Source=StaticMesh`. `MountResolvedStaticMesh` then sets a uniform `RelativeScale3D` of `170 / (BoxExtent.Z * 2)` so the body is about 170 cm tall. That is a Slice 0 presentation band-aid: `SM_Ranger_Body` was imported in meters (bounds ~1.7 units, ~2 cm in Unreal) and disappears next to the cube at scale 1. Invalid bounds stay at scale 1. Remove the band-aid once Art reimports `SM_Ranger_Body` at centimeter scale, or once a skeletal mesh lands. The cube placeholder stays scale `0.8×0.8×1.7` at the same attachment.
 
 Select collision is unchanged: after the mesh swap, `UnitMesh` is set again to the **Pawn** profile and **QueryOnly** (Visibility stays ignored by that profile). The capsule is not modified. Click-select and drag-select still use the same traces. The orange tint and custom-depth stencil `1` still walk visible mesh components, so the Ranger body highlights the same way the cube did. A skeletal mesh, when one is assigned later, shows on the Character mesh; `UnitMesh` is hidden but keeps this QueryOnly Pawn collision.
 
@@ -119,7 +119,7 @@ A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDu
 - [ ] Idle hash stable across frames when no orders
 - [ ] HP from DA (Ranger 120) — no hardcoded HP in unit Tick
 - [ ] Soft path or bootstrap resolves all six ids
-- [ ] Ranger body uses `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body` when that static mesh is imported and set on `/Game/Warden/Data/Ranger`. Until then the unit stays the Engine cube (`KodUnitBody … Source=Cube`). Select / move / drag-select stay on the existing QueryOnly Pawn body.
+- [ ] Ranger body uses `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body` when that static mesh is imported and set on `/Game/Warden/Data/Ranger`. The static body is auto-scaled to about 170 cm from mesh bounds (meter-import band-aid). Until the mesh is set, the unit stays the Engine cube (`KodUnitBody … Source=Cube`). Select / move / drag-select stay on the existing QueryOnly Pawn body. PIE: `KodUnitBody … Source=StaticMesh Mesh=SM_Ranger_Body` and a visible human-sized Ranger.
 
 ## Blockers
 

@@ -71,6 +71,8 @@ protected:
 	/**
 	 * Static mesh child. Slice 0 swaps in UKodUnitDefinition::StaticMesh when that soft path loads.
 	 * Constructor plants /Engine/BasicShapes/Cube at 0.8×0.8×1.7 when nothing resolves.
+	 * A resolved static body is uniformly scaled from its bounds to ~170 cm tall (Slice 0
+	 * band-aid for meter-imported meshes). The cube path does not use that scale.
 	 * Collision stays QueryOnly Pawn (Visibility ignored via the Pawn profile). Capsule is not retuned.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Kod|Mesh")
