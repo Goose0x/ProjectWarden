@@ -15,9 +15,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FKodUnitFireSignature);
  * never writes pose, orders, or the idle hash.
  *
  * AnimBP: parent this class. Idle/Run blend on Speed. Aim when bIsAiming.
- * Fire when FireCounter changes (or bind OnFire). Additive HitReact on bHitReact.
- * Death when bIsDead, hold the last frame. Set DeathAnim to that clip so the
- * actor waits until ~0.2 s after it ends before the sink.
+ * Fire when FireCounter changes (or bind OnFire), played at FirePlayRate.
+ * Additive HitReact on bHitReact, Mesh Space, base AimIdle frame 0.
+ * Death when bIsDead. bDeathVariantB picks Death_B (odd entity id) or Death (even).
+ * The sink starts 0.2 s after that clip's hold frame, not at the clip end.
  */
 UCLASS(Blueprintable, BlueprintType)
 class KODUNITS_API UKodUnitAnimInstance : public UAnimInstance
@@ -34,6 +35,12 @@ public:
 	void HandleSimHit();
 
 	void HandleSimDeath();
+
+	/**
+	 * Seconds from death start until the sink. 0 when neither death clip is set.
+	 * Otherwise holdFrame / AuthoredFrameRate + DeathSinkAfterHoldSeconds.
+	 */
+	float GetDeathSinkDelaySeconds() const;
 
 	/** Horizontal speed in cm/s. 0 when standing, including aiming in place. */
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Anim")
@@ -63,8 +70,8 @@ public:
 	FKodUnitFireSignature OnFire;
 
 	/**
-	 * Clip length used as the authored run, in cm/s.
-	 * RunPlayRate = Speed / AuthoredRunSpeed. Ranger move speed is 450.
+	 * Authored run speed, cm/s. Stride is 300 cm/cycle.
+	 * RunPlayRate = Speed / AuthoredRunSpeed.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Anim")
 	float AuthoredRunSpeed = 450.f;
@@ -72,13 +79,45 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Anim")
 	float RunPlayRate = 1.f;
 
+	/** Authored walk speed, cm/s. WalkPlayRate = Speed / AuthoredWalkSpeed. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Anim")
+	float AuthoredWalkSpeed = 150.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Anim")
+	float WalkPlayRate = 1.f;
+
 	/**
-	 * Death clip (sequence or montage) the AnimBP plays when bIsDead.
-	 * Empty means the actor sinks immediately. A set clip delays the sink
-	 * until GetPlayLength + 0.2 s.
+	 * Fire state play rate. 11 frames at 30 fps is (11-1)/30 s;
+	 * 0.952 stretches that to 0.35 s. Shot notify is on frame 1.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Anim")
+	float FirePlayRate = 0.952f;
+
+	/** Authored clip rate used to turn death hold frames into seconds. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Anim")
+	float AuthoredFrameRate = 30.f;
+
+	/** Seconds after the death hold frame before the body starts sinking. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Anim")
+	float DeathSinkAfterHoldSeconds = 0.2f;
+
+	/** Death clip. Even entity ids. Holds from DeathHoldFrame. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Anim")
 	TObjectPtr<UAnimSequenceBase> DeathAnim;
+
+	/** Death_B clip. Odd entity ids. Holds from DeathHoldFrameB. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Anim")
+	TObjectPtr<UAnimSequenceBase> DeathAnimB;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Anim")
+	int32 DeathHoldFrame = 26;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Anim")
+	int32 DeathHoldFrameB = 30;
+
+	/** True when this unit plays Death_B (odd entity id). */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Anim")
+	bool bDeathVariantB = false;
 
 private:
 	bool bHitReactClearNextUpdate = false;

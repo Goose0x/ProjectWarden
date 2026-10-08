@@ -5,7 +5,7 @@
 #include "KodAnimNotify_Shot.generated.h"
 
 /**
- * Place on the Fire clip. Positions the muzzle flash at SOCKET_Muzzle,
+ * Place on frame 1 of the Fire clip. Positions the muzzle flash at SOCKET_Muzzle,
  * then weapon_r. If neither socket exists, AKodUnit uses the timed body-front flash.
  * Static / cube units never play this notify and keep the immediate flash.
  */

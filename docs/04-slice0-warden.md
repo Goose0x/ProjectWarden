@@ -86,15 +86,24 @@ Select collision is unchanged on the static path: after the mesh swap, `UnitMesh
 
 | Mount | Value |
 |-------|--------|
-| Relative yaw | `0` (the asset faces +X; actor yaw is the sim facing) |
+| Relative yaw | `UKodUnitDefinition::SkeletalMeshYawOffset`, default **-90**. Bind pose faces +Y; -90 lines it up with actor forward. Actor yaw stays the sim facing |
 | Relative scale | `1` |
-| Root / soles | Mesh local origin, soles at local Z `0` |
-| Component offset | `(0, 0, -90)` so the soles sit on the bottom of the capsule |
-| Capsule | radius `34`, half-height `90` (~180 cm). Restored to the Character default `34` / `88` if the body falls back to the static mesh or cube |
+| Height | **178.9 cm** at scale 1. Root is at the soles |
+| Component offset | `(0, 0, -half-height)` with half-height **90**, so the soles touch the ground |
+| Capsule | radius `34`, half-height `90`. Restored to the Character default `34` / `88` if the body falls back to the static mesh or cube |
+| Skeleton | `SK_Marine_Skeleton`. Bone names match the mannequin set. It is a separate skeleton and is not shareable with `SK_Mannequin`. Do not retarget this mesh onto that skeleton |
 
-Log: `KodUnitBody <name> Source=SkeletalMesh Yaw=0 Scale=1 CapsuleHH=90 Radius=34`.
+Log: `KodUnitBody <name> Source=SkeletalMesh Yaw=-90 Scale=1 CapsuleHH=90 Radius=34`.
 
-`AnimClass` on the Ranger Data Asset is a soft class. Empty uses `UKodUnitAnimInstance` (`/Script/KodUnits.KodUnitAnimInstance`) and the immediate body-front muzzle flash. Point it at an Animation Blueprint parented to that class when the clips exist.
+### Import layout
+
+`/Game/Warden/Units/USA/Marine/` with folders `Mesh`, `Anims`, `Textures`, `Materials`, `Weapon`. Do not commit the binaries.
+
+Clips in `Anims`: **Idle**, **Run**, **Walk**, **AimIdle**, **Fire**, **HitReact** (additive, Mesh Space, base **AimIdle frame 0**), **Death**, **Death_B**, **Acknowledge**.
+
+Parent the carbine in `Weapon` to socket `weapon_r`.
+
+`AnimClass` on the Ranger Data Asset is a soft class. Empty uses `UKodUnitAnimInstance` (`/Script/KodUnits.KodUnitAnimInstance`) and the immediate body-front muzzle flash. Point it at an Animation Blueprint parented to that class.
 
 ### AnimBP
 
@@ -105,20 +114,24 @@ The instance reads sim state. It does not write orders, pose, or the idle hash.
 | Pin | Meaning |
 |-----|---------|
 | `Speed` | cm/s. Move speed while a Move (or an out-of-range Attack seek) is in progress, else `0` |
-| `RunPlayRate` | `Speed / AuthoredRunSpeed`. `AuthoredRunSpeed` defaults to `450` |
+| `AuthoredRunSpeed` | `450`. Stride `300` cm/cycle. `RunPlayRate = Speed / AuthoredRunSpeed` |
+| `AuthoredWalkSpeed` | `150`. `WalkPlayRate = Speed / AuthoredWalkSpeed` |
+| `FirePlayRate` | `0.952`. Fire is 11 frames at 30 fps, `(11-1)/30` s, and `0.952` makes that `0.35` s |
 | `bIsAiming` | Sim order is Attack and the target is still alive |
 | `bIsDead` | Death presentation has started |
-| `bHitReact` | True for one anim update after `OnUnitHit`, then cleared. Additive hit trigger |
+| `bDeathVariantB` | Odd entity id plays **Death_B**. Even id plays **Death** |
+| `bHitReact` | True for one anim update after `OnUnitHit`, then cleared |
 | `FireCounter` | Increments on each `OnUnitFired` |
-| `OnFire` | Broadcast with that shot. Bind it or watch `FireCounter` |
-| `DeathAnim` | The Death clip. Empty sink starts immediately. Set it and the sink waits `GetPlayLength() + 0.2` s |
+| `OnFire` | Broadcast with that shot |
+| `DeathAnim` / `DeathAnimB` | The two death clips. Both empty: sink starts immediately |
+| `DeathHoldFrame` / `DeathHoldFrameB` | `26` and `30` at `AuthoredFrameRate` `30`. Sink starts `frame/30 + 0.2` s, not at the clip end |
 
 State machine:
 
-1. **Idle / Run** — blend on `Speed` (`0` idle, above `0` run). Play the run clip at `RunPlayRate`.
-2. **AimIdle / Fire** — when `bIsAiming`, hold AimIdle. Enter Fire when `FireCounter` changes. Put `UKodAnimNotify_Shot` (`/Script/KodUnits.KodAnimNotify_Shot`, notify name **Kod Shot**) on the Fire clip, within `0.5` s of the sim shot.
-3. **HitReact** — additive layer on an **AimIdle frame 0** base. Trigger from `bHitReact`.
-4. **Death** — two clips, hold the last frame. Assign the longer one to `DeathAnim` so the sink does not start early. The actor stays in place through the clip, then `0.2` s, then the existing `1.5` s sink. No `DeathAnim` keeps the immediate sink.
+1. **Idle / Run / Walk** — `Speed` 0 is Idle. Walk uses `WalkPlayRate`. Run uses `RunPlayRate`.
+2. **AimIdle / Fire** — when `bIsAiming`, hold AimIdle. Enter Fire when `FireCounter` changes and play it at `FirePlayRate`. Put `UKodAnimNotify_Shot` (`/Script/KodUnits.KodAnimNotify_Shot`, notify name **Kod Shot**) on **frame 1** of Fire.
+3. **HitReact** — additive, **Mesh Space**, on an **AimIdle frame 0** base. Trigger from `bHitReact`.
+4. **Death** — `bDeathVariantB` selects Death_B, otherwise Death. Hold starts at frame 30 or frame 26. The actor stays until `0.2` s after that frame, then the `1.5` s sink. The clip can keep holding its last frame. No death clip assigned keeps the immediate sink.
 
 ### Sockets
 
@@ -173,7 +186,7 @@ Placement: actor tag `KodHostileAnchor` first, else an actor whose name or label
 
 Visual: the hostile mounts the same body as the player Marine. When `/Game/Warden/Data/Ranger` has a skeletal mesh, both are that mesh (`Body=Skeletal`) and share `AnimClass`. If the skeletal soft ref fails, the body falls through to the static mesh, then the Engine cube, so PIE still runs before the art import (`Body=Cube`).
 
-Team colour is a dynamic material instance. `ApplyTeamColor` sets the vector param **TeamColor** on every slot that has it. The material's TeamMask texture stays on the asset; this code only sets the vector. Team 0 defaults to USA gunmetal `#5A6068` (`FriendlyTeamColor`). Team 1 defaults to `#B3261E` (`HostileTeamColor`). Both are editable on `AKodUnit`. If no slot has `TeamColor`, team 1 falls back to the old `Color` / `BaseColor` tint (BasicShapeMaterial on the cube). Team 0 stays untinted in that case. The selection rim is still an overlay, not a slot replace.
+Team colour is the strong base on the large armour areas, per player. Faction trim stays on the material and is not recolored. `ApplyTeamColor` sets the vector param **TeamColor** on a dynamic MID; the TeamMask texture stays on the asset. Defaults, both editable on `AKodUnit`: team 0 USA sand `#D2C4B1` (`FriendlyTeamColor`), team 1 `#B3261E` (`HostileTeamColor`). **Palette is pending Art.** If no slot has `TeamColor`, team 1 falls back to the old `Color` / `BaseColor` tint (BasicShapeMaterial on the cube). Team 0 stays untinted in that case. The selection rim is still an overlay, not a slot replace.
 
 Click-select and drag-select only take sim actors whose `TeamId` matches `AKodPlayerState::TeamId` (default 0). The hostile is walked past and gets no rim. RMB is unchanged: a sim actor that is not the current selection, including team 1, logs `RMB Attack` and then `Attack Issued`.
 
@@ -311,7 +324,7 @@ A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDu
 - [ ] Idle hash stable across frames when no orders. Bob, visual yaw, muzzle flash, tracer, hit jiggle, death sink, HP bars, `TeamId`, and `RetaliateTarget` are not hashed. The hostile is a second entity, so the hash value differs from a one-unit world. Auto-acquire gives both units an Attack order, so the world is not idle during the fight. After the kill the survivor's order is clear and the hash is stable again.
 - [ ] HP from DA (Ranger 120) — no hardcoded HP in unit Tick
 - [ ] Soft path or bootstrap resolves all six ids
-- [ ] Ranger body uses `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body` when that static mesh is imported and set on `/Game/Warden/Data/Ranger`. The static body is auto-scaled to about 170 cm from mesh bounds (meter-import band-aid). A skeletal mesh on that asset wins for **both** the player and the hostile: yaw 0, scale 1, soles on a 34×90 capsule, log `KodUnitBody … Source=SkeletalMesh Yaw=0 Scale=1 CapsuleHH=90 Radius=34`. Team 0 is gunmetal `#5A6068` and team 1 is `#B3261E` when the material has `TeamColor`. Until the skeletal mesh is set, both stay the Engine cube (`Body=Cube`); the hostile cube still tints red. Select / move / drag-select stay on the existing QueryOnly Pawn body.
+- [ ] Ranger body uses `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body` when that static mesh is imported and set on `/Game/Warden/Data/Ranger`. The static body is auto-scaled to about 170 cm from mesh bounds (meter-import band-aid). The delivered skeletal mesh (178.9 cm, `SK_Marine_Skeleton`, import under `/Game/Warden/Units/USA/Marine/`) wins for **both** the player and the hostile: `SkeletalMeshYawOffset` default -90, scale 1, soles on a 34×90 capsule, log `KodUnitBody … Source=SkeletalMesh Yaw=-90 Scale=1 CapsuleHH=90 Radius=34`. Team 0 is sand `#D2C4B1` and team 1 is `#B3261E` when the material has `TeamColor` (palette pending Art). Until the skeletal mesh is set, both stay the Engine cube (`Body=Cube`); the hostile cube still tints red. Select / move / drag-select stay on the existing QueryOnly Pawn body.
 - [ ] Hostile spawn. PIE: `Slice0 Hostile spawned Name=… Team=1 Loc=… Anchor=PROXY_HOSTILE Body=Skeletal` when the label or `KodHostileAnchor` tag is present and the skeletal mesh loads, otherwise `Body=Cube`. No anchor logs `Anchor=fallback` at `(1200, 600, 100)`. Same Ranger definition as the player, red team colour, auto-acquire, death / fire / hit react when the AnimBP is assigned. The team 0 Marine can die the same way.
 
 ## Blockers

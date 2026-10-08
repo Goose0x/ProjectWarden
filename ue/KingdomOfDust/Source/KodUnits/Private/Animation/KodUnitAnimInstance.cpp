@@ -32,6 +32,10 @@ void UKodUnitAnimInstance::ReadSimPresentation(AKodUnit* UnitPawn)
 	if (UnitPawn)
 	{
 		bDead = UnitPawn->IsDeathSinking();
+		if (UnitPawn->EntityId.IsValid())
+		{
+			bDeathVariantB = (UnitPawn->EntityId.Value & 1) != 0;
+		}
 		if (UWorld* World = UnitPawn->GetWorld())
 		{
 			if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
@@ -67,8 +71,35 @@ void UKodUnitAnimInstance::ReadSimPresentation(AKodUnit* UnitPawn)
 	Speed = FMath::Max(0.f, NewSpeed);
 	bIsAiming = bAim;
 	bIsDead = bDead;
-	const float Authored = FMath::Max(1.f, AuthoredRunSpeed);
-	RunPlayRate = Speed / Authored;
+	const float RunAuthored = FMath::Max(1.f, AuthoredRunSpeed);
+	const float WalkAuthored = FMath::Max(1.f, AuthoredWalkSpeed);
+	RunPlayRate = Speed / RunAuthored;
+	WalkPlayRate = Speed / WalkAuthored;
+}
+
+float UKodUnitAnimInstance::GetDeathSinkDelaySeconds() const
+{
+	const bool bHasDeath = DeathAnim != nullptr;
+	const bool bHasDeathB = DeathAnimB != nullptr;
+	if (!bHasDeath && !bHasDeathB)
+	{
+		return 0.f;
+	}
+
+	bool bPlayB = bDeathVariantB;
+	if (bPlayB && !bHasDeathB && bHasDeath)
+	{
+		bPlayB = false;
+	}
+	else if (!bPlayB && !bHasDeath && bHasDeathB)
+	{
+		bPlayB = true;
+	}
+
+	const int32 HoldFrame = bPlayB ? DeathHoldFrameB : DeathHoldFrame;
+	const float FrameRate = FMath::Max(1.f, AuthoredFrameRate);
+	const float HoldSeconds = static_cast<float>(FMath::Max(0, HoldFrame)) / FrameRate;
+	return HoldSeconds + FMath::Max(0.f, DeathSinkAfterHoldSeconds);
 }
 
 void UKodUnitAnimInstance::HandleSimFired()
@@ -88,4 +119,11 @@ void UKodUnitAnimInstance::HandleSimDeath()
 	bIsDead = true;
 	bIsAiming = false;
 	bHitReact = false;
+	if (const AKodUnit* UnitPawn = Cast<AKodUnit>(TryGetPawnOwner()))
+	{
+		if (UnitPawn->EntityId.IsValid())
+		{
+			bDeathVariantB = (UnitPawn->EntityId.Value & 1) != 0;
+		}
+	}
 }

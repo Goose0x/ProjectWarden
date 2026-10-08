@@ -48,7 +48,6 @@ namespace
 	constexpr float DefaultCapsuleRadius = 34.f;
 	constexpr float DefaultCapsuleHalfHeight = 88.f;
 	constexpr float ShotNotifyFallbackSeconds = 0.5f;
-	constexpr float DeathPostClipHoldSeconds = 0.2f;
 	constexpr float HitJiggleCm = 16.f;
 	constexpr float TracerRadiusScale = 0.28f;
 
@@ -129,7 +128,7 @@ AKodUnit::AKodUnit()
 	// Neither write touches FKodSimEntityState or ComputeIdleHash.
 	PrimaryActorTick.TickGroup = TG_PostUpdateWork;
 
-	FriendlyTeamColor = FLinearColor(FColor(0x5A, 0x60, 0x68));
+	FriendlyTeamColor = FLinearColor(FColor(0xD2, 0xC4, 0xB1));
 	HostileTeamColor = FLinearColor(FColor(0xB3, 0x26, 0x1E));
 
 	AbilitySystemComponent = CreateDefaultSubobject<UKodAbilitySystemComponent>(TEXT("AbilitySystem"));
@@ -686,38 +685,43 @@ void AKodUnit::RestoreDefaultCapsule()
 
 void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 {
-	// Asset faces +X with the root at the origin and soles at Z=0.
-	// Scale stays 1. No 170 cm static-mesh fit. Offset the component so soles
-	// sit on the bottom of a ~180 cm capsule.
+	// Delivered mesh is 178.9 cm at scale 1, root at the soles. No 170 cm fit.
+	// Half-height ~90; offset by -half-height so the soles sit on the ground.
+	// Yaw comes from the definition (Marine default -90). Do not retarget this
+	// skeleton onto another asset.
 	ApplySkeletalCapsule();
 	bSkeletalBody = true;
+
+	float YawOffset = -90.f;
+	const UKodUnitDefinition* BodyDef = GetDefinition();
+	if (BodyDef)
+	{
+		YawOffset = BodyDef->SkeletalMeshYawOffset;
+	}
 
 	if (USkeletalMeshComponent* Body = GetMesh())
 	{
 		Body->SetSkeletalMeshAsset(SkelMesh);
 		Body->SetRelativeLocation(FVector(0.f, 0.f, -SkeletalCapsuleHalfHeight));
-		Body->SetRelativeRotation(FRotator::ZeroRotator);
+		Body->SetRelativeRotation(FRotator(0.f, YawOffset, 0.f));
 		Body->SetRelativeScale3D(FVector::OneVector);
 		Body->SetCanEverAffectNavigation(false);
 		Body->SetHiddenInGame(false);
 		Body->SetVisibility(true);
 
-		UClass* AnimClass = UKodUnitAnimInstance::StaticClass();
-		if (const UKodUnitDefinition* BodyDef = GetDefinition())
+		UClass* ResolvedAnimClass = UKodUnitAnimInstance::StaticClass();
+		if (BodyDef && !BodyDef->AnimClass.IsNull())
 		{
-			if (!BodyDef->AnimClass.IsNull())
+			if (UClass* LoadedAnim = BodyDef->AnimClass.LoadSynchronous())
 			{
-				if (UClass* LoadedAnim = BodyDef->AnimClass.LoadSynchronous())
+				if (LoadedAnim->IsChildOf(UKodUnitAnimInstance::StaticClass()))
 				{
-					if (LoadedAnim->IsChildOf(UKodUnitAnimInstance::StaticClass()))
-					{
-						AnimClass = LoadedAnim;
-					}
+					ResolvedAnimClass = LoadedAnim;
 				}
 			}
 		}
 		Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
-		Body->SetAnimInstanceClass(AnimClass);
+		Body->SetAnimInstanceClass(ResolvedAnimClass);
 	}
 
 	// Hide the cube draw. Keep its QueryOnly Pawn collision so click-select does not move
@@ -729,7 +733,11 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 		KeepSelectCollision();
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("KodUnitBody %s Source=SkeletalMesh Yaw=0 Scale=1 CapsuleHH=90 Radius=34"), *GetName());
+	UE_LOG(LogTemp, Log, TEXT("KodUnitBody %s Source=SkeletalMesh Yaw=%.0f Scale=1 CapsuleHH=%.0f Radius=%.0f"),
+		*GetName(),
+		YawOffset,
+		SkeletalCapsuleHalfHeight,
+		SkeletalCapsuleRadius);
 }
 
 void AKodUnit::MountResolvedStaticMesh(UStaticMesh* StaticBody)
@@ -1112,16 +1120,7 @@ float AKodUnit::GetSkeletalDeathHoldSeconds() const
 	}
 	const USkeletalMeshComponent* Body = GetMesh();
 	const UKodUnitAnimInstance* Anim = Body ? Cast<UKodUnitAnimInstance>(Body->GetAnimInstance()) : nullptr;
-	if (!Anim || !Anim->DeathAnim)
-	{
-		return 0.f;
-	}
-	const float ClipSeconds = Anim->DeathAnim->GetPlayLength();
-	if (ClipSeconds <= 0.f)
-	{
-		return 0.f;
-	}
-	return ClipSeconds + DeathPostClipHoldSeconds;
+	return Anim ? Anim->GetDeathSinkDelaySeconds() : 0.f;
 }
 
 void AKodUnit::PlayMuzzleFromShotNotify()

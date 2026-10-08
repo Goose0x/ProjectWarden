@@ -45,7 +45,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Kod|Team")
 	int32 TeamId = 0;
 
-	/** USA gunmetal #5A6068. Used when the body material has a TeamColor vector param. */
+	/** USA sand #D2C4B1. TeamColor on large armour. Palette is pending Art. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Team")
 	FLinearColor FriendlyTeamColor;
 
