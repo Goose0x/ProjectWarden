@@ -9,7 +9,8 @@
  * StartPlay mutes greybox collision so ECC_Pawn traces reach KodUnit.
  * Tag KodGreybox mutes. Tag KodGround keeps BlockAll (move traces and the pawn capsule).
  * Actors with neither tag still use the PROXY_ / PROXY_GROUND label rules.
- * After the smoke Ranger, one passive hostile Ranger is spawned for Attack tests.
+ * After the smoke Ranger, one hostile Ranger is spawned. It has no AI controller.
+ * Sim auto-acquire makes it fight back when an enemy is in weapon range.
  *
  * World Settings class path (module KingdomOfDust, not the .uproject file name):
  * /Script/KingdomOfDust.KodSlice0GameMode
@@ -39,6 +40,6 @@ private:
 	 */
 	void MuteGreyboxProxyCollision();
 
-	/** One passive enemy Ranger (team 1) at the KodHostileAnchor / PROXY_HOSTILE label. */
+	/** One enemy Ranger (team 1) at the KodHostileAnchor / PROXY_HOSTILE label. */
 	void SpawnHostileTestTarget();
 };

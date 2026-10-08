@@ -93,8 +93,11 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 			StepEntityAttack(*State, FixedDt);
 			break;
 		default:
-			// Idle: do not micro-integrate — keep quantized pose stable for hash
-			QuantizePose(*State);
+			// Idle: auto-acquire or hold a quantized pose. An explicit Move is not this branch.
+			if (!TryAutoAcquire(*State, FixedDt))
+			{
+				QuantizePose(*State);
+			}
 			break;
 		}
 	}
@@ -193,6 +196,16 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 		State.CooldownRemaining = FMath::Max(0.01f, State.WeaponCooldownSeconds);
 		const float HealthLeft = Target->Health;
 
+		// Hit while idle: retaliate next acquire, even if the attacker is outside range.
+		// A unit that already has Move or Attack keeps that order.
+		if (HealthLeft > 0.f
+			&& Target->Order == EKodSimOrderType::None
+			&& Target->WeaponDamage > 0.f
+			&& Target->TeamId != State.TeamId)
+		{
+			Target->RetaliateTarget = State.Id;
+		}
+
 		UE_LOG(LogTemp, Log, TEXT("KodSim Fire Attacker=%s Target=%s Tick=%lld"),
 			*AttackerName,
 			*TargetName,
@@ -222,6 +235,106 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 	}
 
 	QuantizePose(State);
+}
+
+FString UKodSimSubsystem::GetEntityActorName(int32 IdValue) const
+{
+	if (const TWeakObjectPtr<AActor>* Found = Entities.Find(IdValue))
+	{
+		if (const AActor* NamedActor = Found->Get())
+		{
+			return NamedActor->GetName();
+		}
+	}
+	return FString(TEXT("None"));
+}
+
+FKodEntityId UKodSimSubsystem::FindNearestEnemyInRange(const FKodSimEntityState& State) const
+{
+	FKodEntityId BestId;
+	float BestDistSq = 0.f;
+	bool bFound = false;
+	const float RangeSq = FMath::Square(FMath::Max(0.f, State.WeaponRange));
+
+	TArray<int32> Keys;
+	States.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		if (Key == State.Id.Value)
+		{
+			continue;
+		}
+		const FKodSimEntityState* Other = States.Find(Key);
+		if (!Other || Other->Health <= 0.f || Other->TeamId == State.TeamId)
+		{
+			continue;
+		}
+		const float DistSq = FVector::DistSquared2D(State.Position, Other->Position);
+		if (DistSq > RangeSq)
+		{
+			continue;
+		}
+		// Keys are sorted, so the first unit at a distance is the lowest id.
+		// A later id replaces it only when strictly closer.
+		if (!bFound || DistSq < BestDistSq)
+		{
+			bFound = true;
+			BestDistSq = DistSq;
+			BestId.Value = Key;
+		}
+	}
+	return BestId;
+}
+
+bool UKodSimSubsystem::TryAutoAcquire(FKodSimEntityState& State, float FixedDt)
+{
+	if (State.Order != EKodSimOrderType::None || State.WeaponDamage <= 0.f || State.Health <= 0.f)
+	{
+		return false;
+	}
+
+	FKodEntityId Chosen;
+	const TCHAR* Reason = nullptr;
+
+	if (State.RetaliateTarget.IsValid())
+	{
+		const FKodEntityId Pending = State.RetaliateTarget;
+		State.RetaliateTarget = FKodEntityId();
+		if (const FKodSimEntityState* Aggro = States.Find(Pending.Value))
+		{
+			if (Aggro->Health > 0.f && Aggro->TeamId != State.TeamId && Aggro->Id.Value != State.Id.Value)
+			{
+				Chosen = Aggro->Id;
+				Reason = TEXT("Retaliate");
+			}
+		}
+	}
+
+	if (!Chosen.IsValid())
+	{
+		Chosen = FindNearestEnemyInRange(State);
+		if (Chosen.IsValid())
+		{
+			Reason = TEXT("InRange");
+		}
+	}
+
+	if (!Chosen.IsValid() || !Reason)
+	{
+		return false;
+	}
+
+	State.Order = EKodSimOrderType::Attack;
+	State.AttackTarget = Chosen;
+	UE_LOG(LogTemp, Log, TEXT("KodSim AutoAcquire Unit=%s Target=%s Reason=%s"),
+		*GetEntityActorName(State.Id.Value),
+		*GetEntityActorName(Chosen.Value),
+		Reason);
+	// Same hitscan path as an explicit attack. May unregister the target.
+	// Do not use State after this call; TMap::Remove can rehash.
+	StepEntityAttack(State, FixedDt);
+	return true;
 }
 
 void UKodSimSubsystem::QuantizePose(FKodSimEntityState& State) const
@@ -351,6 +464,7 @@ void UKodSimSubsystem::IssueMove(FKodEntityId Id, FVector WorldLocation)
 		State->Order = EKodSimOrderType::Move;
 		State->MoveTarget = WorldLocation;
 		State->AttackTarget = FKodEntityId();
+		State->RetaliateTarget = FKodEntityId();
 	}
 }
 
@@ -360,6 +474,7 @@ void UKodSimSubsystem::IssueAttack(FKodEntityId Id, FKodEntityId TargetId)
 	{
 		State->Order = EKodSimOrderType::Attack;
 		State->AttackTarget = TargetId;
+		State->RetaliateTarget = FKodEntityId();
 	}
 }
 
@@ -369,6 +484,7 @@ void UKodSimSubsystem::IssueStop(FKodEntityId Id)
 	{
 		State->Order = EKodSimOrderType::None;
 		State->AttackTarget = FKodEntityId();
+		State->RetaliateTarget = FKodEntityId();
 		QuantizePose(*State);
 	}
 }

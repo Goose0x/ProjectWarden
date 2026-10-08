@@ -239,7 +239,8 @@ void AKodSlice0GameMode::SpawnHostileTestTarget()
 
 	const TCHAR* Anchor = bFoundAnchor ? TEXT("PROXY_HOSTILE") : TEXT("fallback");
 	const FTransform Transform(FRotator::ZeroRotator, Location);
-	// Same Ranger DA, enemy team, cube + red tint. No AI and no attack order (passive).
+	// Same Ranger DA, enemy team, cube + red tint. No AI controller and no initial order.
+	// Sim auto-acquire engages an enemy in range, or retaliates if shot while idle.
 	AKodUnit* Hostile = UKodSlice0Bootstrap::SpawnRanger(World, Transform, HostileTeamId, /*bForceCubeBody*/ true);
 	if (!Hostile)
 	{

@@ -61,6 +61,14 @@ struct KODCORE_API FKodSimEntityState
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	FKodEntityId AttackTarget;
 
+	/**
+	 * Attacker to retaliate against after a hit taken while Idle.
+	 * Not an order. Consumed by auto-acquire. Not part of ComputeIdleHash.
+	 * An explicit Move / Attack / Stop clears it.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	FKodEntityId RetaliateTarget;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	float WeaponDamage = 0.f;
 
@@ -154,7 +162,7 @@ public:
 	/**
 	 * Stable when no units moving and no orders pending.
 	 * Hashes entity ids, quantized positions, HP (DA-driven state), and order.
-	 * TeamId, visual bob, visual yaw, and other presentation (flash, tracer, HP bar, death sink) are not hashed.
+	 * TeamId, RetaliateTarget, visual bob, visual yaw, and other presentation (flash, tracer, HP bar, death sink) are not hashed.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	FString ComputeIdleHash() const;
@@ -194,6 +202,13 @@ protected:
 	void StepSim(float FixedDt);
 	void StepEntityMove(FKodSimEntityState& State, float FixedDt);
 	void StepEntityAttack(FKodSimEntityState& State, float FixedDt);
+	/**
+	 * Idle units with a weapon acquire a target and run StepEntityAttack.
+	 * Move orders are left alone. Returns true when an attack step ran.
+	 */
+	bool TryAutoAcquire(FKodSimEntityState& State, float FixedDt);
+	FKodEntityId FindNearestEnemyInRange(const FKodSimEntityState& State) const;
+	FString GetEntityActorName(int32 IdValue) const;
 	void QuantizePose(FKodSimEntityState& State) const;
 	void SyncActorPresentation(float Alpha) const;
 
