@@ -60,7 +60,7 @@ Constants: `KodWardenPaths::RangerCharacterRoot`, `KodWardenPaths::RangerBodySta
 |------|-----------|
 | Mount folder | `/Game/Warden/Characters/USA/Ranger/` |
 | Slice 0 static mesh | `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body.SM_Ranger_Body` |
-| Skeletal mesh | Leave empty until anims land |
+| Skeletal mesh | Assign when the Marine skeletal asset exists. Empty keeps the static mesh, then the cube. |
 | Rejected folder | `/Game/Units/Meshes/` |
 
 `UKodSlice0Bootstrap::MakeRanger` leaves `SkeletalMesh` and `StaticMesh` null. PIE with only the catalog still shows `/Engine/BasicShapes/Cube` at scale `0.8×0.8×1.7`. A set soft path that fails to load does the same. PIE log: `KodUnitBody <name> Source=Cube` or `Source=StaticMesh`.
@@ -76,7 +76,63 @@ Constants: `KodWardenPaths::RangerCharacterRoot`, `KodWardenPaths::RangerBodySta
 
 On the next PIE, `ApplyDefinition` puts that mesh on `UnitMesh` at relative location `0` (still attached to the capsule) and logs `KodUnitBody … Source=StaticMesh`. `MountResolvedStaticMesh` then sets a uniform `RelativeScale3D` of `170 / (BoxExtent.Z * 2)` so the body is about 170 cm tall. That is a Slice 0 presentation band-aid: `SM_Ranger_Body` was imported in meters (bounds ~1.7 units, ~2 cm in Unreal) and disappears next to the cube at scale 1. Invalid bounds stay at scale 1. Remove the band-aid once Art reimports `SM_Ranger_Body` at centimeter scale, or once a skeletal mesh lands. The cube placeholder stays scale `0.8×0.8×1.7` at the same attachment.
 
-Select collision is unchanged: after the mesh swap, `UnitMesh` is set again to the **Pawn** profile and **QueryOnly** (Visibility stays ignored by that profile). The capsule is not modified. Click-select and drag-select still use the same traces. The rim overlay and custom-depth stencil `1` still walk visible mesh components, so the Ranger body highlights the same way the cube did. The body's own materials stay visible. A skeletal mesh, when one is assigned later, shows on the Character mesh; `UnitMesh` is hidden but keeps this QueryOnly Pawn collision.
+Select collision is unchanged on the static path: after the mesh swap, `UnitMesh` is set again to the **Pawn** profile and **QueryOnly** (Visibility stays ignored by that profile). The static-mesh swap does not modify the capsule. Click-select and drag-select still use the same traces. The rim overlay and custom-depth stencil `1` still walk visible mesh components, so the body highlights the same way the cube did. The body's own materials stay visible.
+
+## Marine skeletal body (no Content in git)
+
+`UKodUnitDefinition::SkeletalMesh` wins over the static mesh when that asset loads. `bForceCubeBody` (the red hostile) still stays on the cube. Bootstrap leaves `SkeletalMesh` and `AnimClass` null, so catalog PIE is still the cube.
+
+`MountResolvedSkeletalMesh` does not use the 170 cm static-mesh scale.
+
+| Mount | Value |
+|-------|--------|
+| Relative yaw | `0` (the asset faces +X; actor yaw is the sim facing) |
+| Relative scale | `1` |
+| Root / soles | Mesh local origin, soles at local Z `0` |
+| Component offset | `(0, 0, -90)` so the soles sit on the bottom of the capsule |
+| Capsule | radius `34`, half-height `90` (~180 cm). Restored to the Character default `34` / `88` if the body falls back to the static mesh or cube |
+
+Log: `KodUnitBody <name> Source=SkeletalMesh Yaw=0 Scale=1 CapsuleHH=90 Radius=34`.
+
+`AnimClass` on the Ranger Data Asset is a soft class. Empty uses `UKodUnitAnimInstance` (`/Script/KodUnits.KodUnitAnimInstance`) and the immediate body-front muzzle flash. Point it at an Animation Blueprint parented to that class when the clips exist.
+
+### AnimBP
+
+Parent class: `UKodUnitAnimInstance`.
+
+The instance reads sim state. It does not write orders, pose, or the idle hash.
+
+| Pin | Meaning |
+|-----|---------|
+| `Speed` | cm/s. Move speed while a Move (or an out-of-range Attack seek) is in progress, else `0` |
+| `RunPlayRate` | `Speed / AuthoredRunSpeed`. `AuthoredRunSpeed` defaults to `450` |
+| `bIsAiming` | Sim order is Attack and the target is still alive |
+| `bIsDead` | Death presentation has started |
+| `bHitReact` | True for one anim update after `OnUnitHit`, then cleared. Additive hit trigger |
+| `FireCounter` | Increments on each `OnUnitFired` |
+| `OnFire` | Broadcast with that shot. Bind it or watch `FireCounter` |
+| `DeathAnim` | The Death clip. Empty sink starts immediately. Set it and the sink waits `GetPlayLength() + 0.2` s |
+
+State machine:
+
+1. **Idle / Run** — blend on `Speed` (`0` idle, above `0` run). Play the run clip at `RunPlayRate`.
+2. **AimIdle / Fire** — when `bIsAiming`, hold AimIdle. Enter Fire when `FireCounter` changes. Put `UKodAnimNotify_Shot` (`/Script/KodUnits.KodAnimNotify_Shot`, notify name **Kod Shot**) on the Fire clip, within `0.5` s of the sim shot.
+3. **HitReact** — additive layer on an **AimIdle frame 0** base. Trigger from `bHitReact`.
+4. **Death** — two clips, hold the last frame. Assign the longer one to `DeathAnim` so the sink does not start early. The actor stays in place through the clip, then `0.2` s, then the existing `1.5` s sink. No `DeathAnim` keeps the immediate sink.
+
+### Sockets
+
+| Socket | Use |
+|--------|-----|
+| `weapon_r` | Weapon attach. Muzzle fallback when `SOCKET_Muzzle` is missing |
+| `SOCKET_Muzzle` | Shot notify flash origin. Searched on every skeletal component (weapon mesh included) |
+| `SOCKET_ShellEject` | Shell eject, for the AnimBP / FX later |
+| `SOCKET_LeftHandGrip` | Left hand on the weapon |
+| `FX_Foot_l` | Left foot |
+| `FX_Foot_r` | Right foot |
+| `FX_Chest` | Chest |
+
+The notify drives the existing point light, sphere, cone, and yellow tracer from `SOCKET_Muzzle`, else `weapon_r`. No notify, no socket, a non-skeletal body, or the C++ anim class with no AnimBP uses the timed body-front flash (about `0.06` s light, `0.08` s tracer). An AnimBP that never notifies falls back to that flash after `0.5` s so the shot is still visible. The cube and static paths do not wait.
 
 ## Sim + movement law
 
@@ -253,7 +309,7 @@ A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDu
 - [ ] Idle hash stable across frames when no orders. Bob, visual yaw, muzzle flash, tracer, hit jiggle, death sink, HP bars, `TeamId`, and `RetaliateTarget` are not hashed. The hostile is a second entity, so the hash value differs from a one-unit world. Auto-acquire gives both units an Attack order, so the world is not idle during the fight. After the kill the survivor's order is clear and the hash is stable again.
 - [ ] HP from DA (Ranger 120) — no hardcoded HP in unit Tick
 - [ ] Soft path or bootstrap resolves all six ids
-- [ ] Ranger body uses `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body` when that static mesh is imported and set on `/Game/Warden/Data/Ranger`. The static body is auto-scaled to about 170 cm from mesh bounds (meter-import band-aid). Until the mesh is set, the unit stays the Engine cube (`KodUnitBody … Source=Cube`). Select / move / drag-select stay on the existing QueryOnly Pawn body. PIE: `KodUnitBody … Source=StaticMesh Mesh=SM_Ranger_Body` and a visible human-sized Ranger. The hostile test unit is the exception: it is forced to the cube (`KodUnitBody … Source=Cube`) with a red `BasicShapeMaterial` MID even when that static mesh loads.
+- [ ] Ranger body uses `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body` when that static mesh is imported and set on `/Game/Warden/Data/Ranger`. The static body is auto-scaled to about 170 cm from mesh bounds (meter-import band-aid). A skeletal mesh on that asset wins: yaw 0, scale 1, soles on a 34×90 capsule, log `KodUnitBody … Source=SkeletalMesh Yaw=0 Scale=1 CapsuleHH=90 Radius=34`. The hostile stays the red cube. Until either mesh is set, the unit stays the Engine cube (`KodUnitBody … Source=Cube`). Select / move / drag-select stay on the existing QueryOnly Pawn body.
 - [ ] Hostile spawn. PIE: `Slice0 Hostile spawned Name=… Team=1 Loc=… Anchor=PROXY_HOSTILE` when the label or `KodHostileAnchor` tag is present, otherwise `Anchor=fallback` at `(1200, 600, 100)`. Red cube. It auto-acquires; it does not wait for an AI controller. After it is killed it sinks and is destroyed (`KodUnit Death`). The team 0 Marine can die the same way.
 
 ## Blockers

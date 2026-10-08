@@ -6,6 +6,7 @@
 #include "Engine/StaticMesh.h"
 #include "GameplayTagContainer.h"
 #include "Sim/KodBuildTicks.h"
+#include "Animation/KodUnitAnimInstance.h"
 #include "KodUnitDefinition.generated.h"
 
 class UKodWeaponDefinition;
@@ -81,6 +82,13 @@ public:
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
 	TSoftObjectPtr<USkeletalMesh> SkeletalMesh;
+
+	/**
+	 * AnimBP parented to UKodUnitAnimInstance. Empty uses that C++ class directly
+	 * (no Fire notify; the timed muzzle flash stays on).
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	TSoftClassPtr<UKodUnitAnimInstance> AnimClass;
 
 	/**
 	 * Slice 0 visible body on AKodUnit::UnitMesh (the static mesh child).

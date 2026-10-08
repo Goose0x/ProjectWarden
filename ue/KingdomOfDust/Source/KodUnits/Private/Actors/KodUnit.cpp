@@ -1,4 +1,5 @@
 #include "Actors/KodUnit.h"
+#include "Animation/KodUnitAnimInstance.h"
 #include "Data/KodUnitDefinition.h"
 #include "Data/KodWeaponDefinition.h"
 #include "Components/KodAbilitySystemComponent.h"
@@ -42,6 +43,12 @@ namespace
 	constexpr float DeathSinkDepthCm = 220.f;
 	constexpr float MuzzleForwardCm = 62.f;
 	constexpr float MuzzleUpCm = 72.f;
+	constexpr float SkeletalCapsuleRadius = 34.f;
+	constexpr float SkeletalCapsuleHalfHeight = 90.f;
+	constexpr float DefaultCapsuleRadius = 34.f;
+	constexpr float DefaultCapsuleHalfHeight = 88.f;
+	constexpr float ShotNotifyFallbackSeconds = 0.5f;
+	constexpr float DeathPostClipHoldSeconds = 0.2f;
 	constexpr float HitJiggleCm = 16.f;
 	constexpr float TracerRadiusScale = 0.28f;
 
@@ -204,6 +211,15 @@ void AKodUnit::Tick(float DeltaSeconds)
 	if (AdvanceDeathSink(Dt))
 	{
 		return;
+	}
+	if (bAwaitShotNotify)
+	{
+		ShotNotifyWait += Dt;
+		if (ShotNotifyWait >= ShotNotifyFallbackSeconds)
+		{
+			bAwaitShotNotify = false;
+			ShowMuzzleAndTracer(PendingMuzzleTarget.Get(), false, FVector::ZeroVector);
+		}
 	}
 	AdvanceAttackPresentation(Dt);
 	UpdateLifePresentation(Dt);
@@ -504,14 +520,62 @@ void AKodUnit::ApplyBodyMesh(const UKodUnitDefinition* Def)
 	MountCubePlaceholder();
 }
 
+void AKodUnit::ApplySkeletalCapsule()
+{
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCapsuleSize(SkeletalCapsuleRadius, SkeletalCapsuleHalfHeight);
+	}
+	bSkeletalCapsule = true;
+}
+
+void AKodUnit::RestoreDefaultCapsule()
+{
+	if (!bSkeletalCapsule)
+	{
+		return;
+	}
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCapsuleSize(DefaultCapsuleRadius, DefaultCapsuleHalfHeight);
+	}
+	bSkeletalCapsule = false;
+}
+
 void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 {
+	// Asset faces +X with the root at the origin and soles at Z=0.
+	// Scale stays 1. No 170 cm static-mesh fit. Offset the component so soles
+	// sit on the bottom of a ~180 cm capsule.
+	ApplySkeletalCapsule();
+	bSkeletalBody = true;
+
 	if (USkeletalMeshComponent* Body = GetMesh())
 	{
 		Body->SetSkeletalMeshAsset(SkelMesh);
+		Body->SetRelativeLocation(FVector(0.f, 0.f, -SkeletalCapsuleHalfHeight));
+		Body->SetRelativeRotation(FRotator::ZeroRotator);
+		Body->SetRelativeScale3D(FVector::OneVector);
 		Body->SetCanEverAffectNavigation(false);
 		Body->SetHiddenInGame(false);
 		Body->SetVisibility(true);
+
+		UClass* AnimClass = UKodUnitAnimInstance::StaticClass();
+		if (const UKodUnitDefinition* BodyDef = GetDefinition())
+		{
+			if (!BodyDef->AnimClass.IsNull())
+			{
+				if (UClass* LoadedAnim = BodyDef->AnimClass.LoadSynchronous())
+				{
+					if (LoadedAnim->IsChildOf(UKodUnitAnimInstance::StaticClass()))
+					{
+						AnimClass = LoadedAnim;
+					}
+				}
+			}
+		}
+		Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+		Body->SetAnimInstanceClass(AnimClass);
 	}
 
 	// Hide the cube draw. Keep its QueryOnly Pawn collision so click-select does not move
@@ -523,11 +587,15 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 		KeepSelectCollision();
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("KodUnitBody %s Source=SkeletalMesh"), *GetName());
+	UE_LOG(LogTemp, Log, TEXT("KodUnitBody %s Source=SkeletalMesh Yaw=0 Scale=1 CapsuleHH=90 Radius=34"), *GetName());
 }
 
 void AKodUnit::MountResolvedStaticMesh(UStaticMesh* StaticBody)
 {
+	bSkeletalBody = false;
+	bAwaitShotNotify = false;
+	RestoreDefaultCapsule();
+
 	if (USkeletalMeshComponent* Body = GetMesh())
 	{
 		Body->SetSkeletalMeshAsset(nullptr);
@@ -564,6 +632,10 @@ void AKodUnit::MountResolvedStaticMesh(UStaticMesh* StaticBody)
 
 void AKodUnit::MountCubePlaceholder()
 {
+	bSkeletalBody = false;
+	bAwaitShotNotify = false;
+	RestoreDefaultCapsule();
+
 	if (USkeletalMeshComponent* Body = GetMesh())
 	{
 		Body->SetSkeletalMeshAsset(nullptr);
@@ -710,7 +782,39 @@ void AKodUnit::EnsureAttackPresentation()
 	ShotTracerMesh = MakeFxMesh(FName(TEXT("KodFxTracer")), EngineCylinderPath, TracerMID);
 }
 
-void AKodUnit::ShowMuzzleAndTracer(AActor* Target)
+bool AKodUnit::TryResolveMuzzleSocket(FVector& OutWorld) const
+{
+	TInlineComponentArray<USkeletalMeshComponent*> Parts;
+	GetComponents(Parts);
+
+	const FName MuzzleSocket(TEXT("SOCKET_Muzzle"));
+	const FName WeaponSocket(TEXT("weapon_r"));
+	USkeletalMeshComponent* WeaponPart = nullptr;
+	for (USkeletalMeshComponent* Part : Parts)
+	{
+		if (!Part)
+		{
+			continue;
+		}
+		if (Part->DoesSocketExist(MuzzleSocket))
+		{
+			OutWorld = Part->GetSocketLocation(MuzzleSocket);
+			return true;
+		}
+		if (!WeaponPart && Part->DoesSocketExist(WeaponSocket))
+		{
+			WeaponPart = Part;
+		}
+	}
+	if (WeaponPart)
+	{
+		OutWorld = WeaponPart->GetSocketLocation(WeaponSocket);
+		return true;
+	}
+	return false;
+}
+
+void AKodUnit::ShowMuzzleAndTracer(AActor* Target, bool bUseMuzzleWorld, FVector MuzzleWorld)
 {
 	EnsureAttackPresentation();
 
@@ -730,7 +834,9 @@ void AKodUnit::ShowMuzzleAndTracer(AActor* Target)
 		ShotDir = FVector::ForwardVector;
 	}
 
-	const FVector Muzzle = GetActorLocation() + ShotDir * MuzzleForwardCm + FVector(0.f, 0.f, MuzzleUpCm);
+	const FVector Muzzle = bUseMuzzleWorld
+		? MuzzleWorld
+		: (GetActorLocation() + ShotDir * MuzzleForwardCm + FVector(0.f, 0.f, MuzzleUpCm));
 	const FVector LightAt = Muzzle + ShotDir * 24.f;
 
 	auto ShowAbsolute = [](USceneComponent* Component, const FVector& Location, const FRotator& Rotation, const FVector& Scale)
@@ -834,13 +940,93 @@ void AKodUnit::AdvanceAttackPresentation(float DeltaSeconds)
 	}
 }
 
+void AKodUnit::PushAnimSimEvent(bool bFired, bool bHit, bool bDead)
+{
+	if (!bSkeletalBody)
+	{
+		return;
+	}
+	USkeletalMeshComponent* Body = GetMesh();
+	UKodUnitAnimInstance* Anim = Body ? Cast<UKodUnitAnimInstance>(Body->GetAnimInstance()) : nullptr;
+	if (!Anim)
+	{
+		return;
+	}
+	if (bFired)
+	{
+		Anim->HandleSimFired();
+	}
+	if (bHit)
+	{
+		Anim->HandleSimHit();
+	}
+	if (bDead)
+	{
+		Anim->HandleSimDeath();
+	}
+}
+
+float AKodUnit::GetSkeletalDeathHoldSeconds() const
+{
+	if (!bSkeletalBody)
+	{
+		return 0.f;
+	}
+	const USkeletalMeshComponent* Body = GetMesh();
+	const UKodUnitAnimInstance* Anim = Body ? Cast<UKodUnitAnimInstance>(Body->GetAnimInstance()) : nullptr;
+	if (!Anim || !Anim->DeathAnim)
+	{
+		return 0.f;
+	}
+	const float ClipSeconds = Anim->DeathAnim->GetPlayLength();
+	if (ClipSeconds <= 0.f)
+	{
+		return 0.f;
+	}
+	return ClipSeconds + DeathPostClipHoldSeconds;
+}
+
+void AKodUnit::PlayMuzzleFromShotNotify()
+{
+	if (!bAwaitShotNotify)
+	{
+		return;
+	}
+	bAwaitShotNotify = false;
+	FVector SocketWorld = FVector::ZeroVector;
+	if (TryResolveMuzzleSocket(SocketWorld))
+	{
+		ShowMuzzleAndTracer(PendingMuzzleTarget.Get(), true, SocketWorld);
+	}
+	else
+	{
+		ShowMuzzleAndTracer(PendingMuzzleTarget.Get(), false, FVector::ZeroVector);
+	}
+}
+
 void AKodUnit::HandleUnitFired(AActor* Attacker, AActor* Target, int32 /*SimTick*/)
 {
 	if (Attacker != this || bDeathSinking)
 	{
 		return;
 	}
-	ShowMuzzleAndTracer(Target);
+
+	PendingMuzzleTarget = Target;
+	PushAnimSimEvent(true, false, false);
+
+	USkeletalMeshComponent* Body = GetMesh();
+	UClass* AnimClass = (bSkeletalBody && Body) ? Body->GetAnimClass() : nullptr;
+	const bool bWaitForShotNotify = bSkeletalBody && AnimClass && AnimClass != UKodUnitAnimInstance::StaticClass();
+	if (bWaitForShotNotify)
+	{
+		bAwaitShotNotify = true;
+		ShotNotifyWait = 0.f;
+	}
+	else
+	{
+		bAwaitShotNotify = false;
+		ShowMuzzleAndTracer(Target, false, FVector::ZeroVector);
+	}
 }
 
 void AKodUnit::HandleUnitHit(AActor* Attacker, AActor* Target, float /*Health*/, int32 /*TargetId*/)
@@ -879,6 +1065,7 @@ void AKodUnit::HandleUnitHit(AActor* Attacker, AActor* Target, float /*Health*/,
 	HitJiggleLocal = GetActorTransform().InverseTransformVectorNoScale(Away * HitJiggleCm);
 	HitJiggleLocal.Z += 8.f;
 	HitReactRemaining = HitReactSeconds;
+	PushAnimSimEvent(false, true, false);
 }
 
 void AKodUnit::HandleUnitKilled(AActor* Target, int32 /*TargetId*/)
@@ -897,8 +1084,11 @@ void AKodUnit::BeginDeathPresentation()
 		return;
 	}
 	bDeathSinking = true;
+	bAwaitShotNotify = false;
 	DeathSinkElapsed = 0.f;
 	DeathSinkStart = GetActorLocation();
+	PushAnimSimEvent(false, false, true);
+	DeathSinkDelayRemaining = GetSkeletalDeathHoldSeconds();
 	SetActorEnableCollision(false);
 	UE_LOG(LogTemp, Log, TEXT("KodUnit Death %s"), *GetName());
 
@@ -917,7 +1107,19 @@ bool AKodUnit::AdvanceDeathSink(float DeltaSeconds)
 	{
 		return false;
 	}
-	DeathSinkElapsed += FMath::Max(0.f, DeltaSeconds);
+	const float Dt = FMath::Max(0.f, DeltaSeconds);
+	if (DeathSinkDelayRemaining > 0.f)
+	{
+		DeathSinkDelayRemaining -= Dt;
+		if (DeathSinkDelayRemaining > 0.f)
+		{
+			return false;
+		}
+		DeathSinkStart = GetActorLocation();
+		DeathSinkElapsed = 0.f;
+		return false;
+	}
+	DeathSinkElapsed += Dt;
 	const float Alpha = FMath::Clamp(DeathSinkElapsed / DeathSinkSeconds, 0.f, 1.f);
 	const float Eased = Alpha * Alpha;
 	const FVector Sunk = DeathSinkStart - FVector(0.f, 0.f, DeathSinkDepthCm * Eased);
