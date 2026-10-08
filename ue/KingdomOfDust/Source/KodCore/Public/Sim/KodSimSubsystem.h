@@ -9,6 +9,11 @@
 
 class AActor;
 
+/** Presentation binds these. Listeners must not write sim state or the idle hash. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FKodOnUnitFired, AActor*, Attacker, AActor*, Target, int32, SimTick);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FKodOnUnitHit, AActor*, Attacker, AActor*, Target, float, Health, int32, TargetId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKodOnUnitKilled, AActor*, Target, int32, TargetId);
+
 UENUM(BlueprintType)
 enum class EKodSimOrderType : uint8
 {
@@ -149,13 +154,31 @@ public:
 	/**
 	 * Stable when no units moving and no orders pending.
 	 * Hashes entity ids, quantized positions, HP (DA-driven state), and order.
-	 * TeamId, visual bob, and visual yaw are not hashed.
+	 * TeamId, visual bob, visual yaw, and other presentation (flash, tracer, HP bar, death sink) are not hashed.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	FString ComputeIdleHash() const;
 
 	UFUNCTION(BlueprintPure, Category = "Kod|Sim")
 	int64 GetSimTickIndex() const { return SimTickIndex; }
+
+	/**
+	 * Presentation snapshot. Copies registered entities only.
+	 * Does not mutate pose, orders, or the idle hash.
+	 */
+	void CopyEntitySnapshot(TArray<FKodSimEntityState>& OutStates, TArray<AActor*>& OutActors) const;
+
+	/** Fired from the sim step when a hitscan shot is resolved. Tick is SimTickIndex at the shot. */
+	UPROPERTY()
+	FKodOnUnitFired OnUnitFired;
+
+	/** Fired after damage is applied. Health is the remaining HP. */
+	UPROPERTY()
+	FKodOnUnitHit OnUnitHit;
+
+	/** Fired after the target is unregistered. The actor is still alive for death presentation. */
+	UPROPERTY()
+	FKodOnUnitKilled OnUnitKilled;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Sim")
 	int32 SimHz = KodBuildTicks::SimHz;

@@ -14,6 +14,9 @@ class UKodAttackComponent;
 class USkeletalMesh;
 class UStaticMesh;
 class UStaticMeshComponent;
+class UPointLightComponent;
+class UMaterialInstanceDynamic;
+class UKodSimSubsystem;
 
 /**
  * Selectable mobile combatant. Definition soft-ref drives stats at BeginPlay.
@@ -95,6 +98,28 @@ protected:
 	void UpdateLifePresentation(float DeltaSeconds);
 	float GetScaledBobAmplitudeCm() const;
 
+	void BindSimEvents(UKodSimSubsystem* Sim);
+	void UnbindSimEvents();
+
+	UFUNCTION()
+	void HandleUnitFired(AActor* Attacker, AActor* Target, int32 SimTick);
+
+	UFUNCTION()
+	void HandleUnitHit(AActor* Attacker, AActor* Target, float Health, int32 TargetId);
+
+	UFUNCTION()
+	void HandleUnitKilled(AActor* Target, int32 TargetId);
+
+	/** Muzzle light, flash mesh, and tracer. Presentation only. Hidden until a shot. */
+	void EnsureAttackPresentation();
+	void ShowMuzzleAndTracer(AActor* Target);
+	void AdvanceAttackPresentation(float DeltaSeconds);
+	void EnsureBodyTint();
+	void SetBodyRelativeLocation(const FVector& Bobbed);
+	void BeginDeathPresentation();
+	/** Returns true when the actor was destroyed. */
+	bool AdvanceDeathSink(float DeltaSeconds);
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Kod|GAS")
 	TObjectPtr<UKodAbilitySystemComponent> AbilitySystemComponent;
 
@@ -128,4 +153,39 @@ protected:
 	float BobTime = 0.f;
 	FVector LastPresentationLocation = FVector::ZeroVector;
 	bool bBobOffsetApplied = false;
+
+	TWeakObjectPtr<UKodSimSubsystem> BoundSim;
+
+	/** Slot 0 tint. Hostile red is stored so a hit flash can restore it. Presentation only. */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> BodyTintMID;
+
+	FLinearColor BodyRestColor = FLinearColor::White;
+	float HitReactRemaining = 0.f;
+	FVector HitJiggleLocal = FVector::ZeroVector;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPointLightComponent> MuzzleFlashLight;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> MuzzleFlashMesh;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> MuzzleConeMesh;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> ShotTracerMesh;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> MuzzleMID;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> TracerMID;
+
+	float MuzzleFlashRemaining = 0.f;
+	float TracerRemaining = 0.f;
+
+	bool bDeathSinking = false;
+	float DeathSinkElapsed = 0.f;
+	FVector DeathSinkStart = FVector::ZeroVector;
 };

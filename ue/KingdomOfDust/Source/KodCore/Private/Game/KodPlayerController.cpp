@@ -131,6 +131,22 @@ bool AKodPlayerController::GetGroundHitUnderCursor(FHitResult& OutHit) const
 	return const_cast<AKodPlayerController*>(this)->GetHitResultUnderCursor(ECC_Visibility, true, OutHit);
 }
 
+void AKodPlayerController::RemoveFromLocalSelection(AActor* Actor)
+{
+	if (!Actor)
+	{
+		return;
+	}
+	const int32 Removed = LocalSelection.RemoveAll([Actor](const TWeakObjectPtr<AActor>& Ptr)
+	{
+		return Ptr.Get() == Actor;
+	});
+	if (Removed > 0)
+	{
+		ApplySelectionHighlight();
+	}
+}
+
 TArray<AActor*> AKodPlayerController::GetLocalSelection() const
 {
 	TArray<AActor*> Actors;
@@ -688,6 +704,11 @@ namespace KodSelectionHighlight
 	bool IsHighlightMesh(const UMeshComponent* Mesh)
 	{
 		if (!Mesh || !Mesh->IsVisible() || Mesh->bHiddenInGame)
+		{
+			return false;
+		}
+		// Muzzle flash and the shot tracer are presentation meshes on the unit.
+		if (Mesh->ComponentHasTag(FName(TEXT("KodFx"))))
 		{
 			return false;
 		}

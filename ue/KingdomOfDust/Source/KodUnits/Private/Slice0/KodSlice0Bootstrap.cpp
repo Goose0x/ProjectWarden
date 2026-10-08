@@ -14,6 +14,27 @@
 
 TWeakObjectPtr<UKodDataCatalog> UKodSlice0Bootstrap::GCatalog;
 
+namespace
+{
+	// Shop sheet CooldownSeconds on the real uasset is 0.35.
+	// The code path used when that asset is missing is 13 sim ticks (RoundToInt(0.8 * 16)).
+	constexpr float RangerRifleDamage = 12.f;
+	constexpr float RangerRifleRange = 900.f;
+	constexpr int32 RangerRifleCooldownTicks = 13;
+	constexpr float RangerRifleCooldownSeconds = static_cast<float>(RangerRifleCooldownTicks) * KodBuildTicks::SimDt;
+
+	struct FRangerRifleStatCache
+	{
+		TWeakObjectPtr<UWorld> World;
+		float Damage = 0.f;
+		float Range = 0.f;
+		float CooldownSeconds = 0.f;
+		bool bValid = false;
+	};
+
+	FRangerRifleStatCache GRangerRifleStatCache;
+}
+
 static UObject* TryLoadWardenAsset(FName DefinitionId)
 {
 	const FSoftObjectPath Path = KodWardenPaths::MakeSoftPath(*DefinitionId.ToString());
@@ -75,6 +96,53 @@ UKodWeaponDefinition* UKodSlice0Bootstrap::ResolveWeapon(FName DefinitionId, UOb
 	return Cast<UKodWeaponDefinition>(ResolveDefinition(DefinitionId, Outer));
 }
 
+void UKodSlice0Bootstrap::ResolveRangerRifleCombatStats(float& OutDamage, float& OutRange, float& OutCooldownSeconds, UWorld* LogWorld)
+{
+	if (LogWorld && GRangerRifleStatCache.bValid && GRangerRifleStatCache.World.Get() == LogWorld)
+	{
+		OutDamage = GRangerRifleStatCache.Damage;
+		OutRange = GRangerRifleStatCache.Range;
+		OutCooldownSeconds = GRangerRifleStatCache.CooldownSeconds;
+		return;
+	}
+
+	bool bFallback = true;
+	float Damage = RangerRifleDamage;
+	float Range = RangerRifleRange;
+	float CooldownSeconds = RangerRifleCooldownSeconds;
+	if (UObject* Loaded = TryLoadWardenAsset(FName(KodWardenPaths::Id_RangerRifle)))
+	{
+		if (const UKodWeaponDefinition* Weapon = Cast<UKodWeaponDefinition>(Loaded))
+		{
+			bFallback = false;
+			Damage = Weapon->Damage;
+			Range = Weapon->Range;
+			CooldownSeconds = Weapon->CooldownSeconds;
+		}
+	}
+
+	if (bFallback)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodWeapon fallback RangerRifle Damage=%.0f Range=%.0f Cooldown=%.4f"),
+			Damage,
+			Range,
+			CooldownSeconds);
+	}
+
+	if (LogWorld)
+	{
+		GRangerRifleStatCache.World = LogWorld;
+		GRangerRifleStatCache.bValid = true;
+		GRangerRifleStatCache.Damage = Damage;
+		GRangerRifleStatCache.Range = Range;
+		GRangerRifleStatCache.CooldownSeconds = CooldownSeconds;
+	}
+
+	OutDamage = Damage;
+	OutRange = Range;
+	OutCooldownSeconds = CooldownSeconds;
+}
+
 UKodUnitDefinition* UKodSlice0Bootstrap::ResolveUnit(FName DefinitionId, UObject* Outer)
 {
 	return Cast<UKodUnitDefinition>(ResolveDefinition(DefinitionId, Outer));
@@ -95,9 +163,11 @@ UKodWeaponDefinition* UKodSlice0Bootstrap::MakeRangerRifle(UObject* Outer)
 	UKodWeaponDefinition* W = NewObject<UKodWeaponDefinition>(Outer, FName(KodWardenPaths::Id_RangerRifle), RF_Public | RF_Transient);
 	W->DefinitionId = FName(KodWardenPaths::Id_RangerRifle);
 	W->DisplayName = NSLOCTEXT("Kod", "Weapon_RangerRifle", "Ranger Rifle");
-	W->Damage = 12.f;
-	W->Range = 900.f;
-	W->CooldownSeconds = 0.35f;
+	W->Damage = RangerRifleDamage;
+	W->Range = RangerRifleRange;
+	// Stand-in matches the code fallback (13 ticks). The uasset's CooldownSeconds (shop sheet 0.35)
+	// replaces it once /Game/Warden/Data/RangerRifle loads.
+	W->CooldownSeconds = RangerRifleCooldownSeconds;
 	return W;
 }
 

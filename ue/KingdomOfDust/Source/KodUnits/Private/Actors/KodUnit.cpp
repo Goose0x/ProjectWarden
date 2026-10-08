@@ -7,13 +7,18 @@
 #include "Attributes/KodCombatAttributeSet.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Slice0/KodSlice0Bootstrap.h"
+#include "Warden/KodWardenPaths.h"
+#include "Game/KodPlayerController.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/World.h"
+#include "Math/RotationMatrix.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
@@ -21,16 +26,91 @@
 namespace
 {
 	constexpr const TCHAR* EngineCubePath = TEXT("/Engine/BasicShapes/Cube.Cube");
+	constexpr const TCHAR* EngineSpherePath = TEXT("/Engine/BasicShapes/Sphere.Sphere");
+	constexpr const TCHAR* EngineConePath = TEXT("/Engine/BasicShapes/Cone.Cone");
+	constexpr const TCHAR* EngineCylinderPath = TEXT("/Engine/BasicShapes/Cylinder.Cylinder");
 	constexpr const TCHAR* BasicShapeMaterialPath = TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial");
 	const FVector EngineCubeScale(0.8f, 0.8f, 1.7f);
 	constexpr double LifeReferenceHeightCm = 170.0;
 	// Real move speed is 450. A 1 uu idle quantize snap is ~60-150 uu/s depending on frame
 	// time, so the threshold sits above that and still sees a walk.
 	constexpr float LifeMoveSpeedThreshold = 200.f;
+	constexpr float MuzzleFlashSeconds = 0.06f;
+	constexpr float TracerSeconds = 0.08f;
+	constexpr float HitReactSeconds = 0.1f;
+	constexpr float DeathSinkSeconds = 1.5f;
+	constexpr float DeathSinkDepthCm = 220.f;
+	constexpr float MuzzleForwardCm = 62.f;
+	constexpr float MuzzleUpCm = 72.f;
+	constexpr float HitJiggleCm = 16.f;
+	constexpr float TracerRadiusScale = 0.28f;
 
 	bool IsEngineCubeMesh(const UStaticMesh* BodyStaticMesh)
 	{
 		return BodyStaticMesh && BodyStaticMesh->GetPathName().Contains(TEXT("/Engine/BasicShapes/Cube"));
+	}
+
+	bool ExpectsRangerRifle(const UKodUnitDefinition* Def)
+	{
+		if (!Def)
+		{
+			return false;
+		}
+		const FName RangerId(KodWardenPaths::Id_Ranger);
+		const FName RifleId(KodWardenPaths::Id_RangerRifle);
+		if (Def->DefinitionId == RangerId || Def->GetFName() == RangerId)
+		{
+			return true;
+		}
+		if (Def->PrimaryWeapon.IsNull())
+		{
+			return false;
+		}
+		const FSoftObjectPath Path = Def->PrimaryWeapon.ToSoftObjectPath();
+		if (Path.GetAssetFName() == RifleId)
+		{
+			return true;
+		}
+		if (Path.GetSubPathString().Equals(KodWardenPaths::Id_RangerRifle, ESearchCase::CaseSensitive))
+		{
+			return true;
+		}
+		if (const UKodWeaponDefinition* Live = Def->PrimaryWeapon.Get())
+		{
+			return Live->DefinitionId == RifleId || Live->GetFName() == RifleId;
+		}
+		return false;
+	}
+
+	void ConfigureFxPrimitive(UPrimitiveComponent* Primitive)
+	{
+		if (!Primitive)
+		{
+			return;
+		}
+		Primitive->SetMobility(EComponentMobility::Movable);
+		Primitive->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Primitive->SetGenerateOverlapEvents(false);
+		Primitive->SetCanEverAffectNavigation(false);
+		Primitive->SetCastShadow(false);
+		Primitive->ComponentTags.AddUnique(FName(TEXT("KodFx")));
+	}
+
+	UMaterialInstanceDynamic* MakeShapeMID(UObject* Outer, const FLinearColor& Tint)
+	{
+		UMaterialInterface* Source = LoadObject<UMaterialInterface>(nullptr, BasicShapeMaterialPath);
+		if (!Source || !Outer)
+		{
+			return nullptr;
+		}
+		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Source, Outer);
+		if (!MID)
+		{
+			return nullptr;
+		}
+		MID->SetVectorParameterValue(TEXT("Color"), Tint);
+		MID->SetVectorParameterValue(TEXT("BaseColor"), Tint);
+		return MID;
 	}
 }
 
@@ -93,6 +173,7 @@ void AKodUnit::BeginPlay()
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
 		{
 			EntityId = Sim->RegisterEntity(this);
+			BindSimEvents(Sim);
 		}
 	}
 
@@ -119,7 +200,13 @@ void AKodUnit::BeginPlay()
 void AKodUnit::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	UpdateLifePresentation(DeltaSeconds);
+	const float Dt = FMath::Max(0.f, DeltaSeconds);
+	if (AdvanceDeathSink(Dt))
+	{
+		return;
+	}
+	AdvanceAttackPresentation(Dt);
+	UpdateLifePresentation(Dt);
 }
 
 void AKodUnit::SetForceCubeBody(bool bInForce)
@@ -164,6 +251,8 @@ void AKodUnit::ApplyHostileCubeTint()
 	MID->SetVectorParameterValue(TEXT("Color"), HostileRed);
 	MID->SetVectorParameterValue(TEXT("BaseColor"), HostileRed);
 	UnitMesh->SetMaterial(0, MID);
+	BodyTintMID = MID;
+	BodyRestColor = HostileRed;
 }
 
 float AKodUnit::GetScaledBobAmplitudeCm() const
@@ -244,6 +333,12 @@ void AKodUnit::UpdateLifePresentation(float DeltaSeconds)
 	BodyRelRotation.Yaw = FMath::UnwindDegrees(VisualYaw - GetActorRotation().Yaw);
 	UnitMesh->SetRelativeRotation(BodyRelRotation);
 
+	if (bDeathSinking)
+	{
+		SetBodyRelativeLocation(BodyRestRelativeLocation);
+		return;
+	}
+
 	const float TargetWeight = bMoving ? 1.f : 0.f;
 	const float Ease = FMath::Max(0.f, BobEaseSpeed);
 	BobWeight = (Ease <= 0.f || Dt <= 0.f) ? TargetWeight : FMath::FInterpTo(BobWeight, TargetWeight, Dt, Ease);
@@ -252,11 +347,8 @@ void AKodUnit::UpdateLifePresentation(float DeltaSeconds)
 	{
 		BobWeight = 0.f;
 		BobTime = 0.f;
-		if (bBobOffsetApplied)
-		{
-			UnitMesh->SetRelativeLocation(BodyRestRelativeLocation);
-			bBobOffsetApplied = false;
-		}
+		SetBodyRelativeLocation(BodyRestRelativeLocation);
+		bBobOffsetApplied = false;
 		return;
 	}
 
@@ -264,7 +356,7 @@ void AKodUnit::UpdateLifePresentation(float DeltaSeconds)
 	const float Frequency = FMath::Max(0.f, BobFrequencyHz);
 	const float Angle = BobTime * Frequency * 2.f * static_cast<float>(UE_PI);
 	const float Z = GetScaledBobAmplitudeCm() * BobWeight * FMath::Sin(Angle);
-	UnitMesh->SetRelativeLocation(BodyRestRelativeLocation + FVector(0.f, 0.f, Z));
+	SetBodyRelativeLocation(BodyRestRelativeLocation + FVector(0.f, 0.f, Z));
 	bBobOffsetApplied = true;
 }
 
@@ -298,19 +390,33 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 	float WeaponDamage = 0.f;
 	float WeaponRange = 0.f;
 	float WeaponCooldown = 0.f;
-	if (UKodWeaponDefinition* Weapon = Def->PrimaryWeapon.LoadSynchronous())
+	if (ExpectsRangerRifle(Def))
 	{
-		WeaponDamage = Weapon->Damage;
-		WeaponRange = Weapon->Range;
-		WeaponCooldown = Weapon->CooldownSeconds;
+		// Disk asset when it loads. A miss used to leave damage and range at 0, so
+		// StepEntityAttack's hitscan check never ran and no KodSim Hit was logged.
+		UKodSlice0Bootstrap::ResolveRangerRifleCombatStats(WeaponDamage, WeaponRange, WeaponCooldown, GetWorld());
 	}
 	else if (!Def->PrimaryWeapon.IsNull())
 	{
-		if (UKodWeaponDefinition* BootWeapon = UKodSlice0Bootstrap::ResolveWeapon(Def->PrimaryWeapon.ToSoftObjectPath().GetAssetFName(), this))
+		UKodWeaponDefinition* Weapon = Def->PrimaryWeapon.Get();
+		if (!Weapon)
 		{
-			WeaponDamage = BootWeapon->Damage;
-			WeaponRange = BootWeapon->Range;
-			WeaponCooldown = BootWeapon->CooldownSeconds;
+			Weapon = Def->PrimaryWeapon.LoadSynchronous();
+		}
+		if (!Weapon)
+		{
+			const FSoftObjectPath Path = Def->PrimaryWeapon.ToSoftObjectPath();
+			Weapon = UKodSlice0Bootstrap::ResolveWeapon(Path.GetAssetFName(), this);
+			if (!Weapon && !Path.GetSubPathString().IsEmpty())
+			{
+				Weapon = UKodSlice0Bootstrap::ResolveWeapon(FName(*Path.GetSubPathString()), this);
+			}
+		}
+		if (Weapon)
+		{
+			WeaponDamage = Weapon->Damage;
+			WeaponRange = Weapon->Range;
+			WeaponCooldown = Weapon->CooldownSeconds;
 		}
 	}
 
@@ -482,8 +588,351 @@ void AKodUnit::MountCubePlaceholder()
 	UE_LOG(LogTemp, Log, TEXT("KodUnitBody %s Source=Cube"), *GetName());
 }
 
+void AKodUnit::BindSimEvents(UKodSimSubsystem* Sim)
+{
+	if (!Sim || BoundSim.Get() == Sim)
+	{
+		return;
+	}
+	UnbindSimEvents();
+	Sim->OnUnitFired.AddDynamic(this, &AKodUnit::HandleUnitFired);
+	Sim->OnUnitHit.AddDynamic(this, &AKodUnit::HandleUnitHit);
+	Sim->OnUnitKilled.AddDynamic(this, &AKodUnit::HandleUnitKilled);
+	BoundSim = Sim;
+}
+
+void AKodUnit::UnbindSimEvents()
+{
+	if (UKodSimSubsystem* Sim = BoundSim.Get())
+	{
+		Sim->OnUnitFired.RemoveDynamic(this, &AKodUnit::HandleUnitFired);
+		Sim->OnUnitHit.RemoveDynamic(this, &AKodUnit::HandleUnitHit);
+		Sim->OnUnitKilled.RemoveDynamic(this, &AKodUnit::HandleUnitKilled);
+	}
+	BoundSim = nullptr;
+}
+
+void AKodUnit::SetBodyRelativeLocation(const FVector& Bobbed)
+{
+	if (!UnitMesh)
+	{
+		return;
+	}
+	const float Alpha = (HitReactRemaining > 0.f)
+		? FMath::Clamp(HitReactRemaining / HitReactSeconds, 0.f, 1.f)
+		: 0.f;
+	UnitMesh->SetRelativeLocation(Bobbed + HitJiggleLocal * Alpha);
+}
+
+void AKodUnit::EnsureBodyTint()
+{
+	if (BodyTintMID || !UnitMesh)
+	{
+		return;
+	}
+	if (UMaterialInstanceDynamic* Existing = Cast<UMaterialInstanceDynamic>(UnitMesh->GetMaterial(0)))
+	{
+		BodyTintMID = Existing;
+		return;
+	}
+	UMaterialInterface* Source = UnitMesh->GetMaterial(0);
+	if (!Source)
+	{
+		Source = LoadObject<UMaterialInterface>(nullptr, BasicShapeMaterialPath);
+	}
+	if (!Source)
+	{
+		return;
+	}
+	BodyTintMID = UMaterialInstanceDynamic::Create(Source, this);
+	if (!BodyTintMID)
+	{
+		return;
+	}
+	BodyTintMID->SetVectorParameterValue(TEXT("Color"), BodyRestColor);
+	BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), BodyRestColor);
+	UnitMesh->SetMaterial(0, BodyTintMID);
+}
+
+void AKodUnit::EnsureAttackPresentation()
+{
+	if (MuzzleFlashLight)
+	{
+		return;
+	}
+
+	USceneComponent* AttachParent = GetRootComponent();
+	if (!AttachParent)
+	{
+		return;
+	}
+
+	const FLinearColor WarmOrange(1.f, 0.45f, 0.08f, 1.f);
+	const FLinearColor TracerYellow(1.f, 0.92f, 0.1f, 1.f);
+
+	MuzzleFlashLight = NewObject<UPointLightComponent>(this, FName(TEXT("KodFxMuzzleLight")));
+	MuzzleFlashLight->SetupAttachment(AttachParent);
+	MuzzleFlashLight->SetMobility(EComponentMobility::Movable);
+	MuzzleFlashLight->SetIntensity(60000.f);
+	MuzzleFlashLight->SetLightColor(WarmOrange);
+	MuzzleFlashLight->SetAttenuationRadius(550.f);
+	MuzzleFlashLight->SetCastShadows(false);
+	MuzzleFlashLight->SetVisibility(false);
+	MuzzleFlashLight->SetHiddenInGame(true);
+	MuzzleFlashLight->RegisterComponent();
+
+	MuzzleMID = MakeShapeMID(this, WarmOrange);
+	TracerMID = MakeShapeMID(this, TracerYellow);
+
+	auto MakeFxMesh = [this, AttachParent](FName FxName, const TCHAR* MeshPath, UMaterialInstanceDynamic* MID) -> UStaticMeshComponent*
+	{
+		UStaticMesh* Shape = LoadObject<UStaticMesh>(nullptr, MeshPath);
+		if (!Shape)
+		{
+			return nullptr;
+		}
+		UStaticMeshComponent* FxMesh = NewObject<UStaticMeshComponent>(this, FxName);
+		FxMesh->SetupAttachment(AttachParent);
+		FxMesh->SetStaticMesh(Shape);
+		ConfigureFxPrimitive(FxMesh);
+		if (MID)
+		{
+			FxMesh->SetMaterial(0, MID);
+		}
+		FxMesh->SetVisibility(false);
+		FxMesh->SetHiddenInGame(true);
+		FxMesh->RegisterComponent();
+		return FxMesh;
+	};
+
+	MuzzleFlashMesh = MakeFxMesh(FName(TEXT("KodFxMuzzleSphere")), EngineSpherePath, MuzzleMID);
+	MuzzleConeMesh = MakeFxMesh(FName(TEXT("KodFxMuzzleCone")), EngineConePath, MuzzleMID);
+	ShotTracerMesh = MakeFxMesh(FName(TEXT("KodFxTracer")), EngineCylinderPath, TracerMID);
+}
+
+void AKodUnit::ShowMuzzleAndTracer(AActor* Target)
+{
+	EnsureAttackPresentation();
+
+	FVector ShotDir = GetActorForwardVector();
+	ShotDir.Z = 0.f;
+	if (Target)
+	{
+		FVector ToTarget = Target->GetActorLocation() - GetActorLocation();
+		ToTarget.Z = 0.f;
+		if (ToTarget.SizeSquared() > KINDA_SMALL_NUMBER)
+		{
+			ShotDir = ToTarget.GetSafeNormal();
+		}
+	}
+	if (ShotDir.IsNearlyZero())
+	{
+		ShotDir = FVector::ForwardVector;
+	}
+
+	const FVector Muzzle = GetActorLocation() + ShotDir * MuzzleForwardCm + FVector(0.f, 0.f, MuzzleUpCm);
+	const FVector LightAt = Muzzle + ShotDir * 24.f;
+
+	auto ShowAbsolute = [](USceneComponent* Component, const FVector& Location, const FRotator& Rotation, const FVector& Scale)
+	{
+		if (!Component)
+		{
+			return;
+		}
+		Component->SetAbsolute(true, true, true);
+		Component->SetWorldLocation(Location);
+		Component->SetWorldRotation(Rotation);
+		Component->SetWorldScale3D(Scale);
+		Component->SetHiddenInGame(false);
+		Component->SetVisibility(true);
+	};
+
+	if (MuzzleFlashLight)
+	{
+		MuzzleFlashLight->SetAbsolute(true, true, true);
+		MuzzleFlashLight->SetWorldLocation(LightAt);
+		MuzzleFlashLight->SetIntensity(60000.f);
+		MuzzleFlashLight->SetHiddenInGame(false);
+		MuzzleFlashLight->SetVisibility(true);
+	}
+
+	ShowAbsolute(MuzzleFlashMesh, Muzzle, FRotator::ZeroRotator, FVector(0.4f));
+	const FRotator ConeRotation = FRotationMatrix::MakeFromZ(ShotDir).Rotator();
+	ShowAbsolute(MuzzleConeMesh, Muzzle, ConeRotation, FVector(0.18f, 0.18f, 0.45f));
+
+	if (ShotTracerMesh && Target)
+	{
+		const FVector Chest = Target->GetActorLocation() + FVector(0.f, 0.f, 55.f);
+		const FVector Delta = Chest - Muzzle;
+		const float Dist = Delta.Size();
+		if (Dist > KINDA_SMALL_NUMBER)
+		{
+			const FVector Mid = (Muzzle + Chest) * 0.5f;
+			const FRotator Align = FRotationMatrix::MakeFromZ(Delta).Rotator();
+			const float CylinderHeightCm = 100.f;
+			ShowAbsolute(
+				ShotTracerMesh,
+				Mid,
+				Align,
+				FVector(TracerRadiusScale, TracerRadiusScale, Dist / CylinderHeightCm));
+			TracerRemaining = TracerSeconds;
+		}
+	}
+
+	MuzzleFlashRemaining = MuzzleFlashSeconds;
+}
+
+void AKodUnit::AdvanceAttackPresentation(float DeltaSeconds)
+{
+	const float Dt = FMath::Max(0.f, DeltaSeconds);
+	if (MuzzleFlashRemaining > 0.f)
+	{
+		MuzzleFlashRemaining = FMath::Max(0.f, MuzzleFlashRemaining - Dt);
+		if (MuzzleFlashRemaining <= 0.f)
+		{
+			auto HideFx = [](USceneComponent* Component)
+			{
+				if (!Component)
+				{
+					return;
+				}
+				Component->SetVisibility(false);
+				Component->SetHiddenInGame(true);
+			};
+			HideFx(MuzzleFlashLight);
+			HideFx(MuzzleFlashMesh);
+			HideFx(MuzzleConeMesh);
+			if (MuzzleFlashLight)
+			{
+				MuzzleFlashLight->SetIntensity(0.f);
+			}
+		}
+	}
+
+	if (TracerRemaining > 0.f)
+	{
+		TracerRemaining = FMath::Max(0.f, TracerRemaining - Dt);
+		if (TracerRemaining <= 0.f && ShotTracerMesh)
+		{
+			ShotTracerMesh->SetVisibility(false);
+			ShotTracerMesh->SetHiddenInGame(true);
+		}
+	}
+
+	if (HitReactRemaining > 0.f)
+	{
+		HitReactRemaining = FMath::Max(0.f, HitReactRemaining - Dt);
+		if (HitReactRemaining <= 0.f)
+		{
+			HitJiggleLocal = FVector::ZeroVector;
+			if (BodyTintMID)
+			{
+				BodyTintMID->SetVectorParameterValue(TEXT("Color"), BodyRestColor);
+				BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), BodyRestColor);
+			}
+		}
+	}
+}
+
+void AKodUnit::HandleUnitFired(AActor* Attacker, AActor* Target, int32 /*SimTick*/)
+{
+	if (Attacker != this || bDeathSinking)
+	{
+		return;
+	}
+	ShowMuzzleAndTracer(Target);
+}
+
+void AKodUnit::HandleUnitHit(AActor* Attacker, AActor* Target, float /*Health*/, int32 /*TargetId*/)
+{
+	if (Target != this || bDeathSinking)
+	{
+		return;
+	}
+
+	EnsureBodyTint();
+	const bool bRestIsRed = BodyRestColor.R > 0.5f && BodyRestColor.G < 0.3f && BodyRestColor.B < 0.3f;
+	const FLinearColor FlashColor = bRestIsRed
+		? FLinearColor::White
+		: FLinearColor(1.f, 0.15f, 0.12f, 1.f);
+	if (BodyTintMID)
+	{
+		BodyTintMID->SetVectorParameterValue(TEXT("Color"), FlashColor);
+		BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), FlashColor);
+	}
+
+	FVector Away = FVector::ForwardVector;
+	if (Attacker && Attacker != this)
+	{
+		Away = GetActorLocation() - Attacker->GetActorLocation();
+		Away.Z = 0.f;
+	}
+	if (!Away.Normalize())
+	{
+		Away = -GetActorForwardVector();
+		Away.Z = 0.f;
+		if (!Away.Normalize())
+		{
+			Away = FVector::ForwardVector;
+		}
+	}
+	HitJiggleLocal = GetActorTransform().InverseTransformVectorNoScale(Away * HitJiggleCm);
+	HitJiggleLocal.Z += 8.f;
+	HitReactRemaining = HitReactSeconds;
+}
+
+void AKodUnit::HandleUnitKilled(AActor* Target, int32 /*TargetId*/)
+{
+	if (Target != this || bDeathSinking)
+	{
+		return;
+	}
+	BeginDeathPresentation();
+}
+
+void AKodUnit::BeginDeathPresentation()
+{
+	if (bDeathSinking)
+	{
+		return;
+	}
+	bDeathSinking = true;
+	DeathSinkElapsed = 0.f;
+	DeathSinkStart = GetActorLocation();
+	SetActorEnableCollision(false);
+	UE_LOG(LogTemp, Log, TEXT("KodUnit Death %s"), *GetName());
+
+	if (UWorld* World = GetWorld())
+	{
+		if (AKodPlayerController* KodPC = Cast<AKodPlayerController>(World->GetFirstPlayerController()))
+		{
+			KodPC->RemoveFromLocalSelection(this);
+		}
+	}
+}
+
+bool AKodUnit::AdvanceDeathSink(float DeltaSeconds)
+{
+	if (!bDeathSinking)
+	{
+		return false;
+	}
+	DeathSinkElapsed += FMath::Max(0.f, DeltaSeconds);
+	const float Alpha = FMath::Clamp(DeathSinkElapsed / DeathSinkSeconds, 0.f, 1.f);
+	const float Eased = Alpha * Alpha;
+	const FVector Sunk = DeathSinkStart - FVector(0.f, 0.f, DeathSinkDepthCm * Eased);
+	SetActorLocation(Sunk, false, nullptr, ETeleportType::TeleportPhysics);
+	if (Alpha >= 1.f)
+	{
+		Destroy();
+		return true;
+	}
+	return false;
+}
+
 void AKodUnit::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	UnbindSimEvents();
 	if (UWorld* World = GetWorld())
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())

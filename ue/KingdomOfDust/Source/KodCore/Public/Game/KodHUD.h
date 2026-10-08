@@ -29,6 +29,7 @@ public:
 	TSoftClassPtr<UUserWidget> HudWidgetClass;
 
 protected:
+	void DrawUnitHealthBars();
 	void DrawSelectionMarquee();
 
 	UPROPERTY(Transient)

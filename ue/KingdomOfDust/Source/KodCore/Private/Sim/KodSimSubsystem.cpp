@@ -18,6 +18,9 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UKodSimSubsystem::Deinitialize()
 {
+	OnUnitFired.Clear();
+	OnUnitHit.Clear();
+	OnUnitKilled.Clear();
 	Entities.Reset();
 	States.Reset();
 	PrevPositions.Reset();
@@ -137,44 +140,85 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 		return;
 	}
 
-	const float DistSq = FVector::DistSquared2D(State.Position, Target->Position);
+	// Seek until the shot can land, then hold. StepEntityMove may clear the order
+	// when it arrives inside acceptance; put the attack back before the range recheck.
 	const float Range = FMath::Max(0.f, State.WeaponRange);
+	float DistSq = FVector::DistSquared2D(State.Position, Target->Position);
 	if (DistSq > FMath::Square(Range))
 	{
-		// Seek into range (sim seek — not AI MoveTo / PathFollowing)
+		const FKodEntityId KeptTarget = Target->Id;
 		State.MoveTarget = Target->Position;
 		StepEntityMove(State, FixedDt);
-		State.Order = EKodSimOrderType::Attack; // restore after seek helper may clear
-		State.AttackTarget = Target->Id;
-		return;
+		State.Order = EKodSimOrderType::Attack;
+		State.AttackTarget = KeptTarget;
+		DistSq = FVector::DistSquared2D(State.Position, Target->Position);
+		if (DistSq > FMath::Square(Range))
+		{
+			return;
+		}
 	}
 
-	// Face target
+	// In range: stop integrating and face the target. Presentation chases this yaw.
 	const FVector ToTarget = Target->Position - State.Position;
-	State.YawDegrees = FMath::RadiansToDegrees(FMath::Atan2(ToTarget.Y, ToTarget.X));
+	if (ToTarget.SizeSquared2D() > KINDA_SMALL_NUMBER)
+	{
+		State.YawDegrees = FMath::RadiansToDegrees(FMath::Atan2(ToTarget.Y, ToTarget.X));
+	}
 
 	if (State.CooldownRemaining <= 0.f && State.WeaponDamage > 0.f)
 	{
-		// Hitscan — no actor bullets. Slice 0: raw Damage only; Target Armor not applied yet (combat pass).
-		// HP 0 stays registered. There is no despawn pass; the next step clears this order.
+		// Hitscan — no actor bullets. Slice 0: raw Damage only; target Armor is not applied yet.
+		auto ActorOf = [this](int32 IdValue) -> AActor*
+		{
+			if (const TWeakObjectPtr<AActor>* Found = Entities.Find(IdValue))
+			{
+				return Found->Get();
+			}
+			return nullptr;
+		};
+		auto NameOf = [](const AActor* NamedActor) -> FString
+		{
+			return NamedActor ? NamedActor->GetName() : FString(TEXT("None"));
+		};
+
+		AActor* AttackerActor = ActorOf(State.Id.Value);
+		AActor* TargetActor = ActorOf(Target->Id.Value);
+		const FString AttackerName = NameOf(AttackerActor);
+		const FString TargetName = NameOf(TargetActor);
+		const int32 TargetIdValue = Target->Id.Value;
+		const FKodEntityId DeadId = Target->Id;
+
 		const float Mitigated = FMath::Max(0.f, State.WeaponDamage);
 		Target->Health = FMath::Max(0.f, Target->Health - Mitigated);
 		State.CooldownRemaining = FMath::Max(0.01f, State.WeaponCooldownSeconds);
+		const float HealthLeft = Target->Health;
 
-		const TCHAR* TargetName = TEXT("None");
-		FString NameStorage;
-		if (const TWeakObjectPtr<AActor>* Found = Entities.Find(Target->Id.Value))
-		{
-			if (const AActor* TargetActor = Found->Get())
-			{
-				NameStorage = TargetActor->GetName();
-				TargetName = *NameStorage;
-			}
-		}
+		UE_LOG(LogTemp, Log, TEXT("KodSim Fire Attacker=%s Target=%s Tick=%lld"),
+			*AttackerName,
+			*TargetName,
+			static_cast<long long>(SimTickIndex));
+		OnUnitFired.Broadcast(AttackerActor, TargetActor, static_cast<int32>(SimTickIndex));
+
 		UE_LOG(LogTemp, Log, TEXT("KodSim Hit Target=%s Id=%d HP=%.0f"),
-			TargetName,
-			Target->Id.Value,
-			Target->Health);
+			*TargetName,
+			TargetIdValue,
+			HealthLeft);
+		OnUnitHit.Broadcast(AttackerActor, TargetActor, HealthLeft, TargetIdValue);
+
+		if (HealthLeft <= 0.f)
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodSim Kill Target=%s Id=%d"),
+				*TargetName,
+				TargetIdValue);
+			State.Order = EKodSimOrderType::None;
+			State.AttackTarget = FKodEntityId();
+			QuantizePose(State);
+			// Remove before the delegate so listeners cannot select or attack the corpse.
+			// Do not touch Target or State after this; TMap::Remove can rehash.
+			UnregisterEntity(DeadId);
+			OnUnitKilled.Broadcast(TargetActor, TargetIdValue);
+			return;
+		}
 	}
 
 	QuantizePose(State);
@@ -326,6 +370,31 @@ void UKodSimSubsystem::IssueStop(FKodEntityId Id)
 		State->Order = EKodSimOrderType::None;
 		State->AttackTarget = FKodEntityId();
 		QuantizePose(*State);
+	}
+}
+
+void UKodSimSubsystem::CopyEntitySnapshot(TArray<FKodSimEntityState>& OutStates, TArray<AActor*>& OutActors) const
+{
+	OutStates.Reset();
+	OutActors.Reset();
+
+	TArray<int32> Keys;
+	States.GetKeys(Keys);
+	Keys.Sort();
+	OutStates.Reserve(Keys.Num());
+	OutActors.Reserve(Keys.Num());
+
+	for (int32 Key : Keys)
+	{
+		const FKodSimEntityState* State = States.Find(Key);
+		const TWeakObjectPtr<AActor>* ActorPtr = Entities.Find(Key);
+		AActor* Actor = ActorPtr ? ActorPtr->Get() : nullptr;
+		if (!State || !Actor)
+		{
+			continue;
+		}
+		OutStates.Add(*State);
+		OutActors.Add(Actor);
 	}
 }
 
