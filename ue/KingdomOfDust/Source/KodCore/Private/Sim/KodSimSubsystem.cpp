@@ -156,9 +156,25 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 	if (State.CooldownRemaining <= 0.f && State.WeaponDamage > 0.f)
 	{
 		// Hitscan — no actor bullets. Slice 0: raw Damage only; Target Armor not applied yet (combat pass).
+		// HP 0 stays registered. There is no despawn pass; the next step clears this order.
 		const float Mitigated = FMath::Max(0.f, State.WeaponDamage);
 		Target->Health = FMath::Max(0.f, Target->Health - Mitigated);
 		State.CooldownRemaining = FMath::Max(0.01f, State.WeaponCooldownSeconds);
+
+		const TCHAR* TargetName = TEXT("None");
+		FString NameStorage;
+		if (const TWeakObjectPtr<AActor>* Found = Entities.Find(Target->Id.Value))
+		{
+			if (const AActor* TargetActor = Found->Get())
+			{
+				NameStorage = TargetActor->GetName();
+				TargetName = *NameStorage;
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodSim Hit Target=%s Id=%d HP=%.0f"),
+			TargetName,
+			Target->Id.Value,
+			Target->Health);
 	}
 
 	QuantizePose(State);
@@ -264,7 +280,8 @@ void UKodSimSubsystem::ConfigureEntity(
 	bool bMobile,
 	float WeaponDamage,
 	float WeaponRange,
-	float WeaponCooldownSeconds)
+	float WeaponCooldownSeconds,
+	int32 TeamId)
 {
 	FKodSimEntityState* State = States.Find(Id.Value);
 	if (!State)
@@ -280,6 +297,7 @@ void UKodSimSubsystem::ConfigureEntity(
 	State->WeaponDamage = WeaponDamage;
 	State->WeaponRange = WeaponRange;
 	State->WeaponCooldownSeconds = WeaponCooldownSeconds;
+	State->TeamId = TeamId;
 }
 
 void UKodSimSubsystem::IssueMove(FKodEntityId Id, FVector WorldLocation)
@@ -354,6 +372,8 @@ bool UKodSimSubsystem::IsWorldIdle() const
 FString UKodSimSubsystem::ComputeIdleHash() const
 {
 	// Stable when idle (no orders / no micro-integrate). Quantized pose + DA-driven HP.
+	// TeamId is sim state but omitted so this byte layout stays ids / pose / HP / order.
+	// Visual bob and actor yaw are presentation and must not be appended here.
 	TArray<uint8> Bytes;
 	auto Append = [&Bytes](const void* Data, int32 Size)
 	{

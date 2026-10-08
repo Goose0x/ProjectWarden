@@ -209,7 +209,7 @@ UKodFactionDefinition* UKodSlice0Bootstrap::MakeUSA(UObject* Outer, UKodBuilding
 	return F;
 }
 
-AKodUnit* UKodSlice0Bootstrap::SpawnRanger(UWorld* World, const FTransform& Transform, int32 TeamId)
+AKodUnit* UKodSlice0Bootstrap::SpawnRanger(UWorld* World, const FTransform& Transform, int32 TeamId, bool bForceCubeBody)
 {
 	const FVector Location = Transform.GetLocation();
 	if (!World)
@@ -234,7 +234,16 @@ AKodUnit* UKodSlice0Bootstrap::SpawnRanger(UWorld* World, const FTransform& Tran
 	}
 	Unit->Definition = Def;
 	Unit->TeamId = TeamId;
+	// Before ApplyDefinition so ApplyBodyMesh does not mount SM_Ranger_Body.
+	if (bForceCubeBody)
+	{
+		Unit->SetForceCubeBody(true);
+	}
 	Unit->ApplyDefinition(Def);
+	if (bForceCubeBody)
+	{
+		Unit->ApplyHostileCubeTint();
+	}
 	UE_LOG(LogTemp, Warning, TEXT("SpawnRanger spawned %s at %s"), *Unit->GetName(), *Unit->GetActorLocation().ToString());
 	return Unit;
 }

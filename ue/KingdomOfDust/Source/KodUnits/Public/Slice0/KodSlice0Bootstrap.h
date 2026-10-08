@@ -42,9 +42,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
 	static UKodFactionDefinition* ResolveFaction(FName DefinitionId, UObject* Outer = nullptr);
 
-	/** Spawn one Ranger at Transform; MaxHealth from DA only. */
+	/**
+	 * Spawn one Ranger at Transform. MaxHealth from the DA only.
+	 * bForceCubeBody keeps the Engine cube and applies the red hostile tint.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
-	static class AKodUnit* SpawnRanger(UWorld* World, const FTransform& Transform, int32 TeamId = 0);
+	static class AKodUnit* SpawnRanger(UWorld* World, const FTransform& Transform, int32 TeamId = 0, bool bForceCubeBody = false);
 
 protected:
 	static UKodDataCatalog* BuildCatalog(UObject* Outer);

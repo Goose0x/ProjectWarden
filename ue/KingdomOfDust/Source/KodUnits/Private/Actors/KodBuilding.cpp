@@ -88,7 +88,8 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 				false,
 				0.f,
 				0.f,
-				0.f);
+				0.f,
+				TeamId);
 		}
 	}
 }
