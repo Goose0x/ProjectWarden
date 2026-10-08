@@ -14,17 +14,33 @@
 #include "Engine/CollisionProfile.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace
 {
 	constexpr const TCHAR* EngineCubePath = TEXT("/Engine/BasicShapes/Cube.Cube");
+	constexpr const TCHAR* BasicShapeMaterialPath = TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial");
 	const FVector EngineCubeScale(0.8f, 0.8f, 1.7f);
+	constexpr double LifeReferenceHeightCm = 170.0;
+	// Real move speed is 450. A 1 uu idle quantize snap is ~60-150 uu/s depending on frame
+	// time, so the threshold sits above that and still sees a walk.
+	constexpr float LifeMoveSpeedThreshold = 200.f;
+
+	bool IsEngineCubeMesh(const UStaticMesh* Mesh)
+	{
+		return Mesh && Mesh->GetPathName().Contains(TEXT("/Engine/BasicShapes/Cube"));
+	}
 }
 
 AKodUnit::AKodUnit()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	// After UKodSimSubsystem::SyncActorPresentation (DuringPhysics). That sync snaps actor
+	// yaw to the sim facing; this tick then eases a visual yaw on top and bobs UnitMesh.
+	// Neither write touches FKodSimEntityState or ComputeIdleHash.
+	PrimaryActorTick.TickGroup = TG_PostUpdateWork;
 
 	AbilitySystemComponent = CreateDefaultSubobject<UKodAbilitySystemComponent>(TEXT("AbilitySystem"));
 	AbilitySystemComponent->SetIsReplicated(true);
@@ -90,6 +106,164 @@ void AKodUnit::BeginPlay()
 	{
 		ApplyDefinition(Def);
 	}
+
+	VisualYaw = GetActorRotation().Yaw;
+	LastPresentationLocation = GetActorLocation();
+	BodyRestRelativeLocation = UnitMesh ? UnitMesh->GetRelativeLocation() : FVector::ZeroVector;
+	UE_LOG(LogTemp, Log, TEXT("KodUnitLife %s Bob=%.1f Turn=%.0f"),
+		*GetName(),
+		BobAmplitudeCm,
+		TurnRateDegreesPerSecond);
+}
+
+void AKodUnit::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	UpdateLifePresentation(DeltaSeconds);
+}
+
+void AKodUnit::SetForceCubeBody(bool bInForce)
+{
+	bForceCubeBody = bInForce;
+}
+
+void AKodUnit::ApplyHostileCubeTint()
+{
+	bForceCubeBody = true;
+	if (!UnitMesh || !IsEngineCubeMesh(UnitMesh->GetStaticMesh()))
+	{
+		MountCubePlaceholder();
+	}
+	if (!UnitMesh)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodUnitHostile %s red tint failed (no UnitMesh)"), *GetName());
+		return;
+	}
+
+	UMaterialInterface* Source = LoadObject<UMaterialInterface>(nullptr, BasicShapeMaterialPath);
+	if (!Source)
+	{
+		Source = UnitMesh->GetMaterial(0);
+	}
+	if (!Source)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodUnitHostile %s red tint failed (BasicShapeMaterial missing)"), *GetName());
+		return;
+	}
+
+	UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Source, UnitMesh);
+	if (!MID)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodUnitHostile %s red tint failed (MID)"), *GetName());
+		return;
+	}
+
+	// BasicShapeMaterial uses Color. BaseColor covers a parent that uses the other name.
+	// Slot 0 only — no SetOverlayMaterial, so the selection rim (stencil 1) stays free.
+	const FLinearColor HostileRed(0.75f, 0.02f, 0.02f, 1.f);
+	MID->SetVectorParameterValue(TEXT("Color"), HostileRed);
+	MID->SetVectorParameterValue(TEXT("BaseColor"), HostileRed);
+	UnitMesh->SetMaterial(0, MID);
+}
+
+float AKodUnit::GetScaledBobAmplitudeCm() const
+{
+	const float Base = FMath::Max(0.f, BobAmplitudeCm);
+	if (!UnitMesh)
+	{
+		return Base;
+	}
+	const UStaticMesh* Mesh = UnitMesh->GetStaticMesh();
+	if (!Mesh)
+	{
+		return Base;
+	}
+
+	// Parent-space offset, on top of RelativeScale3D. Scale the cm amplitude by
+	// world height / 170 so a non-human body bobs in proportion. The cube (100 cm
+	// mesh at 1.7) and the auto-scaled Ranger (~170 cm) both stay near BobAmplitudeCm.
+	const double MeshHeight = Mesh->GetBounds().BoxExtent.Z * 2.0;
+	const double WorldHeight = MeshHeight * UnitMesh->GetRelativeScale3D().Z;
+	if (!FMath::IsFinite(WorldHeight) || WorldHeight <= static_cast<double>(KINDA_SMALL_NUMBER))
+	{
+		return Base;
+	}
+	const double Scale = WorldHeight / LifeReferenceHeightCm;
+	if (!FMath::IsFinite(Scale) || Scale <= 0.0)
+	{
+		return Base;
+	}
+	return Base * static_cast<float>(Scale);
+}
+
+void AKodUnit::UpdateLifePresentation(float DeltaSeconds)
+{
+	const float Dt = FMath::Max(0.f, DeltaSeconds);
+	const FVector Loc = GetActorLocation();
+	const float Speed = (Dt > KINDA_SMALL_NUMBER) ? (FVector::Dist2D(Loc, LastPresentationLocation) / Dt) : 0.f;
+	LastPresentationLocation = Loc;
+	const bool bMoving = Speed >= LifeMoveSpeedThreshold;
+
+	float DesiredYaw = VisualYaw;
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			FKodSimEntityState State;
+			if (EntityId.IsValid() && Sim->TryGetState(EntityId, State))
+			{
+				// Sim already aims YawDegrees along the move, and at the attack target in range.
+				DesiredYaw = State.YawDegrees;
+			}
+		}
+	}
+
+	if (TurnRateDegreesPerSecond <= 0.f)
+	{
+		VisualYaw = DesiredYaw;
+	}
+	else
+	{
+		const FRotator Smoothed = FMath::RInterpConstantTo(
+			FRotator(0.f, VisualYaw, 0.f),
+			FRotator(0.f, DesiredYaw, 0.f),
+			Dt,
+			TurnRateDegreesPerSecond);
+		VisualYaw = Smoothed.Yaw;
+	}
+
+	FRotator Rot = GetActorRotation();
+	Rot.Yaw = VisualYaw;
+	// Teleport so the yaw catch-up does not sweep the capsule and nudge sim presentation.
+	SetActorRotation(Rot, ETeleportType::TeleportPhysics);
+
+	if (!UnitMesh)
+	{
+		return;
+	}
+
+	const float TargetWeight = bMoving ? 1.f : 0.f;
+	const float Ease = FMath::Max(0.f, BobEaseSpeed);
+	BobWeight = (Ease <= 0.f || Dt <= 0.f) ? TargetWeight : FMath::FInterpTo(BobWeight, TargetWeight, Dt, Ease);
+
+	if (!bMoving && BobWeight <= KINDA_SMALL_NUMBER)
+	{
+		BobWeight = 0.f;
+		BobTime = 0.f;
+		if (bBobOffsetApplied)
+		{
+			UnitMesh->SetRelativeLocation(BodyRestRelativeLocation);
+			bBobOffsetApplied = false;
+		}
+		return;
+	}
+
+	BobTime += Dt;
+	const float Frequency = FMath::Max(0.f, BobFrequencyHz);
+	const float Angle = BobTime * Frequency * 2.f * static_cast<float>(UE_PI);
+	const float Z = GetScaledBobAmplitudeCm() * BobWeight * FMath::Sin(Angle);
+	UnitMesh->SetRelativeLocation(BodyRestRelativeLocation + FVector(0.f, 0.f, Z));
+	bBobOffsetApplied = true;
 }
 
 UAbilitySystemComponent* AKodUnit::GetAbilitySystemComponent() const
@@ -163,7 +337,8 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 				true,
 				WeaponDamage,
 				WeaponRange,
-				WeaponCooldown);
+				WeaponCooldown,
+				TeamId);
 		}
 	}
 
@@ -191,7 +366,8 @@ void AKodUnit::KeepSelectCollision()
 
 void AKodUnit::ApplyBodyMesh(const UKodUnitDefinition* Def)
 {
-	if (!Def)
+	// Hostile marker. Do not mount SM_Ranger_Body; the red cube tint is the tell.
+	if (bForceCubeBody || !Def)
 	{
 		MountCubePlaceholder();
 		return;

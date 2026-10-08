@@ -42,10 +42,11 @@ struct KODCORE_API FKodSelectionHighlightState
  * RMB walks ECC_Pawn (camera pawn ignored), same as click-select. The first
  * blocking ImpactPoint is the Move point for ground and other non-sim props —
  * never an actor pivot. A sim-registered actor on that ray, other than the
- * current selection, is Attack.
+ * current selection, is Attack. Sim actors on another TeamId are not added to
+ * the local selection (click, drag, or rim) but stay valid Attack targets.
  *
  * LMB drag past BoxSelectDragThresholdPx is a screen-space marquee. On release,
- * every sim-registered actor whose viewport projection lies in the rect is
+ * every local-team sim actor whose viewport projection lies in the rect is
  * selected. Left Shift adds; a fresh drag replaces. A shorter drag stays
  * click-select. AKodHUD paints the rect with the engine canvas (no Content asset).
  */
@@ -123,6 +124,8 @@ protected:
 	 */
 	FKodCursorCommand TraceCursorCommand() const;
 	bool IsInLocalSelection(const AActor* Actor) const;
+	/** AKodPlayerState::TeamId, or 0 when the player state is not a Kod player. */
+	int32 GetLocalTeamId() const;
 
 	void ApplySelectionHighlight();
 	void ClearSelectionHighlight();
@@ -146,11 +149,12 @@ protected:
 	 * First sim-registered actor along the cursor ray.
 	 * ECC_Pawn is walked past blockers with no sim id (greybox PROXY_* / ground).
 	 * Visibility is used only when the pawn channel hits nothing.
+	 * Foreign-team sim actors are walked past (attackable, not locally selectable).
 	 * Unregistered-only rays return null so the click clears selection.
 	 * OutHitLog lists each blocker as Name(Channel,sim,id,loc) for PIE.
 	 */
 	AActor* TraceSelectableUnderCursor(FString& OutHitLog) const;
-	/** Sim-registered actors (not the camera pawn) whose screen point lies in the marquee. */
+	/** Local-team sim actors (not the camera pawn) whose screen point lies in the marquee. */
 	void CollectActorsInMarquee(TArray<AActor*>& OutActors) const;
 	void GetMarqueeBounds(FVector2D& OutMin, FVector2D& OutMax) const;
 	/** Viewport-relative projection, matching GetMousePosition and the marquee corners. */

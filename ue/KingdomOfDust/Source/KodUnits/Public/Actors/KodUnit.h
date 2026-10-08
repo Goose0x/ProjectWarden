@@ -28,6 +28,7 @@ public:
 	AKodUnit();
 
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
@@ -40,11 +41,44 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Kod|Team")
 	int32 TeamId = 0;
 
+	/**
+	 * Vertical bob amplitude on UnitMesh, in cm, before the 170 cm body-height scale.
+	 * Presentation only. Does not write sim pose or the idle hash.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Presentation")
+	float BobAmplitudeCm = 3.5f;
+
+	/** Walking cadence for the bob sine. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Presentation")
+	float BobFrequencyHz = 2.5f;
+
+	/** How fast the bob eases in while moving and back to rest when stopped. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Presentation")
+	float BobEaseSpeed = 8.f;
+
+	/**
+	 * Visual actor yaw catch-up in degrees per second (RInterpConstantTo).
+	 * Faces sim movement direction, and the attack target while attacking.
+	 * Does not write FKodSimEntityState::YawDegrees.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Presentation")
+	float TurnRateDegreesPerSecond = 540.f;
+
 	UFUNCTION(BlueprintCallable, Category = "Kod|Data")
 	UKodUnitDefinition* GetDefinition() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Data")
 	void ApplyDefinition(UKodUnitDefinition* Def);
+
+	/** When set before ApplyDefinition, the visible body stays the Engine cube. */
+	void SetForceCubeBody(bool bInForce);
+
+	/**
+	 * Hostile marker. Forces the Engine cube (no Ranger static mesh, no overlay material)
+	 * and tints slot 0 with a MID of /Engine/BasicShapes/BasicShapeMaterial.
+	 * Sets Color and BaseColor. BasicShapeMaterial honors Color. Presentation only.
+	 */
+	void ApplyHostileCubeTint();
 
 protected:
 	/** Skeletal mesh wins when it loads; else static mesh on UnitMesh; else the Engine cube. */
@@ -55,6 +89,10 @@ protected:
 
 	/** QueryOnly Pawn on UnitMesh. Same contract as the constructor — does not touch the capsule. */
 	void KeepSelectCollision();
+
+	/** Bob + visual yaw. Runs after sim presentation sync. Never writes sim state. */
+	void UpdateLifePresentation(float DeltaSeconds);
+	float GetScaledBobAmplitudeCm() const;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Kod|GAS")
 	TObjectPtr<UKodAbilitySystemComponent> AbilitySystemComponent;
@@ -77,4 +115,16 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Kod|Mesh")
 	TObjectPtr<UStaticMeshComponent> UnitMesh;
+
+	/** Slice 0 hostile path. ApplyBodyMesh skips the definition static mesh. */
+	bool bForceCubeBody = false;
+
+	/** Captured attach point. Bob is an offset on top of this, not a new scale. */
+	FVector BodyRestRelativeLocation = FVector::ZeroVector;
+
+	float VisualYaw = 0.f;
+	float BobWeight = 0.f;
+	float BobTime = 0.f;
+	FVector LastPresentationLocation = FVector::ZeroVector;
+	bool bBobOffsetApplied = false;
 };

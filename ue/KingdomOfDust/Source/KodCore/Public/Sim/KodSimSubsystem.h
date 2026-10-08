@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Tickable.h"
+#include "Engine/EngineBaseTypes.h"
 #include "Sim/KodEntityId.h"
 #include "Sim/KodBuildTicks.h"
 #include "KodSimSubsystem.generated.h"
@@ -71,6 +72,13 @@ struct KODCORE_API FKodSimEntityState
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	bool bMobile = true;
 
+	/**
+	 * Owner team. Slice 0 local player is 0; a different id is hostile.
+	 * Not part of ComputeIdleHash (ids, quantized pose, HP, order only).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	int32 TeamId = 0;
+
 	bool IsMoving() const { return Order == EKodSimOrderType::Move; }
 	bool HasPendingOrder() const { return Order != EKodSimOrderType::None; }
 };
@@ -91,6 +99,12 @@ public:
 	virtual TStatId GetStatId() const override;
 	virtual bool IsTickable() const override { return true; }
 	virtual bool IsTickableInEditor() const override { return false; }
+
+	/**
+	 * DuringPhysics so SyncActorPresentation lands before AKodUnit's PostUpdateWork
+	 * life tick (visual bob and yaw). Those do not write this subsystem.
+	 */
+	virtual ETickingGroup GetTickGroup() const override { return TG_DuringPhysics; }
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	FKodEntityId RegisterEntity(AActor* Actor);
@@ -115,7 +129,8 @@ public:
 		bool bMobile,
 		float WeaponDamage,
 		float WeaponRange,
-		float WeaponCooldownSeconds);
+		float WeaponCooldownSeconds,
+		int32 TeamId = 0);
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	void IssueMove(FKodEntityId Id, FVector WorldLocation);
@@ -140,7 +155,8 @@ public:
 
 	/**
 	 * Stable when no units moving and no orders pending.
-	 * Hashes entity ids, quantized positions, HP (DA-driven state).
+	 * Hashes entity ids, quantized positions, HP (DA-driven state), and order.
+	 * TeamId, visual bob, and visual yaw are not hashed.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	FString ComputeIdleHash() const;

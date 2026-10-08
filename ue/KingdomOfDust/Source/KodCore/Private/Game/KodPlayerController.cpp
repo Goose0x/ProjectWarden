@@ -4,6 +4,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Game/KodPlayerState.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
@@ -13,6 +14,24 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/SoftObjectPath.h"
+
+namespace
+{
+	/** TeamId on the sim entity. Missing state stays selectable (pre-team behavior). */
+	bool IsLocalTeamSimId(const UKodSimSubsystem* Sim, FKodEntityId Id, int32 LocalTeam)
+	{
+		if (!Sim || !Id.IsValid())
+		{
+			return false;
+		}
+		FKodSimEntityState State;
+		if (!Sim->TryGetState(Id, State))
+		{
+			return true;
+		}
+		return State.TeamId == LocalTeam;
+	}
+}
 
 AKodPlayerController::AKodPlayerController()
 {
@@ -189,6 +208,15 @@ void AKodPlayerController::HandleCommandAttack()
 	{
 		IssueAttackToSelection(Cmd.AttackActor);
 	}
+}
+
+int32 AKodPlayerController::GetLocalTeamId() const
+{
+	if (const AKodPlayerState* KodPS = GetPlayerState<AKodPlayerState>())
+	{
+		return KodPS->TeamId;
+	}
+	return 0;
 }
 
 bool AKodPlayerController::IsInLocalSelection(const AActor* Actor) const
@@ -544,9 +572,11 @@ AActor* AKodPlayerController::TraceSelectableUnderCursor(FString& OutHitLog) con
 	}
 
 	UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>();
+	const int32 LocalTeam = GetLocalTeamId();
 	// Same length GetHitResultUnderCursor uses. A channel trace stops on the first
 	// BlockAll hit, so a PROXY mesh in front of a KodUnit used to win and get discarded.
 	// Re-trace, ignoring actors with no sim id, until a registered entity or a miss.
+	// Foreign-team sim actors are ignored the same way: RMB can still Attack them.
 	const FVector End = Origin + Direction * HitResultTraceDistance;
 
 	struct FChannelWalk
@@ -596,7 +626,7 @@ AActor* AKodPlayerController::TraceSelectableUnderCursor(FString& OutHitLog) con
 				Loc.Y,
 				Loc.Z);
 
-			if (Id.IsValid())
+			if (Id.IsValid() && IsLocalTeamSimId(Sim, Id, LocalTeam))
 			{
 				Result.Picked = HitActor;
 				return Result;
@@ -781,11 +811,12 @@ void AKodPlayerController::CollectActorsInMarquee(TArray<AActor*>& OutActors) co
 	FVector2D Max;
 	GetMarqueeBounds(Min, Max);
 	const AActor* ControlledPawn = GetPawn();
+	const int32 LocalTeam = GetLocalTeamId();
 
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
 		AActor* Actor = *It;
-		if (!Actor || Actor == ControlledPawn || !Sim->FindIdForActor(Actor).IsValid())
+		if (!Actor || Actor == ControlledPawn || !IsLocalTeamSimId(Sim, Sim->FindIdForActor(Actor), LocalTeam))
 		{
 			continue;
 		}

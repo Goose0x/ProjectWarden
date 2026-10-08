@@ -6,8 +6,10 @@
 
 /**
  * L_Slice0 PIE wiring: RTS camera pawn, Slice0 PC, ensure Warden bootstrap catalog.
- * StartPlay turns collision off on greybox PROXY_* props so ECC_Pawn traces reach KodUnit.
- * The floor labeled PROXY_GROUND keeps BlockAll (move traces and the pawn capsule).
+ * StartPlay mutes greybox collision so ECC_Pawn traces reach KodUnit.
+ * Tag KodGreybox mutes. Tag KodGround keeps BlockAll (move traces and the pawn capsule).
+ * Actors with neither tag still use the PROXY_ / PROXY_GROUND label rules.
+ * After the smoke Ranger, one passive hostile Ranger is spawned for Attack tests.
  *
  * World Settings class path (module KingdomOfDust, not the .uproject file name):
  * /Script/KingdomOfDust.KodSlice0GameMode
@@ -31,6 +33,12 @@ public:
 	FVector SmokeRangerOffset = FVector(400.f, 0.f, 100.f);
 
 private:
-	/** NoCollision on PROXY_* primitives except the PROXY_GROUND floor. Actors stay placed and visible. */
+	/**
+	 * NoCollision on greybox primitives. Tags win: KodGround keeps, KodGreybox mutes.
+	 * Untagged actors fall back to the PROXY_ label rules. Actors stay placed and visible.
+	 */
 	void MuteGreyboxProxyCollision();
+
+	/** One passive enemy Ranger (team 1) at the KodHostileAnchor / PROXY_HOSTILE label. */
+	void SpawnHostileTestTarget();
 };
