@@ -85,6 +85,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|Selection")
 	TArray<AActor*> GetLocalSelection() const;
 
+	/** Drop one actor and refresh the rim when it was selected. Does not write sim state. */
+	void RemoveFromLocalSelection(AActor* Actor);
+
 	UFUNCTION(BlueprintCallable, Category = "Kod|Selection")
 	TArray<FKodEntityId> GetLocalSelectedEntityIds() const;
 

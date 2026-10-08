@@ -83,7 +83,10 @@ Select collision is unchanged: after the mesh swap, `UnitMesh` is set again to t
 - Seek toward goal; stop inside `AcceptanceRadius * 0.5`.
 - **NavMesh forbidden** this slice. No AI MoveTo / PathFollowing / CharacterMovement as match truth.
 - Idle: no micro-integrate; quantize pose; `ComputeIdleHash()` stable when `IsWorldIdle()`.
-- Hitscan rifle (no actor bullets); HP from DataAsset via `ConfigureEntity` / `ApplyDefinition`. Damage is raw weapon Damage (RangerRifle 12). At HP 0 the attacker clears the order on the next step. Slice 0 does not destroy or despawn the actor; it stays registered at 0 HP. Each applied hit logs `KodSim Hit Target=<name> Id=<id> HP=<remaining>`.
+- Hitscan rifle (no actor bullets). HP comes from the DataAsset via `ConfigureEntity` / `ApplyDefinition`. Damage is raw weapon Damage (RangerRifle 12). Armor is stored and not applied. No projectile actor.
+- **RangerRifle resolve.** `AKodUnit::ApplyDefinition` calls `UKodSlice0Bootstrap::ResolveRangerRifleCombatStats` for a Ranger (definition id or asset name `Ranger`) or any primary-weapon soft path whose asset name or subobject is `RangerRifle`. That loads `/Game/Warden/Data/RangerRifle`. On a miss the sim used to keep `WeaponDamage` and `WeaponRange` at 0: `StepEntityAttack` only applies a hit when `WeaponDamage > 0`, so the order was issued and then silently did nothing (a 0 range also makes the unit seek onto the target and never fire). The miss now fills a code default and logs **one warning per world**: `KodWeapon fallback RangerRifle Damage=12 Range=900 Cooldown=0.8125`. `0.8125` is 13 sim ticks (`RoundToInt(0.8 * 16)` at SimHz 16, times `SimDt`). The in-memory catalog stand-in uses the same numbers. Creating the Data Asset below replaces them.
+- **Attack step.** While 2D distance is greater than `WeaponRange`, seek toward the target (same seek as Move, not AI MoveTo) and face it. Inside range, stop, set `YawDegrees` toward the target, and fire when `CooldownRemaining` hits 0. Cooldown then resets from the weapon and counts down by `SimDt` each step. Each shot logs `KodSim Fire Attacker=<name> Target=<name> Tick=<sim tick index>` then `KodSim Hit Target=<name> Id=<id> HP=<remaining>`. `Tick` is `SimTickIndex` at the shot (steps already completed; it increments after `StepSim`).
+- **Kill.** The shot that reaches HP 0 logs `KodSim Kill Target=<name> Id=<id>` in that same step, clears the attacker's order, and `UnregisterEntity` on the target. The target is no longer selectable or attackable. It is not left registered at 0 HP. `UKodSimSubsystem` broadcasts `OnUnitFired`, `OnUnitHit`, and `OnUnitKilled` for presentation. Those listeners must not write sim pose, orders, or the idle hash. Removing the entity changes the hash; with no orders left it is stable again.
 - `FKodSimEntityState::TeamId` is set from the actor in `ConfigureEntity` (local smoke Ranger and `AKodPlayerState` default **0**, hostile test Ranger **1**). It is not part of `ComputeIdleHash`.
 - Presentation life (vertical bob, visual yaw) lives on `AKodUnit` and does not write sim pose, orders, or the idle hash.
 
@@ -100,7 +103,7 @@ Select collision is unchanged: after the mesh swap, `UnitMesh` is set again to t
 
 The amplitude is multiplied by `(mesh local height × RelativeScale3D.Z) / 170`. The Engine cube (100 cm at scale 1.7) and `MountResolvedStaticMesh`'s ~170 cm Ranger both stay near `BobAmplitudeCm`. Sine weight eases to 0 at rest and the mesh relative location is put back on the captured attach point.
 
-Visual yaw chases sim `YawDegrees` (movement facing, and the attack target while the hitscan holds range) and is applied as `UnitMesh` relative yaw, not `SetActorRotation`. The sim value is not written. The actor yaw stays the sim facing.
+Visual yaw chases sim `YawDegrees` (movement facing, and the attack target while seeking or holding range) and is applied as `UnitMesh` relative yaw, not `SetActorRotation`. The sim value is not written. The actor yaw stays the sim facing. The attack step writes that sim yaw toward the target before the shot, so the body turns to face while it fires.
 
 Once per unit at BeginPlay: `KodUnitLife <Name> Bob=3.5 Turn=540` (the tunables, not the height-scaled amplitude).
 
@@ -116,7 +119,43 @@ Click-select and drag-select only take sim actors whose `TeamId` matches `AKodPl
 
 PIE: `Slice0 Hostile spawned Name=<name> Team=1 Loc=<x,y,z> Anchor=PROXY_HOSTILE` or `Anchor=fallback`.
 
-Ranger HP is 120 and RangerRifle damage is 12, so the hostile reaches HP 0 after **10** hits (`KodSim Hit … HP=0` on the tenth). The next sim step clears the attack order. The red cube stays in the world.
+Ranger HP is 120 and RangerRifle damage is 12, so the hostile reaches HP 0 after **10** hits. The first `KodSim Hit` is remaining HP **108**, then 96, 84, 72, 60, 48, 36, 24, 12, and **0** on the tenth. That tenth shot also logs `KodSim Kill` and `KodUnit Death <Name>`. The attacker clears the order in that same sim step. The hostile is unregistered, then its presentation sinks into the floor over about 1.5 s and the actor is destroyed. It does not stay in the world at 0 HP.
+
+Smoke spawn `(400, 0, 100)` to the default hostile anchor `(700, 200, 100)` is about 360 cm, inside range 900, so the Ranger turns to face and fires in place. A target farther than 900 is seeked until it is in range, then the attacker stops and fires. The hostile still does not shoot back.
+
+## Attack presentation (no Content)
+
+Driven by `OnUnitFired` / `OnUnitHit` / `OnUnitKilled` on `UKodSimSubsystem`. `AKodUnit` binds in BeginPlay and unbinds in EndPlay. Nothing in this section writes sim state or the idle hash.
+
+| Event | What you see |
+|-------|----------------|
+| Fire | The body is already turning onto sim yaw. A warm-orange `UPointLightComponent` (~0.06 s, no shadows) plus a small engine sphere and cone (`/Engine/BasicShapes/Sphere`, `Cone`, `BasicShapeMaterial` tinted orange) at the front of the body. A thin `/Engine/BasicShapes/Cylinder` tracer from that muzzle to the target's chest, `BasicShapeMaterial` tinted yellow, alive ~0.08 s, then hidden. Tagged `KodFx` so the selection rim skips them. |
+| Hit | The target's `UnitMesh` slot 0 flashes (~0.1 s): white when the rest tint is red, red when the rest tint is light. A short knockback jiggle is added on `UnitMesh` relative location, on top of the bob offset. |
+| HP bars | `AKodHUD` draws a ~60 px bar above each still-registered sim unit (capsule top, engine canvas, no Content texture). Team 0 is green, any other team is red, background is near-black. Full HP is hidden unless that unit is in the local selection. |
+| Kill | Log `KodUnit Death <Name>`. Collision turns off (no longer a click or attack target; already unregistered). The actor sinks about 220 cm into the floor over ~1.5 s, then `Destroy()`. |
+
+## Replace the RangerRifle fallback (editor)
+
+When `/Game/Warden/Data/RangerRifle` loads, `ResolveRangerRifleCombatStats` uses that asset and does **not** log `KodWeapon fallback`. Create it with the six-DA recipe above.
+
+| Field | Value |
+|-------|--------|
+| Class | `UKodWeaponDefinition` |
+| Script class | `/Script/KodUnits.KodWeaponDefinition` |
+| Asset name | `RangerRifle` (bare id, no `DA_` prefix) |
+| Soft path | `/Game/Warden/Data/RangerRifle.RangerRifle` |
+
+Properties to set (these are the `UPROPERTY` names):
+
+| Property | Type | Set to |
+|----------|------|--------|
+| `DefinitionId` | FName | `RangerRifle` |
+| `DisplayName` | FText | `Ranger Rifle` |
+| `Damage` | float | `12` |
+| `Range` | float | `900` |
+| `CooldownSeconds` | float | `0.35` |
+
+`CooldownSeconds` `0.35` is the shop-sheet value. It replaces the code fallback of 13 sim ticks (0.8125 s). The sim subtracts `SimDt` (1/16 s) from `CooldownRemaining` each step. Also set the Ranger Data Asset's `PrimaryWeapon` soft ref to this asset. A Ranger whose soft ref is still empty still resolves RangerRifle by id, so the asset at the path above is enough to retire the fallback.
 
 ## Greybox actor tags (packaged builds)
 
@@ -166,14 +205,14 @@ A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDu
 - [ ] Left-click select. `AKodSlice0GameMode::StartPlay` sets `NoCollision` on primitive components of actors whose name or label contains `PROXY_`, except the floor whose name or label is `PROXY_GROUND` (L_Slice0 outliner label on `StaticMeshActor_0`). That floor stays BlockAll so the pawn capsule can stand on it and ECC_Pawn / ECC_Visibility still hit it. Other greybox stays placed and visible. Tags are checked first (`KodGreybox` mutes, `KodGround` keeps); actors with neither tag still use these label rules. PIE log: `Slice0 PROXY collision muted Count=23 KeptGround=1 ByTag=0 ByLabel=24` on the current untagged editor map (24 `PROXY_*` labels: 23 muted plus the kept floor). Muted actors must not appear in the click HitLog. The ray still walks ECC_Pawn past the unregistered floor and past sim actors whose `TeamId` is not the local player team, and selects the first local-team sim actor. A ray that only hits the floor clears selection. Drags shorter than `BoxSelectDragThresholdPx` (6) stay on this path. PIE log: `ClickSelectAtCursor LocalSelection=… Picked=… Hits=Actor(Pawn,sim=0|1,id=…,loc=…)`. An empty floor click logs the floor object name (`UEDPIE_0_StaticMeshActor_0` in PIE, `sim=0`) and `Picked=None`. `GetActorNameOrLabel` returns the outliner label only in editor builds; a packaged run sees `StaticMeshActor_*` and will not match these labels. The map needs tags (Director tooling, not this PR): `PROXY_GROUND` → `KodGround`; every other `PROXY_*` → `KodGreybox`; the `PROXY_HOSTILE` label also gets `KodHostileAnchor`. After that, the same mute log counts those actors as `ByTag` and `ByLabel=0`.
 - [ ] Drag-select. LMB drag at or past 6px shows an orange screen rect on `AKodHUD` (`DrawRect` / `DrawLine`, engine white texture, no Content asset). On release, every local-team sim actor (not a foreign `TeamId`) whose viewport projection lies inside that rect is selected. The hostile test Ranger is left out, so it does not take the selection rim. A fresh drag replaces the selection; Left Shift adds (same as click). An empty box clears unless Shift is held. The rim overlay updates for the whole set. PIE: `DragSelect LocalSelection=… Additive=0|1 Box=x0,y0-x1,y1 Hits=Name(id=…,screen=…,…)|none` then `SelectionHighlight LocalSelection=… Meshes=… Overlay=1 Stencil=1`
 - [ ] Right-click the floor → Move to the **first** cursor ImpactPoint (that ImpactPoint, not the actor pivot). `PROXY_GROUND` stays BlockAll, so the hit is the floor object name on ECC_Pawn (`sim=0`). Other `PROXY_*` meshes (CC, Dozer, crate, dock, pads, bounds, dirt, labels) are still `NoCollision` and are not that first Pawn hit. The ray walks past any remaining unregistered Pawn blocker the same way click-select does: a sim-registered actor on the ray that is not the current selection → Attack. Self / selection is not an attack target (Move at the first ImpactPoint instead). If ECC_Pawn hits nothing, `GetGroundHitUnderCursor` (ECC_Visibility) still hits the floor. PIE: `RMB Move LocalSelection=… Dest=x,y,z Hit=UEDPIE_0_StaticMeshActor_0 sim=0` then `Move Issued Sources=… Dest=…`, or `RMB Attack LocalSelection=… Target=… Id=…` then `Attack Issued Sources=… Target=… Id=…`. `RMB Miss none` means the floor was muted. `Attack Reject NonSim` means the pivot fallback did not run. A missed floor logs `Slice0 PROXY ground floor not kept (tag KodGround or label PROXY_GROUND). Floor traces will miss.`
-- [ ] Right-click the red hostile → Attack hitscan (RangerRifle damage 12 / range 900). Select the smoke Ranger (team 0), RMB the red cube: `RMB Attack LocalSelection=… Target=… Id=…` then `Attack Issued Sources=… Target=… Id=…`. The hostile does not shoot back. Each hit logs `KodSim Hit Target=… Id=… HP=…` (120, then 108, …, 0). HP reaches 0 after 10 hits and the attacker clears the order. The red cube stays (Slice 0 does not despawn). Clicking or drag-selecting the hostile does not add it or paint the rim.
+- [ ] Right-click the red hostile → Attack hitscan (RangerRifle damage 12 / range 900). Select the smoke Ranger (team 0), RMB the red cube: `RMB Attack LocalSelection=… Target=… Id=…` then `Attack Issued Sources=… Target=… Id=…`. If `/Game/Warden/Data/RangerRifle` is missing, spawn also logs one `KodWeapon fallback RangerRifle Damage=12 Range=900 Cooldown=0.8125`. The hostile does not shoot back. The attacker faces the hostile (walks in first when farther than 900; the default anchors are inside 900 and fire in place). Each shot logs `KodSim Fire Attacker=… Target=… Tick=…` then `KodSim Hit Target=… Id=… HP=…` with remaining HP 108, 96, 84, 72, 60, 48, 36, 24, 12, 0. On the screen: orange muzzle flash and yellow tracer each shot, a white flash and a small jiggle on the red cube, a green bar over the selected Ranger, and a red bar over the hostile once it is damaged. The tenth hit logs `KodSim Kill Target=… Id=…` then `KodUnit Death <Name>`. The order clears in that step, the hostile unregisters, sinks into the floor over ~1.5 s, and the actor is destroyed. Clicking or drag-selecting the hostile does not add it or paint the rim. After the kill it is not selectable or attackable.
 - [ ] Selected actors keep their own materials and gain a glow rim. The rim is the local translucent unlit Fresnel material `/Game/Warden/FX/Selection/M_SelectionRim.M_SelectionRim` (parameters RimColor, RimIntensity, RimExponent), loaded by soft object path and applied with `UMeshComponent::SetOverlayMaterial`. It is not committed as a `.uasset`. Material slots are not replaced. Custom depth stays on (`SetRenderCustomDepth(true)`, stencil `1`) so a later post-process outline can use it. Clearing or replacing the selection calls `SetOverlayMaterial(nullptr)` and restores the previous custom depth and stencil. If the rim fails to load, a warning is logged once and only the stencil is applied (no tint). `DefaultEngine.ini` sets `r.CustomDepth=3` so the stencil is written. PIE: `SelectionHighlight LocalSelection=… Meshes=… Overlay=1 Stencil=1` (`Overlay=0` when the material is missing).
-- [ ] One Ranger walks; arrival stops in acceptance radius. While it moves, the body bobs (about 3.5 cm at 2.5 Hz) and the body yaw turns to face the move at 540 deg/s, easing level when it stops. Attacking turns yaw toward the hostile. Spawn log, once per unit: `KodUnitLife <Name> Bob=3.5 Turn=540`
-- [ ] Idle hash stable across frames when no orders. Bob, visual yaw, and `TeamId` are not hashed. The hostile is a second entity, so the hash value differs from a one-Ranger world; with no orders it still stays stable across frames.
+- [ ] One Ranger walks; arrival stops in acceptance radius. While it moves, the body bobs (about 3.5 cm at 2.5 Hz) and the body yaw turns to face the move at 540 deg/s, easing level when it stops. Attacking turns yaw toward the hostile and holds that facing between shots. Spawn log, once per unit: `KodUnitLife <Name> Bob=3.5 Turn=540`
+- [ ] Idle hash stable across frames when no orders. Bob, visual yaw, muzzle flash, tracer, hit jiggle, death sink, HP bars, and `TeamId` are not hashed. The hostile is a second entity, so the hash value differs from a one-Ranger world; with no orders it still stays stable across frames. A kill removes that entity from the hash; after the attacker clears its order the hash is stable again.
 - [ ] HP from DA (Ranger 120) — no hardcoded HP in unit Tick
 - [ ] Soft path or bootstrap resolves all six ids
 - [ ] Ranger body uses `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body` when that static mesh is imported and set on `/Game/Warden/Data/Ranger`. The static body is auto-scaled to about 170 cm from mesh bounds (meter-import band-aid). Until the mesh is set, the unit stays the Engine cube (`KodUnitBody … Source=Cube`). Select / move / drag-select stay on the existing QueryOnly Pawn body. PIE: `KodUnitBody … Source=StaticMesh Mesh=SM_Ranger_Body` and a visible human-sized Ranger. The hostile test unit is the exception: it is forced to the cube (`KodUnitBody … Source=Cube`) with a red `BasicShapeMaterial` MID even when that static mesh loads.
-- [ ] Hostile spawn. PIE: `Slice0 Hostile spawned Name=… Team=1 Loc=… Anchor=PROXY_HOSTILE` when the label or `KodHostileAnchor` tag is present, otherwise `Anchor=fallback` at `(1200, 600, 100)`. Red cube, no auto-attack.
+- [ ] Hostile spawn. PIE: `Slice0 Hostile spawned Name=… Team=1 Loc=… Anchor=PROXY_HOSTILE` when the label or `KodHostileAnchor` tag is present, otherwise `Anchor=fallback` at `(1200, 600, 100)`. Red cube, no auto-attack. After it is killed it sinks and is destroyed (`KodUnit Death`).
 
 ## Blockers
 

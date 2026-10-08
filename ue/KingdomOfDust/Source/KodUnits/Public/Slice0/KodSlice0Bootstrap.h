@@ -33,6 +33,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
 	static UKodWeaponDefinition* ResolveWeapon(FName DefinitionId, UObject* Outer = nullptr);
 
+	/**
+	 * Combat numbers for RangerRifle.
+	 * Loads /Game/Warden/Data/RangerRifle when that asset exists.
+	 * On a miss, fills the code default (Damage 12, Range 900, 13 sim ticks = 0.8125s)
+	 * and logs one warning for this world:
+	 * KodWeapon fallback RangerRifle Damage=12 Range=900 Cooldown=0.8125
+	 * LogWorld scopes that warning to the current PIE world. Null logs every call.
+	 */
+	static void ResolveRangerRifleCombatStats(float& OutDamage, float& OutRange, float& OutCooldownSeconds, UWorld* LogWorld = nullptr);
+
 	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
 	static UKodUnitDefinition* ResolveUnit(FName DefinitionId, UObject* Outer = nullptr);
 

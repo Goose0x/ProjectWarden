@@ -1,6 +1,8 @@
 #include "Game/KodHUD.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/CapsuleComponent.h"
 #include "Game/KodPlayerController.h"
+#include "Sim/KodSimSubsystem.h"
 
 AKodHUD::AKodHUD()
 {
@@ -9,7 +11,88 @@ AKodHUD::AKodHUD()
 void AKodHUD::DrawHUD()
 {
 	Super::DrawHUD();
+	DrawUnitHealthBars();
 	DrawSelectionMarquee();
+}
+
+void AKodHUD::DrawUnitHealthBars()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	APlayerController* OwningPC = GetOwningPlayerController();
+	if (!World || !OwningPC)
+	{
+		return;
+	}
+
+	UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>();
+	if (!Sim)
+	{
+		return;
+	}
+
+	TSet<const AActor*> Selected;
+	if (const AKodPlayerController* KodPC = Cast<AKodPlayerController>(OwningPC))
+	{
+		for (const AActor* SelectedActor : KodPC->GetLocalSelection())
+		{
+			if (SelectedActor)
+			{
+				Selected.Add(SelectedActor);
+			}
+		}
+	}
+
+	TArray<FKodSimEntityState> States;
+	TArray<AActor*> BarActors;
+	Sim->CopyEntitySnapshot(States, BarActors);
+
+	constexpr float BarWidth = 60.f;
+	constexpr float BarHeight = 7.f;
+	const int32 Count = FMath::Min(States.Num(), BarActors.Num());
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const FKodSimEntityState& HpState = States[Index];
+		AActor* BarActor = BarActors[Index];
+		if (!BarActor || HpState.MaxHealth <= KINDA_SMALL_NUMBER)
+		{
+			continue;
+		}
+
+		const bool bFull = HpState.Health >= HpState.MaxHealth - 0.5f;
+		const bool bSelected = Selected.Contains(BarActor);
+		if (bFull && !bSelected)
+		{
+			continue;
+		}
+
+		float ExtraZ = 120.f;
+		if (const UCapsuleComponent* Capsule = BarActor->FindComponentByClass<UCapsuleComponent>())
+		{
+			ExtraZ = Capsule->GetScaledCapsuleHalfHeight() + 24.f;
+		}
+		const FVector Anchor = BarActor->GetActorLocation() + FVector(0.f, 0.f, ExtraZ);
+
+		FVector2D Screen;
+		if (!OwningPC->ProjectWorldLocationToScreen(Anchor, Screen, true))
+		{
+			continue;
+		}
+
+		const float Fraction = FMath::Clamp(HpState.Health / HpState.MaxHealth, 0.f, 1.f);
+		const float Left = Screen.X - (BarWidth * 0.5f);
+		const float Top = Screen.Y - BarHeight;
+		const FLinearColor Background(0.04f, 0.04f, 0.04f, 0.85f);
+		const FLinearColor Fill = (HpState.TeamId == 0)
+			? FLinearColor(0.15f, 0.82f, 0.28f, 0.95f)
+			: FLinearColor(0.86f, 0.12f, 0.1f, 0.95f);
+		DrawRect(Background, Left, Top, BarWidth, BarHeight);
+		DrawRect(Fill, Left, Top, BarWidth * Fraction, BarHeight);
+	}
 }
 
 void AKodHUD::DrawSelectionMarquee()
