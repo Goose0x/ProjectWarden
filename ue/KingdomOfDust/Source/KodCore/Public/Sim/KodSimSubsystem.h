@@ -3,7 +3,6 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Tickable.h"
-#include "Engine/EngineBaseTypes.h"
 #include "Sim/KodEntityId.h"
 #include "Sim/KodBuildTicks.h"
 #include "KodSimSubsystem.generated.h"
@@ -99,12 +98,6 @@ public:
 	virtual TStatId GetStatId() const override;
 	virtual bool IsTickable() const override { return true; }
 	virtual bool IsTickableInEditor() const override { return false; }
-
-	/**
-	 * DuringPhysics so SyncActorPresentation lands before AKodUnit's PostUpdateWork
-	 * life tick (visual bob and yaw). Those do not write this subsystem.
-	 */
-	virtual ETickingGroup GetTickGroup() const override { return TG_DuringPhysics; }
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	FKodEntityId RegisterEntity(AActor* Actor);

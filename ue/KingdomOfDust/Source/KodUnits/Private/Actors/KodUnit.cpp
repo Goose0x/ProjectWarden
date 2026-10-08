@@ -28,17 +28,17 @@ namespace
 	// time, so the threshold sits above that and still sees a walk.
 	constexpr float LifeMoveSpeedThreshold = 200.f;
 
-	bool IsEngineCubeMesh(const UStaticMesh* Mesh)
+	bool IsEngineCubeMesh(const UStaticMesh* BodyStaticMesh)
 	{
-		return Mesh && Mesh->GetPathName().Contains(TEXT("/Engine/BasicShapes/Cube"));
+		return BodyStaticMesh && BodyStaticMesh->GetPathName().Contains(TEXT("/Engine/BasicShapes/Cube"));
 	}
 }
 
 AKodUnit::AKodUnit()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	// After UKodSimSubsystem::SyncActorPresentation (DuringPhysics). That sync snaps actor
-	// yaw to the sim facing; this tick then eases a visual yaw on top and bobs UnitMesh.
+	// Best-effort late tick. Bob and facing are UnitMesh relative offsets, so they
+	// still show if this runs before the sim sync (one frame late) or after it.
 	// Neither write touches FKodSimEntityState or ComputeIdleHash.
 	PrimaryActorTick.TickGroup = TG_PostUpdateWork;
 
@@ -173,8 +173,8 @@ float AKodUnit::GetScaledBobAmplitudeCm() const
 	{
 		return Base;
 	}
-	const UStaticMesh* Mesh = UnitMesh->GetStaticMesh();
-	if (!Mesh)
+	const UStaticMesh* BodyStaticMesh = UnitMesh->GetStaticMesh();
+	if (!BodyStaticMesh)
 	{
 		return Base;
 	}
@@ -182,7 +182,7 @@ float AKodUnit::GetScaledBobAmplitudeCm() const
 	// Parent-space offset, on top of RelativeScale3D. Scale the cm amplitude by
 	// world height / 170 so a non-human body bobs in proportion. The cube (100 cm
 	// mesh at 1.7) and the auto-scaled Ranger (~170 cm) both stay near BobAmplitudeCm.
-	const double MeshHeight = Mesh->GetBounds().BoxExtent.Z * 2.0;
+	const double MeshHeight = BodyStaticMesh->GetBounds().BoxExtent.Z * 2.0;
 	const double WorldHeight = MeshHeight * UnitMesh->GetRelativeScale3D().Z;
 	if (!FMath::IsFinite(WorldHeight) || WorldHeight <= static_cast<double>(KINDA_SMALL_NUMBER))
 	{
@@ -232,15 +232,17 @@ void AKodUnit::UpdateLifePresentation(float DeltaSeconds)
 		VisualYaw = Smoothed.Yaw;
 	}
 
-	FRotator Rot = GetActorRotation();
-	Rot.Yaw = VisualYaw;
-	// Teleport so the yaw catch-up does not sweep the capsule and nudge sim presentation.
-	SetActorRotation(Rot, ETeleportType::TeleportPhysics);
-
 	if (!UnitMesh)
 	{
 		return;
 	}
+
+	// Sim sync writes actor yaw. Keep the eased facing on the body mesh so it
+	// survives whichever tick runs last. If we run first, the offset is one
+	// frame behind the sim yaw the sync is about to write.
+	FRotator BodyRelRotation = UnitMesh->GetRelativeRotation();
+	BodyRelRotation.Yaw = FMath::UnwindDegrees(VisualYaw - GetActorRotation().Yaw);
+	UnitMesh->SetRelativeRotation(BodyRelRotation);
 
 	const float TargetWeight = bMoving ? 1.f : 0.f;
 	const float Ease = FMath::Max(0.f, BobEaseSpeed);

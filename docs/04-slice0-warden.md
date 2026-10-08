@@ -89,18 +89,18 @@ Select collision is unchanged: after the mesh swap, `UnitMesh` is set again to t
 
 ## Placeholder life (presentation only)
 
-`AKodUnit` ticks in `TG_PostUpdateWork`, after `UKodSimSubsystem` syncs pose in `TG_DuringPhysics`. While the actor is actually moving (horizontal speed at or above 200 cm/s, so a 1 uu idle quantize snap does not count), `UnitMesh` bobs on **relative location** — an offset on top of the existing relative-location-0 attach. It does not change `RelativeScale3D`.
+`AKodUnit` ticks in `TG_PostUpdateWork`. The sim subsystem does not expose a tick-group override in UE 5.8, so this may run before or after pose sync. Bob and facing are `UnitMesh` relative offsets and still show either way (one frame late if the life tick runs first). While the actor is actually moving (horizontal speed at or above 200 cm/s, so a 1 uu idle quantize snap does not count), `UnitMesh` bobs on **relative location** — an offset on top of the existing relative-location-0 attach. It does not change `RelativeScale3D`.
 
 | Tunable | Default | Role |
 |---------|---------|------|
 | `BobAmplitudeCm` | 3.5 | Centimetres, before the height scale |
 | `BobFrequencyHz` | 2.5 | Walking cadence |
 | `BobEaseSpeed` | 8 | Eases the bob in while moving and back to the rest attach when stopped |
-| `TurnRateDegreesPerSecond` | 540 | `RInterpConstantTo` on actor yaw |
+| `TurnRateDegreesPerSecond` | 540 | `RInterpConstantTo` on body yaw (`UnitMesh` relative) |
 
 The amplitude is multiplied by `(mesh local height × RelativeScale3D.Z) / 170`. The Engine cube (100 cm at scale 1.7) and `MountResolvedStaticMesh`'s ~170 cm Ranger both stay near `BobAmplitudeCm`. Sine weight eases to 0 at rest and the mesh relative location is put back on the captured attach point.
 
-Visual yaw chases sim `YawDegrees` (movement facing, and the attack target while the hitscan holds range). The sim value is not written. `SetActorRotation` uses teleport so the catch-up does not sweep the capsule.
+Visual yaw chases sim `YawDegrees` (movement facing, and the attack target while the hitscan holds range) and is applied as `UnitMesh` relative yaw, not `SetActorRotation`. The sim value is not written. The actor yaw stays the sim facing.
 
 Once per unit at BeginPlay: `KodUnitLife <Name> Bob=3.5 Turn=540` (the tunables, not the height-scaled amplitude).
 
@@ -168,7 +168,7 @@ A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDu
 - [ ] Right-click the floor → Move to the **first** cursor ImpactPoint (that ImpactPoint, not the actor pivot). `PROXY_GROUND` stays BlockAll, so the hit is the floor object name on ECC_Pawn (`sim=0`). Other `PROXY_*` meshes (CC, Dozer, crate, dock, pads, bounds, dirt, labels) are still `NoCollision` and are not that first Pawn hit. The ray walks past any remaining unregistered Pawn blocker the same way click-select does: a sim-registered actor on the ray that is not the current selection → Attack. Self / selection is not an attack target (Move at the first ImpactPoint instead). If ECC_Pawn hits nothing, `GetGroundHitUnderCursor` (ECC_Visibility) still hits the floor. PIE: `RMB Move LocalSelection=… Dest=x,y,z Hit=UEDPIE_0_StaticMeshActor_0 sim=0` then `Move Issued Sources=… Dest=…`, or `RMB Attack LocalSelection=… Target=… Id=…` then `Attack Issued Sources=… Target=… Id=…`. `RMB Miss none` means the floor was muted. `Attack Reject NonSim` means the pivot fallback did not run. A missed floor logs `Slice0 PROXY ground floor not kept (tag KodGround or label PROXY_GROUND). Floor traces will miss.`
 - [ ] Right-click the red hostile → Attack hitscan (RangerRifle damage 12 / range 900). Select the smoke Ranger (team 0), RMB the red cube: `RMB Attack LocalSelection=… Target=… Id=…` then `Attack Issued Sources=… Target=… Id=…`. The hostile does not shoot back. Each hit logs `KodSim Hit Target=… Id=… HP=…` (120, then 108, …, 0). HP reaches 0 after 10 hits and the attacker clears the order. The red cube stays (Slice 0 does not despawn). Clicking or drag-selecting the hostile does not add it or paint the rim.
 - [ ] Selected actors keep their own materials and gain a glow rim. The rim is the local translucent unlit Fresnel material `/Game/Warden/FX/Selection/M_SelectionRim.M_SelectionRim` (parameters RimColor, RimIntensity, RimExponent), loaded by soft object path and applied with `UMeshComponent::SetOverlayMaterial`. It is not committed as a `.uasset`. Material slots are not replaced. Custom depth stays on (`SetRenderCustomDepth(true)`, stencil `1`) so a later post-process outline can use it. Clearing or replacing the selection calls `SetOverlayMaterial(nullptr)` and restores the previous custom depth and stencil. If the rim fails to load, a warning is logged once and only the stencil is applied (no tint). `DefaultEngine.ini` sets `r.CustomDepth=3` so the stencil is written. PIE: `SelectionHighlight LocalSelection=… Meshes=… Overlay=1 Stencil=1` (`Overlay=0` when the material is missing).
-- [ ] One Ranger walks; arrival stops in acceptance radius. While it moves, the body bobs (about 3.5 cm at 2.5 Hz) and actor yaw turns to face the move at 540 deg/s, easing level when it stops. Attacking turns yaw toward the hostile. Spawn log, once per unit: `KodUnitLife <Name> Bob=3.5 Turn=540`
+- [ ] One Ranger walks; arrival stops in acceptance radius. While it moves, the body bobs (about 3.5 cm at 2.5 Hz) and the body yaw turns to face the move at 540 deg/s, easing level when it stops. Attacking turns yaw toward the hostile. Spawn log, once per unit: `KodUnitLife <Name> Bob=3.5 Turn=540`
 - [ ] Idle hash stable across frames when no orders. Bob, visual yaw, and `TeamId` are not hashed. The hostile is a second entity, so the hash value differs from a one-Ranger world; with no orders it still stays stable across frames.
 - [ ] HP from DA (Ranger 120) — no hardcoded HP in unit Tick
 - [ ] Soft path or bootstrap resolves all six ids
