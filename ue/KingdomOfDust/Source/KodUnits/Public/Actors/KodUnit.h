@@ -57,9 +57,10 @@ public:
 	float BobEaseSpeed = 8.f;
 
 	/**
-	 * Visual actor yaw catch-up in degrees per second (RInterpConstantTo).
-	 * Faces sim movement direction, and the attack target while attacking.
-	 * Does not write FKodSimEntityState::YawDegrees.
+	 * Visual body-yaw catch-up in degrees per second (RInterpConstantTo).
+	 * Applied as a UnitMesh relative yaw so it still shows if this tick runs
+	 * before or after the sim sync. Faces sim movement, and the attack target
+	 * while attacking. Does not write FKodSimEntityState::YawDegrees.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Presentation")
 	float TurnRateDegreesPerSecond = 540.f;
