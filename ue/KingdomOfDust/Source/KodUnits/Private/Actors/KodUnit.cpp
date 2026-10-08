@@ -129,6 +129,9 @@ AKodUnit::AKodUnit()
 	// Neither write touches FKodSimEntityState or ComputeIdleHash.
 	PrimaryActorTick.TickGroup = TG_PostUpdateWork;
 
+	FriendlyTeamColor = FLinearColor(FColor(0x5A, 0x60, 0x68));
+	HostileTeamColor = FLinearColor(FColor(0xB3, 0x26, 0x1E));
+
 	AbilitySystemComponent = CreateDefaultSubobject<UKodAbilitySystemComponent>(TEXT("AbilitySystem"));
 	AbilitySystemComponent->SetIsReplicated(true);
 
@@ -263,12 +266,151 @@ void AKodUnit::ApplyHostileCubeTint()
 
 	// BasicShapeMaterial uses Color. BaseColor covers a parent that uses the other name.
 	// Slot 0 only — no SetOverlayMaterial, so the selection rim (stencil 1) stays free.
-	const FLinearColor HostileRed(0.75f, 0.02f, 0.02f, 1.f);
+	const FLinearColor HostileRed = HostileTeamColor;
 	MID->SetVectorParameterValue(TEXT("Color"), HostileRed);
 	MID->SetVectorParameterValue(TEXT("BaseColor"), HostileRed);
 	UnitMesh->SetMaterial(0, MID);
 	BodyTintMID = MID;
 	BodyRestColor = HostileRed;
+	bTeamColorApplied = false;
+}
+
+namespace
+{
+	bool MaterialHasVectorParam(const UMaterialInterface* Source, FName ParamName)
+	{
+		if (!Source || ParamName.IsNone())
+		{
+			return false;
+		}
+		TArray<FMaterialParameterInfo> Infos;
+		TArray<FGuid> Ids;
+		Source->GetAllParameterInfoOfType(EMaterialParameterType::Vector, Infos, Ids);
+		for (const FMaterialParameterInfo& Info : Infos)
+		{
+			if (Info.Name == ParamName)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
+const TCHAR* AKodUnit::GetMountedBodyName() const
+{
+	if (bSkeletalBody)
+	{
+		return TEXT("Skeletal");
+	}
+	if (UnitMesh && IsEngineCubeMesh(UnitMesh->GetStaticMesh()))
+	{
+		return TEXT("Cube");
+	}
+	return TEXT("StaticMesh");
+}
+
+void AKodUnit::WriteBodyTint(const FLinearColor& Tint)
+{
+	if (!BodyTintMID)
+	{
+		return;
+	}
+	if (bTeamColorApplied)
+	{
+		BodyTintMID->SetVectorParameterValue(TEXT("TeamColor"), Tint);
+	}
+	BodyTintMID->SetVectorParameterValue(TEXT("Color"), Tint);
+	BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), Tint);
+}
+
+void AKodUnit::ApplyColorTintFallback(UMeshComponent* VisualBody, const FLinearColor& Tint)
+{
+	if (!VisualBody)
+	{
+		return;
+	}
+
+	UMaterialInterface* Source = nullptr;
+	if (!bSkeletalBody && UnitMesh && IsEngineCubeMesh(UnitMesh->GetStaticMesh()))
+	{
+		Source = LoadObject<UMaterialInterface>(nullptr, BasicShapeMaterialPath);
+	}
+	if (!Source)
+	{
+		Source = VisualBody->GetMaterial(0);
+	}
+	if (!Source)
+	{
+		return;
+	}
+
+	UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Source, this);
+	if (!MID)
+	{
+		return;
+	}
+	MID->SetVectorParameterValue(TEXT("Color"), Tint);
+	MID->SetVectorParameterValue(TEXT("BaseColor"), Tint);
+	VisualBody->SetMaterial(0, MID);
+	BodyTintMID = MID;
+	BodyRestColor = Tint;
+	bTeamColorApplied = false;
+}
+
+void AKodUnit::ApplyTeamColor()
+{
+	const FLinearColor Tint = (TeamId == 0) ? FriendlyTeamColor : HostileTeamColor;
+	UMeshComponent* VisualBody = nullptr;
+	if (bSkeletalBody)
+	{
+		if (USkeletalMeshComponent* SkelBody = GetMesh())
+		{
+			if (!SkelBody->bHiddenInGame)
+			{
+				VisualBody = SkelBody;
+			}
+		}
+	}
+	if (!VisualBody)
+	{
+		VisualBody = UnitMesh;
+	}
+	if (!VisualBody)
+	{
+		return;
+	}
+
+	bTeamColorApplied = false;
+	BodyTintMID = nullptr;
+	const FName TeamParam(TEXT("TeamColor"));
+	const int32 SlotCount = VisualBody->GetNumMaterials();
+	for (int32 SlotIndex = 0; SlotIndex < SlotCount; ++SlotIndex)
+	{
+		UMaterialInterface* Source = VisualBody->GetMaterial(SlotIndex);
+		if (!MaterialHasVectorParam(Source, TeamParam))
+		{
+			continue;
+		}
+		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Source, this);
+		if (!MID)
+		{
+			continue;
+		}
+		MID->SetVectorParameterValue(TeamParam, Tint);
+		VisualBody->SetMaterial(SlotIndex, MID);
+		bTeamColorApplied = true;
+		if (!BodyTintMID)
+		{
+			BodyTintMID = MID;
+			BodyRestColor = Tint;
+		}
+	}
+	if (bTeamColorApplied || TeamId == 0)
+	{
+		return;
+	}
+	ApplyColorTintFallback(VisualBody, Tint);
 }
 
 float AKodUnit::GetScaledBobAmplitudeCm() const
@@ -931,11 +1073,7 @@ void AKodUnit::AdvanceAttackPresentation(float DeltaSeconds)
 		if (HitReactRemaining <= 0.f)
 		{
 			HitJiggleLocal = FVector::ZeroVector;
-			if (BodyTintMID)
-			{
-				BodyTintMID->SetVectorParameterValue(TEXT("Color"), BodyRestColor);
-				BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), BodyRestColor);
-			}
+			WriteBodyTint(BodyRestColor);
 		}
 	}
 }
@@ -1037,15 +1175,13 @@ void AKodUnit::HandleUnitHit(AActor* Attacker, AActor* Target, float /*Health*/,
 	}
 
 	EnsureBodyTint();
-	const bool bRestIsRed = BodyRestColor.R > 0.5f && BodyRestColor.G < 0.3f && BodyRestColor.B < 0.3f;
+	const bool bRestIsRed = BodyRestColor.R > BodyRestColor.G * 2.f
+		&& BodyRestColor.R > BodyRestColor.B * 2.f
+		&& BodyRestColor.R > 0.15f;
 	const FLinearColor FlashColor = bRestIsRed
 		? FLinearColor::White
 		: FLinearColor(1.f, 0.15f, 0.12f, 1.f);
-	if (BodyTintMID)
-	{
-		BodyTintMID->SetVectorParameterValue(TEXT("Color"), FlashColor);
-		BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), FlashColor);
-	}
+	WriteBodyTint(FlashColor);
 
 	FVector Away = FVector::ForwardVector;
 	if (Attacker && Attacker != this)

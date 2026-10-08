@@ -14,6 +14,7 @@ class UKodAttackComponent;
 class USkeletalMesh;
 class UStaticMesh;
 class UStaticMeshComponent;
+class UMeshComponent;
 class UPointLightComponent;
 class UMaterialInstanceDynamic;
 class UKodSimSubsystem;
@@ -43,6 +44,14 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, Category = "Kod|Team")
 	int32 TeamId = 0;
+
+	/** USA gunmetal #5A6068. Used when the body material has a TeamColor vector param. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Team")
+	FLinearColor FriendlyTeamColor;
+
+	/** Hostile red #B3261E. Same TeamColor param. Editable per unit. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Team")
+	FLinearColor HostileTeamColor;
 
 	/**
 	 * Vertical bob amplitude on UnitMesh, in cm, before the 170 cm body-height scale.
@@ -83,6 +92,17 @@ public:
 	 * Sets Color and BaseColor. BasicShapeMaterial honors Color. Presentation only.
 	 */
 	void ApplyHostileCubeTint();
+
+	/**
+	 * Team tint after the body is mounted. Sets TeamColor on a dynamic MID when the
+	 * material has that vector param (TeamMask lives on the material). Otherwise team 1
+	 * uses the Color/BaseColor tint. Team 0 with no TeamColor param is left untinted.
+	 * Does not write sim state.
+	 */
+	void ApplyTeamColor();
+
+	/** Skeletal, or Cube when the skeletal soft ref did not load. StaticMesh if that body won. */
+	const TCHAR* GetMountedBodyName() const;
 
 	/** True after death presentation starts, including a skeletal clip hold before the sink. */
 	bool IsDeathSinking() const { return bDeathSinking; }
@@ -129,6 +149,8 @@ protected:
 	void RestoreDefaultCapsule();
 	void AdvanceAttackPresentation(float DeltaSeconds);
 	void EnsureBodyTint();
+	void WriteBodyTint(const FLinearColor& Tint);
+	void ApplyColorTintFallback(UMeshComponent* VisualBody, const FLinearColor& Tint);
 	void SetBodyRelativeLocation(const FVector& Bobbed);
 	void BeginDeathPresentation();
 	/** Returns true when the actor was destroyed. */
@@ -189,6 +211,7 @@ protected:
 	TObjectPtr<UMaterialInstanceDynamic> BodyTintMID;
 
 	FLinearColor BodyRestColor = FLinearColor::White;
+	bool bTeamColorApplied = false;
 	float HitReactRemaining = 0.f;
 	FVector HitJiggleLocal = FVector::ZeroVector;
 

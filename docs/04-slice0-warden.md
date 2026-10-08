@@ -80,7 +80,7 @@ Select collision is unchanged on the static path: after the mesh swap, `UnitMesh
 
 ## Marine skeletal body (no Content in git)
 
-`UKodUnitDefinition::SkeletalMesh` wins over the static mesh when that asset loads. `bForceCubeBody` (the red hostile) still stays on the cube. Bootstrap leaves `SkeletalMesh` and `AnimClass` null, so catalog PIE is still the cube.
+`UKodUnitDefinition::SkeletalMesh` wins over the static mesh when that asset loads. The team 1 hostile uses that same Ranger definition, so it gets the same skeletal mesh and AnimBP. It is a red-team Marine stand-in until real enemy units exist. Bootstrap leaves `SkeletalMesh` and `AnimClass` null, so catalog PIE is still the cube for both. `bForceCubeBody` remains on `SpawnRanger` for a caller that must keep the cube; the hostile spawn does not set it.
 
 `MountResolvedSkeletalMesh` does not use the 170 cm static-mesh scale.
 
@@ -171,11 +171,13 @@ After PROXY mute and the smoke Ranger, `AKodSlice0GameMode::SpawnHostileTestTarg
 
 Placement: actor tag `KodHostileAnchor` first, else an actor whose name or label is `PROXY_HOSTILE` (PIE object names ending in `_PROXY_HOSTILE` count). XY comes from that actor; Z is the smoke Ranger Z (`SmokeRangerOffset.Z`, default 100) so the label's text height is not used. If neither tag nor label exists, spawn at `(1200, 600, 100)`.
 
-Visual: the hostile is **forced onto the Engine cube** and slot 0 is a dynamic instance of `/Engine/BasicShapes/BasicShapeMaterial` with `Color` and `BaseColor` set to red. `BasicShapeMaterial` honors `Color`. This does not use `SetOverlayMaterial` or custom-depth stencil, so the local selection rim (`M_SelectionRim`, stencil `1`) is untouched. The Ranger static mesh is skipped on this unit even when `/Game/Warden/Data/Ranger` has one, which keeps the tell working with no Content. `KodUnitBody … Source=Cube` on that spawn is expected.
+Visual: the hostile mounts the same body as the player Marine. When `/Game/Warden/Data/Ranger` has a skeletal mesh, both are that mesh (`Body=Skeletal`) and share `AnimClass`. If the skeletal soft ref fails, the body falls through to the static mesh, then the Engine cube, so PIE still runs before the art import (`Body=Cube`).
+
+Team colour is a dynamic material instance. `ApplyTeamColor` sets the vector param **TeamColor** on every slot that has it. The material's TeamMask texture stays on the asset; this code only sets the vector. Team 0 defaults to USA gunmetal `#5A6068` (`FriendlyTeamColor`). Team 1 defaults to `#B3261E` (`HostileTeamColor`). Both are editable on `AKodUnit`. If no slot has `TeamColor`, team 1 falls back to the old `Color` / `BaseColor` tint (BasicShapeMaterial on the cube). Team 0 stays untinted in that case. The selection rim is still an overlay, not a slot replace.
 
 Click-select and drag-select only take sim actors whose `TeamId` matches `AKodPlayerState::TeamId` (default 0). The hostile is walked past and gets no rim. RMB is unchanged: a sim actor that is not the current selection, including team 1, logs `RMB Attack` and then `Attack Issued`.
 
-PIE: `Slice0 Hostile spawned Name=<name> Team=1 Loc=<x,y,z> Anchor=PROXY_HOSTILE` or `Anchor=fallback`.
+PIE: `Slice0 Hostile spawned Name=<name> Team=1 Loc=<x,y,z> Anchor=PROXY_HOSTILE Body=Skeletal` when the skeletal mesh loads, or `Body=Cube` when it does not. `Anchor=fallback` is the `(1200, 600, 100)` placement. The hostile is a red-team Marine stand-in until real enemy units exist.
 
 HP stays whatever the Ranger definition says. Bootstrap catalog `MaxHealth` is 120. A loaded `/Game/Warden/Data/Ranger` wins: the Director's PIE asset is **100** (first `KodSim Hit` remaining **88**, nine hits of 12 to reach 0). Do not hardcode HP in the unit.
 
@@ -195,7 +197,7 @@ A unit that already has Attack keeps that target. A hit on a moving or already-a
 
 Default spawn order is smoke Marine first (id 1, usually `KodUnit_0`) then the hostile (id 2, usually `KodUnit_1`). The lower id acquires `InRange` and shoots first. That hit lands while the other unit is still Idle, so the other logs `Retaliate` and shoots back the same step. Later shots do not log AutoAcquire again. Because the lower id shoots first, it lands the killing blow; the other unit has fired one fewer shot. The corpse sinks, drops out of selection if it was selected, and is unregistered. Either unit can die: team 0 uses the same death presentation and the green bar while it is damaged.
 
-Muzzle flash and tracer are per unit. The red hostile cube shows the same orange flash and yellow tracer back at the Marine. HP bars: green over team 0, red over team 1, hidden at full HP unless that unit is selected, visible on both once either has been hit.
+Muzzle flash and tracer are per unit. The hostile is the same Marine body, tinted team 1, so it plays the same fire, hit react, and death clips once the AnimBP is assigned. Before that mesh loads it is the red cube and still uses the timed muzzle flash. HP bars: green over team 0, red over team 1, hidden at full HP unless that unit is selected, visible on both once either has been hit.
 
 ### Fight test (expected PIE)
 
@@ -309,8 +311,8 @@ A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDu
 - [ ] Idle hash stable across frames when no orders. Bob, visual yaw, muzzle flash, tracer, hit jiggle, death sink, HP bars, `TeamId`, and `RetaliateTarget` are not hashed. The hostile is a second entity, so the hash value differs from a one-unit world. Auto-acquire gives both units an Attack order, so the world is not idle during the fight. After the kill the survivor's order is clear and the hash is stable again.
 - [ ] HP from DA (Ranger 120) — no hardcoded HP in unit Tick
 - [ ] Soft path or bootstrap resolves all six ids
-- [ ] Ranger body uses `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body` when that static mesh is imported and set on `/Game/Warden/Data/Ranger`. The static body is auto-scaled to about 170 cm from mesh bounds (meter-import band-aid). A skeletal mesh on that asset wins: yaw 0, scale 1, soles on a 34×90 capsule, log `KodUnitBody … Source=SkeletalMesh Yaw=0 Scale=1 CapsuleHH=90 Radius=34`. The hostile stays the red cube. Until either mesh is set, the unit stays the Engine cube (`KodUnitBody … Source=Cube`). Select / move / drag-select stay on the existing QueryOnly Pawn body.
-- [ ] Hostile spawn. PIE: `Slice0 Hostile spawned Name=… Team=1 Loc=… Anchor=PROXY_HOSTILE` when the label or `KodHostileAnchor` tag is present, otherwise `Anchor=fallback` at `(1200, 600, 100)`. Red cube. It auto-acquires; it does not wait for an AI controller. After it is killed it sinks and is destroyed (`KodUnit Death`). The team 0 Marine can die the same way.
+- [ ] Ranger body uses `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body` when that static mesh is imported and set on `/Game/Warden/Data/Ranger`. The static body is auto-scaled to about 170 cm from mesh bounds (meter-import band-aid). A skeletal mesh on that asset wins for **both** the player and the hostile: yaw 0, scale 1, soles on a 34×90 capsule, log `KodUnitBody … Source=SkeletalMesh Yaw=0 Scale=1 CapsuleHH=90 Radius=34`. Team 0 is gunmetal `#5A6068` and team 1 is `#B3261E` when the material has `TeamColor`. Until the skeletal mesh is set, both stay the Engine cube (`Body=Cube`); the hostile cube still tints red. Select / move / drag-select stay on the existing QueryOnly Pawn body.
+- [ ] Hostile spawn. PIE: `Slice0 Hostile spawned Name=… Team=1 Loc=… Anchor=PROXY_HOSTILE Body=Skeletal` when the label or `KodHostileAnchor` tag is present and the skeletal mesh loads, otherwise `Body=Cube`. No anchor logs `Anchor=fallback` at `(1200, 600, 100)`. Same Ranger definition as the player, red team colour, auto-acquire, death / fire / hit react when the AnimBP is assigned. The team 0 Marine can die the same way.
 
 ## Blockers
 

@@ -239,9 +239,9 @@ void AKodSlice0GameMode::SpawnHostileTestTarget()
 
 	const TCHAR* Anchor = bFoundAnchor ? TEXT("PROXY_HOSTILE") : TEXT("fallback");
 	const FTransform Transform(FRotator::ZeroRotator, Location);
-	// Same Ranger DA, enemy team, cube + red tint. No AI controller and no initial order.
-	// Sim auto-acquire engages an enemy in range, or retaliates if shot while idle.
-	AKodUnit* Hostile = UKodSlice0Bootstrap::SpawnRanger(World, Transform, HostileTeamId, /*bForceCubeBody*/ true);
+	// Same Ranger definition as the player Marine (skeletal mesh + AnimBP when they load).
+	// Cube only if that mesh soft ref misses. TeamColor tints team 1 red. No AI controller.
+	AKodUnit* Hostile = UKodSlice0Bootstrap::SpawnRanger(World, Transform, HostileTeamId, /*bForceCubeBody*/ false);
 	if (!Hostile)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Slice0 Hostile spawn failed Anchor=%s Loc=%.0f,%.0f,%.0f"),
@@ -253,11 +253,12 @@ void AKodSlice0GameMode::SpawnHostileTestTarget()
 	}
 
 	const FVector Spawned = Hostile->GetActorLocation();
-	UE_LOG(LogTemp, Log, TEXT("Slice0 Hostile spawned Name=%s Team=%d Loc=%.0f,%.0f,%.0f Anchor=%s"),
+	UE_LOG(LogTemp, Log, TEXT("Slice0 Hostile spawned Name=%s Team=%d Loc=%.0f,%.0f,%.0f Anchor=%s Body=%s"),
 		*Hostile->GetName(),
 		Hostile->TeamId,
 		Spawned.X,
 		Spawned.Y,
 		Spawned.Z,
-		Anchor);
+		Anchor,
+		Hostile->GetMountedBodyName());
 }
