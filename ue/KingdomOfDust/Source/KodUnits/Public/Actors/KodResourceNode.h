@@ -7,6 +7,7 @@
 #include "KodResourceNode.generated.h"
 
 class UStaticMeshComponent;
+class UStaticMesh;
 class UKodResourceNodeDefinition;
 
 /**
@@ -27,7 +28,10 @@ public:
 	/** Definition mesh when it loads, otherwise the engine-shape placeholder. */
 	void ApplyDefinition(const UKodResourceNodeDefinition* Def);
 
-	/** Cone (Jadeite) or squat cylinder (Oil) on BasicShapeMaterial. */
+	/**
+	 * Jadeite: three engine cones, about 135 cm tall.
+	 * Oil: one engine cylinder, about 250 cm wide and low.
+	 */
 	void ApplyPlaceholder(EKodResourceType Type);
 
 	void SetEntityId(FKodEntityId Id) { EntityId = Id; }
@@ -45,8 +49,11 @@ public:
 	FName DefinitionId;
 
 protected:
-	void SitMeshOnGround();
-	void ApplyTint(const FLinearColor& Tint);
+	void ClearClusterMeshes();
+	UStaticMeshComponent* AddClusterMesh(UStaticMesh* Shape, const FVector& RelativeLocation, const FRotator& RelativeRotation, const FVector& Scale);
+	void ConfigurePlaceholderCollision(UStaticMeshComponent* Mesh) const;
+	/** Returns the parameter that took the tint. None when nothing was assigned. */
+	FName ApplyTint(UStaticMeshComponent* Mesh, const FLinearColor& Tint, bool bEmissive);
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	FKodEntityId EntityId;

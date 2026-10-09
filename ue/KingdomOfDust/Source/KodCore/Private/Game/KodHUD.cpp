@@ -129,7 +129,32 @@ void AKodHUD::DrawSelectedResourceNodes()
 	{
 		Font = GEngine->GetSmallFont();
 	}
+
+	TArray<AActor*> LabelActors;
 	for (AActor* SelectedActor : KodPC->GetLocalSelection())
+	{
+		if (!SelectedActor)
+		{
+			continue;
+		}
+		if (Sim->IsResourceNode(Sim->FindIdForActor(SelectedActor)))
+		{
+			LabelActors.AddUnique(SelectedActor);
+		}
+	}
+	FHitResult CursorHit;
+	if (OwningPC->GetHitResultUnderCursor(ECC_Pawn, true, CursorHit))
+	{
+		if (AActor* HoverActor = CursorHit.GetActor())
+		{
+			if (Sim->IsResourceNode(Sim->FindIdForActor(HoverActor)))
+			{
+				LabelActors.AddUnique(HoverActor);
+			}
+		}
+	}
+
+	for (AActor* SelectedActor : LabelActors)
 	{
 		if (!SelectedActor)
 		{
@@ -141,7 +166,10 @@ void AKodHUD::DrawSelectedResourceNodes()
 			continue;
 		}
 
-		const FVector Anchor = SelectedActor->GetActorLocation() + FVector(0.f, 0.f, 200.f);
+		const FBox Bounds = SelectedActor->GetComponentsBoundingBox(true);
+		const FVector Anchor = Bounds.IsValid
+			? FVector(Bounds.GetCenter().X, Bounds.GetCenter().Y, Bounds.Max.Z + 28.f)
+			: SelectedActor->GetActorLocation() + FVector(0.f, 0.f, 160.f);
 		FVector2D Screen;
 		if (!OwningPC->ProjectWorldLocationToScreen(Anchor, Screen, true))
 		{

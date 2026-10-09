@@ -349,8 +349,8 @@ Definitions (bootstrap `NewObject` when the uasset is missing — do not commit 
 
 | Id | Class | Amount | Harvest per trip | Placeholder |
 |----|-------|--------|------------------|-------------|
-| `JadeiteNode` | `UKodResourceNodeDefinition` | 1500 | 5 | Engine cone, BasicShapeMaterial tinted teal |
-| `OilSource` | `UKodResourceNodeDefinition` | 5000 | 4 | Engine cylinder, squat, near-black |
+| `JadeiteNode` | `UKodResourceNodeDefinition` | 1500 | 5 | Three engine cones, ~135 cm tall, saturated teal |
+| `OilSource` | `UKodResourceNodeDefinition` | 5000 | 4 | Engine cylinder, ~250 cm wide and low, `#1C1E22` |
 
 AssetManager scans `KodResourceNodeDefinition` under `/Game/Warden/Data`. A set `Mesh` that loads replaces the placeholder. Empty keeps it.
 
@@ -359,12 +359,18 @@ AssetManager scans `KodResourceNodeDefinition` under `/Game/Warden/Data`. A set 
 `AKodSlice0GameMode::SpawnResourceField` runs at the end of StartPlay.
 
 1. Actors tagged `KodResourceJadeite` or `KodResourceOil` are registered as-is (Jadeite wins if both tags are on one actor). Select collision is set back to QueryOnly Pawn after the greybox mute. Log uses `Source=Tagged` and the counts that were actually tagged.
-2. If **no** actor has either tag, a default field is spawned. Anchor is the first `PROXY_CC` label (name sort), else the first `PlayerStart`, else `SmokeRangerOffset`. Six Jadeite nodes sit on an arc of radius 800 cm (±36°), and one Oil source sits at 90° and 880 cm — all 700–900 cm from the anchor. The arc yaw steps by 45° if a spot would land within 220 cm of a Marine. Floor Z is a downward trace that ignores sim actors.
+2. If **no** actor has either tag, a default field is spawned. Anchor is the first `PROXY_CC` label (name sort), else the first `PlayerStart`, else `SmokeRangerOffset`. The six Jadeite nodes are a tight arc **facing that anchor**, on the side **away from the Marine spawns** (smoke Marine at `(400, 0)`, hostile at the `PROXY_HOSTILE` anchor — PIE on the current map is about `(700, 200)`). Neighbour spacing is **120 cm** (chord of a 720 cm radius). The Oil source sits **52°** past the end of that arc and at least **400 cm** from the nearest crystal. Each Jadeite node is three cones about **135 cm** tall. The Oil cylinder is about **250 cm** wide and **46 cm** tall. Floor Z is a downward trace that ignores sim actors.
+
+Bank is logged at the start of play. Each node then logs its tint (during the mesh setup) and one spawn line. The summary is last:
 
 ```
 KodEcon Bank Team=0 Jadeite=50 Oil=0
+KodEcon NodeTint Applied=1 Param=Color
+KodEcon Node Spawn Id=3 Type=Jadeite Loc=x,y,z
 KodEcon Nodes Jadeite=6 Oil=1 Source=Default
 ```
+
+`Param=Color` is the vector parameter that took the tint (editor placeholder, or `BasicShapeMaterial` when that parent is the one that actually has the pin). `Applied=0 Param=None` means neither parent exposed a color pin. Jadeite is unlit saturated teal. Oil is lit `#1C1E22` with roughness `0.22` and a little metal so the disc has a sheen.
 
 Tagged map (counts follow the tags):
 
@@ -376,7 +382,7 @@ KodEcon Nodes Jadeite=<n> Oil=<n> Source=Tagged
 
 `AKodHUD` adds `UKodResourceReadoutWidget` (C++, no Widget Blueprint): top-right, teal swatch + Jadeite, dark swatch + Oil, grey `0/10` supply placeholder. It reads the local team bank and does not write the sim. Supply is not a sim value yet.
 
-Clicking a node selects it (rim included) and logs `Select Node Id=<id> Type=Jadeite|Oil Remaining=<n>`. The HUD draws that name and the remaining amount above the node. RMB with Marines on a node is **Move** to the impact point (`RMB Move` then `Move Issued`). It does not log `RMB Attack`, and it does not attack a unit hidden behind the node. Auto-acquire still only picks the other Marine.
+Clicking a node selects it (rim included) and logs `Select Node Id=<id> Type=Jadeite|Oil Remaining=<n>`. The HUD draws that name and the remaining amount **only for the selected node**, and also for the node under the cursor. The label sits 28 cm above the mesh bounds, so a crystal cluster and the oil derrick do not share a label. RMB with Marines on a node is **Move** to the impact point (`RMB Move` then `Move Issued`). It does not log `RMB Attack`, and it does not attack a unit hidden behind the node. Auto-acquire still only picks the other Marine.
 
 ### PIE console
 
@@ -440,7 +446,7 @@ Director: nothing to place for this step. Optional later — tag greybox actors 
 - [ ] Soft path or bootstrap resolves all six ids
 - [ ] Ranger body uses `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body` when that static mesh is imported and set on `/Game/Warden/Data/Ranger`. The static body is auto-scaled to about 170 cm from mesh bounds (meter-import band-aid). The delivered skeletal mesh (178.9 cm, `SK_Marine_Skeleton`, import under `/Game/Warden/Units/USA/Marine/`) wins for **both** the player and the hostile: `SkeletalMeshYawOffset` default -90, scale 1, soles on a 34×90 capsule, log `KodUnitBody … Source=SkeletalMesh Yaw=-90 Scale=1 CapsuleHH=90 Radius=34`. Team 0 is sand `#D2C4B1` and team 1 is `#B3261E` when the material has `TeamColor` (palette pending Art). Until the skeletal mesh is set, both stay the Engine cube (`Body=Cube`); the hostile cube still tints red. Select / move / drag-select stay on the existing QueryOnly Pawn body.
 - [ ] Hostile spawn. PIE: `Slice0 Hostile spawned Name=… Team=1 Loc=… Anchor=PROXY_HOSTILE Body=Skeletal` when the label or `KodHostileAnchor` tag is present and the skeletal mesh loads, otherwise `Body=Cube`. No anchor logs `Anchor=fallback` at `(1200, 600, 100)`. Same Ranger definition as the player, red team colour, auto-acquire, death / fire / hit react when the AnimBP is assigned. The team 0 Marine can die the same way.
-- [ ] Economy step 1 (section above). Fresh PIE, no `KodResourceJadeite` / `KodResourceOil` tags: `KodEcon Bank Team=0 Jadeite=50 Oil=0`, then after the two Marines `KodEcon Nodes Jadeite=6 Oil=1 Source=Default`. Top-right readout: teal swatch `50`, dark swatch `0`, grey `0/10`. In that session `kod.GiveResources 100 25` logs `KodEcon Deposit Team=0 Jadeite=100 Oil=25 Bank=J150,O25` and the readout shows 150 and 25. A separate fresh PIE: `kod.HarvestNode nearest 5` (or `kod.HarvestNode 3 5` — first Jadeite node is id 3 when both Marines spawned) logs `KodEcon Deposit Team=0 Jadeite=5 Oil=0 Bank=J55,O0` and `KodEcon Node Id=3 Type=Jadeite Remaining=1495`. Click a node: `Select Node Id=… Type=Jadeite Remaining=…` plus that label above the mesh. RMB Marines onto a node: `RMB Move` and `Move Issued`, not `RMB Attack`. `kod.HarvestNode <id> 1500` on a fresh bank logs `Remaining=0` and `Bank=J1550,O0`, and the node is gone. Auto-acquire still only names the two Marines.
+- [ ] Economy step 1 (section above). Fresh PIE, no `KodResourceJadeite` / `KodResourceOil` tags: `KodEcon Bank Team=0 Jadeite=50 Oil=0`, seven `KodEcon Node Spawn Id=… Type=… Loc=…` lines, `KodEcon NodeTint Applied=1 Param=Color` on each placeholder, then `KodEcon Nodes Jadeite=6 Oil=1 Source=Default`. The six crystals are a tight arc (about 120 cm apart) on the far side of `PROXY_CC` from the Marines, teal, about 135 cm tall. The oil disc is about 250 cm wide, near-black, and at least 400 cm from the nearest crystal. Top-right readout: teal swatch `50`, dark swatch `0`, grey `0/10`. In that session `kod.GiveResources 100 25` logs `KodEcon Deposit Team=0 Jadeite=100 Oil=25 Bank=J150,O25` and the readout shows 150 and 25. A separate fresh PIE: `kod.HarvestNode nearest 5` (or `kod.HarvestNode 3 5` — first Jadeite node is id 3 when both Marines spawned) logs `KodEcon Deposit Team=0 Jadeite=5 Oil=0 Bank=J55,O0` and `KodEcon Node Id=3 Type=Jadeite Remaining=1495`. Click a node: `Select Node Id=… Type=… Remaining=…` and only that node's label, above the mesh. Hover shows the same for the node under the cursor. RMB Marines onto a node: `RMB Move` and `Move Issued`, not `RMB Attack`. `kod.HarvestNode <id> 1500` on a fresh bank logs `Remaining=0` and `Bank=J1550,O0`, and the node is gone. Auto-acquire still only names the two Marines.
 
 ## Blockers
 
