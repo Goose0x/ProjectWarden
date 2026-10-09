@@ -12,6 +12,8 @@
  * After the smoke Ranger, one hostile Ranger is spawned from the same definition.
  * It is a red-team Marine stand-in (skeletal mesh when that asset loads, cube otherwise).
  * Sim auto-acquire makes it fight back when an enemy is in weapon range.
+ * Resource nodes are registered after those two Marines (combat ids stay 1 then 2).
+ * They are selectable gather sources, not attack targets.
  *
  * World Settings class path (module KingdomOfDust, not the .uproject file name):
  * /Script/KingdomOfDust.KodSlice0GameMode
@@ -34,6 +36,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Slice0")
 	FVector SmokeRangerOffset = FVector(400.f, 0.f, 100.f);
 
+	/** Team 0 match start. Mirrors SC2's 50 minerals. Applied in StartPlay before the resource field. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
+	int32 StartingJadeite = 50;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
+	int32 StartingOil = 0;
+
 private:
 	/**
 	 * NoCollision on greybox primitives. Tags win: KodGround keeps, KodGreybox mutes.
@@ -43,4 +52,13 @@ private:
 
 	/** One enemy Ranger (team 1) at the KodHostileAnchor / PROXY_HOSTILE label. */
 	void SpawnHostileTestTarget();
+
+	/** Team 0 bank. Logs KodEcon Bank Team=0 Jadeite=.. Oil=.. */
+	void ApplyStartingResources();
+
+	/**
+	 * Tag KodResourceJadeite / KodResourceOil, or a default 6+1 field near PROXY_CC / PlayerStart.
+	 * Runs after the two Marines so their entity ids stay 1 and 2.
+	 */
+	void SpawnResourceField();
 };

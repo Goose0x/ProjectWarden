@@ -4,6 +4,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Sim/KodResourceTypes.h"
 #include "Game/KodPlayerState.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -17,10 +18,14 @@
 
 namespace
 {
-	/** TeamId on the sim entity. Missing state stays selectable (pre-team behavior). */
+	/** TeamId on the sim entity. Missing state stays selectable (pre-team behavior). Resource nodes are not local units. */
 	bool IsLocalTeamSimId(const UKodSimSubsystem* Sim, FKodEntityId Id, int32 LocalTeam)
 	{
 		if (!Sim || !Id.IsValid())
+		{
+			return false;
+		}
+		if (Sim->IsResourceNode(Id))
 		{
 			return false;
 		}
@@ -30,6 +35,20 @@ namespace
 			return true;
 		}
 		return State.TeamId == LocalTeam;
+	}
+
+	/** Local-team units, plus resource nodes (neutral, selectable, not attackable). */
+	bool IsSelectableSimId(const UKodSimSubsystem* Sim, FKodEntityId Id, int32 LocalTeam)
+	{
+		if (!Sim || !Id.IsValid())
+		{
+			return false;
+		}
+		if (Sim->IsResourceNode(Id))
+		{
+			return true;
+		}
+		return IsLocalTeamSimId(Sim, Id, LocalTeam);
 	}
 }
 
@@ -323,6 +342,11 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 		}
 
 		const FKodEntityId Id = Sim ? Sim->FindIdForActor(HitActor) : FKodEntityId();
+		// A node is never an attack target. Stop here so a unit behind it is not acquired.
+		if (Id.IsValid() && Sim && Sim->IsResourceNode(Id))
+		{
+			return Cmd;
+		}
 		if (Id.IsValid() && !IsInLocalSelection(HitActor))
 		{
 			Cmd.AttackActor = HitActor;
@@ -349,7 +373,11 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 			Cmd.HitName = HitActor ? HitActor->GetName() : TEXT("None");
 			const FKodEntityId Id = (Sim && HitActor) ? Sim->FindIdForActor(HitActor) : FKodEntityId();
 			Cmd.bSim = Id.IsValid();
-			if (Id.IsValid() && HitActor && !IsInLocalSelection(HitActor))
+			if (Id.IsValid() && Sim && Sim->IsResourceNode(Id))
+			{
+				// Move to the node. Do not attack it.
+			}
+			else if (Id.IsValid() && HitActor && !IsInLocalSelection(HitActor))
 			{
 				Cmd.AttackActor = HitActor;
 				Cmd.AttackId = Id;
@@ -426,6 +454,11 @@ void AKodPlayerController::IssueAttackToSelection_Implementation(AActor* Target)
 	{
 		// Pivot fallback used to walk the selection to the actor origin (~0,0) on greybox floors.
 		UE_LOG(LogTemp, Log, TEXT("Attack Reject NonSim Target=%s"), *Target->GetName());
+		return;
+	}
+	if (Sim->IsResourceNode(TargetId))
+	{
+		UE_LOG(LogTemp, Log, TEXT("Attack Reject Node Target=%s Id=%d"), *Target->GetName(), TargetId.Value);
 		return;
 	}
 
@@ -642,7 +675,7 @@ AActor* AKodPlayerController::TraceSelectableUnderCursor(FString& OutHitLog) con
 				Loc.Y,
 				Loc.Z);
 
-			if (Id.IsValid() && IsLocalTeamSimId(Sim, Id, LocalTeam))
+			if (IsSelectableSimId(Sim, Id, LocalTeam))
 			{
 				Result.Picked = HitActor;
 				return Result;
@@ -694,6 +727,24 @@ void AKodPlayerController::ClickSelectAtCursor(bool bAddToSelection)
 		LocalSelection.Num(),
 		Picked ? *Picked->GetName() : TEXT("None"),
 		HitLog.IsEmpty() ? TEXT("none") : *HitLog);
+
+	if (Picked)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+			{
+				FKodResourceNodeState Node;
+				if (Sim->TryGetResourceNode(Sim->FindIdForActor(Picked), Node))
+				{
+					UE_LOG(LogTemp, Log, TEXT("Select Node Id=%d Type=%s Remaining=%d"),
+						Node.Id.Value,
+						KodResourceTypeName(Node.Type),
+						Node.Remaining);
+				}
+			}
+		}
+	}
 }
 
 namespace KodSelectionHighlight
@@ -837,7 +888,7 @@ void AKodPlayerController::CollectActorsInMarquee(TArray<AActor*>& OutActors) co
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
 		AActor* Actor = *It;
-		if (!Actor || Actor == ControlledPawn || !IsLocalTeamSimId(Sim, Sim->FindIdForActor(Actor), LocalTeam))
+		if (!Actor || Actor == ControlledPawn || !IsSelectableSimId(Sim, Sim->FindIdForActor(Actor), LocalTeam))
 		{
 			continue;
 		}

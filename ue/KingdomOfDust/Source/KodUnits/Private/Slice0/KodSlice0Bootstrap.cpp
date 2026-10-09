@@ -5,6 +5,7 @@
 #include "Data/KodUnitDefinition.h"
 #include "Data/KodBuildingDefinition.h"
 #include "Data/KodFactionDefinition.h"
+#include "Data/KodResourceNodeDefinition.h"
 #include "Actors/KodUnit.h"
 #include "Warden/KodWardenPaths.h"
 #include "Sim/KodBuildTicks.h"
@@ -65,6 +66,8 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	UKodBuildingDefinition* CC = MakeCommandCenter(Catalog, Dozer);
 	UKodBuildingDefinition* Barracks = MakeBarracks(Catalog, Ranger);
 	UKodFactionDefinition* USA = MakeUSA(Catalog, CC, Dozer, Ranger);
+	UKodResourceNodeDefinition* JadeiteNode = MakeJadeiteNode(Catalog);
+	UKodResourceNodeDefinition* OilSource = MakeOilSource(Catalog);
 
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_RangerRifle), Rifle);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Ranger), Ranger);
@@ -72,6 +75,8 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_CommandCenter), CC);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Barracks), Barracks);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_USA), USA);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_JadeiteNode), JadeiteNode);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_OilSource), OilSource);
 
 	GCatalog = Catalog;
 	return Catalog;
@@ -156,6 +161,11 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::ResolveBuilding(FName DefinitionId,
 UKodFactionDefinition* UKodSlice0Bootstrap::ResolveFaction(FName DefinitionId, UObject* Outer)
 {
 	return Cast<UKodFactionDefinition>(ResolveDefinition(DefinitionId, Outer));
+}
+
+UKodResourceNodeDefinition* UKodSlice0Bootstrap::ResolveResourceNode(FName DefinitionId, UObject* Outer)
+{
+	return Cast<UKodResourceNodeDefinition>(ResolveDefinition(DefinitionId, Outer));
 }
 
 UKodWeaponDefinition* UKodSlice0Bootstrap::MakeRangerRifle(UObject* Outer)
@@ -278,6 +288,32 @@ UKodFactionDefinition* UKodSlice0Bootstrap::MakeUSA(UObject* Outer, UKodBuilding
 		F->StartingUnits.Add(Ranger);
 	}
 	return F;
+}
+
+UKodResourceNodeDefinition* UKodSlice0Bootstrap::MakeJadeiteNode(UObject* Outer)
+{
+	UKodResourceNodeDefinition* Node = NewObject<UKodResourceNodeDefinition>(Outer, FName(KodWardenPaths::Id_JadeiteNode), RF_Public | RF_Transient);
+	Node->DefinitionId = FName(KodWardenPaths::Id_JadeiteNode);
+	Node->DisplayName = NSLOCTEXT("Kod", "Resource_JadeiteNode", "Jadeite");
+	Node->NodeTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Resource.Jadeite")), false);
+	Node->ResourceType = EKodResourceType::Jadeite;
+	Node->Amount = KodEconomyDefaults::JadeiteNodeAmount;
+	Node->HarvestPerTrip = KodEconomyDefaults::JadeiteHarvestPerTrip;
+	Node->Mesh.Reset();
+	return Node;
+}
+
+UKodResourceNodeDefinition* UKodSlice0Bootstrap::MakeOilSource(UObject* Outer)
+{
+	UKodResourceNodeDefinition* Node = NewObject<UKodResourceNodeDefinition>(Outer, FName(KodWardenPaths::Id_OilSource), RF_Public | RF_Transient);
+	Node->DefinitionId = FName(KodWardenPaths::Id_OilSource);
+	Node->DisplayName = NSLOCTEXT("Kod", "Resource_OilSource", "Oil");
+	Node->NodeTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Resource.Oil")), false);
+	Node->ResourceType = EKodResourceType::Oil;
+	Node->Amount = KodEconomyDefaults::OilNodeAmount;
+	Node->HarvestPerTrip = KodEconomyDefaults::OilHarvestPerTrip;
+	Node->Mesh.Reset();
+	return Node;
 }
 
 AKodUnit* UKodSlice0Bootstrap::SpawnRanger(UWorld* World, const FTransform& Transform, int32 TeamId, bool bForceCubeBody)
