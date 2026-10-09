@@ -18,6 +18,8 @@ namespace KodWardenPaths
 	constexpr const TCHAR* Barracks = TEXT("/Game/Warden/Data/Barracks.Barracks");
 	constexpr const TCHAR* USA = TEXT("/Game/Warden/Data/USA.USA");
 	constexpr const TCHAR* JadeiteNode = TEXT("/Game/Warden/Data/JadeiteNode.JadeiteNode");
+	constexpr const TCHAR* LumineneVent = TEXT("/Game/Warden/Data/LumineneVent.LumineneVent");
+	/** Deprecated alias. Resolve still finds the vent when no OilSource uasset is loaded. */
 	constexpr const TCHAR* OilSource = TEXT("/Game/Warden/Data/OilSource.OilSource");
 
 	/** Bare FName / Primary Asset Name law strings. */
@@ -28,6 +30,8 @@ namespace KodWardenPaths
 	constexpr const TCHAR* Id_Barracks = TEXT("Barracks");
 	constexpr const TCHAR* Id_USA = TEXT("USA");
 	constexpr const TCHAR* Id_JadeiteNode = TEXT("JadeiteNode");
+	constexpr const TCHAR* Id_LumineneVent = TEXT("LumineneVent");
+	/** Deprecated catalog key. Points at the same bootstrap vent as Id_LumineneVent. */
 	constexpr const TCHAR* Id_OilSource = TEXT("OilSource");
 
 	/**

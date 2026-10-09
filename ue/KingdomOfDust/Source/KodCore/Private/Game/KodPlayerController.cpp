@@ -25,7 +25,7 @@ namespace
 		{
 			return false;
 		}
-		if (Sim->IsResourceNode(Id))
+		if (Sim->IsResourceNode(Id) || Sim->IsDropOff(Id))
 		{
 			return false;
 		}
@@ -343,8 +343,14 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 
 		const FKodEntityId Id = Sim ? Sim->FindIdForActor(HitActor) : FKodEntityId();
 		// A node is never an attack target. Stop here so a unit behind it is not acquired.
-		if (Id.IsValid() && Sim && Sim->IsResourceNode(Id))
+		// A drop-off is not an attack target either. Workers gather the node.
+		if (Id.IsValid() && Sim && (Sim->IsResourceNode(Id) || Sim->IsDropOff(Id)))
 		{
+			if (Sim->IsResourceNode(Id))
+			{
+				Cmd.GatherActor = HitActor;
+				Cmd.GatherId = Id;
+			}
 			return Cmd;
 		}
 		if (Id.IsValid() && !IsInLocalSelection(HitActor))
@@ -375,7 +381,12 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 			Cmd.bSim = Id.IsValid();
 			if (Id.IsValid() && Sim && Sim->IsResourceNode(Id))
 			{
-				// Move to the node. Do not attack it.
+				Cmd.GatherActor = HitActor;
+				Cmd.GatherId = Id;
+			}
+			else if (Id.IsValid() && Sim && Sim->IsDropOff(Id))
+			{
+				// Move to the impact. Do not attack the command center.
 			}
 			else if (Id.IsValid() && HitActor && !IsInLocalSelection(HitActor))
 			{
@@ -403,6 +414,35 @@ void AKodPlayerController::HandleRightClickCommand()
 			Cmd.AttackId.Value);
 		IssueAttackToSelection(Cmd.AttackActor);
 		return;
+	}
+	if (Cmd.GatherActor)
+	{
+		bool bAnyGatherer = false;
+		if (const UWorld* World = GetWorld())
+		{
+			if (const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+			{
+				for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+				{
+					FKodSimEntityState State;
+					if (Sim->TryGetState(Id, State) && State.bCanGather)
+					{
+						bAnyGatherer = true;
+						break;
+					}
+				}
+			}
+		}
+		if (bAnyGatherer)
+		{
+			UE_LOG(LogTemp, Log, TEXT("RMB Gather LocalSelection=%d Node=%s Id=%d"),
+				LocalSelection.Num(),
+				*Cmd.GatherActor->GetName(),
+				Cmd.GatherId.Value);
+			const FVector MovePoint = Cmd.bHasMovePoint ? Cmd.MovePoint : Cmd.GatherActor->GetActorLocation();
+			IssueGatherToSelection(Cmd.GatherActor, MovePoint);
+			return;
+		}
 	}
 	if (Cmd.bHasMovePoint)
 	{
@@ -456,7 +496,7 @@ void AKodPlayerController::IssueAttackToSelection_Implementation(AActor* Target)
 		UE_LOG(LogTemp, Log, TEXT("Attack Reject NonSim Target=%s"), *Target->GetName());
 		return;
 	}
-	if (Sim->IsResourceNode(TargetId))
+	if (Sim->IsResourceNode(TargetId) || Sim->IsDropOff(TargetId))
 	{
 		UE_LOG(LogTemp, Log, TEXT("Attack Reject Node Target=%s Id=%d"), *Target->GetName(), TargetId.Value);
 		return;
@@ -480,6 +520,54 @@ void AKodPlayerController::IssueAttackToSelection_Implementation(AActor* Target)
 		Issued,
 		*Target->GetName(),
 		TargetId.Value);
+}
+
+void AKodPlayerController::IssueGatherToSelection_Implementation(AActor* Node, FVector NonGathererMovePoint)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim || !Node)
+	{
+		return;
+	}
+	const FKodEntityId NodeId = Sim->FindIdForActor(Node);
+	if (!Sim->IsResourceNode(NodeId))
+	{
+		UE_LOG(LogTemp, Log, TEXT("Gather Reject NonNode Target=%s"), *Node->GetName());
+		return;
+	}
+
+	int32 Gathered = 0;
+	int32 Moved = 0;
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodSimEntityState State;
+		if (!Sim->TryGetState(Id, State))
+		{
+			continue;
+		}
+		if (State.bCanGather)
+		{
+			if (Sim->IssueGather(Id, NodeId))
+			{
+				++Gathered;
+			}
+		}
+		else
+		{
+			Sim->IssueMove(Id, NonGathererMovePoint);
+			++Moved;
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("Gather Issued Sources=%d Node=%d"), Gathered, NodeId.Value);
+	if (Moved > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Move Issued Sources=%d Dest=%.0f,%.0f,%.0f"),
+			Moved,
+			NonGathererMovePoint.X,
+			NonGathererMovePoint.Y,
+			NonGathererMovePoint.Z);
+	}
 }
 
 void AKodPlayerController::BeginMarquee(FVector2D ScreenPos)

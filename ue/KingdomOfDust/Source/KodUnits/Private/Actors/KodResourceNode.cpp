@@ -25,9 +25,9 @@ namespace
 	const FName ClusterTag(TEXT("KodResourceCluster"));
 	const FName ColorParamName(TEXT("Color"));
 
-	const FLinearColor JadeiteTint(0.05f, 0.95f, 0.72f, 1.f);
-	// #1C1E22, sRGB to linear. Dark metal with a highlight, not a flat black.
-	const FLinearColor OilTint(FColor(0x1C, 0x1E, 0x22));
+	const FLinearColor JadeiteTint = KodResourceColors::Jadeite();
+	const FLinearColor LumineneTint = KodResourceColors::LumineneCore();
+	const FLinearColor LumineneHighlightTint = KodResourceColors::LumineneHighlight();
 
 	const FName CandidateColorParams[] = {
 		FName(TEXT("Color")),
@@ -136,15 +136,15 @@ namespace
 	UMaterialInterface* GetEditorPlaceholderParent(bool bJadeite)
 	{
 		static TWeakObjectPtr<UMaterial> JadeiteParent;
-		static TWeakObjectPtr<UMaterial> OilParent;
-		TWeakObjectPtr<UMaterial>& Slot = bJadeite ? JadeiteParent : OilParent;
+		static TWeakObjectPtr<UMaterial> LumineneParent;
+		TWeakObjectPtr<UMaterial>& Slot = bJadeite ? JadeiteParent : LumineneParent;
 		if (UMaterial* Existing = Slot.Get())
 		{
 			return Existing;
 		}
 		UMaterial* Built = bJadeite
 			? BuildPlaceholderMaterial(NAME_None, JadeiteTint, 0.35f, 0.05f, true)
-			: BuildPlaceholderMaterial(NAME_None, OilTint, 0.22f, 0.4f, false);
+			: BuildPlaceholderMaterial(NAME_None, LumineneTint, 0.25f, 0.05f, true);
 		Slot = Built;
 		return Built;
 	}
@@ -295,8 +295,8 @@ void AKodResourceNode::ApplyPlaceholder(EKodResourceType Type)
 		return;
 	}
 
-	const bool bOil = Type == EKodResourceType::Oil;
-	const TCHAR* MeshPath = bOil ? CylinderMeshPath : ConeMeshPath;
+	const bool bLuminene = Type == EKodResourceType::Luminene;
+	const TCHAR* MeshPath = bLuminene ? CylinderMeshPath : ConeMeshPath;
 	UStaticMesh* Shape = LoadObject<UStaticMesh>(nullptr, MeshPath);
 	if (!Shape)
 	{
@@ -305,16 +305,26 @@ void AKodResourceNode::ApplyPlaceholder(EKodResourceType Type)
 		return;
 	}
 
-	TArray<UStaticMeshComponent*, TInlineAllocator<4>> TintMeshes;
-	if (bOil)
+	TArray<UStaticMeshComponent*, TInlineAllocator<4>> CoreMeshes;
+	TArray<UStaticMeshComponent*, TInlineAllocator<2>> HighlightMeshes;
+	if (bLuminene)
 	{
-		// Derrick base: ~250 cm across and low. Pivot is the mesh center, so lift by half the height.
+		// Fissure mouth: ~250 cm across and low. Pivot is the mesh center, so lift by half the height.
 		const FVector Scale = ScaleForTargetSize(Shape, 250.f, 46.f);
 		NodeMesh->SetStaticMesh(Shape);
 		NodeMesh->SetRelativeScale3D(Scale);
 		NodeMesh->SetRelativeRotation(FRotator::ZeroRotator);
 		NodeMesh->SetRelativeLocation(FVector(0.f, 0.f, 23.f));
-		TintMeshes.Add(NodeMesh);
+		CoreMeshes.Add(NodeMesh);
+
+		if (UStaticMesh* Cone = LoadObject<UStaticMesh>(nullptr, ConeMeshPath))
+		{
+			const FVector PlumeScale = ScaleForTargetSize(Cone, 36.f, 110.f);
+			if (UStaticMeshComponent* Plume = AddClusterMesh(Cone, FVector(0.f, 0.f, 70.f), FRotator::ZeroRotator, PlumeScale))
+			{
+				HighlightMeshes.Add(Plume);
+			}
+		}
 	}
 	else
 	{
@@ -329,19 +339,28 @@ void AKodResourceNode::ApplyPlaceholder(EKodResourceType Type)
 		const FVector RightScale = ScaleForTargetSize(Shape, 36.f, 84.f);
 		if (UStaticMeshComponent* Left = AddClusterMesh(Shape, FVector(-22.f, 14.f, 48.f), FRotator(0.f, 28.f, 8.f), LeftScale))
 		{
-			TintMeshes.Add(Left);
+			CoreMeshes.Add(Left);
 		}
 		if (UStaticMeshComponent* Right = AddClusterMesh(Shape, FVector(18.f, -16.f, 42.f), FRotator(0.f, -22.f, -6.f), RightScale))
 		{
-			TintMeshes.Add(Right);
+			CoreMeshes.Add(Right);
 		}
-		TintMeshes.Add(NodeMesh);
+		CoreMeshes.Add(NodeMesh);
 	}
 
 	FName UsedParam = NAME_None;
-	for (UStaticMeshComponent* Mesh : TintMeshes)
+	const FLinearColor CoreTint = bLuminene ? LumineneTint : JadeiteTint;
+	for (UStaticMeshComponent* Mesh : CoreMeshes)
 	{
-		const FName Param = ApplyTint(Mesh, bOil ? OilTint : JadeiteTint, !bOil);
+		const FName Param = ApplyTint(Mesh, CoreTint, true);
+		if (!Param.IsNone())
+		{
+			UsedParam = Param;
+		}
+	}
+	for (UStaticMeshComponent* Mesh : HighlightMeshes)
+	{
+		const FName Param = ApplyTint(Mesh, LumineneHighlightTint, true);
 		if (!Param.IsNone())
 		{
 			UsedParam = Param;

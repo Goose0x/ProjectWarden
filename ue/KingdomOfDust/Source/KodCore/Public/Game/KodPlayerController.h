@@ -42,8 +42,9 @@ struct KODCORE_API FKodSelectionHighlightState
  * RMB walks ECC_Pawn (camera pawn ignored), same as click-select. The first
  * blocking ImpactPoint is the Move point for ground and other non-sim props —
  * never an actor pivot. A sim-registered combat actor on that ray, other than the
- * current selection, is Attack. Resource nodes are selectable and are Move
- * destinations: RMB does not attack them or a unit hidden behind them.
+ * current selection, is Attack. Resource nodes are selectable. RMB with a Dozer
+ * on a node starts gather. Marines still Move to the impact point. RMB ground
+ * cancels gather. A node is never an attack target, and neither is a drop-off.
  * Sim actors on another TeamId are not added to the local selection (click, drag,
  * or rim) but stay valid Attack targets.
  *
@@ -108,13 +109,15 @@ protected:
 	void HandleSelectCompleted();
 	void HandleCommandMove();
 	void HandleCommandAttack();
-	/** RMB: Attack a foreign sim entity on the ray, otherwise Move to the first ImpactPoint. */
+	/** RMB: Attack a foreign sim entity, Gather when a worker hits a node, otherwise Move. */
 	void HandleRightClickCommand();
 
 	struct FKodCursorCommand
 	{
 		AActor* AttackActor = nullptr;
 		FKodEntityId AttackId;
+		AActor* GatherActor = nullptr;
+		FKodEntityId GatherId;
 		bool bHasMovePoint = false;
 		bool bSim = false;
 		FVector MovePoint = FVector::ZeroVector;
@@ -145,6 +148,14 @@ protected:
 	UFUNCTION(BlueprintNativeEvent, Category = "Kod|Command")
 	void IssueAttackToSelection(AActor* Target);
 	virtual void IssueAttackToSelection_Implementation(AActor* Target);
+
+	/**
+	 * Workers on the selection gather Node. Everyone else Moves to NonGathererMovePoint.
+	 * Slice 0 enqueues both through UKodCommandSubsystem.
+	 */
+	UFUNCTION(BlueprintNativeEvent, Category = "Kod|Command")
+	void IssueGatherToSelection(AActor* Node, FVector NonGathererMovePoint);
+	virtual void IssueGatherToSelection_Implementation(AActor* Node, FVector NonGathererMovePoint);
 
 	void BeginMarquee(FVector2D ScreenPos);
 	void UpdateMarquee(FVector2D ScreenPos);

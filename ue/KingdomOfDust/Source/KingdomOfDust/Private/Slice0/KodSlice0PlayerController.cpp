@@ -52,7 +52,7 @@ void AKodSlice0PlayerController::IssueAttackToSelection_Implementation(AActor* T
 		UE_LOG(LogTemp, Log, TEXT("Attack Reject NonSim Target=%s"), *Target->GetName());
 		return;
 	}
-	if (Sim->IsResourceNode(TargetId))
+	if (Sim->IsResourceNode(TargetId) || Sim->IsDropOff(TargetId))
 	{
 		UE_LOG(LogTemp, Log, TEXT("Attack Reject Node Target=%s Id=%d"), *Target->GetName(), TargetId.Value);
 		return;
@@ -75,4 +75,69 @@ void AKodSlice0PlayerController::IssueAttackToSelection_Implementation(AActor* T
 		*Target->GetName(),
 		TargetId.Value);
 	Commands->Enqueue(Cmd);
+}
+
+void AKodSlice0PlayerController::IssueGatherToSelection_Implementation(AActor* Node, FVector NonGathererMovePoint)
+{
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Commands || !Sim || !Node)
+	{
+		Super::IssueGatherToSelection_Implementation(Node, NonGathererMovePoint);
+		return;
+	}
+
+	const FKodEntityId NodeId = Sim->FindIdForActor(Node);
+	if (!Sim->IsResourceNode(NodeId))
+	{
+		UE_LOG(LogTemp, Log, TEXT("Gather Reject NonNode Target=%s"), *Node->GetName());
+		return;
+	}
+
+	FKodCommand GatherCmd;
+	GatherCmd.Type = EKodCommandType::Gather;
+	GatherCmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	GatherCmd.TargetEntity = NodeId;
+	GatherCmd.TargetLocation = Node->GetActorLocation();
+
+	FKodCommand MoveCmd;
+	MoveCmd.Type = EKodCommandType::Move;
+	MoveCmd.IssuerPlayerId = GatherCmd.IssuerPlayerId;
+	MoveCmd.TargetLocation = NonGathererMovePoint;
+
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodSimEntityState State;
+		if (!Sim->TryGetState(Id, State))
+		{
+			continue;
+		}
+		if (State.bCanGather)
+		{
+			GatherCmd.SourceEntities.Add(Id);
+		}
+		else
+		{
+			MoveCmd.SourceEntities.Add(Id);
+		}
+	}
+
+	if (GatherCmd.SourceEntities.Num() == 0)
+	{
+		Super::IssueGatherToSelection_Implementation(Node, NonGathererMovePoint);
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Gather Issued Sources=%d Node=%d"), GatherCmd.SourceEntities.Num(), NodeId.Value);
+	Commands->Enqueue(GatherCmd);
+	if (MoveCmd.SourceEntities.Num() > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Move Issued Sources=%d Dest=%.0f,%.0f,%.0f"),
+			MoveCmd.SourceEntities.Num(),
+			NonGathererMovePoint.X,
+			NonGathererMovePoint.Y,
+			NonGathererMovePoint.Z);
+		Commands->Enqueue(MoveCmd);
+	}
 }

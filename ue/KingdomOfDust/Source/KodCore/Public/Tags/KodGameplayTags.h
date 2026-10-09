@@ -19,5 +19,8 @@ namespace KodGameplayTags
 	KODCORE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Kod_Power);
 	KODCORE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Kod_Power_DustStorm);
 	KODCORE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Kod_Resource_Cash);
+	KODCORE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Kod_Resource_Jadeite);
+	KODCORE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Kod_Resource_Luminene);
+	/** Deprecated. Luminene replaced Oil. Kept so an old request still resolves. */
 	KODCORE_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Kod_Resource_Oil);
 }

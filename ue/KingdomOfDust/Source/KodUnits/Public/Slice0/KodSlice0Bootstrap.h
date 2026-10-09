@@ -15,7 +15,7 @@ class UWorld;
 /**
  * Runtime authoring bridge until cooked .uassets exist under /Game/Warden/Data/.
  * NewObject with exact FNames: RangerRifle, Ranger, Dozer, CommandCenter, Barracks, USA,
- * plus economy step 1 JadeiteNode and OilSource.
+ * plus JadeiteNode and LumineneVent. OilSource remains a catalog alias of the vent.
  * PIE: prefer SoftObjectPath load; on failure use catalog entries from EnsureCatalog.
  */
 UCLASS()
@@ -66,6 +66,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
 	static class AKodUnit* SpawnRanger(UWorld* World, const FTransform& Transform, int32 TeamId = 0, bool bForceCubeBody = false);
 
+	/** Team 0 Dozer. Placeholder cube until a mesh is set. bCanGather is true on the definition. */
+	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
+	static class AKodUnit* SpawnDozer(UWorld* World, const FTransform& Transform, int32 TeamId = 0);
+
 protected:
 	static UKodDataCatalog* BuildCatalog(UObject* Outer);
 	static UKodWeaponDefinition* MakeRangerRifle(UObject* Outer);
@@ -75,7 +79,7 @@ protected:
 	static UKodBuildingDefinition* MakeBarracks(UObject* Outer, UKodUnitDefinition* Ranger);
 	static UKodFactionDefinition* MakeUSA(UObject* Outer, UKodBuildingDefinition* CC, UKodUnitDefinition* Dozer, UKodUnitDefinition* Ranger);
 	static UKodResourceNodeDefinition* MakeJadeiteNode(UObject* Outer);
-	static UKodResourceNodeDefinition* MakeOilSource(UObject* Outer);
+	static UKodResourceNodeDefinition* MakeLumineneVent(UObject* Outer);
 
 	static TWeakObjectPtr<UKodDataCatalog> GCatalog;
 };

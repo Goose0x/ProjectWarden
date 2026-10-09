@@ -36,12 +36,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Slice0")
 	FVector SmokeRangerOffset = FVector(400.f, 0.f, 100.f);
 
-	/** Team 0 match start. Mirrors SC2's 50 minerals. Applied in StartPlay before the resource field. */
+	/** Team 0 match start. Jadeite is the internal id; the HUD labels it Credits. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
 	int32 StartingJadeite = 50;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
-	int32 StartingOil = 0;
+	int32 StartingLuminene = 0;
+
+	/** Spawn this many Dozers at the CC when the map has no team-0 worker. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
+	bool bSpawnWorkers = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
+	int32 WorkerSpawnCount = 3;
+
+	/** How close a hauler must get to PROXY_CC before the bank takes the cargo. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
+	int32 DropOffStandUU = 360;
 
 private:
 	/**
@@ -53,12 +64,20 @@ private:
 	/** One enemy Ranger (team 1) at the KodHostileAnchor / PROXY_HOSTILE label. */
 	void SpawnHostileTestTarget();
 
-	/** Team 0 bank. Logs KodEcon Bank Team=0 Jadeite=.. Oil=.. */
+	/** Team 0 bank. Logs KodEcon Bank Team=0 Jadeite=.. Luminene=.. */
 	void ApplyStartingResources();
 
 	/**
-	 * Tag KodResourceJadeite / KodResourceOil, or a default 6+1 field near PROXY_CC / PlayerStart.
+	 * Tag KodResourceJadeite / KodResourceLuminene (KodResourceOil still counts as a vent),
+	 * or a default 6+1 field near PROXY_CC / PlayerStart.
 	 * Runs after the two Marines so their entity ids stay 1 and 2.
+	 * Registers PROXY_CC as the drop-off before returning.
 	 */
 	void SpawnResourceField();
+
+	/** PROXY_CC, else the first Command Center tag, else nothing. */
+	void RegisterCommandCenterDropOff();
+
+	/** Three Dozers around the CC when no team-0 Dozer is already placed. */
+	void SpawnWorkersIfNeeded();
 };

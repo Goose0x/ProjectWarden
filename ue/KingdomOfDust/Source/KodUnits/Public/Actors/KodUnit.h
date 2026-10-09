@@ -128,6 +128,9 @@ protected:
 
 	/** Bob + visual yaw. Runs after sim presentation sync. Never writes sim state. */
 	void UpdateLifePresentation(float DeltaSeconds);
+
+	/** Small mesh while the sim says this worker is carrying. Presentation only. */
+	void UpdateCargoPresentation();
 	float GetScaledBobAmplitudeCm() const;
 
 	void BindSimEvents(UKodSimSubsystem* Sim);
@@ -244,6 +247,16 @@ protected:
 	/** Carbine on weapon_r. Persistent, so it is not tagged KodFx and takes the selection rim. */
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> WeaponMeshComp;
+
+	/** Carried Jadeite or Luminene. Tagged KodFx so the selection rim skips it. */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> CargoMesh;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> CargoMID;
+
+	int32 ShownCargoJadeite = -1;
+	int32 ShownCargoLuminene = -1;
 
 	float MuzzleFlashRemaining = 0.f;
 	float TracerRemaining = 0.f;

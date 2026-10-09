@@ -15,11 +15,12 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	PrevYaws.Reset();
 	Banks.Reset();
 	ResourceNodes.Reset();
+	DropOffs.Reset();
 	TimeAccumulator = 0.f;
 	SimTickIndex = 0;
 	SimHz = KodBuildTicks::SimHz;
 	MaxCatchUpSteps = KodBuildTicks::MaxCatchUpSteps;
-	SetTeamBank(0, StartingJadeite, StartingOil);
+	SetTeamBank(0, StartingJadeite, StartingLuminene);
 }
 
 void UKodSimSubsystem::Deinitialize()
@@ -31,6 +32,7 @@ void UKodSimSubsystem::Deinitialize()
 	States.Reset();
 	Banks.Reset();
 	ResourceNodes.Reset();
+	DropOffs.Reset();
 	PrevPositions.Reset();
 	PrevYaws.Reset();
 	Super::Deinitialize();
@@ -90,6 +92,13 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 		if (State->CooldownRemaining > 0.f)
 		{
 			State->CooldownRemaining = FMath::Max(0.f, State->CooldownRemaining - FixedDt);
+		}
+
+		if (State->GatherPhase != EKodGatherPhase::None || State->Order == EKodSimOrderType::Gather)
+		{
+			// Do not use State after this if a later unregister rehashes. Gather does not unregister workers.
+			StepEntityGather(*State, FixedDt);
+			continue;
 		}
 
 		switch (State->Order)
@@ -279,6 +288,11 @@ FKodEntityId UKodSimSubsystem::FindNearestEnemyInRange(const FKodSimEntityState&
 		{
 			continue;
 		}
+		// Unarmed workers stay out of the marine duel. RMB Attack can still target them.
+		if (Other->bCanGather && Other->WeaponDamage <= 0.f)
+		{
+			continue;
+		}
 		const float DistSq = FVector::DistSquared2D(State.Position, Other->Position);
 		if (DistSq > RangeSq)
 		{
@@ -452,7 +466,8 @@ void UKodSimSubsystem::ConfigureEntity(
 	float WeaponDamage,
 	float WeaponRange,
 	float WeaponCooldownSeconds,
-	int32 TeamId)
+	int32 TeamId,
+	bool bCanGather)
 {
 	FKodSimEntityState* State = States.Find(Id.Value);
 	if (!State)
@@ -469,6 +484,7 @@ void UKodSimSubsystem::ConfigureEntity(
 	State->WeaponRange = WeaponRange;
 	State->WeaponCooldownSeconds = WeaponCooldownSeconds;
 	State->TeamId = TeamId;
+	State->bCanGather = bCanGather;
 }
 
 namespace
@@ -489,6 +505,11 @@ void UKodSimSubsystem::IssueMove(FKodEntityId Id, FVector WorldLocation)
 {
 	if (FKodSimEntityState* State = States.Find(Id.Value))
 	{
+		if (State->GatherPhase != EKodGatherPhase::None || State->IsCarryingCargo())
+		{
+			RefundGatherCargo(*State);
+			ClearGatherFields(*State);
+		}
 		State->Order = EKodSimOrderType::Move;
 		State->MoveTarget = WorldLocation;
 		State->AttackTarget = FKodEntityId();
@@ -499,13 +520,18 @@ void UKodSimSubsystem::IssueMove(FKodEntityId Id, FVector WorldLocation)
 
 void UKodSimSubsystem::IssueAttack(FKodEntityId Id, FKodEntityId TargetId)
 {
-	// A node is a move destination. Do not open an attack order onto it.
-	if (IsResourceNode(TargetId))
+	// A node is a gather/move destination. A drop-off is not a target. Do not open an attack onto either.
+	if (IsResourceNode(TargetId) || IsDropOff(TargetId))
 	{
 		return;
 	}
 	if (FKodSimEntityState* State = States.Find(Id.Value))
 	{
+		if (State->GatherPhase != EKodGatherPhase::None || State->IsCarryingCargo())
+		{
+			RefundGatherCargo(*State);
+			ClearGatherFields(*State);
+		}
 		State->Order = EKodSimOrderType::Attack;
 		State->AttackTarget = TargetId;
 		State->RetaliateTarget = FKodEntityId();
@@ -520,6 +546,11 @@ void UKodSimSubsystem::IssueStop(FKodEntityId Id)
 {
 	if (FKodSimEntityState* State = States.Find(Id.Value))
 	{
+		if (State->GatherPhase != EKodGatherPhase::None || State->IsCarryingCargo())
+		{
+			RefundGatherCargo(*State);
+			ClearGatherFields(*State);
+		}
 		State->Order = EKodSimOrderType::None;
 		State->AttackTarget = FKodEntityId();
 		State->RetaliateTarget = FKodEntityId();
@@ -543,11 +574,11 @@ namespace
 	}
 }
 
-void UKodSimSubsystem::SetTeamBank(int32 TeamId, int32 Jadeite, int32 Oil)
+void UKodSimSubsystem::SetTeamBank(int32 TeamId, int32 Jadeite, int32 Luminene)
 {
 	FKodResourceCost& Bank = Banks.FindOrAdd(TeamId);
 	Bank.Jadeite = FMath::Max(0, Jadeite);
-	Bank.Oil = FMath::Max(0, Oil);
+	Bank.Luminene = FMath::Max(0, Luminene);
 }
 
 bool UKodSimSubsystem::TryGetBank(int32 TeamId, FKodResourceCost& OutBank) const
@@ -564,30 +595,30 @@ bool UKodSimSubsystem::TryGetBank(int32 TeamId, FKodResourceCost& OutBank) const
 bool UKodSimSubsystem::CanAfford(int32 TeamId, FKodResourceCost Cost) const
 {
 	const int32 NeedJadeite = FMath::Max(0, Cost.Jadeite);
-	const int32 NeedOil = FMath::Max(0, Cost.Oil);
+	const int32 NeedLuminene = FMath::Max(0, Cost.Luminene);
 	FKodResourceCost Bank;
 	TryGetBank(TeamId, Bank);
-	return Bank.Jadeite >= NeedJadeite && Bank.Oil >= NeedOil;
+	return Bank.Jadeite >= NeedJadeite && Bank.Luminene >= NeedLuminene;
 }
 
 bool UKodSimSubsystem::Spend(int32 TeamId, FKodResourceCost Cost)
 {
 	const int32 NeedJadeite = FMath::Max(0, Cost.Jadeite);
-	const int32 NeedOil = FMath::Max(0, Cost.Oil);
+	const int32 NeedLuminene = FMath::Max(0, Cost.Luminene);
 	FKodResourceCost* Bank = Banks.Find(TeamId);
 	const int32 HaveJadeite = Bank ? Bank->Jadeite : 0;
-	const int32 HaveOil = Bank ? Bank->Oil : 0;
-	if (HaveJadeite < NeedJadeite || HaveOil < NeedOil)
+	const int32 HaveLuminene = Bank ? Bank->Luminene : 0;
+	if (HaveJadeite < NeedJadeite || HaveLuminene < NeedLuminene)
 	{
-		UE_LOG(LogTemp, Log, TEXT("KodEcon Spend Reject Team=%d Jadeite=%d Oil=%d Bank=J%d,O%d"),
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Spend Reject Team=%d J=%d L=%d Bank=J%d,L%d"),
 			TeamId,
 			NeedJadeite,
-			NeedOil,
+			NeedLuminene,
 			HaveJadeite,
-			HaveOil);
+			HaveLuminene);
 		return false;
 	}
-	if (NeedJadeite == 0 && NeedOil == 0)
+	if (NeedJadeite == 0 && NeedLuminene == 0)
 	{
 		return true;
 	}
@@ -596,40 +627,33 @@ bool UKodSimSubsystem::Spend(int32 TeamId, FKodResourceCost Cost)
 		return false;
 	}
 	Bank->Jadeite -= NeedJadeite;
-	Bank->Oil -= NeedOil;
-	UE_LOG(LogTemp, Log, TEXT("KodEcon Spend Team=%d Jadeite=%d Oil=%d Bank=J%d,O%d"),
+	Bank->Luminene -= NeedLuminene;
+	UE_LOG(LogTemp, Log, TEXT("KodEcon Spend Team=%d J=%d L=%d Bank=J%d,L%d"),
 		TeamId,
 		NeedJadeite,
-		NeedOil,
+		NeedLuminene,
 		Bank->Jadeite,
-		Bank->Oil);
+		Bank->Luminene);
 	return true;
 }
 
 void UKodSimSubsystem::Deposit(int32 TeamId, FKodResourceCost Amount)
 {
 	const int32 AddJadeite = FMath::Max(0, Amount.Jadeite);
-	const int32 AddOil = FMath::Max(0, Amount.Oil);
+	const int32 AddLuminene = FMath::Max(0, Amount.Luminene);
 	FKodResourceCost& Bank = Banks.FindOrAdd(TeamId);
 	Bank.Jadeite = SaturatingAddNonNegative(Bank.Jadeite, AddJadeite);
-	Bank.Oil = SaturatingAddNonNegative(Bank.Oil, AddOil);
-	UE_LOG(LogTemp, Log, TEXT("KodEcon Deposit Team=%d Jadeite=%d Oil=%d Bank=J%d,O%d"),
+	Bank.Luminene = SaturatingAddNonNegative(Bank.Luminene, AddLuminene);
+	UE_LOG(LogTemp, Log, TEXT("KodEcon Deposit Team=%d J=%d L=%d"),
 		TeamId,
 		AddJadeite,
-		AddOil,
-		Bank.Jadeite,
-		Bank.Oil);
+		AddLuminene);
 }
 
-FKodEntityId UKodSimSubsystem::RegisterResourceNode(
-	AActor* Actor,
-	EKodResourceType Type,
-	int32 Amount,
-	int32 HarvestPerTrip,
-	FName DefinitionId)
+FKodEntityId UKodSimSubsystem::RegisterResourceNode(AActor* Actor, const FKodResourceNodeSpec& Spec)
 {
 	FKodEntityId Id;
-	if (!Actor || Amount <= 0)
+	if (!Actor || Spec.Amount <= 0)
 	{
 		return Id;
 	}
@@ -645,16 +669,98 @@ FKodEntityId UKodSimSubsystem::RegisterResourceNode(
 
 	FKodResourceNodeState Node;
 	Node.Id = Id;
-	Node.Type = Type;
-	Node.DefinitionId = DefinitionId;
+	Node.Type = Spec.Type;
+	Node.DefinitionId = Spec.DefinitionId;
 	// Actor origin (the ground point). A mesh-center offset must not live on the root,
 	// or this copies (0, 0, half-height) instead of the arc.
 	Node.Position = Actor->GetActorLocation();
 	QuantizeResourcePosition(Node.Position);
-	Node.Remaining = Amount;
-	Node.HarvestPerTrip = FMath::Max(0, HarvestPerTrip);
+	Node.Remaining = Spec.Amount;
+	Node.HarvestPerTrip = FMath::Max(0, Spec.HarvestPerTrip);
+	Node.HarvestTicks = FMath::Max(1, Spec.HarvestTicks);
+	Node.TricklePerTrip = FMath::Max(0, Spec.TricklePerTrip);
+	Node.GatherStandUU = FMath::Max(1, Spec.GatherStandUU);
+	Node.bDepletionLogged = false;
 	ResourceNodes.Add(Id.Value, Node);
 	return Id;
+}
+
+FKodEntityId UKodSimSubsystem::RegisterDropOff(AActor* Actor, int32 TeamId, int32 StandUU)
+{
+	FKodEntityId Id;
+	if (!Actor)
+	{
+		return Id;
+	}
+
+	const FKodEntityId Existing = FindIdForActor(Actor);
+	if (Existing.IsValid())
+	{
+		return IsDropOff(Existing) ? Existing : Id;
+	}
+
+	Id.Value = NextId++;
+	Entities.Add(Id.Value, Actor);
+
+	FKodDropOffState Drop;
+	Drop.Id = Id;
+	Drop.TeamId = TeamId;
+	Drop.Position = Actor->GetActorLocation();
+	QuantizeResourcePosition(Drop.Position);
+	Drop.StandUU = FMath::Max(1, StandUU);
+	DropOffs.Add(Id.Value, Drop);
+	UE_LOG(LogTemp, Log, TEXT("KodEcon DropOff Id=%d Team=%d Loc=%.0f,%.0f,%.0f"),
+		Id.Value,
+		TeamId,
+		Drop.Position.X,
+		Drop.Position.Y,
+		Drop.Position.Z);
+	return Id;
+}
+
+void UKodSimSubsystem::UnregisterDropOff(FKodEntityId Id)
+{
+	DropOffs.Remove(Id.Value);
+	Entities.Remove(Id.Value);
+}
+
+bool UKodSimSubsystem::IsDropOff(FKodEntityId Id) const
+{
+	return Id.IsValid() && DropOffs.Contains(Id.Value);
+}
+
+FKodEntityId UKodSimSubsystem::FindNearestDropOff(int32 TeamId, FVector Origin) const
+{
+	FKodEntityId Best;
+	bool bFound = false;
+	int64 BestDistSq = 0;
+	const float Q = FMath::Max(KINDA_SMALL_NUMBER, PoseQuantizeUU);
+	const int32 OriginX = FMath::RoundToInt(Origin.X / Q);
+	const int32 OriginY = FMath::RoundToInt(Origin.Y / Q);
+
+	TArray<int32> Keys;
+	DropOffs.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		const FKodDropOffState* Drop = DropOffs.Find(Key);
+		if (!Drop || Drop->TeamId != TeamId)
+		{
+			continue;
+		}
+		const int32 DropX = FMath::RoundToInt(Drop->Position.X / Q);
+		const int32 DropY = FMath::RoundToInt(Drop->Position.Y / Q);
+		const int64 DX = static_cast<int64>(DropX) - static_cast<int64>(OriginX);
+		const int64 DY = static_cast<int64>(DropY) - static_cast<int64>(OriginY);
+		const int64 DistSq = DX * DX + DY * DY;
+		if (!bFound || DistSq < BestDistSq)
+		{
+			bFound = true;
+			BestDistSq = DistSq;
+			Best.Value = Key;
+		}
+	}
+	return Best;
 }
 
 void UKodSimSubsystem::UnregisterResourceNode(FKodEntityId Id)
@@ -693,7 +799,7 @@ FKodEntityId UKodSimSubsystem::FindNearestResourceNode(FVector Origin) const
 	for (int32 Key : Keys)
 	{
 		const FKodResourceNodeState* Node = ResourceNodes.Find(Key);
-		if (!Node || Node->Remaining <= 0)
+		if (!Node || (Node->Remaining <= 0 && Node->TricklePerTrip <= 0))
 		{
 			continue;
 		}
@@ -703,6 +809,51 @@ FKodEntityId UKodSimSubsystem::FindNearestResourceNode(FVector Origin) const
 		const int64 DY = static_cast<int64>(NodeY) - static_cast<int64>(OriginY);
 		const int64 DistSq = DX * DX + DY * DY;
 		// Keys are sorted, so an equal distance keeps the lower id.
+		if (!bFound || DistSq < BestDistSq)
+		{
+			bFound = true;
+			BestDistSq = DistSq;
+			Best.Value = Key;
+		}
+	}
+	return Best;
+}
+
+FKodEntityId UKodSimSubsystem::FindNearestResourceNodeOfType(FVector Origin, EKodResourceType Type, bool bRequireRemaining) const
+{
+	FKodEntityId Best;
+	bool bFound = false;
+	int64 BestDistSq = 0;
+	const float Q = FMath::Max(KINDA_SMALL_NUMBER, PoseQuantizeUU);
+	const int32 OriginX = FMath::RoundToInt(Origin.X / Q);
+	const int32 OriginY = FMath::RoundToInt(Origin.Y / Q);
+
+	TArray<int32> Keys;
+	ResourceNodes.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		const FKodResourceNodeState* Node = ResourceNodes.Find(Key);
+		if (!Node || Node->Type != Type)
+		{
+			continue;
+		}
+		if (bRequireRemaining)
+		{
+			if (Node->Remaining <= 0)
+			{
+				continue;
+			}
+		}
+		else if (Node->Remaining <= 0 && Node->TricklePerTrip <= 0)
+		{
+			continue;
+		}
+		const int32 NodeX = FMath::RoundToInt(Node->Position.X / Q);
+		const int32 NodeY = FMath::RoundToInt(Node->Position.Y / Q);
+		const int64 DX = static_cast<int64>(NodeX) - static_cast<int64>(OriginX);
+		const int64 DY = static_cast<int64>(NodeY) - static_cast<int64>(OriginY);
+		const int64 DistSq = DX * DX + DY * DY;
 		if (!bFound || DistSq < BestDistSq)
 		{
 			bFound = true;
@@ -738,58 +889,584 @@ void UKodSimSubsystem::DestroyResourceNodeActor(FKodEntityId Id)
 	}
 }
 
+void UKodSimSubsystem::ClearGatherFields(FKodSimEntityState& State)
+{
+	State.GatherPhase = EKodGatherPhase::None;
+	State.GatherNode = FKodEntityId();
+	State.GatherDropOff = FKodEntityId();
+	State.GatherType = EKodResourceType::Jadeite;
+	State.CargoJadeite = 0;
+	State.CargoLuminene = 0;
+	State.bCargoFromTrickle = false;
+	State.HarvestTicksRemaining = 0;
+	State.GatherStallTicks = 0;
+	State.bGatherStallRetargeted = false;
+	if (State.Order == EKodSimOrderType::Gather)
+	{
+		State.Order = EKodSimOrderType::None;
+	}
+}
+
+void UKodSimSubsystem::RefundGatherCargo(FKodSimEntityState& State)
+{
+	const int32 Jadeite = State.CargoJadeite;
+	const int32 Luminene = State.CargoLuminene;
+	if (Jadeite <= 0 && Luminene <= 0)
+	{
+		return;
+	}
+
+	const bool bTrickle = State.bCargoFromTrickle;
+	const FKodEntityId NodeId = State.GatherNode;
+	const int32 TeamId = State.TeamId;
+	State.CargoJadeite = 0;
+	State.CargoLuminene = 0;
+	State.bCargoFromTrickle = false;
+	if (bTrickle)
+	{
+		return;
+	}
+
+	if (FKodResourceNodeState* Node = ResourceNodes.Find(NodeId.Value))
+	{
+		if (Node->Type == EKodResourceType::Luminene)
+		{
+			Node->Remaining = SaturatingAddNonNegative(Node->Remaining, Luminene);
+		}
+		else
+		{
+			Node->Remaining = SaturatingAddNonNegative(Node->Remaining, Jadeite);
+		}
+		if (Node->Remaining > 0)
+		{
+			Node->bDepletionLogged = false;
+		}
+		return;
+	}
+
+	// The pile is already gone. Put the carried ints in the bank so the trip is not deleted.
+	FKodResourceCost Gain;
+	Gain.Jadeite = Jadeite;
+	Gain.Luminene = Luminene;
+	Deposit(TeamId, Gain);
+}
+
+void UKodSimSubsystem::AbortGather(FKodSimEntityState& State)
+{
+	RefundGatherCargo(State);
+	ClearGatherFields(State);
+	State.AttackTarget = FKodEntityId();
+	QuantizePose(State);
+}
+
+void UKodSimSubsystem::BeginGatherLeg(FKodSimEntityState& State, EKodGatherPhase Phase)
+{
+	State.GatherPhase = Phase;
+	State.Order = EKodSimOrderType::Gather;
+	State.GatherStallTicks = 0;
+	State.bGatherStallRetargeted = false;
+	State.AttackTarget = FKodEntityId();
+	State.RetaliateTarget = FKodEntityId();
+}
+
+bool UKodSimSubsystem::RetargetGatherNode(FKodSimEntityState& State)
+{
+	const EKodResourceType Type = State.GatherType;
+	FKodEntityId Next = FindNearestResourceNodeOfType(State.Position, Type, /*bRequireRemaining*/ true);
+	if (!Next.IsValid())
+	{
+		Next = FindNearestResourceNodeOfType(State.Position, Type, /*bRequireRemaining*/ false);
+	}
+	if (!Next.IsValid())
+	{
+		State.GatherNode = FKodEntityId();
+		return false;
+	}
+	State.GatherNode = Next;
+	if (const FKodResourceNodeState* Node = ResourceNodes.Find(Next.Value))
+	{
+		State.GatherType = Node->Type;
+	}
+	return true;
+}
+
+bool UKodSimSubsystem::AdvanceGatherMove(FKodSimEntityState& State, const FVector& Target, float AcceptUU, float FixedDt)
+{
+	const float Accept = FMath::Max(1.f, AcceptUU);
+	FVector ToTarget = Target - State.Position;
+	ToTarget.Z = 0.f;
+	const float Dist = ToTarget.Size();
+	if (Dist <= Accept)
+	{
+		State.GatherStallTicks = 0;
+		State.bGatherStallRetargeted = false;
+		FaceStateToward(State, Target);
+		QuantizePose(State);
+		return true;
+	}
+
+	auto NoteStall = [&State](float MovedSq)
+	{
+		if (MovedSq < 0.25f)
+		{
+			++State.GatherStallTicks;
+		}
+		else
+		{
+			State.GatherStallTicks = 0;
+		}
+	};
+
+	if (!State.bMobile || State.MoveSpeed <= 0.f)
+	{
+		NoteStall(0.f);
+		return false;
+	}
+
+	const FVector Before = State.Position;
+	const FVector Dir = ToTarget / Dist;
+	State.YawDegrees = FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X));
+	const float Step = FMath::Max(0.f, State.MoveSpeed) * FixedDt;
+	// Land on the stand ring. Do not snap onto the node or building origin.
+	const float Travel = FMath::Min(Step, FMath::Max(0.f, Dist - Accept));
+	if (Travel <= KINDA_SMALL_NUMBER)
+	{
+		NoteStall(0.f);
+		QuantizePose(State);
+		return true;
+	}
+	State.Position += Dir * Travel;
+	NoteStall(FVector::DistSquared2D(Before, State.Position));
+	return false;
+}
+
+bool UKodSimSubsystem::RecoverGatherStall(FKodSimEntityState& State, float Dist, float AcceptUU)
+{
+	if (State.GatherStallTicks < KodEconomyDefaults::GatherStallTicks)
+	{
+		return false;
+	}
+	if (Dist <= AcceptUU * 1.25f)
+	{
+		State.GatherStallTicks = 0;
+		State.bGatherStallRetargeted = false;
+		QuantizePose(State);
+		return true;
+	}
+	if (!State.bGatherStallRetargeted)
+	{
+		State.bGatherStallRetargeted = true;
+		State.GatherStallTicks = 0;
+		if (State.GatherPhase == EKodGatherPhase::ToDropOff)
+		{
+			State.GatherDropOff = FindNearestDropOff(State.TeamId, State.Position);
+		}
+		else
+		{
+			RetargetGatherNode(State);
+		}
+		return false;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("KodEcon Gather Abort Worker=%d Phase=%d"),
+		State.Id.Value,
+		static_cast<int32>(State.GatherPhase));
+	if (State.IsCarryingCargo())
+	{
+		FKodResourceCost Gain;
+		Gain.Jadeite = State.CargoJadeite;
+		Gain.Luminene = State.CargoLuminene;
+		State.CargoJadeite = 0;
+		State.CargoLuminene = 0;
+		State.bCargoFromTrickle = false;
+		if (Gain.Jadeite > 0 || Gain.Luminene > 0)
+		{
+			Deposit(State.TeamId, Gain);
+		}
+	}
+	ClearGatherFields(State);
+	QuantizePose(State);
+	return false;
+}
+
+FKodNodeTakeResult UKodSimSubsystem::TakeFromNode(FKodEntityId Id, int32 Requested)
+{
+	FKodNodeTakeResult Result;
+	FKodResourceNodeState* Node = ResourceNodes.Find(Id.Value);
+	if (!Node || Requested <= 0)
+	{
+		return Result;
+	}
+
+	Result.bFound = true;
+	Result.Type = Node->Type;
+	const int32 IdValue = Id.Value;
+
+	if (Node->Remaining > 0)
+	{
+		Result.Amount = FMath::Min(Requested, Node->Remaining);
+		Node->Remaining -= Result.Amount;
+		const int32 Remaining = Node->Remaining;
+		const EKodResourceType Type = Node->Type;
+		const bool bDestroy = Remaining <= 0 && Node->TricklePerTrip <= 0;
+		if (Remaining <= 0 && !Node->bDepletionLogged)
+		{
+			Node->bDepletionLogged = true;
+			Result.bDepleted = true;
+			UE_LOG(LogTemp, Log, TEXT("KodEcon NodeDepleted Id=%d"), IdValue);
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Node Id=%d Type=%s Remaining=%d"),
+			IdValue,
+			KodResourceTypeName(Type),
+			Remaining);
+		if (bDestroy)
+		{
+			DestroyResourceNodeActor(Id);
+		}
+		return Result;
+	}
+
+	if (Node->TricklePerTrip > 0)
+	{
+		Result.Amount = Node->TricklePerTrip;
+		Result.bFromTrickle = true;
+		return Result;
+	}
+
+	Result.bFound = false;
+	return Result;
+}
+
+void UKodSimSubsystem::StepEntityGather(FKodSimEntityState& State, float FixedDt)
+{
+	if (!State.bCanGather || State.Health <= 0.f)
+	{
+		AbortGather(State);
+		return;
+	}
+
+	State.Order = EKodSimOrderType::Gather;
+
+	if (State.GatherPhase == EKodGatherPhase::ToNode)
+	{
+		const FKodResourceNodeState* Node = ResourceNodes.Find(State.GatherNode.Value);
+		const bool bUsable = Node && (Node->Remaining > 0 || Node->TricklePerTrip > 0);
+		if (!bUsable)
+		{
+			if (!RetargetGatherNode(State))
+			{
+				if (State.IsCarryingCargo())
+				{
+					BeginGatherLeg(State, EKodGatherPhase::ToDropOff);
+				}
+				else
+				{
+					AbortGather(State);
+				}
+				return;
+			}
+			Node = ResourceNodes.Find(State.GatherNode.Value);
+			if (!Node)
+			{
+				AbortGather(State);
+				return;
+			}
+		}
+
+		const float Stand = static_cast<float>(FMath::Max(1, Node->GatherStandUU));
+		const float Dist = FVector::Dist2D(State.Position, Node->Position);
+		if (Dist > Stand && State.GatherStallTicks >= KodEconomyDefaults::GatherStallTicks)
+		{
+			if (RecoverGatherStall(State, Dist, Stand))
+			{
+				BeginGatherLeg(State, EKodGatherPhase::Harvest);
+				State.HarvestTicksRemaining = FMath::Max(1, Node->HarvestTicks);
+			}
+			return;
+		}
+		if (AdvanceGatherMove(State, Node->Position, Stand, FixedDt))
+		{
+			BeginGatherLeg(State, EKodGatherPhase::Harvest);
+			if (const FKodResourceNodeState* Arrived = ResourceNodes.Find(State.GatherNode.Value))
+			{
+				State.HarvestTicksRemaining = FMath::Max(1, Arrived->HarvestTicks);
+			}
+			else
+			{
+				State.HarvestTicksRemaining = KodEconomyDefaults::JadeiteHarvestTicks;
+			}
+		}
+		return;
+	}
+
+	if (State.GatherPhase == EKodGatherPhase::Harvest)
+	{
+		const FKodResourceNodeState* Node = ResourceNodes.Find(State.GatherNode.Value);
+		if (!Node || (Node->Remaining <= 0 && Node->TricklePerTrip <= 0))
+		{
+			if (State.IsCarryingCargo())
+			{
+				BeginGatherLeg(State, EKodGatherPhase::ToDropOff);
+			}
+			else if (!RetargetGatherNode(State))
+			{
+				AbortGather(State);
+			}
+			else
+			{
+				BeginGatherLeg(State, EKodGatherPhase::ToNode);
+			}
+			return;
+		}
+
+		FaceStateToward(State, Node->Position);
+		QuantizePose(State);
+		State.HarvestTicksRemaining = FMath::Max(0, State.HarvestTicksRemaining - 1);
+		if (State.HarvestTicksRemaining > 0)
+		{
+			return;
+		}
+
+		const int32 Requested = FMath::Max(1, Node->HarvestPerTrip);
+		const FKodEntityId NodeId = State.GatherNode;
+		const FKodNodeTakeResult Taken = TakeFromNode(NodeId, Requested);
+		if (Taken.Amount > 0)
+		{
+			if (Taken.Type == EKodResourceType::Luminene)
+			{
+				State.CargoLuminene = Taken.Amount;
+				State.CargoJadeite = 0;
+			}
+			else
+			{
+				State.CargoJadeite = Taken.Amount;
+				State.CargoLuminene = 0;
+			}
+			State.bCargoFromTrickle = Taken.bFromTrickle;
+			State.GatherType = Taken.Type;
+			UE_LOG(LogTemp, Log, TEXT("KodEcon Gather Worker=%d Node=%d Amt=%d"),
+				State.Id.Value,
+				NodeId.Value,
+				Taken.Amount);
+		}
+
+		if (Taken.bDepleted || !ResourceNodes.Contains(NodeId.Value))
+		{
+			const FKodEntityId Richer = FindNearestResourceNodeOfType(State.Position, State.GatherType, /*bRequireRemaining*/ true);
+			if (Richer.IsValid())
+			{
+				State.GatherNode = Richer;
+			}
+			else if (!ResourceNodes.Contains(NodeId.Value) || !RetargetGatherNode(State))
+			{
+				State.GatherNode = FKodEntityId();
+			}
+		}
+		else if (const FKodResourceNodeState* After = ResourceNodes.Find(NodeId.Value))
+		{
+			if (After->Remaining <= 0)
+			{
+				const FKodEntityId Richer = FindNearestResourceNodeOfType(State.Position, After->Type, /*bRequireRemaining*/ true);
+				if (Richer.IsValid())
+				{
+					State.GatherNode = Richer;
+				}
+			}
+		}
+
+		if (State.IsCarryingCargo())
+		{
+			BeginGatherLeg(State, EKodGatherPhase::ToDropOff);
+		}
+		else if (State.GatherNode.IsValid() && ResourceNodes.Contains(State.GatherNode.Value))
+		{
+			BeginGatherLeg(State, EKodGatherPhase::ToNode);
+		}
+		else
+		{
+			AbortGather(State);
+		}
+		return;
+	}
+
+	if (State.GatherPhase == EKodGatherPhase::ToDropOff)
+	{
+		if (!State.IsCarryingCargo())
+		{
+			if (State.GatherNode.IsValid() && ResourceNodes.Contains(State.GatherNode.Value))
+			{
+				BeginGatherLeg(State, EKodGatherPhase::ToNode);
+			}
+			else if (!RetargetGatherNode(State))
+			{
+				AbortGather(State);
+			}
+			else
+			{
+				BeginGatherLeg(State, EKodGatherPhase::ToNode);
+			}
+			return;
+		}
+
+		if (!IsDropOff(State.GatherDropOff))
+		{
+			State.GatherDropOff = FindNearestDropOff(State.TeamId, State.Position);
+		}
+		const FKodDropOffState* Drop = DropOffs.Find(State.GatherDropOff.Value);
+		if (!Drop)
+		{
+			FKodResourceCost Gain;
+			Gain.Jadeite = State.CargoJadeite;
+			Gain.Luminene = State.CargoLuminene;
+			State.CargoJadeite = 0;
+			State.CargoLuminene = 0;
+			State.bCargoFromTrickle = false;
+			Deposit(State.TeamId, Gain);
+			if (State.GatherNode.IsValid() && ResourceNodes.Contains(State.GatherNode.Value))
+			{
+				BeginGatherLeg(State, EKodGatherPhase::ToNode);
+			}
+			else if (RetargetGatherNode(State))
+			{
+				BeginGatherLeg(State, EKodGatherPhase::ToNode);
+			}
+			else
+			{
+				ClearGatherFields(State);
+				QuantizePose(State);
+			}
+			return;
+		}
+
+		const float Stand = static_cast<float>(FMath::Max(1, Drop->StandUU));
+		const float Dist = FVector::Dist2D(State.Position, Drop->Position);
+		if (Dist > Stand && State.GatherStallTicks >= KodEconomyDefaults::GatherStallTicks)
+		{
+			if (!RecoverGatherStall(State, Dist, Stand))
+			{
+				return;
+			}
+		}
+		else if (!AdvanceGatherMove(State, Drop->Position, Stand, FixedDt))
+		{
+			return;
+		}
+
+		FKodResourceCost Gain;
+		Gain.Jadeite = State.CargoJadeite;
+		Gain.Luminene = State.CargoLuminene;
+		State.CargoJadeite = 0;
+		State.CargoLuminene = 0;
+		State.bCargoFromTrickle = false;
+		if (Gain.Jadeite > 0 || Gain.Luminene > 0)
+		{
+			Deposit(State.TeamId, Gain);
+		}
+
+		if (!State.GatherNode.IsValid() || !ResourceNodes.Contains(State.GatherNode.Value))
+		{
+			if (!RetargetGatherNode(State))
+			{
+				ClearGatherFields(State);
+				QuantizePose(State);
+				return;
+			}
+		}
+		else if (const FKodResourceNodeState* Next = ResourceNodes.Find(State.GatherNode.Value))
+		{
+			if (Next->Remaining <= 0 && Next->TricklePerTrip <= 0)
+			{
+				if (!RetargetGatherNode(State))
+				{
+					ClearGatherFields(State);
+					QuantizePose(State);
+					return;
+				}
+			}
+			else if (Next->Remaining <= 0)
+			{
+				const FKodEntityId Richer = FindNearestResourceNodeOfType(State.Position, Next->Type, /*bRequireRemaining*/ true);
+				if (Richer.IsValid())
+				{
+					State.GatherNode = Richer;
+				}
+			}
+		}
+		BeginGatherLeg(State, EKodGatherPhase::ToNode);
+		return;
+	}
+
+	AbortGather(State);
+}
+
+bool UKodSimSubsystem::IssueGather(FKodEntityId WorkerId, FKodEntityId NodeId)
+{
+	FKodSimEntityState* State = States.Find(WorkerId.Value);
+	const FKodResourceNodeState* Node = ResourceNodes.Find(NodeId.Value);
+	if (!State || !State->bCanGather || State->Health <= 0.f || !Node)
+	{
+		return false;
+	}
+	if (Node->Remaining <= 0 && Node->TricklePerTrip <= 0)
+	{
+		return false;
+	}
+
+	State->GatherType = Node->Type;
+	if (Node->Remaining <= 0)
+	{
+		const FKodEntityId Richer = FindNearestResourceNodeOfType(State->Position, Node->Type, /*bRequireRemaining*/ true);
+		if (Richer.IsValid())
+		{
+			NodeId = Richer;
+			Node = ResourceNodes.Find(NodeId.Value);
+		}
+	}
+	if (!Node)
+	{
+		return false;
+	}
+
+	State->GatherNode = NodeId;
+	State->GatherType = Node->Type;
+	State->GatherDropOff = FindNearestDropOff(State->TeamId, State->Position);
+	if (State->IsCarryingCargo())
+	{
+		BeginGatherLeg(*State, EKodGatherPhase::ToDropOff);
+	}
+	else
+	{
+		State->bCargoFromTrickle = false;
+		BeginGatherLeg(*State, EKodGatherPhase::ToNode);
+	}
+	FaceStateToward(*State, Node->Position);
+	UE_LOG(LogTemp, Log, TEXT("KodEcon GatherOrder Worker=%d Node=%d Type=%s"),
+		WorkerId.Value,
+		NodeId.Value,
+		KodResourceTypeName(State->GatherType));
+	return true;
+}
+
 int32 UKodSimSubsystem::HarvestNode(FKodEntityId Id, int32 Amount, int32 TeamId)
 {
-	FKodResourceNodeState* Node = ResourceNodes.Find(Id.Value);
-	if (!Node || Amount <= 0)
+	const FKodNodeTakeResult Taken = TakeFromNode(Id, Amount);
+	if (!Taken.bFound || Taken.Amount <= 0)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("KodEcon Harvest Miss Id=%d"), Id.Value);
 		return 0;
 	}
 
-	const int32 Taken = FMath::Min(Amount, Node->Remaining);
-	if (Taken <= 0)
-	{
-		const int32 Remaining = Node->Remaining;
-		const EKodResourceType Type = Node->Type;
-		const int32 IdValue = Id.Value;
-		UE_LOG(LogTemp, Log, TEXT("KodEcon Node Id=%d Type=%s Remaining=%d"),
-			IdValue,
-			KodResourceTypeName(Type),
-			Remaining);
-		if (Remaining <= 0)
-		{
-			DestroyResourceNodeActor(Id);
-		}
-		return 0;
-	}
-
-	Node->Remaining -= Taken;
-	const int32 Remaining = Node->Remaining;
-	const EKodResourceType Type = Node->Type;
-	const int32 IdValue = Id.Value;
-
 	FKodResourceCost Gain;
-	if (Type == EKodResourceType::Oil)
+	if (Taken.Type == EKodResourceType::Luminene)
 	{
-		Gain.Oil = Taken;
+		Gain.Luminene = Taken.Amount;
 	}
 	else
 	{
-		Gain.Jadeite = Taken;
+		Gain.Jadeite = Taken.Amount;
 	}
 	Deposit(TeamId, Gain);
-
-	UE_LOG(LogTemp, Log, TEXT("KodEcon Node Id=%d Type=%s Remaining=%d"),
-		IdValue,
-		KodResourceTypeName(Type),
-		Remaining);
-
-	if (Remaining <= 0)
-	{
-		DestroyResourceNodeActor(Id);
-	}
-	return Taken;
+	return Taken.Amount;
 }
 
 void UKodSimSubsystem::CopyEntitySnapshot(TArray<FKodSimEntityState>& OutStates, TArray<AActor*>& OutActors) const
@@ -860,9 +1537,9 @@ bool UKodSimSubsystem::IsWorldIdle() const
 FString UKodSimSubsystem::ComputeIdleHash() const
 {
 	// Stable when idle (no orders / no micro-integrate). Quantized pose + DA-driven HP.
-	// TeamId on combat entities is omitted so that prefix stays ids / pose / HP / order.
-	// Banks and resource nodes are appended after that prefix as integers.
-	// Visual bob, actor yaw, and the resource readout are not appended.
+	// TeamId on combat entities is omitted so that prefix stays ids / pose / HP / order / gather.
+	// Banks, resource nodes, and drop-offs are appended after that prefix as integers.
+	// Visual bob, actor yaw, cargo mesh, and the resource readout are not appended.
 	TArray<uint8> Bytes;
 	auto Append = [&Bytes](const void* Data, int32 Size)
 	{
@@ -898,9 +1575,25 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 
 		const uint8 OrderByte = static_cast<uint8>(S.Order);
 		Append(&OrderByte, sizeof(OrderByte));
+
+		const uint8 GatherPhase = static_cast<uint8>(S.GatherPhase);
+		Append(&GatherPhase, sizeof(GatherPhase));
+		Append(&S.GatherNode.Value, sizeof(S.GatherNode.Value));
+		Append(&S.GatherDropOff.Value, sizeof(S.GatherDropOff.Value));
+		const uint8 GatherType = static_cast<uint8>(S.GatherType);
+		Append(&GatherType, sizeof(GatherType));
+		Append(&S.CargoJadeite, sizeof(S.CargoJadeite));
+		Append(&S.CargoLuminene, sizeof(S.CargoLuminene));
+		const uint8 TrickleCargo = S.bCargoFromTrickle ? 1 : 0;
+		Append(&TrickleCargo, sizeof(TrickleCargo));
+		Append(&S.HarvestTicksRemaining, sizeof(S.HarvestTicksRemaining));
+		Append(&S.GatherStallTicks, sizeof(S.GatherStallTicks));
+		const uint8 StallRetarget = S.bGatherStallRetargeted ? 1 : 0;
+		Append(&StallRetarget, sizeof(StallRetarget));
 	}
 
-	// Economy is integers only: team id + bank, then node id + type + remaining + quantized position.
+	// Economy is integers only: team id + bank, then node id + type + remaining + quantized position,
+	// then drop-off id + team + quantized position.
 	TArray<int32> TeamKeys;
 	Banks.GetKeys(TeamKeys);
 	TeamKeys.Sort();
@@ -911,7 +1604,7 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		const FKodResourceCost& Bank = Banks.FindChecked(TeamId);
 		Append(&TeamId, sizeof(TeamId));
 		Append(&Bank.Jadeite, sizeof(Bank.Jadeite));
-		Append(&Bank.Oil, sizeof(Bank.Oil));
+		Append(&Bank.Luminene, sizeof(Bank.Luminene));
 	}
 
 	TArray<int32> NodeKeys;
@@ -930,6 +1623,24 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		const int32 QX = FMath::RoundToInt(Node.Position.X / NodeQ);
 		const int32 QY = FMath::RoundToInt(Node.Position.Y / NodeQ);
 		const int32 QZ = FMath::RoundToInt(Node.Position.Z / NodeQ);
+		Append(&QX, sizeof(QX));
+		Append(&QY, sizeof(QY));
+		Append(&QZ, sizeof(QZ));
+	}
+
+	TArray<int32> DropKeys;
+	DropOffs.GetKeys(DropKeys);
+	DropKeys.Sort();
+	const int32 DropCount = DropKeys.Num();
+	Append(&DropCount, sizeof(DropCount));
+	for (int32 DropKey : DropKeys)
+	{
+		const FKodDropOffState& Drop = DropOffs.FindChecked(DropKey);
+		Append(&DropKey, sizeof(DropKey));
+		Append(&Drop.TeamId, sizeof(Drop.TeamId));
+		const int32 QX = FMath::RoundToInt(Drop.Position.X / NodeQ);
+		const int32 QY = FMath::RoundToInt(Drop.Position.Y / NodeQ);
+		const int32 QZ = FMath::RoundToInt(Drop.Position.Z / NodeQ);
 		Append(&QX, sizeof(QX));
 		Append(&QY, sizeof(QY));
 		Append(&QZ, sizeof(QZ));

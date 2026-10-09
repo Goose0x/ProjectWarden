@@ -53,6 +53,8 @@ From [architecture §7](../../docs/01-zh-to-unreal-architecture.md):
 
 All orders must go through `UKodCommandSubsystem` even offline.
 
+Slice 0 match bank and the Dozer gather loop are documented in [docs/04-slice0-warden.md](../../docs/04-slice0-warden.md) (economy step 2). Jadeite is labeled Credits on the HUD. Luminene is the vent gas. `UKodResourceWallet` is the older Cash/Oil component and is not that bank.
+
 ## Module map
 
 ```

@@ -7,7 +7,8 @@
 class UTextBlock;
 
 /**
- * Top-right Jadeite / Oil readout. Built in C++ (no Widget Blueprint).
+ * Top-right Credits / Luminene readout. Built in C++ (no Widget Blueprint).
+ * Credits is the player-facing label for the Jadeite bank. The sim field stays Jadeite.
  * Reads the sim bank for the local team. Does not write sim state or the idle hash.
  * Supply is a grey placeholder (0/10) until population exists.
  */
@@ -31,8 +32,8 @@ private:
 	TObjectPtr<UTextBlock> JadeiteText;
 
 	UPROPERTY()
-	TObjectPtr<UTextBlock> OilText;
+	TObjectPtr<UTextBlock> LumineneText;
 
 	int32 ShownJadeite = MIN_int32;
-	int32 ShownOil = MIN_int32;
+	int32 ShownLuminene = MIN_int32;
 };

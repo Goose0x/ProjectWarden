@@ -3,7 +3,7 @@
   "simHz": 16,
   "buildTicksLaw": "RoundToInt(Seconds * 16)",
   "contentRoot": "/Game/Warden/Data",
-  "note": "Bare asset ids only (no DA_ prefix). Binary .uasset created in editor; runtime UKodSlice0Bootstrap fills same FNames until then. Playtest #1 spend is Cash (buildCostCash). Oil is the second wallet and is not a cost on these rows. Supply hard cap is 200. No Credits. Ranger body is presentation on the Ranger DA, not a seventh id. Local import soft path: /Game/Warden/Characters/USA/Ranger/SM_Ranger_Body.SM_Ranger_Body. Bootstrap leaves mesh refs null (Engine cube).",
+  "note": "Bare asset ids only (no DA_ prefix). Binary .uasset created in editor; runtime UKodSlice0Bootstrap fills same FNames until then. Playtest #1 spend is Cash (buildCostCash) on UKodResourceWallet. The match bank is Jadeite, labeled Credits on the slice 0 HUD, and Luminene. Supply hard cap is 200. Ranger body is presentation on the Ranger DA, not a seventh id. Local import soft path: /Game/Warden/Characters/USA/Ranger/SM_Ranger_Body.SM_Ranger_Body. Bootstrap leaves mesh refs null (Engine cube). Dozer bCanGather is true. OilSource is a catalog alias of LumineneVent.",
   "assets": [
     {
       "id": "RangerRifle",
@@ -46,6 +46,7 @@
       "moveSpeed": 350,
       "sightRadius": 1200,
       "weaponId": null,
+      "canGather": true,
       "buildCostCash": 100,
       "buildTicks": 128,
       "buildTimeSeconds": 8
@@ -90,6 +91,35 @@
       "displayName": "USA",
       "startingBuildingId": "CommandCenter",
       "startingUnitIds": ["Dozer", "Ranger", "Ranger"]
+    },
+    {
+      "id": "JadeiteNode",
+      "type": "ResourceNode",
+      "class": "KodResourceNodeDefinition",
+      "softPath": "/Game/Warden/Data/JadeiteNode.JadeiteNode",
+      "displayName": "Jadeite",
+      "nodeTag": "Kod.Resource.Jadeite",
+      "resourceType": "Jadeite",
+      "amount": 1500,
+      "harvestPerTrip": 5,
+      "harvestTicks": 24,
+      "tricklePerTrip": 0,
+      "gatherStandUU": 150
+    },
+    {
+      "id": "LumineneVent",
+      "type": "ResourceNode",
+      "class": "KodResourceNodeDefinition",
+      "softPath": "/Game/Warden/Data/LumineneVent.LumineneVent",
+      "displayName": "Luminene",
+      "nodeTag": "Kod.Resource.Luminene",
+      "resourceType": "Luminene",
+      "amount": 2250,
+      "harvestPerTrip": 4,
+      "harvestTicks": 24,
+      "tricklePerTrip": 1,
+      "gatherStandUU": 200,
+      "aliasIds": ["OilSource"]
     }
   ]
 }

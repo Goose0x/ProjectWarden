@@ -20,7 +20,8 @@ enum class EKodSimOrderType : uint8
 {
 	None,
 	Move,
-	Attack
+	Attack,
+	Gather
 };
 
 /** Sim-owned entity state. Actors interpolate presentation from this — not CharacterMovement. */
@@ -92,8 +93,50 @@ struct KODCORE_API FKodSimEntityState
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	int32 TeamId = 0;
 
+	/** Dozer. Copied from the unit definition. Unarmed gatherers are not idle-acquire targets. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	bool bCanGather = false;
+
+	/**
+	 * Gather loop. Integers only. Hashed while the worker is live, including zeros,
+	 * so a cancelled order and a finished trip do not alias each other.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	EKodGatherPhase GatherPhase = EKodGatherPhase::None;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	FKodEntityId GatherNode;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	FKodEntityId GatherDropOff;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	EKodResourceType GatherType = EKodResourceType::Jadeite;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	int32 CargoJadeite = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	int32 CargoLuminene = 0;
+
+	/** True when the carried amount was a depleted-vent trickle, not a pile withdrawal. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	bool bCargoFromTrickle = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	int32 HarvestTicksRemaining = 0;
+
+	/** Ticks spent without a pose change on the current leg. Reset on progress or a new phase. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	int32 GatherStallTicks = 0;
+
+	/** One automatic retarget is allowed per leg. A second stall aborts the order. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	bool bGatherStallRetargeted = false;
+
 	bool IsMoving() const { return Order == EKodSimOrderType::Move; }
 	bool HasPendingOrder() const { return Order != EKodSimOrderType::None; }
+	bool IsCarryingCargo() const { return CargoJadeite > 0 || CargoLuminene > 0; }
 };
 
 /**
@@ -137,7 +180,8 @@ public:
 		float WeaponDamage,
 		float WeaponRange,
 		float WeaponCooldownSeconds,
-		int32 TeamId = 0);
+		int32 TeamId = 0,
+		bool bCanGather = false);
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	void IssueMove(FKodEntityId Id, FVector WorldLocation);
@@ -162,9 +206,10 @@ public:
 
 	/**
 	 * Stable when no units moving and no orders pending.
-	 * Hashes entity ids, quantized positions, HP (DA-driven state), and order,
-	 * then each team bank (Jadeite, Oil) and each resource node (id, type, remaining, quantized position).
-	 * Those economy fields are integers. TeamId, RetaliateTarget, HarvestPerTrip, visual bob, visual yaw,
+	 * Hashes entity ids, quantized positions, HP, order, and gather state (phase, node, drop-off,
+	 * cargo, harvest ticks, stall), then each team bank (Jadeite, Luminene), each resource node
+	 * (id, type, remaining, quantized position), and each drop-off (id, team, quantized position).
+	 * Those fields are integers. TeamId, RetaliateTarget, visual bob, visual yaw, cargo mesh tint,
 	 * and other presentation (flash, tracer, HP bar, death sink, resource readout) are not hashed.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
@@ -172,10 +217,10 @@ public:
 
 	/**
 	 * Replace one team's bank. Match start only — gameplay uses Spend and Deposit.
-	 * Team 0 is seeded in Initialize from StartingJadeite / StartingOil (50 / 0).
+	 * Team 0 is seeded in Initialize from StartingJadeite / StartingLuminene (50 / 0).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
-	void SetTeamBank(int32 TeamId, int32 Jadeite, int32 Oil);
+	void SetTeamBank(int32 TeamId, int32 Jadeite, int32 Luminene);
 
 	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
 	bool TryGetBank(int32 TeamId, FKodResourceCost& OutBank) const;
@@ -193,7 +238,7 @@ public:
 
 	/**
 	 * Add non-negative amounts into the team bank (creates the bank at zero first if it is missing).
-	 * Logs KodEcon Deposit Team=.. Jadeite=.. Oil=.. Bank=J..,O..
+	 * Logs KodEcon Deposit Team=.. J=.. L=..
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
 	void Deposit(int32 TeamId, FKodResourceCost Amount);
@@ -201,14 +246,26 @@ public:
 	/**
 	 * Register a placed or spawned node. Shares the entity id space with units but is not a combat state,
 	 * so auto-acquire, hitscan, and HP bars ignore it. Amount <= 0 is rejected.
+	 * Numbers come from FKodResourceNodeSpec (the DataAsset).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
-	FKodEntityId RegisterResourceNode(
-		AActor* Actor,
-		EKodResourceType Type,
-		int32 Amount,
-		int32 HarvestPerTrip,
-		FName DefinitionId);
+	FKodEntityId RegisterResourceNode(AActor* Actor, const FKodResourceNodeSpec& Spec);
+
+	/**
+	 * PROXY_CC or a Command Center. Shares the entity id space. Not selectable and not attackable.
+	 * StandUU is how close a worker must get before the cargo hits the bank.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
+	FKodEntityId RegisterDropOff(AActor* Actor, int32 TeamId, int32 StandUU);
+
+	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
+	void UnregisterDropOff(FKodEntityId Id);
+
+	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
+	bool IsDropOff(FKodEntityId Id) const;
+
+	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
+	FKodEntityId FindNearestDropOff(int32 TeamId, FVector Origin) const;
 
 	/** Drop the sim record. Does not destroy the actor (EndPlay uses this). */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
@@ -220,14 +277,30 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
 	bool TryGetResourceNode(FKodEntityId Id, FKodResourceNodeState& OutNode) const;
 
-	/** 2D nearest node. Ties go to the lowest entity id. Origin is not hashed. */
+	/** 2D nearest node with Remaining > 0. Ties go to the lowest entity id. Origin is not hashed. */
 	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
 	FKodEntityId FindNearestResourceNode(FVector Origin) const;
 
 	/**
+	 * 2D nearest node of Type. bRequireRemaining skips empty piles.
+	 * A depleted vent (Remaining 0, TricklePerTrip > 0) is a candidate only when bRequireRemaining is false.
+	 * Ties go to the lowest entity id.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
+	FKodEntityId FindNearestResourceNodeOfType(FVector Origin, EKodResourceType Type, bool bRequireRemaining) const;
+
+	/**
+	 * Order a worker onto a node. RMB ground (IssueMove) and Stop cancel and refund a pile withdrawal.
+	 * The loop is fixed-step: walk, harvest ticks, carry, drop-off, repeat.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
+	bool IssueGather(FKodEntityId WorkerId, FKodEntityId NodeId);
+
+	/**
 	 * Take up to Amount from the node and Deposit it into TeamId.
-	 * Amount is clamped to Remaining. Remaining 0 unregisters and destroys the actor.
-	 * Logs the Deposit line, then KodEcon Node Id=.. Type=.. Remaining=..
+	 * While Remaining > 0, Amount is clamped to Remaining. A depleted vent with a trickle yields
+	 * TricklePerTrip instead of Amount. A jadeite pile at 0 is destroyed.
+	 * Logs Deposit, then KodEcon Node Id=.. Type=.. Remaining=.., and KodEcon NodeDepleted Id=.. once.
 	 * Returns the amount taken (0 on a miss).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
@@ -238,7 +311,7 @@ public:
 	int32 StartingJadeite = 50;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
-	int32 StartingOil = 0;
+	int32 StartingLuminene = 0;
 
 	UFUNCTION(BlueprintPure, Category = "Kod|Sim")
 	int64 GetSimTickIndex() const { return SimTickIndex; }
@@ -275,6 +348,17 @@ protected:
 	void StepSim(float FixedDt);
 	void StepEntityMove(FKodSimEntityState& State, float FixedDt);
 	void StepEntityAttack(FKodSimEntityState& State, float FixedDt);
+	void StepEntityGather(FKodSimEntityState& State, float FixedDt);
+	/** Move toward Target and stop at AcceptUU. True when the worker is inside that radius. */
+	bool AdvanceGatherMove(FKodSimEntityState& State, const FVector& Target, float AcceptUU, float FixedDt);
+	void ClearGatherFields(FKodSimEntityState& State);
+	void RefundGatherCargo(FKodSimEntityState& State);
+	void AbortGather(FKodSimEntityState& State);
+	bool RetargetGatherNode(FKodSimEntityState& State);
+	void BeginGatherLeg(FKodSimEntityState& State, EKodGatherPhase Phase);
+	/** True when a stall is close enough to count as arrival. False when the leg retargeted or the order aborted. */
+	bool RecoverGatherStall(FKodSimEntityState& State, float Dist, float AcceptUU);
+	FKodNodeTakeResult TakeFromNode(FKodEntityId Id, int32 Requested);
 	/**
 	 * Idle units with a weapon acquire a target and run StepEntityAttack.
 	 * Move orders are left alone. Returns true when an attack step ran.
@@ -293,13 +377,17 @@ protected:
 	UPROPERTY()
 	TMap<int32, FKodSimEntityState> States;
 
-	/** Per-team Jadeite / Oil. Integers only. Included in ComputeIdleHash. */
+	/** Per-team Jadeite / Luminene. Integers only. Included in ComputeIdleHash. */
 	UPROPERTY()
 	TMap<int32, FKodResourceCost> Banks;
 
-	/** Gather sources. Not iterated by StepSim. Included in ComputeIdleHash. */
+	/** Gather sources. Not iterated as combat. Included in ComputeIdleHash. */
 	UPROPERTY()
 	TMap<int32, FKodResourceNodeState> ResourceNodes;
+
+	/** Drop-off buildings. Not combat. Included in ComputeIdleHash. */
+	UPROPERTY()
+	TMap<int32, FKodDropOffState> DropOffs;
 
 	/** Previous step poses for interpolation. */
 	TMap<int32, FVector> PrevPositions;

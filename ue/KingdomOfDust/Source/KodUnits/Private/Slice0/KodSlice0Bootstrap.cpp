@@ -67,7 +67,7 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	UKodBuildingDefinition* Barracks = MakeBarracks(Catalog, Ranger);
 	UKodFactionDefinition* USA = MakeUSA(Catalog, CC, Dozer, Ranger);
 	UKodResourceNodeDefinition* JadeiteNode = MakeJadeiteNode(Catalog);
-	UKodResourceNodeDefinition* OilSource = MakeOilSource(Catalog);
+	UKodResourceNodeDefinition* LumineneVent = MakeLumineneVent(Catalog);
 
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_RangerRifle), Rifle);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Ranger), Ranger);
@@ -76,7 +76,8 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Barracks), Barracks);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_USA), USA);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_JadeiteNode), JadeiteNode);
-	Catalog->RegisterAsset(FName(KodWardenPaths::Id_OilSource), OilSource);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_LumineneVent), LumineneVent);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_OilSource), LumineneVent);
 
 	GCatalog = Catalog;
 	return Catalog;
@@ -220,6 +221,7 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeDozer(UObject* Outer)
 	U->BuildCostCash = 100;
 	U->BuildTicks = 128; // 8 × 16
 	U->BuildTimeSeconds = KodBuildTicks::BuildTicksToSeconds(128);
+	U->bCanGather = true;
 	U->PrimaryWeapon.Reset();
 	U->SkeletalMesh.Reset();
 	U->StaticMesh.Reset();
@@ -299,19 +301,25 @@ UKodResourceNodeDefinition* UKodSlice0Bootstrap::MakeJadeiteNode(UObject* Outer)
 	Node->ResourceType = EKodResourceType::Jadeite;
 	Node->Amount = KodEconomyDefaults::JadeiteNodeAmount;
 	Node->HarvestPerTrip = KodEconomyDefaults::JadeiteHarvestPerTrip;
+	Node->HarvestTicks = KodEconomyDefaults::JadeiteHarvestTicks;
+	Node->TricklePerTrip = 0;
+	Node->GatherStandUU = KodEconomyDefaults::JadeiteGatherStandUU;
 	Node->Mesh.Reset();
 	return Node;
 }
 
-UKodResourceNodeDefinition* UKodSlice0Bootstrap::MakeOilSource(UObject* Outer)
+UKodResourceNodeDefinition* UKodSlice0Bootstrap::MakeLumineneVent(UObject* Outer)
 {
-	UKodResourceNodeDefinition* Node = NewObject<UKodResourceNodeDefinition>(Outer, FName(KodWardenPaths::Id_OilSource), RF_Public | RF_Transient);
-	Node->DefinitionId = FName(KodWardenPaths::Id_OilSource);
-	Node->DisplayName = NSLOCTEXT("Kod", "Resource_OilSource", "Oil");
-	Node->NodeTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Resource.Oil")), false);
-	Node->ResourceType = EKodResourceType::Oil;
-	Node->Amount = KodEconomyDefaults::OilNodeAmount;
-	Node->HarvestPerTrip = KodEconomyDefaults::OilHarvestPerTrip;
+	UKodResourceNodeDefinition* Node = NewObject<UKodResourceNodeDefinition>(Outer, FName(KodWardenPaths::Id_LumineneVent), RF_Public | RF_Transient);
+	Node->DefinitionId = FName(KodWardenPaths::Id_LumineneVent);
+	Node->DisplayName = NSLOCTEXT("Kod", "Resource_LumineneVent", "Luminene");
+	Node->NodeTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Resource.Luminene")), false);
+	Node->ResourceType = EKodResourceType::Luminene;
+	Node->Amount = KodEconomyDefaults::LumineneNodeAmount;
+	Node->HarvestPerTrip = KodEconomyDefaults::LumineneHarvestPerTrip;
+	Node->HarvestTicks = KodEconomyDefaults::LumineneHarvestTicks;
+	Node->TricklePerTrip = KodEconomyDefaults::LumineneTricklePerTrip;
+	Node->GatherStandUU = KodEconomyDefaults::LumineneGatherStandUU;
 	Node->Mesh.Reset();
 	return Node;
 }
@@ -352,5 +360,36 @@ AKodUnit* UKodSlice0Bootstrap::SpawnRanger(UWorld* World, const FTransform& Tran
 		Unit->ApplyHostileCubeTint();
 	}
 	UE_LOG(LogTemp, Warning, TEXT("SpawnRanger spawned %s at %s"), *Unit->GetName(), *Unit->GetActorLocation().ToString());
+	return Unit;
+}
+
+AKodUnit* UKodSlice0Bootstrap::SpawnDozer(UWorld* World, const FTransform& Transform, int32 TeamId)
+{
+	const FVector Location = Transform.GetLocation();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnDozer failed: no world (requested %s)"), *Location.ToString());
+		return nullptr;
+	}
+	UKodUnitDefinition* Def = ResolveUnit(FName(KodWardenPaths::Id_Dozer), GetTransientPackage());
+	if (!Def)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnDozer failed: Dozer definition missing at %s"), *Location.ToString());
+		return nullptr;
+	}
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	AKodUnit* Unit = World->SpawnActor<AKodUnit>(AKodUnit::StaticClass(), Transform, Params);
+	if (!Unit)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnDozer failed: SpawnActor returned null at %s"), *Location.ToString());
+		return nullptr;
+	}
+	Unit->Definition = Def;
+	Unit->TeamId = TeamId;
+	Unit->Tags.AddUnique(FName(TEXT("KodUnitDozer")));
+	Unit->ApplyDefinition(Def);
+	UE_LOG(LogTemp, Log, TEXT("SpawnDozer spawned %s at %s"), *Unit->GetName(), *Unit->GetActorLocation().ToString());
 	return Unit;
 }

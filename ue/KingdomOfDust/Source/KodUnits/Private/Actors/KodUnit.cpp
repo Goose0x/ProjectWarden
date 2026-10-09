@@ -12,6 +12,7 @@
 #include "Game/KodPlayerController.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SceneComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Animation/AnimEnums.h"
 #include "Animation/AnimInstance.h"
@@ -211,6 +212,7 @@ void AKodUnit::BeginPlay()
 void AKodUnit::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	UpdateCargoPresentation();
 	const float Dt = FMath::Max(0.f, DeltaSeconds);
 	if (AdvanceDeathSink(Dt))
 	{
@@ -463,6 +465,84 @@ float AKodUnit::GetScaledBobAmplitudeCm() const
 	return Base * static_cast<float>(Scale);
 }
 
+void AKodUnit::UpdateCargoPresentation()
+{
+	int32 Jadeite = 0;
+	int32 Luminene = 0;
+	if (const UWorld* World = GetWorld())
+	{
+		if (const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			FKodSimEntityState State;
+			if (EntityId.IsValid() && Sim->TryGetState(EntityId, State))
+			{
+				Jadeite = State.CargoJadeite;
+				Luminene = State.CargoLuminene;
+			}
+		}
+	}
+
+	if (Jadeite == ShownCargoJadeite && Luminene == ShownCargoLuminene)
+	{
+		return;
+	}
+	ShownCargoJadeite = Jadeite;
+	ShownCargoLuminene = Luminene;
+
+	const bool bShow = Jadeite > 0 || Luminene > 0;
+	if (!bShow)
+	{
+		if (CargoMesh)
+		{
+			CargoMesh->SetVisibility(false, true);
+			CargoMesh->SetHiddenInGame(true);
+		}
+		return;
+	}
+
+	if (!CargoMesh)
+	{
+		CargoMesh = NewObject<UStaticMeshComponent>(this, TEXT("CargoMesh"));
+		if (!CargoMesh)
+		{
+			return;
+		}
+		CargoMesh->ComponentTags.Add(FName(TEXT("KodFx")));
+		CargoMesh->SetMobility(EComponentMobility::Movable);
+		USceneComponent* AttachParent = GetCapsuleComponent() ? static_cast<USceneComponent*>(GetCapsuleComponent()) : GetRootComponent();
+		CargoMesh->SetupAttachment(AttachParent);
+		if (UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr, EngineSpherePath))
+		{
+			CargoMesh->SetStaticMesh(Sphere);
+		}
+		CargoMesh->SetRelativeLocation(FVector(28.f, 0.f, 70.f));
+		CargoMesh->SetRelativeScale3D(FVector(0.22f));
+		CargoMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		CargoMesh->SetGenerateOverlapEvents(false);
+		CargoMesh->SetCanEverAffectNavigation(false);
+		CargoMesh->RegisterComponent();
+	}
+
+	const FLinearColor Tint = (Luminene > 0 && Jadeite <= 0)
+		? KodResourceColors::LumineneCore()
+		: KodResourceColors::Jadeite();
+	if (!CargoMID)
+	{
+		if (UMaterialInterface* Parent = LoadObject<UMaterialInterface>(nullptr, BasicShapeMaterialPath))
+		{
+			CargoMID = UMaterialInstanceDynamic::Create(Parent, this);
+		}
+	}
+	if (CargoMID && CargoMesh)
+	{
+		CargoMID->SetVectorParameterValue(TEXT("Color"), Tint);
+		CargoMID->SetVectorParameterValue(TEXT("BaseColor"), Tint);
+		CargoMesh->SetMaterial(0, CargoMID);
+	}
+	CargoMesh->SetVisibility(true, true);
+	CargoMesh->SetHiddenInGame(false);
+}
+
 void AKodUnit::UpdateLifePresentation(float DeltaSeconds)
 {
 	const float Dt = FMath::Max(0.f, DeltaSeconds);
@@ -627,9 +707,12 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 				EntityId = Sim->RegisterEntity(this);
 			}
 			const float Accept = MoveComponent ? MoveComponent->AcceptanceRadius : 50.f;
+			const FName DefId = Def->DefinitionId.IsNone() ? Def->GetFName() : Def->DefinitionId;
+			// A cooked Dozer uasset from before this step still gathers. The flag is the authored switch.
+			const bool bGather = Def->bCanGather || DefId == FName(KodWardenPaths::Id_Dozer);
 			Sim->ConfigureEntity(
 				EntityId,
-				Def->DefinitionId.IsNone() ? Def->GetFName() : Def->DefinitionId,
+				DefId,
 				Def->MaxHealth,
 				Def->MoveSpeed,
 				Accept,
@@ -637,7 +720,8 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 				WeaponDamage,
 				WeaponRange,
 				WeaponCooldown,
-				TeamId);
+				TeamId,
+				bGather);
 		}
 	}
 
@@ -652,6 +736,14 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 	if (!bForceCubeBody)
 	{
 		ApplyTeamColor();
+	}
+	const FName GatherId = Def->DefinitionId.IsNone() ? Def->GetFName() : Def->DefinitionId;
+	const bool bWorkerBody = Def->bCanGather || GatherId == FName(KodWardenPaths::Id_Dozer);
+	if (bWorkerBody && !bSkeletalBody && UnitMesh && IsEngineCubeMesh(UnitMesh->GetStaticMesh()))
+	{
+		// Shorter than the Marine cube so three workers read as a crew, not a second squad.
+		UnitMesh->SetRelativeScale3D(FVector(0.7f, 0.7f, 1.15f));
+		ApplyColorTintFallback(UnitMesh, FLinearColor(FColor(0xC6, 0xA1, 0x5B)));
 	}
 }
 

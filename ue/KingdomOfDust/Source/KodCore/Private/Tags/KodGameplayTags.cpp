@@ -12,5 +12,7 @@ namespace KodGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Power, "Kod.Power");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Power_DustStorm, "Kod.Power.DustStorm");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Resource_Cash, "Kod.Resource.Cash");
+	UE_DEFINE_GAMEPLAY_TAG(Kod_Resource_Jadeite, "Kod.Resource.Jadeite");
+	UE_DEFINE_GAMEPLAY_TAG(Kod_Resource_Luminene, "Kod.Resource.Luminene");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Resource_Oil, "Kod.Resource.Oil");
 }
