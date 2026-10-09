@@ -647,6 +647,8 @@ FKodEntityId UKodSimSubsystem::RegisterResourceNode(
 	Node.Id = Id;
 	Node.Type = Type;
 	Node.DefinitionId = DefinitionId;
+	// Actor origin (the ground point). A mesh-center offset must not live on the root,
+	// or this copies (0, 0, half-height) instead of the arc.
 	Node.Position = Actor->GetActorLocation();
 	QuantizeResourcePosition(Node.Position);
 	Node.Remaining = Amount;

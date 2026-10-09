@@ -1,5 +1,6 @@
 #include "Actors/KodResourceNode.h"
 
+#include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Data/KodResourceNodeDefinition.h"
 #include "Engine/StaticMesh.h"
@@ -170,8 +171,13 @@ AKodResourceNode::AKodResourceNode()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
+	// Scene root keeps the spawn transform. SetRelativeLocation on a root mesh
+	// is a world move, which was sending every node to (0, 0, half-height).
+	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+	SetRootComponent(SceneRoot);
+
 	NodeMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("NodeMesh"));
-	SetRootComponent(NodeMesh);
+	NodeMesh->SetupAttachment(SceneRoot);
 	// Movable so a runtime MID is not dropped the way a static lightmap mesh can ignore it.
 	NodeMesh->SetMobility(EComponentMobility::Movable);
 	ConfigurePlaceholderCollision(NodeMesh);
@@ -267,7 +273,8 @@ UStaticMeshComponent* AKodResourceNode::AddClusterMesh(
 	}
 	Mesh->ComponentTags.Add(ClusterTag);
 	Mesh->SetMobility(EComponentMobility::Movable);
-	Mesh->SetupAttachment(NodeMesh);
+	// Attach to the scene root, not NodeMesh. Offsets are ground-relative.
+	Mesh->SetupAttachment(SceneRoot);
 	Mesh->SetStaticMesh(Shape);
 	Mesh->SetRelativeLocation(RelativeLocation);
 	Mesh->SetRelativeRotation(RelativeRotation);

@@ -361,7 +361,11 @@ AssetManager scans `KodResourceNodeDefinition` under `/Game/Warden/Data`. A set 
 1. Actors tagged `KodResourceJadeite` or `KodResourceOil` are registered as-is (Jadeite wins if both tags are on one actor). Select collision is set back to QueryOnly Pawn after the greybox mute. Log uses `Source=Tagged` and the counts that were actually tagged.
 2. If **no** actor has either tag, a default field is spawned. Anchor is the first `PROXY_CC` label (name sort), else the first `PlayerStart`, else `SmokeRangerOffset`. The six Jadeite nodes are a tight arc **facing that anchor**, on the side **away from the Marine spawns** (smoke Marine at `(400, 0)`, hostile at the `PROXY_HOSTILE` anchor — PIE on the current map is about `(700, 200)`). Neighbour spacing is **120 cm** (chord of a 720 cm radius). The Oil source sits **52°** past the end of that arc and at least **400 cm** from the nearest crystal. Each Jadeite node is three cones about **135 cm** tall. The Oil cylinder is about **250 cm** wide and **46 cm** tall. Floor Z is a downward trace that ignores sim actors.
 
-Bank is logged at the start of play. Each node then logs its tint (during the mesh setup) and one spawn line. The summary is last:
+The actor origin is a scene component. The cone and cylinder are children, so the half-height lift does not replace the spawn transform. `RegisterResourceNode` copies that actor origin into the sim. Bank is logged at the start of play. The field logs its anchor, then each node logs its tint and one spawn line. The summary is last:
+
+```
+KodEcon Field Anchor=<name> Loc=x,y,z Facing=<deg>
+```
 
 ```
 KodEcon Bank Team=0 Jadeite=50 Oil=0
