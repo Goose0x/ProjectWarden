@@ -30,8 +30,8 @@ public:
 	void ApplyDefinition(const UKodResourceNodeDefinition* Def);
 
 	/**
-	 * Jadeite: three engine cones, about 135 cm tall.
-	 * Oil: one engine cylinder, about 250 cm wide and low.
+	 * Jadeite: three engine cones, about 135 cm tall, deep jade #00A86B.
+	 * Luminene: a low fissure disc (#9EE60B) with a highlight plume (#C6FF1A).
 	 */
 	void ApplyPlaceholder(EKodResourceType Type);
 

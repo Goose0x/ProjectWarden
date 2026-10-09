@@ -65,6 +65,7 @@ void UKodCommandSubsystem::ExecuteCommand(const FKodCommand& Command)
 	case EKodCommandType::Stop:      ExecuteStop(Command); break;
 	case EKodCommandType::Build:     ExecuteBuild(Command); break;
 	case EKodCommandType::CastPower: ExecuteCastPower(Command); break;
+	case EKodCommandType::Gather:    ExecuteGather(Command); break;
 	default: break;
 	}
 }
@@ -182,4 +183,18 @@ void UKodCommandSubsystem::ExecuteCastPower(const FKodCommand& Command)
 	// M1: general power activation is driven by GAS on the player pawn / power component.
 	// Command payload carries ability/tag name; activation hook filled when KodGenerals Content exists.
 	(void)Command;
+}
+
+void UKodCommandSubsystem::ExecuteGather(const FKodCommand& Command)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim || !Sim->IsResourceNode(Command.TargetEntity))
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : Command.SourceEntities)
+	{
+		Sim->IssueGather(Id, Command.TargetEntity);
+	}
 }

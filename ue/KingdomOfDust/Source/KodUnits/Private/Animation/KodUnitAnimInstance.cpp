@@ -553,6 +553,11 @@ void UKodUnitAnimInstance::ReadSimPresentation(AKodUnit* UnitPawn)
 						const float DistSq = FVector::DistSquared2D(SimState.Position, SimState.MoveTarget);
 						NewSpeed = (DistSq <= FMath::Square(Accept)) ? 0.f : SimState.MoveSpeed;
 					}
+					else if (SimState.Order == EKodSimOrderType::Gather
+						&& (SimState.GatherPhase == EKodGatherPhase::ToNode || SimState.GatherPhase == EKodGatherPhase::ToDropOff))
+					{
+						NewSpeed = SimState.MoveSpeed;
+					}
 					else if (bAim)
 					{
 						FKodSimEntityState TargetState;

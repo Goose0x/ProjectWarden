@@ -16,11 +16,11 @@
 | `Barracks` | `UKodBuildingDefinition` | `/Game/Warden/Data/Barracks.Barracks` |
 | `USA` | `UKodFactionDefinition` | `/Game/Warden/Data/USA.USA` |
 | `JadeiteNode` | `UKodResourceNodeDefinition` | `/Game/Warden/Data/JadeiteNode.JadeiteNode` |
-| `OilSource` | `UKodResourceNodeDefinition` | `/Game/Warden/Data/OilSource.OilSource` |
+| `LumineneVent` | `UKodResourceNodeDefinition` | `/Game/Warden/Data/LumineneVent.LumineneVent` |
 
 Constants: `KodWardenPaths.h`. Catalog JSON: `Content/Warden/Data/WardenSlice0Catalog.json`.
 
-`JadeiteNode` and `OilSource` are economy step 1. Bootstrap creates them in memory. PIE does not need those two uassets. Do not commit them.
+`JadeiteNode` and `LumineneVent` are the economy node ids. Bootstrap creates them in memory. PIE does not need those uassets. Do not commit them. `OilSource` is a catalog alias of the vent so an old id still resolves. The actor tag `KodResourceOil` still registers as Luminene.
 
 The USA basic infantry **display name is Marine**. The internal id stays `Ranger` (`DefinitionId`, `/Game/Warden/Data/Ranger`, `RangerRifle`, gameplay tag `Kod.Unit.Ranger`, log keys, class names). Bootstrap `UKodUnitDefinition::DisplayName` text is Marine (`NSLOCTEXT` key `Unit_Ranger`). On a loaded Ranger Data Asset, set the **DisplayName** property to Marine. Do not rename the asset.
 
@@ -335,62 +335,85 @@ World Settings → GameMode Override: `/Script/KingdomOfDust.KodSlice0GameMode`.
 
 A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDust.uproject` (`KingdomOfDust`, `KodCore`, `KodUnits`, `KodEconomy`, `KodGenerals`, `KodAI`, `KodNet`, `KodUI`, `KodEditor`) — not a single `KoD_alpha` module. Never `/Script/KoD_alpha.…` unless that module exists. A missing class falls the map back to `GameModeBase`. After the class path is fixed, delete and re-place PROXY actors (`KodProxyUnit_*`).
 
-## Economy step 1 — Jadeite and Oil
+## Economy step 1 and 2 — Jadeite, Luminene, Dozer gather
 
-Match authority is `UKodSimSubsystem`. Two int32 stores per team: **Jadeite** (money, and later a weapon power source) and **Oil** (production / mechanical). `FKodResourceCost` is `{Jadeite, Oil}`. `CanAfford` / `Spend` / `Deposit` are the API later steps call (worker trip, Command Center train, placement, Barracks train). `UKodResourceWallet` is the older replicated component and is not this bank.
+Match authority is `UKodSimSubsystem` (16 Hz). Two int32 stores per team: **Jadeite** (internal money id; the HUD label is **Credits**) and **Luminene** (gas from fissure vents). `FKodResourceCost` is `{Jadeite, Luminene}`. `CanAfford` / `Spend` / `Deposit` are the API train and build steps call. `UKodResourceWallet` is the older replicated Cash/Oil component and is not this bank.
 
-Starting bank is `AKodSlice0GameMode` `StartingJadeite` / `StartingOil` (default **50 / 0**). The sim seeds the same defaults in `Initialize`, then StartPlay writes the game mode values. Team 0 only, until something deposits for another team.
+Starting bank is `AKodSlice0GameMode` `StartingJadeite` / `StartingLuminene` (default **50 / 0**). The sim seeds the same defaults in `Initialize`, then StartPlay writes the game mode values.
 
-Resource nodes are sim entities (position, type, remaining) in their own registry. They share entity ids with units and are registered **after** the smoke Marine and the hostile, so those stay id **1** and id **2** when both spawn. They are not in the combat step: not attackable, no auto-acquire, no HP bar. Remaining **0** unregisters the node and destroys the actor. `HarvestPerTrip` is stored for the worker (Jadeite **5**, Oil **4**). The debug command passes its own amount.
+Resource nodes are sim entities in their own registry. They share entity ids with units and are registered **after** the smoke Marine and the hostile, so those stay id **1** and id **2** when both spawn. They are not in the combat step: not attackable, no auto-acquire, no HP bar. A Jadeite cluster at Remaining **0** is destroyed. A Luminene vent at 0 stays and trickles. `HarvestPerTrip`, `HarvestTicks`, `TricklePerTrip`, and `GatherStandUU` are copied from the DataAsset (bootstrap fills them when the uasset is missing).
 
-`ComputeIdleHash` appends each team bank and each node as integers (id, type, remaining, quantized position). No float amounts. The hash value changes when a deposit or harvest lands, and is stable again while those integers sit still. Bob, visual yaw, the readout, and `0/10` supply are not hashed.
+`ComputeIdleHash` appends gather state on every entity (phase, node, drop-off, cargo, harvest ticks, stall), each team bank, each node (id, type, remaining, quantized position), and each drop-off. Integers only. The hash changes when a deposit, harvest, or gather tick lands, and is stable again while those integers sit still. Bob, visual yaw, the cargo mesh, and the readout are not hashed.
 
 Definitions (bootstrap `NewObject` when the uasset is missing — do not commit one):
 
-| Id | Class | Amount | Harvest per trip | Placeholder |
-|----|-------|--------|------------------|-------------|
-| `JadeiteNode` | `UKodResourceNodeDefinition` | 1500 | 5 | Three engine cones, ~135 cm tall, saturated teal |
-| `OilSource` | `UKodResourceNodeDefinition` | 5000 | 4 | Engine cylinder, ~250 cm wide and low, `#1C1E22` |
+| Id | Class | Amount | Per trip | Ticks | Trickle | Stand | Placeholder |
+|----|-------|--------|----------|-------|---------|-------|-------------|
+| `JadeiteNode` | `UKodResourceNodeDefinition` | 1500 | 5 | 24 (1.5 s) | 0 | 150 | Three engine cones, ~135 cm, `#00A86B` |
+| `LumineneVent` | `UKodResourceNodeDefinition` | 2250 | 4 | 24 (1.5 s) | 1 | 200 | Disc `#9EE60B` plus plume `#C6FF1A` |
 
-AssetManager scans `KodResourceNodeDefinition` under `/Game/Warden/Data`. A set `Mesh` that loads replaces the placeholder. Empty keeps it.
+`OilSource` is registered as an alias of the same vent object. AssetManager still scans `KodResourceNodeDefinition` under `/Game/Warden/Data`.
 
 ### Field spawn (no `.umap` edit required)
 
-`AKodSlice0GameMode::SpawnResourceField` runs at the end of StartPlay.
+`AKodSlice0GameMode::SpawnResourceField` runs at the end of StartPlay, then the drop-off, then workers.
 
-1. Actors tagged `KodResourceJadeite` or `KodResourceOil` are registered as-is (Jadeite wins if both tags are on one actor). Select collision is set back to QueryOnly Pawn after the greybox mute. Log uses `Source=Tagged` and the counts that were actually tagged.
-2. If **no** actor has either tag, a default field is spawned. Anchor is the first `PROXY_CC` label (name sort), else the first `PlayerStart`, else `SmokeRangerOffset`. The six Jadeite nodes are a tight arc **facing that anchor**, on the side **away from the Marine spawns** (smoke Marine at `(400, 0)`, hostile at the `PROXY_HOSTILE` anchor — PIE on the current map is about `(700, 200)`). Neighbour spacing is **120 cm** (chord of a 720 cm radius). The Oil source sits **52°** past the end of that arc and at least **400 cm** from the nearest crystal. Each Jadeite node is three cones about **135 cm** tall. The Oil cylinder is about **250 cm** wide and **46 cm** tall. Floor Z is a downward trace that ignores sim actors.
+1. Actors tagged `KodResourceJadeite` or `KodResourceLuminene` are registered as-is (`KodResourceOil` still counts as a vent). Jadeite wins if both tags are on one actor. Log uses `Source=Tagged`.
+2. If **no** actor has either tag, a default field is spawned. Anchor is the first `PROXY_CC` label (name sort), else the first `PlayerStart`, else `SmokeRangerOffset`. Six Jadeite clusters sit on a tight arc facing that anchor, on the side away from the Marine spawns. Neighbour spacing is **120 cm**. The Luminene vent sits **52°** past the end of that arc and at least **400 cm** from the nearest crystal. Floor Z is a downward trace that ignores sim actors.
 
-The actor origin is a scene component. The cone and cylinder are children, so the half-height lift does not replace the spawn transform. `RegisterResourceNode` copies that actor origin into the sim. Bank is logged at the start of play. The field logs its anchor, then each node logs its tint and one spawn line. The summary is last:
+`PROXY_CC` is then registered as team 0's drop-off (not selectable, not attackable). If the map has no team-0 Dozer, three workers spawn on a short arc **420 cm** from that anchor toward the field.
 
-```
-KodEcon Field Anchor=<name> Loc=x,y,z Facing=<deg>
-```
+With both Marines spawning, the first Jadeite node is still id **3** and the vent is id **9**. The drop-off is the next id. The three Dozers follow that.
 
 ```
-KodEcon Bank Team=0 Jadeite=50 Oil=0
+KodEcon Bank Team=0 Jadeite=50 Luminene=0
 KodEcon NodeTint Applied=1 Param=Color
 KodEcon Node Spawn Id=3 Type=Jadeite Loc=x,y,z
-KodEcon Nodes Jadeite=6 Oil=1 Source=Default
+KodEcon DropOff Id=10 Team=0 Loc=x,y,z
+KodEcon Nodes Jadeite=6 Luminene=1 Source=Default
+KodEcon Worker Spawn Id=11 Loc=x,y,z
+KodEcon Workers Spawned=3 Anchor=<PROXY_CC name>
 ```
 
-`Param=Color` is the vector parameter that took the tint (editor placeholder, or `BasicShapeMaterial` when that parent is the one that actually has the pin). `Applied=0 Param=None` means neither parent exposed a color pin. Jadeite is unlit saturated teal. Oil is lit `#1C1E22` with roughness `0.22` and a little metal so the disc has a sheen.
-
-Tagged map (counts follow the tags):
-
-```
-KodEcon Nodes Jadeite=<n> Oil=<n> Source=Tagged
-```
+Jadeite is unlit deep jade `#00A86B`. The vent core is unlit `#9EE60B` and the plume is `#C6FF1A`. If a Dozer is already placed, the log is `KodEcon Workers Spawned=0 Reason=Placed Count=<n>`.
 
 ### HUD and selection
 
-`AKodHUD` adds `UKodResourceReadoutWidget` (C++, no Widget Blueprint): top-right, teal swatch + Jadeite, dark swatch + Oil, grey `0/10` supply placeholder. It reads the local team bank and does not write the sim. Supply is not a sim value yet.
+`UKodResourceReadoutWidget` (C++, no Widget Blueprint) is top-right: jade swatch + `Credits <n>`, neon swatch + `Luminene <n>`, grey `0/10` supply. Credits is only the label. The bank field stays Jadeite. It does not write the sim.
 
-Clicking a node selects it (rim included) and logs `Select Node Id=<id> Type=Jadeite|Oil Remaining=<n>`. The HUD draws that name and the remaining amount **only for the selected node**, and also for the node under the cursor. The label sits 28 cm above the mesh bounds, so a crystal cluster and the oil derrick do not share a label. RMB with Marines on a node is **Move** to the impact point (`RMB Move` then `Move Issued`). It does not log `RMB Attack`, and it does not attack a unit hidden behind the node. Auto-acquire still only picks the other Marine.
+Clicking a node logs `Select Node Id=<id> Type=Jadeite|Luminene Remaining=<n>`. The HUD draws that name and the remaining amount for the selected node and the node under the cursor. RMB with only Marines on a node is still **Move** (`RMB Move` then `Move Issued`), not an attack. RMB with a Dozer selected on a node logs `RMB Gather` and `Gather Issued`. Marines in a mixed selection still Move. RMB on the ground cancels gather (`RMB Move` / `Move Issued`) and refunds a pile withdrawal onto the node when it still exists.
+
+Unarmed workers are not idle-acquire targets, so the two Marines still duel each other. RMB Attack can still target a Dozer.
+
+### Gather loop
+
+State lives on the worker's sim record and is stepped at 16 Hz. Integers only.
+
+1. Move to the node and stop at `GatherStandUU` (outside the mesh).
+2. Harvest for `HarvestTicks` (24 = about 1.5 s). One trip takes `HarvestPerTrip` (5 Jadeite or 4 Luminene), or whatever is left.
+3. A small cargo mesh on the worker tints jade or neon while cargo is non-zero.
+4. Return to the nearest team drop-off (`PROXY_CC`) and stop at `DropOffStandUU` (default 360).
+5. Deposit, then repeat on the same node.
+
+Logs:
+
+```
+KodEcon GatherOrder Worker=11 Node=3 Type=Jadeite
+KodEcon Gather Worker=11 Node=3 Amt=5
+KodEcon Deposit Team=0 J=5 L=0
+```
+
+When Remaining hits 0 the first time:
+
+```
+KodEcon NodeDepleted Id=3
+```
+
+A depleted Jadeite cluster is destroyed. The worker walks the last cargo home, then paths to the nearest cluster that still has Remaining. A depleted vent is not destroyed. It yields `TricklePerTrip` (1) on later trips. If any vent still has Remaining, the worker switches to the nearest of those instead of trickling. If nothing of that type is left, the worker goes idle. A leg that makes no progress for 48 ticks retargets once, then aborts. On abort, carried pile resources are deposited so they are not deleted. RMB ground cancels before that.
 
 ### PIE console
 
-`nearest` is the node closest in 2D to the local camera pawn. Ties go to the lowest entity id. With both Marines spawning, the first Jadeite node is id **3** and the Oil source is id **9**.
+`nearest` is the node closest in 2D to the local camera pawn, including a depleted vent that still trickles. Ties go to the lowest entity id.
 
 Fresh PIE, then:
 
@@ -399,12 +422,12 @@ kod.GiveResources 100 25
 ```
 
 ```
-KodEcon Deposit Team=0 Jadeite=100 Oil=25 Bank=J150,O25
+KodEcon Deposit Team=0 J=100 L=25
 ```
 
-The readout shows **150** and **25**.
+The readout shows **Credits 150** and **Luminene 25**.
 
-Fresh PIE (bank still 50 / 0), then either of:
+Fresh PIE (bank still 50 / 0):
 
 ```
 kod.HarvestNode nearest 5
@@ -414,26 +437,36 @@ kod.HarvestNode 3 5
 When that node is Jadeite:
 
 ```
-KodEcon Deposit Team=0 Jadeite=5 Oil=0 Bank=J55,O0
 KodEcon Node Id=3 Type=Jadeite Remaining=1495
+KodEcon Deposit Team=0 J=5 L=0
 ```
 
-Oil is the same shape with `Jadeite=0`, `Oil=5`, `Type=Oil`, and remaining `4995` (5000 minus the 5 passed to the command, not the per-trip 4). A request larger than the pile takes what is left. Draining a node:
+Luminene is the same shape with `J=0`, `L=5`, `Type=Luminene`, and remaining `2245` (2250 minus the 5 passed to the command, not the per-trip 4). Draining a cluster:
 
 ```
 kod.HarvestNode 3 1500
 ```
 
 ```
-KodEcon Deposit Team=0 Jadeite=1500 Oil=0 Bank=J1550,O0
+KodEcon NodeDepleted Id=3
 KodEcon Node Id=3 Type=Jadeite Remaining=0
+KodEcon Deposit Team=0 J=1500 L=0
 ```
 
-The actor is destroyed and is no longer selectable. `kod.HarvestNode 3 5` after that logs `KodEcon Harvest Miss Id=3`.
+The actor is destroyed. `kod.HarvestNode 3 5` after that logs `KodEcon Harvest Miss Id=3`. Draining the vent logs `KodEcon NodeDepleted` and leaves the actor. A later harvest yields the trickle (1), not the requested amount.
 
-`Spend` (used by later train / build steps) logs `KodEcon Spend Team=… Jadeite=… Oil=… Bank=J…,O…` on success and `KodEcon Spend Reject …` when the bank cannot pay. A failed spend does not change the bank.
+`Spend` logs `KodEcon Spend Team=… J=… L=… Bank=J…,L…` on success and `KodEcon Spend Reject …` when the bank cannot pay.
 
-Director: nothing to place for this step. Optional later — tag greybox actors `KodResourceJadeite` / `KodResourceOil`, or author `JadeiteNode` / `OilSource` Data Assets the same way as the six Warden ids and set `Mesh`. Do not commit the `.uasset` or the map.
+### PIE — gather
+
+1. Fresh PIE on `L_Slice0`. Confirm `KodEcon Bank Team=0 Jadeite=50 Luminene=0`, six Jadeite spawns, one Luminene spawn, `KodEcon DropOff`, and `KodEcon Workers Spawned=3`.
+2. Left-click one Dozer (shorter tan cube). Right-click a Jadeite cluster. Expect `RMB Gather` and `Gather Issued`, then `KodEcon GatherOrder`, then about 1.5 s later `KodEcon Gather Worker=… Node=… Amt=5`, then `KodEcon Deposit Team=0 J=5 L=0` after the walk back to `PROXY_CC`. The Credits number becomes 55. A small jade sphere sits on the worker between the gather line and the deposit line. The worker repeats without another click.
+3. Right-click the ground. Expect `RMB Move` / `Move Issued`. The loop stops. The worker is not stuck.
+4. Right-click the vent with the Dozer selected. Expect `Amt=4` and `Deposit … J=0 L=4`. Credits stay put; Luminene becomes 4.
+5. `kod.HarvestNode <vent id> 2250` on a fresh field. Expect `KodEcon NodeDepleted` and the vent still present. Send the Dozer there. Later trips log `Amt=1`.
+6. Select only the Marine and right-click a node. Expect `RMB Move`, not `RMB Gather`, and not `RMB Attack`. The Marine duel still auto-acquires the other Marine (`KodSim AutoAcquire`), not a Dozer.
+
+Director: nothing to place. Optional — tag greybox actors `KodResourceJadeite` / `KodResourceLuminene`, or author the two Data Assets and set `Mesh`. Do not commit the `.uasset` or the map.
 
 ## L_Slice0 acceptance checklist
 
@@ -441,16 +474,16 @@ Director: nothing to place for this step. Optional later — tag greybox actors 
 - [ ] Iso camera pans/zooms
 - [ ] Left-click select. `AKodSlice0GameMode::StartPlay` sets `NoCollision` on primitive components of actors whose name or label contains `PROXY_`, except the floor whose name or label is `PROXY_GROUND` (L_Slice0 outliner label on `StaticMeshActor_0`). That floor stays BlockAll so the pawn capsule can stand on it and ECC_Pawn / ECC_Visibility still hit it. Other greybox stays placed and visible. Tags are checked first (`KodGreybox` mutes, `KodGround` keeps); actors with neither tag still use these label rules. PIE log: `Slice0 PROXY collision muted Count=23 KeptGround=1 ByTag=0 ByLabel=24` on the current untagged editor map (24 `PROXY_*` labels: 23 muted plus the kept floor). Muted actors must not appear in the click HitLog. The ray still walks ECC_Pawn past the unregistered floor and past sim actors whose `TeamId` is not the local player team, and selects the first local-team sim actor. A ray that only hits the floor clears selection. Drags shorter than `BoxSelectDragThresholdPx` (6) stay on this path. PIE log: `ClickSelectAtCursor LocalSelection=… Picked=… Hits=Actor(Pawn,sim=0|1,id=…,loc=…)`. An empty floor click logs the floor object name (`UEDPIE_0_StaticMeshActor_0` in PIE, `sim=0`) and `Picked=None`. `GetActorNameOrLabel` returns the outliner label only in editor builds; a packaged run sees `StaticMeshActor_*` and will not match these labels. The map needs tags (Director tooling, not this PR): `PROXY_GROUND` → `KodGround`; every other `PROXY_*` → `KodGreybox`; the `PROXY_HOSTILE` label also gets `KodHostileAnchor`. After that, the same mute log counts those actors as `ByTag` and `ByLabel=0`.
 - [ ] Drag-select. LMB drag at or past 6px shows an orange screen rect on `AKodHUD` (`DrawRect` / `DrawLine`, engine white texture, no Content asset). On release, every local-team sim actor (not a foreign `TeamId`) whose viewport projection lies inside that rect is selected. The hostile test Ranger is left out, so it does not take the selection rim. A fresh drag replaces the selection; Left Shift adds (same as click). An empty box clears unless Shift is held. The rim overlay updates for the whole set. PIE: `DragSelect LocalSelection=… Additive=0|1 Box=x0,y0-x1,y1 Hits=Name(id=…,screen=…,…)|none` then `SelectionHighlight LocalSelection=… Meshes=… Overlay=1 Stencil=1`
-- [ ] Right-click the floor → Move to the **first** cursor ImpactPoint (that ImpactPoint, not the actor pivot). `PROXY_GROUND` stays BlockAll, so the hit is the floor object name on ECC_Pawn (`sim=0`). Other `PROXY_*` meshes (CC, Dozer, crate, dock, pads, bounds, dirt, labels) are still `NoCollision` and are not that first Pawn hit. The ray walks past any remaining unregistered Pawn blocker the same way click-select does: a sim-registered combat actor on the ray that is not the current selection → Attack. A resource node is the exception: RMB Moves onto it (`RMB Move`, then `Move Issued`) and does not log `RMB Attack`. Self / selection is not an attack target (Move at the first ImpactPoint instead). If ECC_Pawn hits nothing, `GetGroundHitUnderCursor` (ECC_Visibility) still hits the floor. PIE: `RMB Move LocalSelection=… Dest=x,y,z Hit=UEDPIE_0_StaticMeshActor_0 sim=0` then `Move Issued Sources=… Dest=…`, or `RMB Attack LocalSelection=… Target=… Id=…` then `Attack Issued Sources=… Target=… Id=…`. `RMB Miss none` means the floor was muted. `Attack Reject NonSim` means the pivot fallback did not run. A missed floor logs `Slice0 PROXY ground floor not kept (tag KodGround or label PROXY_GROUND). Floor traces will miss.`
+- [ ] Right-click the floor → Move to the **first** cursor ImpactPoint (that ImpactPoint, not the actor pivot). `PROXY_GROUND` stays BlockAll, so the hit is the floor object name on ECC_Pawn (`sim=0`). Other `PROXY_*` meshes (CC, Dozer, crate, dock, pads, bounds, dirt, labels) are still `NoCollision` and are not that first Pawn hit. The ray walks past any remaining unregistered Pawn blocker the same way click-select does: a sim-registered combat actor on the ray that is not the current selection → Attack. A resource node is not an attack target. Marines RMB Move onto it (`RMB Move`, then `Move Issued`). A selected Dozer RMB Gathers (`RMB Gather`, then `Gather Issued`) and does not log `RMB Attack`. Self / selection is not an attack target (Move at the first ImpactPoint instead). If ECC_Pawn hits nothing, `GetGroundHitUnderCursor` (ECC_Visibility) still hits the floor. PIE: `RMB Move LocalSelection=… Dest=x,y,z Hit=UEDPIE_0_StaticMeshActor_0 sim=0` then `Move Issued Sources=… Dest=…`, or `RMB Attack LocalSelection=… Target=… Id=…` then `Attack Issued Sources=… Target=… Id=…`. `RMB Miss none` means the floor was muted. `Attack Reject NonSim` means the pivot fallback did not run. A missed floor logs `Slice0 PROXY ground floor not kept (tag KodGround or label PROXY_GROUND). Floor traces will miss.`
 - [ ] Fight. Default spawns are inside range 900, so both idle Marines auto-acquire with no RMB: `KodSim AutoAcquire Unit=… Target=… Reason=InRange` on the lower id, then Fire/Hit, then `Reason=Retaliate` on the unit that was hit while still idle, then its Fire/Hit. Both sides keep firing. HP is the Ranger Data Asset MaxHealth minus 12 per hit (loaded asset 100 → first remaining 88, nine hits to 0; bootstrap catalog 120 → first remaining 108). The lower id lands the kill: `KodSim Kill` then `KodUnit Death`. Orange muzzle flash and yellow tracer play on **both** units. Green bar on team 0 and red bar on team 1 once damaged. The dead unit sinks ~1.5 s, drops out of selection, and is not selectable. A Move order does not acquire until the unit arrives. RMB Attack still works and logs `RMB Attack` / `Attack Issued`.
 - [ ] Selected actors keep their own materials and gain a glow rim. The rim is the local translucent unlit Fresnel material `/Game/Warden/FX/Selection/M_SelectionRim.M_SelectionRim` (parameters RimColor, RimIntensity, RimExponent), loaded by soft object path and applied with `UMeshComponent::SetOverlayMaterial`. It is not committed as a `.uasset`. Material slots are not replaced. Custom depth stays on (`SetRenderCustomDepth(true)`, stencil `1`) so a later post-process outline can use it. Clearing or replacing the selection calls `SetOverlayMaterial(nullptr)` and restores the previous custom depth and stencil. If the rim fails to load, a warning is logged once and only the stencil is applied (no tint). `DefaultEngine.ini` sets `r.CustomDepth=3` so the stencil is written. PIE: `SelectionHighlight LocalSelection=… Meshes=… Overlay=1 Stencil=1` (`Overlay=0` when the material is missing).
 - [ ] One Marine runs; arrival stops in acceptance radius. A Move order does not auto-acquire until that arrival. Native locomotion is Idle or Run (not a walk blend), facing the travel direction at 900 deg/s, and the skeletal mesh does not bob. Firing faces the target. Spawn log, once per unit: `KodUnitLife <Name> Bob=3.5 Turn=900`. The actor name in logs stays `KodUnit_*`; the player-facing display name is Marine.
-- [ ] Idle hash stable across frames when no orders. Bob, visual yaw, muzzle flash, tracer, hit jiggle, death sink, HP bars, the resource readout, `TeamId`, and `RetaliateTarget` are not hashed. The team bank and resource nodes are hashed as integers, so the value differs from a pre-economy build and changes when a deposit or harvest lands. It is stable again while those amounts sit still. The hostile is a second entity, so the hash value also differs from a one-unit world. Auto-acquire gives both units an Attack order, so the world is not idle during the fight. After the kill the survivor's order is clear and the hash is stable again. Resource nodes are not auto-acquire targets.
+- [ ] Idle hash stable across frames when no orders. Bob, visual yaw, muzzle flash, tracer, hit jiggle, death sink, HP bars, the resource readout, `TeamId`, and `RetaliateTarget` are not hashed. The team bank, resource nodes, drop-offs, and gather fields (phase, cargo, harvest ticks) are hashed as integers, so the value differs from a pre-economy build and changes when a deposit, harvest, or gather tick lands. It is stable again while those amounts sit still. The hostile is a second entity, so the hash value also differs from a one-unit world. Auto-acquire gives both units an Attack order, so the world is not idle during the fight. After the kill the survivor's order is clear and the hash is stable again. Resource nodes are not auto-acquire targets.
 - [ ] HP from DA (Ranger 120) — no hardcoded HP in unit Tick
 - [ ] Soft path or bootstrap resolves all six ids
 - [ ] Ranger body uses `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body` when that static mesh is imported and set on `/Game/Warden/Data/Ranger`. The static body is auto-scaled to about 170 cm from mesh bounds (meter-import band-aid). The delivered skeletal mesh (178.9 cm, `SK_Marine_Skeleton`, import under `/Game/Warden/Units/USA/Marine/`) wins for **both** the player and the hostile: `SkeletalMeshYawOffset` default -90, scale 1, soles on a 34×90 capsule, log `KodUnitBody … Source=SkeletalMesh Yaw=-90 Scale=1 CapsuleHH=90 Radius=34`. Team 0 is sand `#D2C4B1` and team 1 is `#B3261E` when the material has `TeamColor` (palette pending Art). Until the skeletal mesh is set, both stay the Engine cube (`Body=Cube`); the hostile cube still tints red. Select / move / drag-select stay on the existing QueryOnly Pawn body.
 - [ ] Hostile spawn. PIE: `Slice0 Hostile spawned Name=… Team=1 Loc=… Anchor=PROXY_HOSTILE Body=Skeletal` when the label or `KodHostileAnchor` tag is present and the skeletal mesh loads, otherwise `Body=Cube`. No anchor logs `Anchor=fallback` at `(1200, 600, 100)`. Same Ranger definition as the player, red team colour, auto-acquire, death / fire / hit react when the AnimBP is assigned. The team 0 Marine can die the same way.
-- [ ] Economy step 1 (section above). Fresh PIE, no `KodResourceJadeite` / `KodResourceOil` tags: `KodEcon Bank Team=0 Jadeite=50 Oil=0`, seven `KodEcon Node Spawn Id=… Type=… Loc=…` lines, `KodEcon NodeTint Applied=1 Param=Color` on each placeholder, then `KodEcon Nodes Jadeite=6 Oil=1 Source=Default`. The six crystals are a tight arc (about 120 cm apart) on the far side of `PROXY_CC` from the Marines, teal, about 135 cm tall. The oil disc is about 250 cm wide, near-black, and at least 400 cm from the nearest crystal. Top-right readout: teal swatch `50`, dark swatch `0`, grey `0/10`. In that session `kod.GiveResources 100 25` logs `KodEcon Deposit Team=0 Jadeite=100 Oil=25 Bank=J150,O25` and the readout shows 150 and 25. A separate fresh PIE: `kod.HarvestNode nearest 5` (or `kod.HarvestNode 3 5` — first Jadeite node is id 3 when both Marines spawned) logs `KodEcon Deposit Team=0 Jadeite=5 Oil=0 Bank=J55,O0` and `KodEcon Node Id=3 Type=Jadeite Remaining=1495`. Click a node: `Select Node Id=… Type=… Remaining=…` and only that node's label, above the mesh. Hover shows the same for the node under the cursor. RMB Marines onto a node: `RMB Move` and `Move Issued`, not `RMB Attack`. `kod.HarvestNode <id> 1500` on a fresh bank logs `Remaining=0` and `Bank=J1550,O0`, and the node is gone. Auto-acquire still only names the two Marines.
+- [ ] Economy step 2 (section above). Fresh PIE with no resource tags: bank `Jadeite=50 Luminene=0`, six jade clusters `#00A86B` and one vent `#9EE60B` / `#C6FF1A`, `KodEcon DropOff`, `KodEcon Workers Spawned=3`. Readout shows `Credits  50` and `Luminene  0`. `kod.GiveResources 100 25` logs `KodEcon Deposit Team=0 J=100 L=25`. Select a Dozer, RMB a cluster: `RMB Gather`, `KodEcon Gather Worker=… Amt=5`, cargo mesh, then `KodEcon Deposit Team=0 J=5 L=0`, and the loop repeats. RMB ground cancels. RMB the vent logs `Amt=4` and `L=4`. A drained vent logs `KodEcon NodeDepleted` and later trips log `Amt=1`. Marines-only RMB on a node stays `RMB Move`. Auto-acquire still names the two Marines, not a Dozer.
 
 ## Blockers
 

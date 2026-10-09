@@ -268,7 +268,9 @@ void AKodSlice0GameMode::StartPlay()
 
 	SpawnHostileTestTarget();
 	// After both Marines so combat entity ids stay 1 then 2. Nodes are not attackable.
+	// The drop-off is registered at the end of the field, then the workers.
 	SpawnResourceField();
+	SpawnWorkersIfNeeded();
 }
 
 void AKodSlice0GameMode::SpawnHostileTestTarget()
@@ -353,8 +355,8 @@ void AKodSlice0GameMode::ApplyStartingResources()
 	{
 		return;
 	}
-	Sim->SetTeamBank(0, StartingJadeite, StartingOil);
-	UE_LOG(LogTemp, Log, TEXT("KodEcon Bank Team=0 Jadeite=%d Oil=%d"), StartingJadeite, StartingOil);
+	Sim->SetTeamBank(0, StartingJadeite, StartingLuminene);
+	UE_LOG(LogTemp, Log, TEXT("KodEcon Bank Team=0 Jadeite=%d Luminene=%d"), StartingJadeite, StartingLuminene);
 }
 
 void AKodSlice0GameMode::SpawnResourceField()
@@ -362,19 +364,23 @@ void AKodSlice0GameMode::SpawnResourceField()
 	UWorld* World = GetWorld();
 	if (!World)
 	{
-		UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=0 Oil=0 Source=Default"));
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=0 Luminene=0 Source=Default"));
 		return;
 	}
 	UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>();
 	if (!Sim)
 	{
-		UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=0 Oil=0 Source=Default"));
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=0 Luminene=0 Source=Default"));
 		return;
 	}
 
 	UKodSlice0Bootstrap::EnsureCatalog(this);
 	UKodResourceNodeDefinition* JadeiteDef = UKodSlice0Bootstrap::ResolveResourceNode(FName(KodWardenPaths::Id_JadeiteNode), this);
-	UKodResourceNodeDefinition* OilDef = UKodSlice0Bootstrap::ResolveResourceNode(FName(KodWardenPaths::Id_OilSource), this);
+	UKodResourceNodeDefinition* LumineneDef = UKodSlice0Bootstrap::ResolveResourceNode(FName(KodWardenPaths::Id_LumineneVent), this);
+	if (!LumineneDef)
+	{
+		LumineneDef = UKodSlice0Bootstrap::ResolveResourceNode(FName(KodWardenPaths::Id_OilSource), this);
+	}
 
 	struct FTaggedNode
 	{
@@ -392,14 +398,15 @@ void AKodSlice0GameMode::SpawnResourceField()
 			continue;
 		}
 		const bool bJadeite = Actor->ActorHasTag(FName(TEXT("KodResourceJadeite")));
-		const bool bOil = Actor->ActorHasTag(FName(TEXT("KodResourceOil")));
-		if (!bJadeite && !bOil)
+		const bool bLuminene = Actor->ActorHasTag(FName(TEXT("KodResourceLuminene")))
+			|| Actor->ActorHasTag(FName(TEXT("KodResourceOil")));
+		if (!bJadeite && !bLuminene)
 		{
 			continue;
 		}
 		FTaggedNode Entry;
 		Entry.Actor = Actor;
-		Entry.Type = bJadeite ? EKodResourceType::Jadeite : EKodResourceType::Oil;
+		Entry.Type = bJadeite ? EKodResourceType::Jadeite : EKodResourceType::Luminene;
 		Entry.SortKey = FString::Printf(TEXT("%d_%s"), bJadeite ? 0 : 1, *Actor->GetName());
 		Tagged.Add(Entry);
 	}
@@ -414,12 +421,21 @@ void AKodSlice0GameMode::SpawnResourceField()
 		{
 			return false;
 		}
-		const bool bOil = Type == EKodResourceType::Oil;
-		const int32 Amount = Def ? Def->Amount : (bOil ? KodEconomyDefaults::OilNodeAmount : KodEconomyDefaults::JadeiteNodeAmount);
-		const int32 Trip = Def ? Def->HarvestPerTrip : (bOil ? KodEconomyDefaults::OilHarvestPerTrip : KodEconomyDefaults::JadeiteHarvestPerTrip);
-		const FName DefId = (Def && !Def->DefinitionId.IsNone())
+		const bool bLuminene = Type == EKodResourceType::Luminene;
+		FKodResourceNodeSpec Spec;
+		Spec.Type = Type;
+		Spec.Amount = Def ? Def->Amount : (bLuminene ? KodEconomyDefaults::LumineneNodeAmount : KodEconomyDefaults::JadeiteNodeAmount);
+		Spec.HarvestPerTrip = Def ? Def->HarvestPerTrip : (bLuminene ? KodEconomyDefaults::LumineneHarvestPerTrip : KodEconomyDefaults::JadeiteHarvestPerTrip);
+		Spec.HarvestTicks = (Def && Def->HarvestTicks > 0)
+			? Def->HarvestTicks
+			: (bLuminene ? KodEconomyDefaults::LumineneHarvestTicks : KodEconomyDefaults::JadeiteHarvestTicks);
+		Spec.TricklePerTrip = Def ? Def->TricklePerTrip : (bLuminene ? KodEconomyDefaults::LumineneTricklePerTrip : 0);
+		Spec.GatherStandUU = (Def && Def->GatherStandUU > 0)
+			? Def->GatherStandUU
+			: (bLuminene ? KodEconomyDefaults::LumineneGatherStandUU : KodEconomyDefaults::JadeiteGatherStandUU);
+		Spec.DefinitionId = (Def && !Def->DefinitionId.IsNone())
 			? Def->DefinitionId
-			: FName(bOil ? KodWardenPaths::Id_OilSource : KodWardenPaths::Id_JadeiteNode);
+			: FName(bLuminene ? KodWardenPaths::Id_LumineneVent : KodWardenPaths::Id_JadeiteNode);
 
 		if (AKodResourceNode* Node = Cast<AKodResourceNode>(Actor))
 		{
@@ -433,7 +449,7 @@ void AKodSlice0GameMode::SpawnResourceField()
 			}
 		}
 		EnableResourceSelectCollision(Actor);
-		const FKodEntityId Id = Sim->RegisterResourceNode(Actor, Type, Amount, Trip, DefId);
+		const FKodEntityId Id = Sim->RegisterResourceNode(Actor, Spec);
 		if (!Id.IsValid())
 		{
 			return false;
@@ -455,24 +471,25 @@ void AKodSlice0GameMode::SpawnResourceField()
 	if (Tagged.Num() > 0)
 	{
 		int32 JadeiteCount = 0;
-		int32 OilCount = 0;
+		int32 LumineneCount = 0;
 		for (const FTaggedNode& Entry : Tagged)
 		{
-			const UKodResourceNodeDefinition* Def = Entry.Type == EKodResourceType::Oil ? OilDef : JadeiteDef;
+			const UKodResourceNodeDefinition* Def = Entry.Type == EKodResourceType::Luminene ? LumineneDef : JadeiteDef;
 			if (!RegisterNode(Entry.Actor, Entry.Type, Def))
 			{
 				continue;
 			}
-			if (Entry.Type == EKodResourceType::Oil)
+			if (Entry.Type == EKodResourceType::Luminene)
 			{
-				++OilCount;
+				++LumineneCount;
 			}
 			else
 			{
 				++JadeiteCount;
 			}
 		}
-		UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=%d Oil=%d Source=Tagged"), JadeiteCount, OilCount);
+		RegisterCommandCenterDropOff();
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=%d Luminene=%d Source=Tagged"), JadeiteCount, LumineneCount);
 		return;
 	}
 
@@ -578,31 +595,31 @@ void AKodSlice0GameMode::SpawnResourceField()
 
 	// 52 degrees past the +end of the arc (inside 45–60), then pushed until it is 400 cm from every crystal.
 	const float EndAngle = 2.5f * StepDeg;
-	const float OilAngle = EndAngle + 52.f;
-	const FVector OilDir = FieldDir.RotateAngleAxis(OilAngle, FVector::UpVector).GetSafeNormal2D();
-	float OilRadius = ArcRadius;
-	FVector OilLocation = AnchorLocation + OilDir * OilRadius;
+	const float VentAngle = EndAngle + 52.f;
+	const FVector VentDir = FieldDir.RotateAngleAxis(VentAngle, FVector::UpVector).GetSafeNormal2D();
+	float VentRadius = ArcRadius;
+	FVector VentLocation = AnchorLocation + VentDir * VentRadius;
 	for (int32 Push = 0; Push < 8; ++Push)
 	{
 		float Nearest = MAX_flt;
 		for (const FNodePlacement& Spot : Placements)
 		{
-			Nearest = FMath::Min(Nearest, FVector::Dist2D(OilLocation, Spot.Location));
+			Nearest = FMath::Min(Nearest, FVector::Dist2D(VentLocation, Spot.Location));
 		}
 		if (Nearest >= 400.f)
 		{
 			break;
 		}
-		OilRadius += 80.f;
-		OilLocation = AnchorLocation + OilDir * OilRadius;
+		VentRadius += 80.f;
+		VentLocation = AnchorLocation + VentDir * VentRadius;
 	}
-	FNodePlacement OilSpot;
-	OilSpot.Type = EKodResourceType::Oil;
-	OilSpot.Location = OilLocation;
-	Placements.Add(OilSpot);
+	FNodePlacement VentSpot;
+	VentSpot.Type = EKodResourceType::Luminene;
+	VentSpot.Location = VentLocation;
+	Placements.Add(VentSpot);
 
 	int32 JadeiteCount = 0;
-	int32 OilCount = 0;
+	int32 LumineneCount = 0;
 	TArray<AActor*> Spawned;
 	for (const FNodePlacement& Spot : Placements)
 	{
@@ -616,16 +633,16 @@ void AKodSlice0GameMode::SpawnResourceField()
 		{
 			continue;
 		}
-		const UKodResourceNodeDefinition* Def = Spot.Type == EKodResourceType::Oil ? OilDef : JadeiteDef;
+		const UKodResourceNodeDefinition* Def = Spot.Type == EKodResourceType::Luminene ? LumineneDef : JadeiteDef;
 		if (!RegisterNode(Node, Spot.Type, Def))
 		{
 			Node->Destroy();
 			continue;
 		}
 		Spawned.Add(Node);
-		if (Spot.Type == EKodResourceType::Oil)
+		if (Spot.Type == EKodResourceType::Luminene)
 		{
-			++OilCount;
+			++LumineneCount;
 		}
 		else
 		{
@@ -633,5 +650,165 @@ void AKodSlice0GameMode::SpawnResourceField()
 		}
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=%d Oil=%d Source=Default"), JadeiteCount, OilCount);
+	RegisterCommandCenterDropOff();
+	UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=%d Luminene=%d Source=Default"), JadeiteCount, LumineneCount);
+}
+
+void AKodSlice0GameMode::RegisterCommandCenterDropOff()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Sim)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodEcon DropOff Miss"));
+		return;
+	}
+
+	AActor* Anchor = nullptr;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!IsSlice0CommandCenter(Actor))
+		{
+			continue;
+		}
+		if (!Anchor || Actor->GetName() < Anchor->GetName())
+		{
+			Anchor = Actor;
+		}
+	}
+	if (!Anchor)
+	{
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			AActor* Actor = *It;
+			if (Actor && Actor->ActorHasTag(FName(TEXT("KodBuildingCommandCenter"))))
+			{
+				Anchor = Actor;
+				break;
+			}
+		}
+	}
+	if (!Anchor)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodEcon DropOff Miss"));
+		return;
+	}
+
+	const int32 Stand = DropOffStandUU > 0 ? DropOffStandUU : KodEconomyDefaults::DropOffStandUU;
+	const FKodEntityId Id = Sim->RegisterDropOff(Anchor, /*TeamId*/ 0, Stand);
+	if (!Id.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodEcon DropOff Miss Anchor=%s"), *Anchor->GetActorNameOrLabel());
+	}
+}
+
+void AKodSlice0GameMode::SpawnWorkersIfNeeded()
+{
+	if (!bSpawnWorkers)
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Sim)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodEcon Workers Spawned=0 Reason=NoSim"));
+		return;
+	}
+
+	int32 Placed = 0;
+	for (TActorIterator<AKodUnit> It(World); It; ++It)
+	{
+		AKodUnit* Unit = *It;
+		if (!Unit || Unit->TeamId != 0)
+		{
+			continue;
+		}
+		if (Unit->ActorHasTag(FName(TEXT("KodUnitDozer"))))
+		{
+			++Placed;
+			continue;
+		}
+		if (const UKodUnitDefinition* Def = Unit->GetDefinition())
+		{
+			if (Def->bCanGather || Def->DefinitionId == FName(KodWardenPaths::Id_Dozer))
+			{
+				++Placed;
+			}
+		}
+	}
+	if (Placed > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Workers Spawned=0 Reason=Placed Count=%d"), Placed);
+		return;
+	}
+
+	AActor* Anchor = nullptr;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!IsSlice0CommandCenter(Actor))
+		{
+			continue;
+		}
+		if (!Anchor || Actor->GetName() < Anchor->GetName())
+		{
+			Anchor = Actor;
+		}
+	}
+
+	const FVector AnchorLocation = Anchor ? Anchor->GetActorLocation() : SmokeRangerOffset;
+	FVector FieldDir = FVector(1.f, 0.f, 0.f);
+	{
+		FVector Sum = FVector::ZeroVector;
+		int32 Count = 0;
+		for (TActorIterator<AKodResourceNode> It(World); It; ++It)
+		{
+			if (AKodResourceNode* Node = *It)
+			{
+				Sum += Node->GetActorLocation();
+				++Count;
+			}
+		}
+		if (Count > 0)
+		{
+			const FVector Mid = Sum / static_cast<float>(Count);
+			FVector Dir = Mid - AnchorLocation;
+			Dir.Z = 0.f;
+			if (Dir.SizeSquared2D() > 1.f)
+			{
+				FieldDir = Dir.GetSafeNormal2D();
+			}
+		}
+	}
+
+	const int32 Count = FMath::Clamp(WorkerSpawnCount, 1, 8);
+	int32 Spawned = 0;
+	TArray<AActor*> Ignored;
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const float Angle = (static_cast<float>(Index) - (static_cast<float>(Count) - 1.f) * 0.5f) * 28.f;
+		const FVector Dir = FieldDir.RotateAngleAxis(Angle, FVector::UpVector);
+		const FVector Spot = AnchorLocation + Dir * 420.f;
+		const float FloorZ = ResolveResourceFloorZ(World, Sim, Spot.X, Spot.Y, AnchorLocation.Z, Ignored);
+		const FTransform Xform(FRotator::ZeroRotator, FVector(Spot.X, Spot.Y, FloorZ + 100.f));
+		AKodUnit* Worker = UKodSlice0Bootstrap::SpawnDozer(World, Xform, /*TeamId*/ 0);
+		if (!Worker)
+		{
+			continue;
+		}
+		Ignored.Add(Worker);
+		++Spawned;
+		const FVector At = Worker->GetActorLocation();
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Worker Spawn Id=%d Loc=%.0f,%.0f,%.0f"),
+			Worker->EntityId.Value,
+			At.X,
+			At.Y,
+			At.Z);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("KodEcon Workers Spawned=%d Anchor=%s"),
+		Spawned,
+		Anchor ? *Anchor->GetActorNameOrLabel() : TEXT("fallback"));
 }

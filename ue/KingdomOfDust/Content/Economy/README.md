@@ -1,6 +1,6 @@
 # Economy
 
-Playtest #1 wallets. Spend and store only. This folder does not start a gather loop.
+Playtest #1 wallets. Spend and store only. The worker gather loop lives on `UKodSimSubsystem`, not in this folder.
 
 - `DA_Resource_Cash` — primary spend wallet (`Kod.Resource.Cash`)
 - `DA_Resource_Oil` — second wallet stub (`Kod.Resource.Oil`)

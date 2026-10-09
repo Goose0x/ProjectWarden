@@ -40,7 +40,7 @@ namespace
 	{
 		if (Args.Num() < 2)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("kod.GiveResources <Jadeite> <Oil>"));
+			UE_LOG(LogTemp, Warning, TEXT("kod.GiveResources <J> <L>"));
 			return;
 		}
 		UKodSimSubsystem* Sim = FindPlaySim(World);
@@ -52,7 +52,7 @@ namespace
 
 		FKodResourceCost Gain;
 		Gain.Jadeite = FMath::Max(0, FCString::Atoi(*Args[0]));
-		Gain.Oil = FMath::Max(0, FCString::Atoi(*Args[1]));
+		Gain.Luminene = FMath::Max(0, FCString::Atoi(*Args[1]));
 		Sim->Deposit(0, Gain);
 	}
 
@@ -97,7 +97,7 @@ namespace
 
 	FAutoConsoleCommandWithWorldAndArgs GKodGiveResources(
 		TEXT("kod.GiveResources"),
-		TEXT("Deposit Jadeite and Oil into team 0. Usage: kod.GiveResources <Jadeite> <Oil>"),
+		TEXT("Deposit Jadeite and Luminene into team 0. Usage: kod.GiveResources <J> <L>"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodGiveResources));
 
 	FAutoConsoleCommandWithWorldAndArgs GKodHarvestNode(

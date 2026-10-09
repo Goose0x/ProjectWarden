@@ -52,6 +52,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
 	int32 BuildCostCash = 50;
 
+	/** Dozer. Copied onto the sim entity. Rangers stay false. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
+	bool bCanGather = false;
+
 	/**
 	 * Authoritative build duration in sim ticks (SimHz=16).
 	 * Ranger=80, Dozer=128 per Slice 0 sheet.

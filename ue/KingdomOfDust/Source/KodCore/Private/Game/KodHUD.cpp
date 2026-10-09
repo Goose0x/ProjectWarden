@@ -177,9 +177,9 @@ void AKodHUD::DrawSelectedResourceNodes()
 		}
 
 		const FString Label = FString::Printf(TEXT("%s  %d"), KodResourceTypeName(Node.Type), Node.Remaining);
-		const FLinearColor Color = (Node.Type == EKodResourceType::Oil)
-			? FLinearColor(0.85f, 0.68f, 0.32f, 1.f)
-			: FLinearColor(0.45f, 0.95f, 0.72f, 1.f);
+		const FLinearColor Color = (Node.Type == EKodResourceType::Luminene)
+			? KodResourceColors::LumineneHighlight()
+			: KodResourceColors::Jadeite();
 		const float Width = 8.f * static_cast<float>(Label.Len()) + 10.f;
 		DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.72f), Screen.X - 4.f, Screen.Y - 2.f, Width, 18.f);
 		DrawText(Label, Color, Screen.X, Screen.Y, Font, 1.f, false);

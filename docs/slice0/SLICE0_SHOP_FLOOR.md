@@ -70,7 +70,7 @@ StartingBuilding CommandCenter · StartingUnits: 1 Dozer + 2 Ranger (PROXY)
 
 ## Playtest #1 economy (2026-09-29)
 
-Primary spend wallet is **Cash** (`BuildCostCash`, tag `Kod.Resource.Cash`). **Oil** (`Kod.Resource.Oil`) is the second store. This sheet has no Oil cost column. Do not use Credits.
+Primary spend wallet on the unit definition is still **Cash** (`BuildCostCash`, tag `Kod.Resource.Cash`). `UKodResourceWallet` still stores Cash and Oil and is not the match bank. The sim bank is Jadeite (HUD label **Credits**) and **Luminene** (gas from fissure vents, tag `Kod.Resource.Luminene`). This sheet has no Luminene cost column.
 
 Supply hard cap is **200** (`KodSupplyHardCap` on `UKodResourceWallet`). The HUD designer preview 48/60 is art and is not that cap.
 

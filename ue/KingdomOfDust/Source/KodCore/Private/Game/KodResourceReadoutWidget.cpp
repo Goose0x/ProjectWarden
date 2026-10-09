@@ -17,8 +17,6 @@ namespace
 	constexpr int32 SupplyPlaceholderCurrent = 0;
 	constexpr int32 SupplyPlaceholderMax = 10;
 
-	const FLinearColor JadeiteSwatch(0.15f, 0.82f, 0.58f, 1.f);
-	const FLinearColor OilSwatch(0.28f, 0.20f, 0.10f, 1.f);
 	const FLinearColor NumberColor(0.95f, 0.95f, 0.93f, 1.f);
 	const FLinearColor SupplyColor(0.45f, 0.45f, 0.45f, 0.9f);
 
@@ -102,15 +100,15 @@ void UKodResourceReadoutWidget::BuildTree()
 		CanvasSlot->SetAutoSize(true);
 	}
 
-	AddChip(Row, MakeSwatch(WidgetTree, JadeiteSwatch, TEXT("JadeiteSwatch")), 6.f);
-	JadeiteText = MakeNumber(WidgetTree, TEXT("JadeiteValue"), NumberColor, 16);
-	JadeiteText->SetText(FText::AsNumber(0));
+	AddChip(Row, MakeSwatch(WidgetTree, KodResourceColors::Jadeite(), TEXT("CreditsSwatch")), 6.f);
+	JadeiteText = MakeNumber(WidgetTree, TEXT("CreditsValue"), NumberColor, 16);
+	JadeiteText->SetText(FText::FromString(TEXT("Credits  0")));
 	AddChip(Row, JadeiteText, 22.f);
 
-	AddChip(Row, MakeSwatch(WidgetTree, OilSwatch, TEXT("OilSwatch")), 6.f);
-	OilText = MakeNumber(WidgetTree, TEXT("OilValue"), NumberColor, 16);
-	OilText->SetText(FText::AsNumber(0));
-	AddChip(Row, OilText, 22.f);
+	AddChip(Row, MakeSwatch(WidgetTree, KodResourceColors::LumineneCore(), TEXT("LumineneSwatch")), 6.f);
+	LumineneText = MakeNumber(WidgetTree, TEXT("LumineneValue"), NumberColor, 16);
+	LumineneText->SetText(FText::FromString(TEXT("Luminene  0")));
+	AddChip(Row, LumineneText, 22.f);
 
 	UTextBlock* Supply = MakeNumber(WidgetTree, TEXT("SupplyValue"), SupplyColor, 14);
 	Supply->SetText(FText::FromString(FString::Printf(TEXT("%d/%d"), SupplyPlaceholderCurrent, SupplyPlaceholderMax)));
@@ -119,7 +117,7 @@ void UKodResourceReadoutWidget::BuildTree()
 
 void UKodResourceReadoutWidget::RefreshFromSim()
 {
-	if (!JadeiteText || !OilText)
+	if (!JadeiteText || !LumineneText)
 	{
 		return;
 	}
@@ -134,7 +132,7 @@ void UKodResourceReadoutWidget::RefreshFromSim()
 	}
 
 	int32 Jadeite = 0;
-	int32 Oil = 0;
+	int32 Luminene = 0;
 	if (const UWorld* World = GetWorld())
 	{
 		if (const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
@@ -143,17 +141,17 @@ void UKodResourceReadoutWidget::RefreshFromSim()
 			if (Sim->TryGetBank(TeamId, Bank))
 			{
 				Jadeite = Bank.Jadeite;
-				Oil = Bank.Oil;
+				Luminene = Bank.Luminene;
 			}
 		}
 	}
 
-	if (Jadeite == ShownJadeite && Oil == ShownOil)
+	if (Jadeite == ShownJadeite && Luminene == ShownLuminene)
 	{
 		return;
 	}
 	ShownJadeite = Jadeite;
-	ShownOil = Oil;
-	JadeiteText->SetText(FText::AsNumber(Jadeite));
-	OilText->SetText(FText::AsNumber(Oil));
+	ShownLuminene = Luminene;
+	JadeiteText->SetText(FText::FromString(FString::Printf(TEXT("Credits  %d"), Jadeite)));
+	LumineneText->SetText(FText::FromString(FString::Printf(TEXT("Luminene  %d"), Luminene)));
 }
