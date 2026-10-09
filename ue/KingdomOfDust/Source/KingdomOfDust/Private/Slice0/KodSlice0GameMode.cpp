@@ -11,7 +11,6 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
-#include "Math/RotationMatrix.h"
 
 namespace
 {
@@ -443,6 +442,13 @@ void AKodSlice0GameMode::SpawnResourceField()
 		{
 			Node->SetEntityId(Id);
 		}
+		const FVector SpawnedAt = Actor->GetActorLocation();
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Node Spawn Id=%d Type=%s Loc=%.0f,%.0f,%.0f"),
+			Id.Value,
+			KodResourceTypeName(Type),
+			SpawnedAt.X,
+			SpawnedAt.Y,
+			SpawnedAt.Z);
 		return true;
 	};
 
@@ -493,7 +499,6 @@ void AKodSlice0GameMode::SpawnResourceField()
 	}
 
 	const FVector AnchorLocation = AnchorActor ? AnchorActor->GetActorLocation() : SmokeRangerOffset;
-	const float AnchorYaw = AnchorActor ? AnchorActor->GetActorRotation().Yaw : 0.f;
 
 	TArray<FVector> UnitPoints;
 	{
@@ -506,67 +511,95 @@ void AKodSlice0GameMode::SpawnResourceField()
 		}
 	}
 
-	struct FNodeSpot
+	FVector MarineMid = AnchorLocation;
+	if (UnitPoints.Num() > 0)
 	{
-		EKodResourceType Type = EKodResourceType::Jadeite;
-		float AngleDeg = 0.f;
-		float Radius = 800.f;
-	};
-	// SC2-style mineral arc, 700–900 cm from the command center / player start. Oil sits off to the side.
-	const FNodeSpot Spots[] = {
-		{ EKodResourceType::Jadeite, -36.f, 800.f },
-		{ EKodResourceType::Jadeite, -22.f, 800.f },
-		{ EKodResourceType::Jadeite, -8.f, 800.f },
-		{ EKodResourceType::Jadeite, 8.f, 800.f },
-		{ EKodResourceType::Jadeite, 22.f, 800.f },
-		{ EKodResourceType::Jadeite, 36.f, 800.f },
-		{ EKodResourceType::Oil, 90.f, 880.f },
-	};
-
-	auto SpotsClear = [&](float Yaw) -> bool
-	{
-		const FRotator Facing(0.f, Yaw, 0.f);
-		const FVector Forward = Facing.Vector();
-		const FVector Right = FRotationMatrix(Facing).GetUnitAxis(EAxis::Y);
-		for (const FNodeSpot& Spot : Spots)
+		MarineMid = FVector::ZeroVector;
+		for (const FVector& Point : UnitPoints)
 		{
-			const float Rad = FMath::DegreesToRadians(Spot.AngleDeg);
-			const FVector Point = AnchorLocation + Forward * (FMath::Cos(Rad) * Spot.Radius) + Right * (FMath::Sin(Rad) * Spot.Radius);
-			for (const FVector& UnitPoint : UnitPoints)
-			{
-				if (FVector::DistSquared2D(Point, UnitPoint) < FMath::Square(220.f))
-				{
-					return false;
-				}
-			}
+			MarineMid += Point;
 		}
-		return true;
-	};
-
-	float FieldYaw = AnchorYaw;
-	const float YawSteps[] = { 0.f, 45.f, -45.f, 90.f, -90.f, 135.f, 180.f, -135.f };
-	for (float Step : YawSteps)
-	{
-		if (SpotsClear(AnchorYaw + Step))
-		{
-			FieldYaw = AnchorYaw + Step;
-			break;
-		}
+		MarineMid /= static_cast<float>(UnitPoints.Num());
 	}
 
-	const FRotator Facing(0.f, FieldYaw, 0.f);
-	const FVector Forward = Facing.Vector();
-	const FVector Right = FRotationMatrix(Facing).GetUnitAxis(EAxis::Y);
+	// Past the CC, on the side opposite the Marines, so the line reads as the base minerals.
+	FVector FieldDir = AnchorLocation - MarineMid;
+	FieldDir.Z = 0.f;
+	if (FieldDir.SizeSquared2D() < FMath::Square(200.f))
+	{
+		FieldDir = FVector(1.f, 0.f, 0.f);
+		if (UnitPoints.Num() >= 2)
+		{
+			FVector Sep = UnitPoints.Last() - UnitPoints[0];
+			Sep.Z = 0.f;
+			if (Sep.SizeSquared2D() > 1.f)
+			{
+				FieldDir = FVector(-Sep.Y, Sep.X, 0.f);
+			}
+		}
+	}
+	FieldDir = FieldDir.GetSafeNormal2D();
+	if (FieldDir.IsNearlyZero())
+	{
+		FieldDir = FVector(1.f, 0.f, 0.f);
+	}
+
+	// Chord between neighbours is 120 cm (inside 110–130). The arc faces the anchor.
+	constexpr float ArcRadius = 720.f;
+	constexpr float CrystalSpacing = 120.f;
+	constexpr int32 CrystalCount = 6;
+	const float SinHalf = FMath::Clamp(CrystalSpacing / (2.f * ArcRadius), 0.f, 0.99f);
+	const float StepDeg = FMath::RadiansToDegrees(2.f * FMath::Asin(SinHalf));
+
+	struct FNodePlacement
+	{
+		EKodResourceType Type = EKodResourceType::Jadeite;
+		FVector Location = FVector::ZeroVector;
+	};
+	TArray<FNodePlacement> Placements;
+	Placements.Reserve(CrystalCount + 1);
+	for (int32 Index = 0; Index < CrystalCount; ++Index)
+	{
+		const float Angle = (static_cast<float>(Index) - 2.5f) * StepDeg;
+		const FVector Dir = FieldDir.RotateAngleAxis(Angle, FVector::UpVector);
+		FNodePlacement Spot;
+		Spot.Type = EKodResourceType::Jadeite;
+		Spot.Location = AnchorLocation + Dir * ArcRadius;
+		Placements.Add(Spot);
+	}
+
+	// 52 degrees past the +end of the arc (inside 45–60), then pushed until it is 400 cm from every crystal.
+	const float EndAngle = 2.5f * StepDeg;
+	const float OilAngle = EndAngle + 52.f;
+	const FVector OilDir = FieldDir.RotateAngleAxis(OilAngle, FVector::UpVector).GetSafeNormal2D();
+	float OilRadius = ArcRadius;
+	FVector OilLocation = AnchorLocation + OilDir * OilRadius;
+	for (int32 Push = 0; Push < 8; ++Push)
+	{
+		float Nearest = MAX_flt;
+		for (const FNodePlacement& Spot : Placements)
+		{
+			Nearest = FMath::Min(Nearest, FVector::Dist2D(OilLocation, Spot.Location));
+		}
+		if (Nearest >= 400.f)
+		{
+			break;
+		}
+		OilRadius += 80.f;
+		OilLocation = AnchorLocation + OilDir * OilRadius;
+	}
+	FNodePlacement OilSpot;
+	OilSpot.Type = EKodResourceType::Oil;
+	OilSpot.Location = OilLocation;
+	Placements.Add(OilSpot);
 
 	int32 JadeiteCount = 0;
 	int32 OilCount = 0;
 	TArray<AActor*> Spawned;
-	for (const FNodeSpot& Spot : Spots)
+	for (const FNodePlacement& Spot : Placements)
 	{
-		const float Rad = FMath::DegreesToRadians(Spot.AngleDeg);
-		const FVector Flat = AnchorLocation + Forward * (FMath::Cos(Rad) * Spot.Radius) + Right * (FMath::Sin(Rad) * Spot.Radius);
-		const float FloorZ = ResolveResourceFloorZ(World, Sim, Flat.X, Flat.Y, AnchorLocation.Z, Spawned);
-		const FTransform Xform(FRotator(0.f, FieldYaw, 0.f), FVector(Flat.X, Flat.Y, FloorZ));
+		const float FloorZ = ResolveResourceFloorZ(World, Sim, Spot.Location.X, Spot.Location.Y, AnchorLocation.Z, Spawned);
+		const FTransform Xform(FRotator::ZeroRotator, FVector(Spot.Location.X, Spot.Location.Y, FloorZ));
 
 		FActorSpawnParameters Params;
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
