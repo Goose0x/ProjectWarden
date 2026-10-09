@@ -6,6 +6,7 @@
 #include "Engine/StaticMesh.h"
 #include "GameplayTagContainer.h"
 #include "Sim/KodBuildTicks.h"
+#include "Animation/AnimSequence.h"
 #include "Animation/KodUnitAnimInstance.h"
 #include "KodUnitDefinition.generated.h"
 
@@ -91,11 +92,55 @@ public:
 	float SkeletalMeshYawOffset = -90.f;
 
 	/**
-	 * AnimBP parented to UKodUnitAnimInstance. Empty uses that C++ class directly
-	 * (no Fire notify; the timed muzzle flash stays on).
+	 * AnimBP parented to UKodUnitAnimInstance. Empty, with sequences set, uses the
+	 * C++ pose driver (AnimMode=Native) instead of an AnimBP asset.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
 	TSoftClassPtr<UKodUnitAnimInstance> AnimClass;
+
+	/**
+	 * When AnimClass is empty and any of these sequences load, UKodUnitAnimInstance
+	 * drives the pose in C++. A set AnimClass still wins (future AnimBP).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	TSoftObjectPtr<UAnimSequence> IdleAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	TSoftObjectPtr<UAnimSequence> WalkAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	TSoftObjectPtr<UAnimSequence> RunAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	TSoftObjectPtr<UAnimSequence> AimIdleAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	TSoftObjectPtr<UAnimSequence> FireAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	TSoftObjectPtr<UAnimSequence> HitReactAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	TSoftObjectPtr<UAnimSequence> DeathAnim;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	TSoftObjectPtr<UAnimSequence> DeathAnimB;
+
+	/** Death holds from this frame at 30 fps. Even entity ids. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	int32 DeathHoldFrame = 26;
+
+	/** Death_B holds from this frame at 30 fps. Odd entity ids. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	int32 DeathHoldFrameB = 30;
+
+	/** Carbine (or other weapon) static mesh. Attached on the skeletal path. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	TSoftObjectPtr<UStaticMesh> WeaponMesh;
+
+	/** Socket for WeaponMesh. Default weapon_r. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	FName WeaponSocket = TEXT("weapon_r");
 
 	/**
 	 * Slice 0 visible body on AKodUnit::UnitMesh (the static mesh child).

@@ -405,11 +405,30 @@ void AKodUnit::ApplyTeamColor()
 			BodyRestColor = Tint;
 		}
 	}
-	if (bTeamColorApplied || TeamId == 0)
+	if (!bTeamColorApplied && TeamId != 0)
+	{
+		ApplyColorTintFallback(VisualBody, Tint);
+	}
+	if (!WeaponMeshComp)
 	{
 		return;
 	}
-	ApplyColorTintFallback(VisualBody, Tint);
+	const int32 WeaponSlots = WeaponMeshComp->GetNumMaterials();
+	for (int32 SlotIndex = 0; SlotIndex < WeaponSlots; ++SlotIndex)
+	{
+		UMaterialInterface* Source = WeaponMeshComp->GetMaterial(SlotIndex);
+		if (!MaterialHasVectorParam(Source, TeamParam))
+		{
+			continue;
+		}
+		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Source, this);
+		if (!MID)
+		{
+			continue;
+		}
+		MID->SetVectorParameterValue(TeamParam, Tint);
+		WeaponMeshComp->SetMaterial(SlotIndex, MID);
+	}
 }
 
 float AKodUnit::GetScaledBobAmplitudeCm() const
@@ -615,6 +634,10 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 	}
 
 	ApplyBodyMesh(Def);
+	if (!bForceCubeBody)
+	{
+		ApplyTeamColor();
+	}
 }
 
 void AKodUnit::KeepSelectCollision()
@@ -683,6 +706,87 @@ void AKodUnit::RestoreDefaultCapsule()
 	bSkeletalCapsule = false;
 }
 
+bool AKodUnit::DefinitionHasAnimSequence(const UKodUnitDefinition* BodyDef) const
+{
+	if (!BodyDef)
+	{
+		return false;
+	}
+	return !BodyDef->IdleAnim.IsNull()
+		|| !BodyDef->WalkAnim.IsNull()
+		|| !BodyDef->RunAnim.IsNull()
+		|| !BodyDef->AimIdleAnim.IsNull()
+		|| !BodyDef->FireAnim.IsNull()
+		|| !BodyDef->HitReactAnim.IsNull()
+		|| !BodyDef->DeathAnim.IsNull()
+		|| !BodyDef->DeathAnimB.IsNull();
+}
+
+void AKodUnit::LogAnimMode(const TCHAR* ModeName) const
+{
+	UE_LOG(LogTemp, Log, TEXT("KodUnit AnimMode=%s"), ModeName ? ModeName : TEXT("None"));
+}
+
+void AKodUnit::ClearWeaponMesh()
+{
+	if (!WeaponMeshComp)
+	{
+		return;
+	}
+	WeaponMeshComp->SetStaticMesh(nullptr);
+	WeaponMeshComp->SetHiddenInGame(true);
+	WeaponMeshComp->SetVisibility(false);
+}
+
+void AKodUnit::AttachWeaponMesh(USkeletalMeshComponent* SkelBody, const UKodUnitDefinition* BodyDef)
+{
+	const FName SocketName = (BodyDef && !BodyDef->WeaponSocket.IsNone())
+		? BodyDef->WeaponSocket
+		: FName(TEXT("weapon_r"));
+	UStaticMesh* LoadedWeapon = nullptr;
+	if (BodyDef && !BodyDef->WeaponMesh.IsNull())
+	{
+		LoadedWeapon = BodyDef->WeaponMesh.LoadSynchronous();
+	}
+	if (!SkelBody || !LoadedWeapon)
+	{
+		ClearWeaponMesh();
+		UE_LOG(LogTemp, Log, TEXT("KodUnit Weapon attached=None socket=%s"), *SocketName.ToString());
+		return;
+	}
+
+	if (!WeaponMeshComp)
+	{
+		WeaponMeshComp = NewObject<UStaticMeshComponent>(this, FName(TEXT("KodWeaponMesh")));
+		WeaponMeshComp->SetMobility(EComponentMobility::Movable);
+		WeaponMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WeaponMeshComp->SetGenerateOverlapEvents(false);
+		WeaponMeshComp->SetCanEverAffectNavigation(false);
+		WeaponMeshComp->RegisterComponent();
+	}
+	WeaponMeshComp->SetStaticMesh(LoadedWeapon);
+	WeaponMeshComp->AttachToComponent(SkelBody, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+	WeaponMeshComp->SetRelativeTransform(FTransform::Identity);
+	WeaponMeshComp->SetHiddenInGame(false);
+	WeaponMeshComp->SetVisibility(true);
+	UE_LOG(LogTemp, Log, TEXT("KodUnit Weapon attached=%s socket=%s"),
+		*LoadedWeapon->GetName(),
+		*SocketName.ToString());
+}
+
+void AKodUnit::InitializeAnimFromDefinition(UKodUnitAnimInstance* Anim)
+{
+	if (!Anim)
+	{
+		return;
+	}
+	const UKodUnitDefinition* BodyDef = GetDefinition();
+	const bool bNative = bSkeletalBody
+		&& Anim->GetClass() == UKodUnitAnimInstance::StaticClass()
+		&& DefinitionHasAnimSequence(BodyDef);
+	Anim->SetupFromDefinition(BodyDef, bNative);
+}
+
 void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 {
 	// Delivered mesh is 178.9 cm at scale 1, root at the soles. No 170 cm fit.
@@ -709,7 +813,10 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 		Body->SetHiddenInGame(false);
 		Body->SetVisibility(true);
 
-		UClass* ResolvedAnimClass = UKodUnitAnimInstance::StaticClass();
+		const bool bHasAnims = DefinitionHasAnimSequence(BodyDef);
+		UClass* ResolvedAnimClass = nullptr;
+		bool bNativeMode = false;
+		const TCHAR* AnimModeName = TEXT("None");
 		if (BodyDef && !BodyDef->AnimClass.IsNull())
 		{
 			if (UClass* LoadedAnim = BodyDef->AnimClass.LoadSynchronous())
@@ -717,11 +824,28 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 				if (LoadedAnim->IsChildOf(UKodUnitAnimInstance::StaticClass()))
 				{
 					ResolvedAnimClass = LoadedAnim;
+					bNativeMode = LoadedAnim == UKodUnitAnimInstance::StaticClass() && bHasAnims;
+					AnimModeName = bNativeMode ? TEXT("Native") : TEXT("AnimBP");
 				}
 			}
 		}
-		Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
-		Body->SetAnimInstanceClass(ResolvedAnimClass);
+		if (!ResolvedAnimClass && bHasAnims)
+		{
+			ResolvedAnimClass = UKodUnitAnimInstance::StaticClass();
+			bNativeMode = true;
+			AnimModeName = TEXT("Native");
+		}
+		if (ResolvedAnimClass)
+		{
+			Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+			Body->SetAnimInstanceClass(ResolvedAnimClass);
+			if (UKodUnitAnimInstance* Anim = Cast<UKodUnitAnimInstance>(Body->GetAnimInstance()))
+			{
+				Anim->SetupFromDefinition(BodyDef, bNativeMode);
+			}
+		}
+		LogAnimMode(AnimModeName);
+		AttachWeaponMesh(Body, BodyDef);
 	}
 
 	// Hide the cube draw. Keep its QueryOnly Pawn collision so click-select does not move
@@ -744,7 +868,9 @@ void AKodUnit::MountResolvedStaticMesh(UStaticMesh* StaticBody)
 {
 	bSkeletalBody = false;
 	bAwaitShotNotify = false;
+	ClearWeaponMesh();
 	RestoreDefaultCapsule();
+	LogAnimMode(TEXT("None"));
 
 	if (USkeletalMeshComponent* Body = GetMesh())
 	{
@@ -784,7 +910,9 @@ void AKodUnit::MountCubePlaceholder()
 {
 	bSkeletalBody = false;
 	bAwaitShotNotify = false;
+	ClearWeaponMesh();
 	RestoreDefaultCapsule();
+	LogAnimMode(TEXT("None"));
 
 	if (USkeletalMeshComponent* Body = GetMesh())
 	{
@@ -934,31 +1062,30 @@ void AKodUnit::EnsureAttackPresentation()
 
 bool AKodUnit::TryResolveMuzzleSocket(FVector& OutWorld) const
 {
-	TInlineComponentArray<USkeletalMeshComponent*> Parts;
-	GetComponents(Parts);
-
 	const FName MuzzleSocket(TEXT("SOCKET_Muzzle"));
-	const FName WeaponSocket(TEXT("weapon_r"));
-	USkeletalMeshComponent* WeaponPart = nullptr;
-	for (USkeletalMeshComponent* Part : Parts)
+	const FName GripSocket(TEXT("weapon_r"));
+
+	if (WeaponMeshComp && WeaponMeshComp->DoesSocketExist(MuzzleSocket))
 	{
-		if (!Part)
-		{
-			continue;
-		}
-		if (Part->DoesSocketExist(MuzzleSocket))
-		{
-			OutWorld = Part->GetSocketLocation(MuzzleSocket);
-			return true;
-		}
-		if (!WeaponPart && Part->DoesSocketExist(WeaponSocket))
-		{
-			WeaponPart = Part;
-		}
+		OutWorld = WeaponMeshComp->GetSocketLocation(MuzzleSocket);
+		return true;
 	}
-	if (WeaponPart)
+
+	USkeletalMeshComponent* SkelBody = GetMesh();
+	if (SkelBody && !SkelBody->bHiddenInGame && SkelBody->DoesSocketExist(MuzzleSocket))
 	{
-		OutWorld = WeaponPart->GetSocketLocation(WeaponSocket);
+		OutWorld = SkelBody->GetSocketLocation(MuzzleSocket);
+		return true;
+	}
+
+	if (SkelBody && !SkelBody->bHiddenInGame && SkelBody->DoesSocketExist(GripSocket))
+	{
+		OutWorld = SkelBody->GetSocketLocation(GripSocket);
+		return true;
+	}
+	if (WeaponMeshComp && WeaponMeshComp->DoesSocketExist(GripSocket))
+	{
+		OutWorld = WeaponMeshComp->GetSocketLocation(GripSocket);
 		return true;
 	}
 	return false;
@@ -1152,8 +1279,10 @@ void AKodUnit::HandleUnitFired(AActor* Attacker, AActor* Target, int32 /*SimTick
 	PushAnimSimEvent(true, false, false);
 
 	USkeletalMeshComponent* Body = GetMesh();
-	UClass* AnimClass = (bSkeletalBody && Body) ? Body->GetAnimClass() : nullptr;
-	const bool bWaitForShotNotify = bSkeletalBody && AnimClass && AnimClass != UKodUnitAnimInstance::StaticClass();
+	UKodUnitAnimInstance* Anim = (bSkeletalBody && Body) ? Cast<UKodUnitAnimInstance>(Body->GetAnimInstance()) : nullptr;
+	const bool bAnimBp = Anim && Anim->GetClass() != UKodUnitAnimInstance::StaticClass();
+	const bool bNativeShot = Anim && Anim->IsNativePoseDriver() && Anim->HasFireSequence();
+	const bool bWaitForShotNotify = bAnimBp || bNativeShot;
 	if (bWaitForShotNotify)
 	{
 		bAwaitShotNotify = true;

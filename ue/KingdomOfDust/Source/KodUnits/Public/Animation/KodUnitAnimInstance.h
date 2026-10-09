@@ -2,9 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
+#include "Animation/AnimSequence.h"
 #include "Animation/AnimSequenceBase.h"
 
 class AKodUnit;
+class UKodUnitDefinition;
+struct FKodUnitAnimInstanceProxy;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FKodUnitFireSignature);
 
@@ -26,7 +29,20 @@ class KODUNITS_API UKodUnitAnimInstance : public UAnimInstance
 	GENERATED_BODY()
 
 public:
+	/** Loaded clips plus the native-driver flag. Safe to call again. */
+	void SetupFromDefinition(const UKodUnitDefinition* Def, bool bNativeDriver);
+
+	bool IsNativePoseDriver() const { return bNativePoseDriver; }
+	bool HasFireSequence() const { return NativeFire != nullptr; }
+
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+
+protected:
+	virtual void NativeInitializeAnimation() override;
+	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override;
+	virtual void DestroyAnimInstanceProxy(FAnimInstanceProxy* InProxy) override;
+
+public:
 
 	/** Sim fire. Bumps FireCounter and broadcasts OnFire. */
 	void HandleSimFired();
@@ -120,7 +136,51 @@ public:
 	bool bDeathVariantB = false;
 
 private:
+	friend struct FKodUnitAnimInstanceProxy;
+
+	bool bNativePoseDriver = false;
 	bool bHitReactClearNextUpdate = false;
+	bool bFireActive = false;
+	bool bShotFired = false;
+	bool bHitActive = false;
+
+	float IdleTime = 0.f;
+	float WalkTime = 0.f;
+	float RunTime = 0.f;
+	float AimTime = 0.f;
+	float FireTime = 0.f;
+	float HitTime = 0.f;
+	float DeathTime = 0.f;
+	float AimBlend = 0.f;
+	float FireBlend = 0.f;
+	float DeathBlend = 0.f;
+	float ShotSequenceTime = 1.f / 30.f;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> NativeIdle;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> NativeWalk;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> NativeRun;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> NativeAim;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> NativeFire;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> NativeHit;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> NativeDeath;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> NativeDeathB;
 
 	void ReadSimPresentation(AKodUnit* UnitPawn);
+	void AdvanceNativePose(float DeltaSeconds);
+	static float FindShotSequenceTime(const UAnimSequence* FireSeq);
 };
