@@ -21,8 +21,13 @@ public:
 	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
-	/** HUD calls this every frame. C++ NativeTick is not scheduled unless a Blueprint implements Tick. */
+	/** HUD calls this when the bank changes. C++ NativeTick is not scheduled unless a Blueprint implements Tick. */
 	void PullFromSim();
+
+	/** Write the two bank numbers. Supply stays the 0/10 placeholder. */
+	void SetDisplayed(int32 Jadeite, int32 Luminene);
+
+	bool IsReadoutBuilt() const { return JadeiteText != nullptr && LumineneText != nullptr; }
 
 private:
 	void BuildTree();

@@ -1,12 +1,14 @@
 #include "Game/KodResourceReadoutWidget.h"
 
 #include "Blueprint/WidgetTree.h"
-#include "Components/CanvasPanel.h"
-#include "Components/CanvasPanelSlot.h"
+#include "Components/Border.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
 #include "Components/TextBlock.h"
+#include "Engine/Engine.h"
+#include "Engine/Font.h"
+#include "Fonts/SlateFontInfo.h"
 #include "Game/KodPlayerState.h"
 #include "Sim/KodResourceTypes.h"
 #include "Sim/KodSimSubsystem.h"
@@ -17,8 +19,7 @@ namespace
 	constexpr int32 SupplyPlaceholderCurrent = 0;
 	constexpr int32 SupplyPlaceholderMax = 10;
 
-	const FLinearColor NumberColor(0.95f, 0.95f, 0.93f, 1.f);
-	const FLinearColor SupplyColor(0.45f, 0.45f, 0.45f, 0.9f);
+	const FLinearColor SupplyColor(0.72f, 0.72f, 0.72f, 1.f);
 
 	UImage* MakeSwatch(UWidgetTree* Tree, const FLinearColor& Tint, const FName& Name)
 	{
@@ -42,10 +43,22 @@ namespace
 		return Swatch;
 	}
 
+	FSlateFontInfo MakeEngineFont(int32 Size)
+	{
+		if (GEngine)
+		{
+			if (UFont* EngineFont = GEngine->GetMediumFont())
+			{
+				return FSlateFontInfo(EngineFont, Size);
+			}
+		}
+		return FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), Size);
+	}
+
 	UTextBlock* MakeNumber(UWidgetTree* Tree, const FName& Name, const FLinearColor& Color, int32 Size)
 	{
 		UTextBlock* Text = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
-		Text->SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), Size));
+		Text->SetFont(MakeEngineFont(Size));
 		Text->SetColorAndOpacity(FSlateColor(Color));
 		Text->SetVisibility(ESlateVisibility::HitTestInvisible);
 		return Text;
@@ -66,7 +79,26 @@ void UKodResourceReadoutWidget::NativeConstruct()
 	Super::NativeConstruct();
 	SetVisibility(ESlateVisibility::HitTestInvisible);
 	BuildTree();
-	RefreshFromSim();
+}
+
+void UKodResourceReadoutWidget::SetDisplayed(int32 Jadeite, int32 Luminene)
+{
+	if (!IsReadoutBuilt())
+	{
+		BuildTree();
+	}
+	if (!JadeiteText || !LumineneText)
+	{
+		return;
+	}
+	if (Jadeite == ShownJadeite && Luminene == ShownLuminene)
+	{
+		return;
+	}
+	ShownJadeite = Jadeite;
+	ShownLuminene = Luminene;
+	JadeiteText->SetText(FText::FromString(FString::Printf(TEXT("Credits %d"), Jadeite)));
+	LumineneText->SetText(FText::FromString(FString::Printf(TEXT("Luminene %d"), Luminene)));
 }
 
 void UKodResourceReadoutWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
@@ -87,27 +119,26 @@ void UKodResourceReadoutWidget::BuildTree()
 		return;
 	}
 
-	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("ResourceCanvas"));
-	WidgetTree->RootWidget = Canvas;
+	// Root is a border, not a canvas. A canvas desired-size is 0, so AddToViewport
+	// used to place an empty widget and the Director saw no tracker.
+	UBorder* Frame = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("ReadoutFrame"));
+	Frame->SetPadding(FMargin(12.f, 8.f));
+	Frame->SetBrushColor(FLinearColor(0.02f, 0.02f, 0.02f, 0.88f));
+	Frame->SetVisibility(ESlateVisibility::HitTestInvisible);
+	WidgetTree->RootWidget = Frame;
 
 	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("ResourceRow"));
 	Row->SetVisibility(ESlateVisibility::HitTestInvisible);
-	if (UCanvasPanelSlot* CanvasSlot = Canvas->AddChildToCanvas(Row))
-	{
-		CanvasSlot->SetAnchors(FAnchors(1.f, 0.f, 1.f, 0.f));
-		CanvasSlot->SetAlignment(FVector2D(1.f, 0.f));
-		CanvasSlot->SetPosition(FVector2D(-20.f, 14.f));
-		CanvasSlot->SetAutoSize(true);
-	}
+	Frame->SetContent(Row);
 
 	AddChip(Row, MakeSwatch(WidgetTree, KodResourceColors::Jadeite(), TEXT("CreditsSwatch")), 6.f);
-	JadeiteText = MakeNumber(WidgetTree, TEXT("CreditsValue"), NumberColor, 16);
-	JadeiteText->SetText(FText::FromString(TEXT("Credits  0")));
+	JadeiteText = MakeNumber(WidgetTree, TEXT("CreditsValue"), KodResourceColors::Jadeite(), 16);
+	JadeiteText->SetText(FText::FromString(TEXT("Credits 0")));
 	AddChip(Row, JadeiteText, 22.f);
 
 	AddChip(Row, MakeSwatch(WidgetTree, KodResourceColors::LumineneCore(), TEXT("LumineneSwatch")), 6.f);
-	LumineneText = MakeNumber(WidgetTree, TEXT("LumineneValue"), NumberColor, 16);
-	LumineneText->SetText(FText::FromString(TEXT("Luminene  0")));
+	LumineneText = MakeNumber(WidgetTree, TEXT("LumineneValue"), KodResourceColors::LumineneHighlight(), 16);
+	LumineneText->SetText(FText::FromString(TEXT("Luminene 0")));
 	AddChip(Row, LumineneText, 22.f);
 
 	UTextBlock* Supply = MakeNumber(WidgetTree, TEXT("SupplyValue"), SupplyColor, 14);
@@ -150,8 +181,5 @@ void UKodResourceReadoutWidget::RefreshFromSim()
 	{
 		return;
 	}
-	ShownJadeite = Jadeite;
-	ShownLuminene = Luminene;
-	JadeiteText->SetText(FText::FromString(FString::Printf(TEXT("Credits  %d"), Jadeite)));
-	LumineneText->SetText(FText::FromString(FString::Printf(TEXT("Luminene  %d"), Luminene)));
+	SetDisplayed(Jadeite, Luminene);
 }

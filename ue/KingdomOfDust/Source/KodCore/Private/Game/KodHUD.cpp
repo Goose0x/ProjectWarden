@@ -1,8 +1,12 @@
 #include "Game/KodHUD.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/LocalPlayer.h"
 #include "Game/KodPlayerController.h"
+#include "Game/KodPlayerState.h"
 #include "Game/KodResourceReadoutWidget.h"
 #include "Sim/KodResourceTypes.h"
 #include "Sim/KodSimSubsystem.h"
@@ -14,13 +18,167 @@ AKodHUD::AKodHUD()
 void AKodHUD::DrawHUD()
 {
 	Super::DrawHUD();
-	if (ResourceReadout)
-	{
-		ResourceReadout->PullFromSim();
-	}
+	EnsureReadout();
+	RefreshReadout();
 	DrawUnitHealthBars();
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
+}
+
+void AKodHUD::EnsureReadout()
+{
+	if (bReadoutCreateLogged && ResourceReadout && ResourceReadout->IsInViewport())
+	{
+		return;
+	}
+
+	APlayerController* PC = GetOwningPlayerController();
+	if (!PC || !PC->IsLocalPlayerController())
+	{
+		return;
+	}
+	const ULocalPlayer* LocalPlayer = PC->GetLocalPlayer();
+	if (!LocalPlayer || !LocalPlayer->ViewportClient)
+	{
+		return;
+	}
+
+	if (!ResourceReadout)
+	{
+		ResourceReadout = CreateWidget<UKodResourceReadoutWidget>(PC, UKodResourceReadoutWidget::StaticClass());
+	}
+	if (!ResourceReadout)
+	{
+		if (!bReadoutCreateLogged)
+		{
+			bReadoutCreateLogged = true;
+			UE_LOG(LogTemp, Log, TEXT("KodHUD Readout Created Owner=%s"), *PC->GetName());
+		}
+		return;
+	}
+
+	ResourceReadout->SetVisibility(ESlateVisibility::HitTestInvisible);
+	if (!ResourceReadout->IsInViewport())
+	{
+		ResourceReadout->AddToViewport(100);
+	}
+	if (UCanvasPanelSlot* ViewportSlot = Cast<UCanvasPanelSlot>(ResourceReadout->Slot))
+	{
+		ViewportSlot->SetAnchors(FAnchors(1.f, 0.f, 1.f, 0.f));
+		ViewportSlot->SetAlignment(FVector2D(1.f, 0.f));
+		ViewportSlot->SetAutoSize(true);
+		ViewportSlot->SetPosition(FVector2D(-24.f, 16.f));
+		ViewportSlot->SetZOrder(100);
+	}
+	ResourceReadout->ForceLayoutPrepass();
+
+	if (!bReadoutCreateLogged)
+	{
+		bReadoutCreateLogged = true;
+		UE_LOG(LogTemp, Log, TEXT("KodHUD Readout Created Owner=%s"), *PC->GetName());
+	}
+}
+
+bool AKodHUD::ReadTeamBank(int32& OutJadeite, int32& OutLuminene) const
+{
+	OutJadeite = 0;
+	OutLuminene = 0;
+	const UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return false;
+	}
+
+	int32 TeamId = 0;
+	if (const APlayerController* PC = GetOwningPlayerController())
+	{
+		if (const AKodPlayerState* KodPS = PC->GetPlayerState<AKodPlayerState>())
+		{
+			TeamId = KodPS->TeamId;
+		}
+	}
+
+	FKodResourceCost Bank;
+	if (!Sim->TryGetBank(TeamId, Bank))
+	{
+		return false;
+	}
+	OutJadeite = Bank.Jadeite;
+	OutLuminene = Bank.Luminene;
+	return true;
+}
+
+void AKodHUD::RefreshReadout()
+{
+	const UWorld* World = GetWorld();
+	const float Now = World ? World->GetTimeSeconds() : 0.f;
+	const bool bDue = LastReadoutPollSeconds < 0.f || (Now - LastReadoutPollSeconds) >= 0.25f;
+	if (bDue)
+	{
+		LastReadoutPollSeconds = Now;
+		int32 Jadeite = 0;
+		int32 Luminene = 0;
+		ReadTeamBank(Jadeite, Luminene);
+		if (Jadeite != ShownJadeite || Luminene != ShownLuminene)
+		{
+			ShownJadeite = Jadeite;
+			ShownLuminene = Luminene;
+			UE_LOG(LogTemp, Log, TEXT("KodHUD Readout Update J=%d L=%d"), Jadeite, Luminene);
+			if (ResourceReadout)
+			{
+				ResourceReadout->SetDisplayed(Jadeite, Luminene);
+			}
+		}
+	}
+
+	const int32 DrawJadeite = ShownJadeite == MIN_int32 ? 0 : ShownJadeite;
+	const int32 DrawLuminene = ShownLuminene == MIN_int32 ? 0 : ShownLuminene;
+	const bool bWidgetOnScreen = ResourceReadout
+		&& ResourceReadout->IsInViewport()
+		&& ResourceReadout->IsReadoutBuilt();
+	if (!bWidgetOnScreen)
+	{
+		DrawCanvasReadout(DrawJadeite, DrawLuminene);
+	}
+}
+
+void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene)
+{
+	if (!Canvas)
+	{
+		return;
+	}
+
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	if (!Font && GEngine)
+	{
+		Font = GEngine->GetSmallFont();
+	}
+
+	const FString Credits = FString::Printf(TEXT("Credits %d"), Jadeite);
+	const FString LumineneText = FString::Printf(TEXT("Luminene %d"), Luminene);
+	const FString Supply = TEXT("0/10");
+	float CreditsW = 0.f;
+	float CreditsH = 0.f;
+	float LumineneW = 0.f;
+	float LumineneH = 0.f;
+	float SupplyW = 0.f;
+	float SupplyH = 0.f;
+	Canvas->TextSize(Font, Credits, CreditsW, CreditsH);
+	Canvas->TextSize(Font, LumineneText, LumineneW, LumineneH);
+	Canvas->TextSize(Font, Supply, SupplyW, SupplyH);
+
+	const float Gap = 22.f;
+	const float Pad = 10.f;
+	const float TextH = FMath::Max3(CreditsH, LumineneH, SupplyH);
+	const float TotalW = CreditsW + Gap + LumineneW + Gap + SupplyW;
+	const float X = Canvas->SizeX - TotalW - 24.f;
+	const float Y = 16.f;
+	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.88f), X - Pad, Y - 6.f, TotalW + Pad * 2.f, TextH + 12.f);
+	DrawText(Credits, KodResourceColors::Jadeite(), X, Y, Font, 1.f, false);
+	DrawText(LumineneText, KodResourceColors::LumineneHighlight(), X + CreditsW + Gap, Y, Font, 1.f, false);
+	DrawText(Supply, FLinearColor(0.72f, 0.72f, 0.72f, 1.f), X + CreditsW + Gap + LumineneW + Gap, Y, Font, 1.f, false);
 }
 
 void AKodHUD::DrawUnitHealthBars()
@@ -221,6 +379,7 @@ void AKodHUD::DrawSelectionMarquee()
 void AKodHUD::BeginPlay()
 {
 	Super::BeginPlay();
+	EnsureReadout();
 
 	if (APlayerController* PC = GetOwningPlayerController())
 	{
@@ -248,13 +407,6 @@ void AKodHUD::BeginPlay()
 					HudWidgetInstance->ProcessEvent(ActivateWidget, nullptr);
 				}
 			}
-		}
-
-		ResourceReadout = CreateWidget<UKodResourceReadoutWidget>(PC, UKodResourceReadoutWidget::StaticClass());
-		if (ResourceReadout)
-		{
-			ResourceReadout->SetVisibility(ESlateVisibility::HitTestInvisible);
-			ResourceReadout->AddToViewport(30);
 		}
 	}
 }

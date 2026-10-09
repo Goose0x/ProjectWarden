@@ -1,5 +1,6 @@
 #include "Slice0/KodSlice0GameMode.h"
 #include "Slice0/KodSlice0PlayerController.h"
+#include "Game/KodHUD.h"
 #include "Game/KodRTSCameraPawn.h"
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "Actors/KodUnit.h"
@@ -169,6 +170,8 @@ AKodSlice0GameMode::AKodSlice0GameMode()
 {
 	PlayerControllerClass = AKodSlice0PlayerController::StaticClass();
 	DefaultPawnClass = AKodRTSCameraPawn::StaticClass();
+	// Parent sets this too. Repeat it here so a map or config cannot leave Slice 0 without AKodHUD.
+	HUDClass = AKodHUD::StaticClass();
 }
 
 void AKodSlice0GameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
