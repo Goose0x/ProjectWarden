@@ -27,14 +27,25 @@ public:
 	virtual void BeginPlay() override;
 	virtual void DrawHUD() override;
 
+	/** Create the C++ readout once the local player has a viewport. DrawHUD retries. */
+	void EnsureReadout();
+
 	/** Soft ref to WBP_KodHUD (assign in BP / defaults). */
 	UPROPERTY(EditDefaultsOnly, Category = "Kod|UI")
 	TSoftClassPtr<UUserWidget> HudWidgetClass;
 
 protected:
+	void RefreshReadout();
+	void DrawCanvasReadout(int32 Jadeite, int32 Luminene);
+	bool ReadTeamBank(int32& OutJadeite, int32& OutLuminene) const;
 	void DrawUnitHealthBars();
 	void DrawSelectedResourceNodes();
 	void DrawSelectionMarquee();
+
+	bool bReadoutCreateLogged = false;
+	int32 ShownJadeite = MIN_int32;
+	int32 ShownLuminene = MIN_int32;
+	float LastReadoutPollSeconds = -1.f;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> HudWidgetInstance;

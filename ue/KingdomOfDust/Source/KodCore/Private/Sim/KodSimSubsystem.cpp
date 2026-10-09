@@ -396,7 +396,9 @@ void UKodSimSubsystem::SyncActorPresentation(float Alpha) const
 		const float Yaw = YawFrom + FMath::FindDeltaAngleDegrees(YawFrom, YawTo) * Alpha;
 		FRotator Rot = Actor->GetActorRotation();
 		Rot.Yaw = Yaw;
-		Actor->SetActorRotation(Rot);
+		// None keeps the previous transform so motion vectors stay continuous.
+		// TeleportPhysics would zero them and smear the skinned mesh under TAA.
+		Actor->SetActorRotation(Rot, ETeleportType::None);
 	}
 }
 

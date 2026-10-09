@@ -13,6 +13,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SceneComponent.h"
+#include "Engine/HitResult.h"
 #include "Components/PointLightComponent.h"
 #include "Animation/AnimEnums.h"
 #include "Animation/AnimInstance.h"
@@ -587,7 +588,9 @@ void AKodUnit::UpdateLifePresentation(float DeltaSeconds)
 		{
 			FRotator SkelRel = SkelBody->GetRelativeRotation();
 			SkelRel.Yaw = MountedMeshYawOffset + FMath::UnwindDegrees(VisualYaw - GetActorRotation().Yaw);
-			SkelBody->SetRelativeRotation(SkelRel);
+			// Relative location is set once at mount. Per-frame yaw uses Teleport None
+			// so the mesh keeps a continuous previous transform.
+			SkelBody->SetRelativeRotation(SkelRel, false, nullptr, ETeleportType::None);
 		}
 		return;
 	}
@@ -602,7 +605,7 @@ void AKodUnit::UpdateLifePresentation(float DeltaSeconds)
 	// frame behind the sim yaw the sync is about to write.
 	FRotator BodyRelRotation = UnitMesh->GetRelativeRotation();
 	BodyRelRotation.Yaw = FMath::UnwindDegrees(VisualYaw - GetActorRotation().Yaw);
-	UnitMesh->SetRelativeRotation(BodyRelRotation);
+	UnitMesh->SetRelativeRotation(BodyRelRotation, false, nullptr, ETeleportType::None);
 
 	if (bDeathSinking)
 	{
