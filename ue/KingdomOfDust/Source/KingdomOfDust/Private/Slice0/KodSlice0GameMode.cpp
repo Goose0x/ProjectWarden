@@ -142,7 +142,6 @@ namespace
 		}
 		return HintZ;
 	}
-}
 
 	bool MuteActorPrimitives(AActor* Actor)
 	{
