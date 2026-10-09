@@ -11,7 +11,7 @@
 
 #if WITH_EDITOR
 #include "Materials/Material.h"
-#include "Materials/MaterialEditorOnlyData.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #endif
