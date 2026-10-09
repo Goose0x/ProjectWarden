@@ -7,12 +7,39 @@
 #include "Actors/KodUnit.h"
 #include "Data/KodUnitDefinition.h"
 #include "Sim/KodSimSubsystem.h"
+#include "HAL/IConsoleManager.h"
+
+static TAutoConsoleVariable<int32> CVarKodAnimDebug(
+	TEXT("kod.AnimDebug"),
+	0,
+	TEXT("Log native anim Speed, weights, run time and play rate every 0.25s."),
+	ECVF_Default);
 
 namespace
 {
-	constexpr float NativeBlendSeconds = 0.15f;
-	constexpr float AimStationarySpeed = 40.f;
+	constexpr float RunEnterSeconds = 0.10f;
+	constexpr float IdleEnterSeconds = 0.12f;
+	constexpr float RunStartSpeed = 20.f;
+	constexpr float RunRateMin = 0.8f;
+	constexpr float RunRateMax = 1.3f;
+	constexpr float RunPhaseHoldSeconds = 0.2f;
 	constexpr float ShotFrameSeconds = 1.f / 30.f;
+
+	float LoopLengthSeconds(const UAnimSequence* Sequence)
+	{
+		if (!Sequence)
+		{
+			return 0.f;
+		}
+		const int32 Keys = Sequence->GetNumberOfSampledKeys();
+		const float Fps = static_cast<float>(Sequence->GetSamplingFrameRate().AsDecimal());
+		if (Keys > 1 && Fps > KINDA_SMALL_NUMBER)
+		{
+			// Last key duplicates key 0 on these cycles. Stay in [0, (keys-1)/fps).
+			return static_cast<float>(Keys - 1) / Fps;
+		}
+		return Sequence->GetPlayLength();
+	}
 
 	struct FKodNativePoseSnapshot
 	{
@@ -53,8 +80,16 @@ namespace
 		FAnimationPoseData PoseData(OutPose, OutCurve, OutAttrs);
 		FAnimExtractContext Context;
 		Context.CurrentTime = Time;
-		Context.bExtractRootMotion = false;
+		// Strip root motion out of the bone so the clip cannot translate the mesh.
+		Context.bExtractRootMotion = true;
 		Sequence->GetAnimationPose(PoseData, Context);
+		if (OutPose.GetNumBones() > 0)
+		{
+			const FCompactPoseBoneIndex RootBone(0);
+			FTransform RootXform = OutPose[RootBone];
+			RootXform.SetTranslation(FVector::ZeroVector);
+			OutPose[RootBone] = RootXform;
+		}
 	}
 
 	void BlendOnto(FCompactPose& BasePose, FBlendedCurve& BaseCurve, UE::Anim::FStackAttributeContainer& BaseAttrs, FCompactPose& AddPose, FBlendedCurve& AddCurve, UE::Anim::FStackAttributeContainer& AddAttrs, float AddWeight)
@@ -144,33 +179,9 @@ struct FKodUnitAnimInstanceProxy : public FAnimInstanceProxy
 			NativeSnapshot.FireBlend = KodAnim->bFireActive ? KodAnim->FireBlend : 0.f;
 			NativeSnapshot.DeathBlend = KodAnim->DeathBlend;
 
-			const float MoveSpeed = KodAnim->Speed;
-			const float WalkSpeed = KodAnim->AuthoredWalkSpeed;
-			const float RunSpeed = KodAnim->AuthoredRunSpeed;
-			NativeSnapshot.IdleWeight = 0.f;
+			NativeSnapshot.IdleWeight = KodAnim->NativeIdleWeight;
 			NativeSnapshot.WalkWeight = 0.f;
-			NativeSnapshot.RunWeight = 0.f;
-			if (MoveSpeed <= KINDA_SMALL_NUMBER)
-			{
-				NativeSnapshot.IdleWeight = 1.f;
-			}
-			else if (MoveSpeed < WalkSpeed || RunSpeed <= WalkSpeed)
-			{
-				const float Alpha = FMath::Clamp(MoveSpeed / FMath::Max(1.f, WalkSpeed), 0.f, 1.f);
-				NativeSnapshot.IdleWeight = 1.f - Alpha;
-				NativeSnapshot.WalkWeight = Alpha;
-			}
-			else if (MoveSpeed < RunSpeed)
-			{
-				const float Span = FMath::Max(1.f, RunSpeed - WalkSpeed);
-				const float Alpha = FMath::Clamp((MoveSpeed - WalkSpeed) / Span, 0.f, 1.f);
-				NativeSnapshot.WalkWeight = 1.f - Alpha;
-				NativeSnapshot.RunWeight = Alpha;
-			}
-			else
-			{
-				NativeSnapshot.RunWeight = 1.f;
-			}
+			NativeSnapshot.RunWeight = KodAnim->NativeRunWeight;
 		}
 	}
 
@@ -288,6 +299,7 @@ void UKodUnitAnimInstance::DestroyAnimInstanceProxy(FAnimInstanceProxy* InProxy)
 void UKodUnitAnimInstance::NativeInitializeAnimation()
 {
 	Super::NativeInitializeAnimation();
+	SetRootMotionMode(ERootMotionMode::NoRootMotionExtraction);
 	if (AKodUnit* UnitPawn = Cast<AKodUnit>(TryGetPawnOwner()))
 	{
 		UnitPawn->InitializeAnimFromDefinition(this);
@@ -364,10 +376,30 @@ float UKodUnitAnimInstance::FindShotSequenceTime(const UAnimSequence* FireSeq)
 void UKodUnitAnimInstance::AdvanceNativePose(float DeltaSeconds)
 {
 	const float Dt = FMath::Max(0.f, DeltaSeconds);
-	const float BlendStep = (NativeBlendSeconds > KINDA_SMALL_NUMBER) ? (1.f / NativeBlendSeconds) : 0.f;
-	const bool bWantAim = bIsAiming && Speed <= AimStationarySpeed && NativeAim != nullptr;
-	AimBlend = FMath::FInterpConstantTo(AimBlend, bWantAim ? 1.f : 0.f, Dt, BlendStep);
-	DeathBlend = FMath::FInterpConstantTo(DeathBlend, bIsDead ? 1.f : 0.f, Dt, BlendStep);
+	const bool bMoving = Speed > RunStartSpeed;
+	const float BlendRate = bMoving
+		? (1.f / RunEnterSeconds)
+		: (1.f / IdleEnterSeconds);
+	RunBlend = FMath::FInterpConstantTo(RunBlend, bMoving ? 1.f : 0.f, Dt, BlendRate);
+	const bool bWantAim = bIsAiming && !bMoving && NativeAim != nullptr;
+	AimAmount = FMath::FInterpConstantTo(AimAmount, bWantAim ? 1.f : 0.f, Dt, 1.f / IdleEnterSeconds);
+	const float Remain = 1.f - RunBlend;
+	NativeRunWeight = RunBlend;
+	NativeIdleWeight = Remain * (1.f - AimAmount);
+	AimBlend = Remain * AimAmount;
+	DeathBlend = FMath::FInterpConstantTo(DeathBlend, bIsDead ? 1.f : 0.f, Dt, 1.f / IdleEnterSeconds);
+
+	const float RawRunRate = Speed / FMath::Max(1.f, AuthoredRunSpeed);
+	if (bMoving)
+	{
+		RunPlayRate = FMath::Clamp(RawRunRate, RunRateMin, RunRateMax);
+	}
+	WalkPlayRate = Speed / FMath::Max(1.f, AuthoredWalkSpeed);
+	if (bMoving && RawRunRate < RunRateMin && !bLoggedSlowRun)
+	{
+		bLoggedSlowRun = true;
+		UE_LOG(LogTemp, Log, TEXT("KodUnit RunRate=%.2f SimSpeed=%.0f"), RawRunRate, Speed);
+	}
 
 	auto AdvanceLoop = [Dt](float& Time, const UAnimSequence* Sequence, float Rate)
 	{
@@ -375,7 +407,7 @@ void UKodUnitAnimInstance::AdvanceNativePose(float DeltaSeconds)
 		{
 			return;
 		}
-		const float Length = Sequence->GetPlayLength();
+		const float Length = LoopLengthSeconds(Sequence);
 		if (Length <= KINDA_SMALL_NUMBER)
 		{
 			Time = 0.f;
@@ -389,12 +421,50 @@ void UKodUnitAnimInstance::AdvanceNativePose(float DeltaSeconds)
 		}
 	};
 
-	const float WalkRate = Speed / FMath::Max(1.f, AuthoredWalkSpeed);
-	const float RunRate = Speed / FMath::Max(1.f, AuthoredRunSpeed);
 	AdvanceLoop(IdleTime, NativeIdle, 1.f);
-	AdvanceLoop(WalkTime, NativeWalk, WalkRate);
-	AdvanceLoop(RunTime, NativeRun, RunRate);
 	AdvanceLoop(AimTime, NativeAim, 1.f);
+
+	if (bMoving)
+	{
+		if (bRestartRun)
+		{
+			RunTime = 0.f;
+			bRestartRun = false;
+		}
+		AdvanceLoop(RunTime, NativeRun, RunPlayRate);
+		RunIdleSeconds = 0.f;
+	}
+	else
+	{
+		// Keep the feet moving through the blend-out. A stop under 0.2 s re-enters at the same phase.
+		if (RunBlend > KINDA_SMALL_NUMBER)
+		{
+			AdvanceLoop(RunTime, NativeRun, RunPlayRate);
+		}
+		RunIdleSeconds += Dt;
+		if (RunIdleSeconds > RunPhaseHoldSeconds)
+		{
+			bRestartRun = true;
+		}
+	}
+
+	if (CVarKodAnimDebug.GetValueOnGameThread() != 0)
+	{
+		DebugLogAccum += Dt;
+		if (DebugLogAccum >= 0.25f)
+		{
+			DebugLogAccum = 0.f;
+			const AActor* UnitActor = TryGetPawnOwner();
+			UE_LOG(LogTemp, Log, TEXT("KodUnit AnimDebug %s Speed=%.0f Idle=%.2f Run=%.2f Aim=%.2f RunTime=%.3f RunRate=%.2f"),
+				UnitActor ? *UnitActor->GetName() : TEXT("None"),
+				Speed,
+				NativeIdleWeight,
+				NativeRunWeight,
+				AimBlend,
+				RunTime,
+				RunPlayRate);
+		}
+	}
 
 	if (bFireActive && NativeFire)
 	{
@@ -408,7 +478,7 @@ void UKodUnitAnimInstance::AdvanceNativePose(float DeltaSeconds)
 				UnitPawn->PlayMuzzleFromShotNotify();
 			}
 		}
-		const float BlendSpan = NativeBlendSeconds * FMath::Max(FirePlayRate, 0.01f);
+		const float BlendSpan = RunEnterSeconds * FMath::Max(FirePlayRate, 0.01f);
 		float Blend = 1.f;
 		if (Length > KINDA_SMALL_NUMBER && BlendSpan > KINDA_SMALL_NUMBER)
 		{
@@ -501,13 +571,10 @@ void UKodUnitAnimInstance::ReadSimPresentation(AKodUnit* UnitPawn)
 		}
 	}
 
+	// Intended sim speed only. A frame-delta of the interpolated actor jitters the blend.
 	Speed = FMath::Max(0.f, NewSpeed);
 	bIsAiming = bAim;
 	bIsDead = bDead;
-	const float RunAuthored = FMath::Max(1.f, AuthoredRunSpeed);
-	const float WalkAuthored = FMath::Max(1.f, AuthoredWalkSpeed);
-	RunPlayRate = Speed / RunAuthored;
-	WalkPlayRate = Speed / WalkAuthored;
 }
 
 float UKodUnitAnimInstance::GetDeathSinkDelaySeconds() const

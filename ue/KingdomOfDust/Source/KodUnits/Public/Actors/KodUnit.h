@@ -70,12 +70,12 @@ public:
 
 	/**
 	 * Visual body-yaw catch-up in degrees per second (RInterpConstantTo).
-	 * Applied as a UnitMesh relative yaw so it still shows if this tick runs
-	 * before or after the sim sync. Faces sim movement, and the attack target
-	 * while attacking. Does not write FKodSimEntityState::YawDegrees.
+	 * Skeletal: relative yaw is SkeletalMeshYawOffset plus this, so the mesh
+	 * turns even when actor yaw already snapped. Cube/static: UnitMesh relative yaw.
+	 * Faces travel on a Move, and the target while attacking. Does not write sim yaw.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Presentation")
-	float TurnRateDegreesPerSecond = 540.f;
+	float TurnRateDegreesPerSecond = 900.f;
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Data")
 	UKodUnitDefinition* GetDefinition() const;
@@ -205,6 +205,7 @@ protected:
 	/** Captured attach point. Bob is an offset on top of this, not a new scale. */
 	FVector BodyRestRelativeLocation = FVector::ZeroVector;
 
+	float MountedMeshYawOffset = -90.f;
 	float VisualYaw = 0.f;
 	float BobWeight = 0.f;
 	float BobTime = 0.f;

@@ -13,6 +13,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Animation/AnimEnums.h"
+#include "Animation/AnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
@@ -497,6 +499,19 @@ void AKodUnit::UpdateLifePresentation(float DeltaSeconds)
 		VisualYaw = Smoothed.Yaw;
 	}
 
+	if (bSkeletalBody)
+	{
+		// Placeholder bob and the cube jiggle stay off the skeletal mesh.
+		// Hit react is the additive clip. Facing is the offset plus the fast visual yaw.
+		if (USkeletalMeshComponent* SkelBody = GetMesh())
+		{
+			FRotator SkelRel = SkelBody->GetRelativeRotation();
+			SkelRel.Yaw = MountedMeshYawOffset + FMath::UnwindDegrees(VisualYaw - GetActorRotation().Yaw);
+			SkelBody->SetRelativeRotation(SkelRel);
+		}
+		return;
+	}
+
 	if (!UnitMesh)
 	{
 		return;
@@ -802,6 +817,7 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 	{
 		YawOffset = BodyDef->SkeletalMeshYawOffset;
 	}
+	MountedMeshYawOffset = YawOffset;
 
 	if (USkeletalMeshComponent* Body = GetMesh())
 	{
@@ -839,6 +855,11 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 		{
 			Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 			Body->SetAnimInstanceClass(ResolvedAnimClass);
+			if (UAnimInstance* MountedAnim = Body->GetAnimInstance())
+			{
+				// Pose sampling strips root translation. Do not also apply it to the actor.
+				MountedAnim->SetRootMotionMode(ERootMotionMode::NoRootMotionExtraction);
+			}
 			if (UKodUnitAnimInstance* Anim = Cast<UKodUnitAnimInstance>(Body->GetAnimInstance()))
 			{
 				Anim->SetupFromDefinition(BodyDef, bNativeMode);
