@@ -113,6 +113,9 @@ public:
 	 */
 	void PlayMuzzleFromShotNotify();
 
+	/** Called when the anim instance starts so native clips and death frames load. */
+	void InitializeAnimFromDefinition(class UKodUnitAnimInstance* Anim);
+
 protected:
 	/** Skeletal mesh wins when it loads; else static mesh on UnitMesh; else the Engine cube. */
 	void ApplyBodyMesh(const UKodUnitDefinition* Def);
@@ -147,6 +150,10 @@ protected:
 	float GetSkeletalDeathHoldSeconds() const;
 	void ApplySkeletalCapsule();
 	void RestoreDefaultCapsule();
+	void AttachWeaponMesh(USkeletalMeshComponent* SkelBody, const UKodUnitDefinition* BodyDef);
+	void ClearWeaponMesh();
+	void LogAnimMode(const TCHAR* ModeName) const;
+	bool DefinitionHasAnimSequence(const UKodUnitDefinition* BodyDef) const;
 	void AdvanceAttackPresentation(float DeltaSeconds);
 	void EnsureBodyTint();
 	void WriteBodyTint(const FLinearColor& Tint);
@@ -232,6 +239,10 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> TracerMID;
+
+	/** Carbine on weapon_r. Persistent, so it is not tagged KodFx and takes the selection rim. */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> WeaponMeshComp;
 
 	float MuzzleFlashRemaining = 0.f;
 	float TracerRemaining = 0.f;

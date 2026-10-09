@@ -103,11 +103,27 @@ Clips in `Anims`: **Idle**, **Run**, **Walk**, **AimIdle**, **Fire**, **HitReact
 
 Parent the carbine in `Weapon` to socket `weapon_r`.
 
-`AnimClass` on the Ranger Data Asset is a soft class. Empty uses `UKodUnitAnimInstance` (`/Script/KodUnits.KodUnitAnimInstance`) and the immediate body-front muzzle flash. Point it at an Animation Blueprint parented to that class.
+`AnimClass` on the Ranger Data Asset is optional. **Empty, with any animation sequence set, is native mode:** `UKodUnitAnimInstance` (`/Script/KodUnits.KodUnitAnimInstance`) samples the clips in C++. No AnimBP asset is required. A set `AnimClass` (a Blueprint child of that class) still wins and plays its graph. Log: `KodUnit AnimMode=Native`, `AnimBP`, or `None`.
+
+Native pose, blended in about `0.15` s:
+
+| Clip field | Behaviour |
+|------------|-----------|
+| `IdleAnim` / `WalkAnim` / `RunAnim` | Locomotion by `Speed`. Walk rate is `Speed / 150`, run rate is `Speed / 450` (stride 300 cm/cycle) |
+| `AimIdleAnim` | While aiming and slower than about 40 cm/s |
+| `FireAnim` | One-shot over the aim pose on each shot, `FirePlayRate` `0.952` (11 frames at 30 fps stretched to 0.35 s). Muzzle flash at frame 1 (`1/30` s of the clip, advanced by the play rate). A `UKodAnimNotify_Shot` on the sequence is used instead of frame 1 when it is present |
+| `HitReactAnim` | Mesh-space additive (authored on AimIdle frame 0) for the length of the clip |
+| `DeathAnim` / `DeathAnimB` | Even entity id plays Death (hold frame `DeathHoldFrame` **26**). Odd id plays Death_B (hold frame `DeathHoldFrameB` **30**). One shot, then hold. Sink starts `frame / 30 + 0.2` s after the hold frame, not at the clip end |
+
+A missing sequence skips that layer. `None` (no clips and no AnimClass) keeps the cube or static mesh on the timed muzzle flash.
+
+Fill these on `/Game/Warden/Data/Ranger` (`UKodUnitDefinition`, category **Animation**): `IdleAnim`, `WalkAnim`, `RunAnim`, `AimIdleAnim`, `FireAnim`, `HitReactAnim`, `DeathAnim`, `DeathAnimB`, `DeathHoldFrame`, `DeathHoldFrameB`, `WeaponMesh`, `WeaponSocket` (default `weapon_r`). `SkeletalMeshYawOffset` stays **-90**.
+
+`WeaponMesh` is a static mesh attached to `WeaponSocket` with a zero offset, no collision. It takes the same selection rim as the body and the same `TeamColor` MID when the material has that param. Log: `KodUnit Weapon attached=<mesh> socket=<name>` (`attached=None` when the mesh is empty). Muzzle search order: `SOCKET_Muzzle` on that weapon mesh, then `SOCKET_Muzzle` on the skeleton, then `weapon_r`, then the body-front flash.
 
 ### AnimBP
 
-Parent class: `UKodUnitAnimInstance`.
+Not required. Native mode plays the sequences above with no state machine. Use this only when an AnimBP asset exists. Parent class: `UKodUnitAnimInstance`.
 
 The instance reads sim state. It does not write orders, pose, or the idle hash.
 

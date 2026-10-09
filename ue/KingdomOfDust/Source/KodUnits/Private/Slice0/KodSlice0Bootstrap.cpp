@@ -315,10 +315,6 @@ AKodUnit* UKodSlice0Bootstrap::SpawnRanger(UWorld* World, const FTransform& Tran
 	{
 		Unit->ApplyHostileCubeTint();
 	}
-	else
-	{
-		Unit->ApplyTeamColor();
-	}
 	UE_LOG(LogTemp, Warning, TEXT("SpawnRanger spawned %s at %s"), *Unit->GetName(), *Unit->GetActorLocation().ToString());
 	return Unit;
 }
