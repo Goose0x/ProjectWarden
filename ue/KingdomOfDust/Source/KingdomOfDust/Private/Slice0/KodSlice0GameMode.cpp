@@ -544,6 +544,14 @@ void AKodSlice0GameMode::SpawnResourceField()
 		FieldDir = FVector(1.f, 0.f, 0.f);
 	}
 
+	const float FacingDeg = FMath::RadiansToDegrees(FMath::Atan2(FieldDir.Y, FieldDir.X));
+	UE_LOG(LogTemp, Log, TEXT("KodEcon Field Anchor=%s Loc=%.0f,%.0f,%.0f Facing=%.0f"),
+		AnchorActor ? *AnchorActor->GetActorNameOrLabel() : TEXT("fallback"),
+		AnchorLocation.X,
+		AnchorLocation.Y,
+		AnchorLocation.Z,
+		FacingDeg);
+
 	// Chord between neighbours is 120 cm (inside 110–130). The arc faces the anchor.
 	constexpr float ArcRadius = 720.f;
 	constexpr float CrystalSpacing = 120.f;

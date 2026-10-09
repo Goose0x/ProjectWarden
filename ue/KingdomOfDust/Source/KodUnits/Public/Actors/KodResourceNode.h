@@ -6,6 +6,7 @@
 #include "Sim/KodResourceTypes.h"
 #include "KodResourceNode.generated.h"
 
+class USceneComponent;
 class UStaticMeshComponent;
 class UStaticMesh;
 class UKodResourceNodeDefinition;
@@ -38,6 +39,13 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
 	FKodEntityId GetEntityId() const { return EntityId; }
+
+	/**
+	 * Actor origin. SpawnActor writes the arc point here.
+	 * NodeMesh is a child so a half-height lift does not replace that world location.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Kod|Economy")
+	TObjectPtr<USceneComponent> SceneRoot;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Kod|Economy")
 	TObjectPtr<UStaticMeshComponent> NodeMesh;
