@@ -41,9 +41,11 @@ struct KODCORE_API FKodSelectionHighlightState
  *
  * RMB walks ECC_Pawn (camera pawn ignored), same as click-select. The first
  * blocking ImpactPoint is the Move point for ground and other non-sim props —
- * never an actor pivot. A sim-registered actor on that ray, other than the
- * current selection, is Attack. Sim actors on another TeamId are not added to
- * the local selection (click, drag, or rim) but stay valid Attack targets.
+ * never an actor pivot. A sim-registered combat actor on that ray, other than the
+ * current selection, is Attack. Resource nodes are selectable and are Move
+ * destinations: RMB does not attack them or a unit hidden behind them.
+ * Sim actors on another TeamId are not added to the local selection (click, drag,
+ * or rim) but stay valid Attack targets.
  *
  * LMB drag past BoxSelectDragThresholdPx is a screen-space marquee. On release,
  * every local-team sim actor whose viewport projection lies in the rect is
@@ -153,6 +155,7 @@ protected:
 	 * ECC_Pawn is walked past blockers with no sim id (greybox PROXY_* / ground).
 	 * Visibility is used only when the pawn channel hits nothing.
 	 * Foreign-team sim actors are walked past (attackable, not locally selectable).
+	 * Resource nodes are selectable (they are not a team and are not attackable).
 	 * Unregistered-only rays return null so the click clears selection.
 	 * OutHitLog lists each blocker as Name(Channel,sim,id,loc) for PIE.
 	 */

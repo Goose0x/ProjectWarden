@@ -9,11 +9,13 @@ class UKodWeaponDefinition;
 class UKodUnitDefinition;
 class UKodBuildingDefinition;
 class UKodFactionDefinition;
+class UKodResourceNodeDefinition;
 class UWorld;
 
 /**
  * Runtime authoring bridge until cooked .uassets exist under /Game/Warden/Data/.
- * NewObject with exact FNames: RangerRifle, Ranger, Dozer, CommandCenter, Barracks, USA.
+ * NewObject with exact FNames: RangerRifle, Ranger, Dozer, CommandCenter, Barracks, USA,
+ * plus economy step 1 JadeiteNode and OilSource.
  * PIE: prefer SoftObjectPath load; on failure use catalog entries from EnsureCatalog.
  */
 UCLASS()
@@ -52,6 +54,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
 	static UKodFactionDefinition* ResolveFaction(FName DefinitionId, UObject* Outer = nullptr);
 
+	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
+	static UKodResourceNodeDefinition* ResolveResourceNode(FName DefinitionId, UObject* Outer = nullptr);
+
 	/**
 	 * Spawn one Ranger at Transform. MaxHealth from the DA only.
 	 * bForceCubeBody keeps the Engine cube and applies the red hostile tint.
@@ -69,6 +74,8 @@ protected:
 	static UKodBuildingDefinition* MakeCommandCenter(UObject* Outer, UKodUnitDefinition* Dozer);
 	static UKodBuildingDefinition* MakeBarracks(UObject* Outer, UKodUnitDefinition* Ranger);
 	static UKodFactionDefinition* MakeUSA(UObject* Outer, UKodBuildingDefinition* CC, UKodUnitDefinition* Dozer, UKodUnitDefinition* Ranger);
+	static UKodResourceNodeDefinition* MakeJadeiteNode(UObject* Outer);
+	static UKodResourceNodeDefinition* MakeOilSource(UObject* Outer);
 
 	static TWeakObjectPtr<UKodDataCatalog> GCatalog;
 };

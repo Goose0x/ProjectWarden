@@ -3,10 +3,15 @@
 #include "Game/KodRTSCameraPawn.h"
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "Actors/KodUnit.h"
+#include "Actors/KodResourceNode.h"
+#include "Data/KodResourceNodeDefinition.h"
 #include "Warden/KodWardenPaths.h"
+#include "Sim/KodSimSubsystem.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/PlayerStart.h"
+#include "Math/RotationMatrix.h"
 
 namespace
 {
@@ -62,6 +67,82 @@ namespace
 	{
 		return ActorNameOrLabelMatches(Actor, &IsSlice0HostileAnchorName);
 	}
+
+	bool IsSlice0CommandCenterName(const FString& Name)
+	{
+		return Name.Contains(TEXT("PROXY_CC"), ESearchCase::IgnoreCase);
+	}
+
+	bool IsSlice0CommandCenter(const AActor* Actor)
+	{
+		return ActorNameOrLabelMatches(Actor, &IsSlice0CommandCenterName);
+	}
+
+	void EnableResourceSelectCollision(AActor* Actor)
+	{
+		if (!Actor)
+		{
+			return;
+		}
+		TInlineComponentArray<UPrimitiveComponent*> Primitives;
+		Actor->GetComponents(Primitives);
+		for (UPrimitiveComponent* Primitive : Primitives)
+		{
+			if (!Primitive || Primitive->ComponentHasTag(FName(TEXT("KodFx"))))
+			{
+				continue;
+			}
+			Primitive->SetCollisionProfileName(UCollisionProfile::Pawn_ProfileName);
+			Primitive->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+		}
+	}
+
+	float ResolveResourceFloorZ(
+		UWorld* World,
+		const UKodSimSubsystem* Sim,
+		float X,
+		float Y,
+		float HintZ,
+		const TArray<AActor*>& ExtraIgnored)
+	{
+		if (!World)
+		{
+			return HintZ;
+		}
+		FCollisionQueryParams Params(TEXT("KodResourceFloor"), /*bTraceComplex*/ false);
+		if (Sim)
+		{
+			TArray<FKodSimEntityState> States;
+			TArray<AActor*> Actors;
+			Sim->CopyEntitySnapshot(States, Actors);
+			for (AActor* Actor : Actors)
+			{
+				Params.AddIgnoredActor(Actor);
+			}
+		}
+		for (AActor* Actor : ExtraIgnored)
+		{
+			Params.AddIgnoredActor(Actor);
+		}
+		if (APlayerController* PC = World->GetFirstPlayerController())
+		{
+			Params.AddIgnoredActor(PC->GetPawn());
+		}
+
+		const FVector Start(X, Y, HintZ + 8000.f);
+		const FVector End(X, Y, HintZ - 8000.f);
+		FHitResult Hit;
+		if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params) && Hit.bBlockingHit)
+		{
+			return Hit.ImpactPoint.Z;
+		}
+		if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_WorldStatic, Params) && Hit.bBlockingHit)
+		{
+			return Hit.ImpactPoint.Z;
+		}
+		return HintZ;
+	}
+}
 
 	bool MuteActorPrimitives(AActor* Actor)
 	{
@@ -173,6 +254,7 @@ void AKodSlice0GameMode::StartPlay()
 
 	// Placed greybox has already run BeginPlay. Mute before the smoke Ranger spawn.
 	MuteGreyboxProxyCollision();
+	ApplyStartingResources();
 
 	UKodSlice0Bootstrap::EnsureCatalog(this);
 
@@ -187,6 +269,8 @@ void AKodSlice0GameMode::StartPlay()
 	}
 
 	SpawnHostileTestTarget();
+	// After both Marines so combat entity ids stay 1 then 2. Nodes are not attackable.
+	SpawnResourceField();
 }
 
 void AKodSlice0GameMode::SpawnHostileTestTarget()
@@ -261,4 +345,253 @@ void AKodSlice0GameMode::SpawnHostileTestTarget()
 		Spawned.Z,
 		Anchor,
 		Hostile->GetMountedBodyName());
+}
+
+void AKodSlice0GameMode::ApplyStartingResources()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	Sim->SetTeamBank(0, StartingJadeite, StartingOil);
+	UE_LOG(LogTemp, Log, TEXT("KodEcon Bank Team=0 Jadeite=%d Oil=%d"), StartingJadeite, StartingOil);
+}
+
+void AKodSlice0GameMode::SpawnResourceField()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=0 Oil=0 Source=Default"));
+		return;
+	}
+	UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>();
+	if (!Sim)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=0 Oil=0 Source=Default"));
+		return;
+	}
+
+	UKodSlice0Bootstrap::EnsureCatalog(this);
+	UKodResourceNodeDefinition* JadeiteDef = UKodSlice0Bootstrap::ResolveResourceNode(FName(KodWardenPaths::Id_JadeiteNode), this);
+	UKodResourceNodeDefinition* OilDef = UKodSlice0Bootstrap::ResolveResourceNode(FName(KodWardenPaths::Id_OilSource), this);
+
+	struct FTaggedNode
+	{
+		AActor* Actor = nullptr;
+		EKodResourceType Type = EKodResourceType::Jadeite;
+		FString SortKey;
+	};
+
+	TArray<FTaggedNode> Tagged;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!Actor)
+		{
+			continue;
+		}
+		const bool bJadeite = Actor->ActorHasTag(FName(TEXT("KodResourceJadeite")));
+		const bool bOil = Actor->ActorHasTag(FName(TEXT("KodResourceOil")));
+		if (!bJadeite && !bOil)
+		{
+			continue;
+		}
+		FTaggedNode Entry;
+		Entry.Actor = Actor;
+		Entry.Type = bJadeite ? EKodResourceType::Jadeite : EKodResourceType::Oil;
+		Entry.SortKey = FString::Printf(TEXT("%d_%s"), bJadeite ? 0 : 1, *Actor->GetName());
+		Tagged.Add(Entry);
+	}
+	Tagged.Sort([](const FTaggedNode& A, const FTaggedNode& B)
+	{
+		return A.SortKey < B.SortKey;
+	});
+
+	auto RegisterNode = [&](AActor* Actor, EKodResourceType Type, const UKodResourceNodeDefinition* Def) -> bool
+	{
+		if (!Actor)
+		{
+			return false;
+		}
+		const bool bOil = Type == EKodResourceType::Oil;
+		const int32 Amount = Def ? Def->Amount : (bOil ? KodEconomyDefaults::OilNodeAmount : KodEconomyDefaults::JadeiteNodeAmount);
+		const int32 Trip = Def ? Def->HarvestPerTrip : (bOil ? KodEconomyDefaults::OilHarvestPerTrip : KodEconomyDefaults::JadeiteHarvestPerTrip);
+		const FName DefId = (Def && !Def->DefinitionId.IsNone())
+			? Def->DefinitionId
+			: FName(bOil ? KodWardenPaths::Id_OilSource : KodWardenPaths::Id_JadeiteNode);
+
+		if (AKodResourceNode* Node = Cast<AKodResourceNode>(Actor))
+		{
+			if (Def)
+			{
+				Node->ApplyDefinition(Def);
+			}
+			else
+			{
+				Node->ApplyPlaceholder(Type);
+			}
+		}
+		EnableResourceSelectCollision(Actor);
+		const FKodEntityId Id = Sim->RegisterResourceNode(Actor, Type, Amount, Trip, DefId);
+		if (!Id.IsValid())
+		{
+			return false;
+		}
+		if (AKodResourceNode* Node = Cast<AKodResourceNode>(Actor))
+		{
+			Node->SetEntityId(Id);
+		}
+		return true;
+	};
+
+	if (Tagged.Num() > 0)
+	{
+		int32 JadeiteCount = 0;
+		int32 OilCount = 0;
+		for (const FTaggedNode& Entry : Tagged)
+		{
+			const UKodResourceNodeDefinition* Def = Entry.Type == EKodResourceType::Oil ? OilDef : JadeiteDef;
+			if (!RegisterNode(Entry.Actor, Entry.Type, Def))
+			{
+				continue;
+			}
+			if (Entry.Type == EKodResourceType::Oil)
+			{
+				++OilCount;
+			}
+			else
+			{
+				++JadeiteCount;
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=%d Oil=%d Source=Tagged"), JadeiteCount, OilCount);
+		return;
+	}
+
+	AActor* AnchorActor = nullptr;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!IsSlice0CommandCenter(Actor))
+		{
+			continue;
+		}
+		if (!AnchorActor || Actor->GetName() < AnchorActor->GetName())
+		{
+			AnchorActor = Actor;
+		}
+	}
+	if (!AnchorActor)
+	{
+		for (TActorIterator<APlayerStart> It(World); It; ++It)
+		{
+			AnchorActor = *It;
+			break;
+		}
+	}
+
+	const FVector AnchorLocation = AnchorActor ? AnchorActor->GetActorLocation() : SmokeRangerOffset;
+	const float AnchorYaw = AnchorActor ? AnchorActor->GetActorRotation().Yaw : 0.f;
+
+	TArray<FVector> UnitPoints;
+	{
+		TArray<FKodSimEntityState> States;
+		TArray<AActor*> Actors;
+		Sim->CopyEntitySnapshot(States, Actors);
+		for (const FKodSimEntityState& State : States)
+		{
+			UnitPoints.Add(State.Position);
+		}
+	}
+
+	struct FNodeSpot
+	{
+		EKodResourceType Type = EKodResourceType::Jadeite;
+		float AngleDeg = 0.f;
+		float Radius = 800.f;
+	};
+	// SC2-style mineral arc, 700–900 cm from the command center / player start. Oil sits off to the side.
+	const FNodeSpot Spots[] = {
+		{ EKodResourceType::Jadeite, -36.f, 800.f },
+		{ EKodResourceType::Jadeite, -22.f, 800.f },
+		{ EKodResourceType::Jadeite, -8.f, 800.f },
+		{ EKodResourceType::Jadeite, 8.f, 800.f },
+		{ EKodResourceType::Jadeite, 22.f, 800.f },
+		{ EKodResourceType::Jadeite, 36.f, 800.f },
+		{ EKodResourceType::Oil, 90.f, 880.f },
+	};
+
+	auto SpotsClear = [&](float Yaw) -> bool
+	{
+		const FRotator Facing(0.f, Yaw, 0.f);
+		const FVector Forward = Facing.Vector();
+		const FVector Right = FRotationMatrix(Facing).GetUnitAxis(EAxis::Y);
+		for (const FNodeSpot& Spot : Spots)
+		{
+			const float Rad = FMath::DegreesToRadians(Spot.AngleDeg);
+			const FVector Point = AnchorLocation + Forward * (FMath::Cos(Rad) * Spot.Radius) + Right * (FMath::Sin(Rad) * Spot.Radius);
+			for (const FVector& UnitPoint : UnitPoints)
+			{
+				if (FVector::DistSquared2D(Point, UnitPoint) < FMath::Square(220.f))
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	};
+
+	float FieldYaw = AnchorYaw;
+	const float YawSteps[] = { 0.f, 45.f, -45.f, 90.f, -90.f, 135.f, 180.f, -135.f };
+	for (float Step : YawSteps)
+	{
+		if (SpotsClear(AnchorYaw + Step))
+		{
+			FieldYaw = AnchorYaw + Step;
+			break;
+		}
+	}
+
+	const FRotator Facing(0.f, FieldYaw, 0.f);
+	const FVector Forward = Facing.Vector();
+	const FVector Right = FRotationMatrix(Facing).GetUnitAxis(EAxis::Y);
+
+	int32 JadeiteCount = 0;
+	int32 OilCount = 0;
+	TArray<AActor*> Spawned;
+	for (const FNodeSpot& Spot : Spots)
+	{
+		const float Rad = FMath::DegreesToRadians(Spot.AngleDeg);
+		const FVector Flat = AnchorLocation + Forward * (FMath::Cos(Rad) * Spot.Radius) + Right * (FMath::Sin(Rad) * Spot.Radius);
+		const float FloorZ = ResolveResourceFloorZ(World, Sim, Flat.X, Flat.Y, AnchorLocation.Z, Spawned);
+		const FTransform Xform(FRotator(0.f, FieldYaw, 0.f), FVector(Flat.X, Flat.Y, FloorZ));
+
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AKodResourceNode* Node = World->SpawnActor<AKodResourceNode>(AKodResourceNode::StaticClass(), Xform, Params);
+		if (!Node)
+		{
+			continue;
+		}
+		const UKodResourceNodeDefinition* Def = Spot.Type == EKodResourceType::Oil ? OilDef : JadeiteDef;
+		if (!RegisterNode(Node, Spot.Type, Def))
+		{
+			Node->Destroy();
+			continue;
+		}
+		Spawned.Add(Node);
+		if (Spot.Type == EKodResourceType::Oil)
+		{
+			++OilCount;
+		}
+		else
+		{
+			++JadeiteCount;
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=%d Oil=%d Source=Default"), JadeiteCount, OilCount);
 }

@@ -1,7 +1,10 @@
 #include "Game/KodHUD.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/CapsuleComponent.h"
+#include "Engine/Engine.h"
 #include "Game/KodPlayerController.h"
+#include "Game/KodResourceReadoutWidget.h"
+#include "Sim/KodResourceTypes.h"
 #include "Sim/KodSimSubsystem.h"
 
 AKodHUD::AKodHUD()
@@ -11,7 +14,12 @@ AKodHUD::AKodHUD()
 void AKodHUD::DrawHUD()
 {
 	Super::DrawHUD();
+	if (ResourceReadout)
+	{
+		ResourceReadout->PullFromSim();
+	}
 	DrawUnitHealthBars();
+	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
 }
 
@@ -95,6 +103,61 @@ void AKodHUD::DrawUnitHealthBars()
 	}
 }
 
+void AKodHUD::DrawSelectedResourceNodes()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	APlayerController* OwningPC = GetOwningPlayerController();
+	if (!World || !OwningPC)
+	{
+		return;
+	}
+
+	const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>();
+	const AKodPlayerController* KodPC = Cast<AKodPlayerController>(OwningPC);
+	if (!Sim || !KodPC)
+	{
+		return;
+	}
+
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	if (!Font && GEngine)
+	{
+		Font = GEngine->GetSmallFont();
+	}
+	for (AActor* SelectedActor : KodPC->GetLocalSelection())
+	{
+		if (!SelectedActor)
+		{
+			continue;
+		}
+		FKodResourceNodeState Node;
+		if (!Sim->TryGetResourceNode(Sim->FindIdForActor(SelectedActor), Node))
+		{
+			continue;
+		}
+
+		const FVector Anchor = SelectedActor->GetActorLocation() + FVector(0.f, 0.f, 200.f);
+		FVector2D Screen;
+		if (!OwningPC->ProjectWorldLocationToScreen(Anchor, Screen, true))
+		{
+			continue;
+		}
+
+		const FString Label = FString::Printf(TEXT("%s  %d"), KodResourceTypeName(Node.Type), Node.Remaining);
+		const FLinearColor Color = (Node.Type == EKodResourceType::Oil)
+			? FLinearColor(0.85f, 0.68f, 0.32f, 1.f)
+			: FLinearColor(0.45f, 0.95f, 0.72f, 1.f);
+		const float Width = 8.f * static_cast<float>(Label.Len()) + 10.f;
+		DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.72f), Screen.X - 4.f, Screen.Y - 2.f, Width, 18.f);
+		DrawText(Label, Color, Screen.X, Screen.Y, Font, 1.f, false);
+	}
+}
+
 void AKodHUD::DrawSelectionMarquee()
 {
 	if (!Canvas)
@@ -157,6 +220,13 @@ void AKodHUD::BeginPlay()
 					HudWidgetInstance->ProcessEvent(ActivateWidget, nullptr);
 				}
 			}
+		}
+
+		ResourceReadout = CreateWidget<UKodResourceReadoutWidget>(PC, UKodResourceReadoutWidget::StaticClass());
+		if (ResourceReadout)
+		{
+			ResourceReadout->SetVisibility(ESlateVisibility::HitTestInvisible);
+			ResourceReadout->AddToViewport(30);
 		}
 	}
 }

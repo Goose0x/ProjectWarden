@@ -52,6 +52,11 @@ void AKodSlice0PlayerController::IssueAttackToSelection_Implementation(AActor* T
 		UE_LOG(LogTemp, Log, TEXT("Attack Reject NonSim Target=%s"), *Target->GetName());
 		return;
 	}
+	if (Sim->IsResourceNode(TargetId))
+	{
+		UE_LOG(LogTemp, Log, TEXT("Attack Reject Node Target=%s Id=%d"), *Target->GetName(), TargetId.Value);
+		return;
+	}
 
 	FKodCommand Cmd;
 	Cmd.Type = EKodCommandType::Attack;

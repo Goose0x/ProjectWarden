@@ -1,5 +1,8 @@
 #include "Sim/KodSimSubsystem.h"
+#include "Game/KodPlayerController.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/PlayerController.h"
+#include "Engine/World.h"
 #include "Hash/CityHash.h"
 
 void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -10,10 +13,13 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	States.Reset();
 	PrevPositions.Reset();
 	PrevYaws.Reset();
+	Banks.Reset();
+	ResourceNodes.Reset();
 	TimeAccumulator = 0.f;
 	SimTickIndex = 0;
 	SimHz = KodBuildTicks::SimHz;
 	MaxCatchUpSteps = KodBuildTicks::MaxCatchUpSteps;
+	SetTeamBank(0, StartingJadeite, StartingOil);
 }
 
 void UKodSimSubsystem::Deinitialize()
@@ -23,6 +29,8 @@ void UKodSimSubsystem::Deinitialize()
 	OnUnitKilled.Clear();
 	Entities.Reset();
 	States.Reset();
+	Banks.Reset();
+	ResourceNodes.Reset();
 	PrevPositions.Reset();
 	PrevYaws.Reset();
 	Super::Deinitialize();
@@ -251,6 +259,7 @@ FString UKodSimSubsystem::GetEntityActorName(int32 IdValue) const
 
 FKodEntityId UKodSimSubsystem::FindNearestEnemyInRange(const FKodSimEntityState& State) const
 {
+	// Resource nodes are not in States, so they are not enemies and do not auto-acquire.
 	FKodEntityId BestId;
 	float BestDistSq = 0.f;
 	bool bFound = false;
@@ -339,11 +348,16 @@ bool UKodSimSubsystem::TryAutoAcquire(FKodSimEntityState& State, float FixedDt)
 
 void UKodSimSubsystem::QuantizePose(FKodSimEntityState& State) const
 {
-	const float Q = FMath::Max(KINDA_SMALL_NUMBER, PoseQuantizeUU);
-	State.Position.X = FMath::RoundToFloat(State.Position.X / Q) * Q;
-	State.Position.Y = FMath::RoundToFloat(State.Position.Y / Q) * Q;
-	State.Position.Z = FMath::RoundToFloat(State.Position.Z / Q) * Q;
+	QuantizeResourcePosition(State.Position);
 	State.YawDegrees = FMath::RoundToFloat(State.YawDegrees * 100.f) / 100.f;
+}
+
+void UKodSimSubsystem::QuantizeResourcePosition(FVector& Position) const
+{
+	const float Q = FMath::Max(KINDA_SMALL_NUMBER, PoseQuantizeUU);
+	Position.X = FMath::RoundToFloat(Position.X / Q) * Q;
+	Position.Y = FMath::RoundToFloat(Position.Y / Q) * Q;
+	Position.Z = FMath::RoundToFloat(Position.Z / Q) * Q;
 }
 
 void UKodSimSubsystem::SyncActorPresentation(float Alpha) const
@@ -485,6 +499,11 @@ void UKodSimSubsystem::IssueMove(FKodEntityId Id, FVector WorldLocation)
 
 void UKodSimSubsystem::IssueAttack(FKodEntityId Id, FKodEntityId TargetId)
 {
+	// A node is a move destination. Do not open an attack order onto it.
+	if (IsResourceNode(TargetId))
+	{
+		return;
+	}
 	if (FKodSimEntityState* State = States.Find(Id.Value))
 	{
 		State->Order = EKodSimOrderType::Attack;
@@ -506,6 +525,269 @@ void UKodSimSubsystem::IssueStop(FKodEntityId Id)
 		State->RetaliateTarget = FKodEntityId();
 		QuantizePose(*State);
 	}
+}
+
+namespace
+{
+	int32 SaturatingAddNonNegative(int32 Have, int32 Add)
+	{
+		if (Add <= 0)
+		{
+			return Have;
+		}
+		if (Have > MAX_int32 - Add)
+		{
+			return MAX_int32;
+		}
+		return Have + Add;
+	}
+}
+
+void UKodSimSubsystem::SetTeamBank(int32 TeamId, int32 Jadeite, int32 Oil)
+{
+	FKodResourceCost& Bank = Banks.FindOrAdd(TeamId);
+	Bank.Jadeite = FMath::Max(0, Jadeite);
+	Bank.Oil = FMath::Max(0, Oil);
+}
+
+bool UKodSimSubsystem::TryGetBank(int32 TeamId, FKodResourceCost& OutBank) const
+{
+	if (const FKodResourceCost* Bank = Banks.Find(TeamId))
+	{
+		OutBank = *Bank;
+		return true;
+	}
+	OutBank = FKodResourceCost();
+	return false;
+}
+
+bool UKodSimSubsystem::CanAfford(int32 TeamId, FKodResourceCost Cost) const
+{
+	const int32 NeedJadeite = FMath::Max(0, Cost.Jadeite);
+	const int32 NeedOil = FMath::Max(0, Cost.Oil);
+	FKodResourceCost Bank;
+	TryGetBank(TeamId, Bank);
+	return Bank.Jadeite >= NeedJadeite && Bank.Oil >= NeedOil;
+}
+
+bool UKodSimSubsystem::Spend(int32 TeamId, FKodResourceCost Cost)
+{
+	const int32 NeedJadeite = FMath::Max(0, Cost.Jadeite);
+	const int32 NeedOil = FMath::Max(0, Cost.Oil);
+	FKodResourceCost* Bank = Banks.Find(TeamId);
+	const int32 HaveJadeite = Bank ? Bank->Jadeite : 0;
+	const int32 HaveOil = Bank ? Bank->Oil : 0;
+	if (HaveJadeite < NeedJadeite || HaveOil < NeedOil)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Spend Reject Team=%d Jadeite=%d Oil=%d Bank=J%d,O%d"),
+			TeamId,
+			NeedJadeite,
+			NeedOil,
+			HaveJadeite,
+			HaveOil);
+		return false;
+	}
+	if (NeedJadeite == 0 && NeedOil == 0)
+	{
+		return true;
+	}
+	if (!Bank)
+	{
+		return false;
+	}
+	Bank->Jadeite -= NeedJadeite;
+	Bank->Oil -= NeedOil;
+	UE_LOG(LogTemp, Log, TEXT("KodEcon Spend Team=%d Jadeite=%d Oil=%d Bank=J%d,O%d"),
+		TeamId,
+		NeedJadeite,
+		NeedOil,
+		Bank->Jadeite,
+		Bank->Oil);
+	return true;
+}
+
+void UKodSimSubsystem::Deposit(int32 TeamId, FKodResourceCost Amount)
+{
+	const int32 AddJadeite = FMath::Max(0, Amount.Jadeite);
+	const int32 AddOil = FMath::Max(0, Amount.Oil);
+	FKodResourceCost& Bank = Banks.FindOrAdd(TeamId);
+	Bank.Jadeite = SaturatingAddNonNegative(Bank.Jadeite, AddJadeite);
+	Bank.Oil = SaturatingAddNonNegative(Bank.Oil, AddOil);
+	UE_LOG(LogTemp, Log, TEXT("KodEcon Deposit Team=%d Jadeite=%d Oil=%d Bank=J%d,O%d"),
+		TeamId,
+		AddJadeite,
+		AddOil,
+		Bank.Jadeite,
+		Bank.Oil);
+}
+
+FKodEntityId UKodSimSubsystem::RegisterResourceNode(
+	AActor* Actor,
+	EKodResourceType Type,
+	int32 Amount,
+	int32 HarvestPerTrip,
+	FName DefinitionId)
+{
+	FKodEntityId Id;
+	if (!Actor || Amount <= 0)
+	{
+		return Id;
+	}
+
+	const FKodEntityId Existing = FindIdForActor(Actor);
+	if (Existing.IsValid())
+	{
+		return IsResourceNode(Existing) ? Existing : Id;
+	}
+
+	Id.Value = NextId++;
+	Entities.Add(Id.Value, Actor);
+
+	FKodResourceNodeState Node;
+	Node.Id = Id;
+	Node.Type = Type;
+	Node.DefinitionId = DefinitionId;
+	Node.Position = Actor->GetActorLocation();
+	QuantizeResourcePosition(Node.Position);
+	Node.Remaining = Amount;
+	Node.HarvestPerTrip = FMath::Max(0, HarvestPerTrip);
+	ResourceNodes.Add(Id.Value, Node);
+	return Id;
+}
+
+void UKodSimSubsystem::UnregisterResourceNode(FKodEntityId Id)
+{
+	ResourceNodes.Remove(Id.Value);
+	Entities.Remove(Id.Value);
+}
+
+bool UKodSimSubsystem::IsResourceNode(FKodEntityId Id) const
+{
+	return Id.IsValid() && ResourceNodes.Contains(Id.Value);
+}
+
+bool UKodSimSubsystem::TryGetResourceNode(FKodEntityId Id, FKodResourceNodeState& OutNode) const
+{
+	if (const FKodResourceNodeState* Node = ResourceNodes.Find(Id.Value))
+	{
+		OutNode = *Node;
+		return true;
+	}
+	return false;
+}
+
+FKodEntityId UKodSimSubsystem::FindNearestResourceNode(FVector Origin) const
+{
+	FKodEntityId Best;
+	bool bFound = false;
+	int64 BestDistSq = 0;
+	const float Q = FMath::Max(KINDA_SMALL_NUMBER, PoseQuantizeUU);
+	const int32 OriginX = FMath::RoundToInt(Origin.X / Q);
+	const int32 OriginY = FMath::RoundToInt(Origin.Y / Q);
+
+	TArray<int32> Keys;
+	ResourceNodes.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		const FKodResourceNodeState* Node = ResourceNodes.Find(Key);
+		if (!Node || Node->Remaining <= 0)
+		{
+			continue;
+		}
+		const int32 NodeX = FMath::RoundToInt(Node->Position.X / Q);
+		const int32 NodeY = FMath::RoundToInt(Node->Position.Y / Q);
+		const int64 DX = static_cast<int64>(NodeX) - static_cast<int64>(OriginX);
+		const int64 DY = static_cast<int64>(NodeY) - static_cast<int64>(OriginY);
+		const int64 DistSq = DX * DX + DY * DY;
+		// Keys are sorted, so an equal distance keeps the lower id.
+		if (!bFound || DistSq < BestDistSq)
+		{
+			bFound = true;
+			BestDistSq = DistSq;
+			Best.Value = Key;
+		}
+	}
+	return Best;
+}
+
+void UKodSimSubsystem::DestroyResourceNodeActor(FKodEntityId Id)
+{
+	AActor* Actor = ResolveEntity(Id);
+	UnregisterResourceNode(Id);
+	if (!Actor)
+	{
+		return;
+	}
+
+	if (UWorld* World = GetWorld())
+	{
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (AKodPlayerController* KodPC = Cast<AKodPlayerController>(It->Get()))
+			{
+				KodPC->RemoveFromLocalSelection(Actor);
+			}
+		}
+	}
+	if (!Actor->IsActorBeingDestroyed())
+	{
+		Actor->Destroy();
+	}
+}
+
+int32 UKodSimSubsystem::HarvestNode(FKodEntityId Id, int32 Amount, int32 TeamId)
+{
+	FKodResourceNodeState* Node = ResourceNodes.Find(Id.Value);
+	if (!Node || Amount <= 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodEcon Harvest Miss Id=%d"), Id.Value);
+		return 0;
+	}
+
+	const int32 Taken = FMath::Min(Amount, Node->Remaining);
+	if (Taken <= 0)
+	{
+		const int32 Remaining = Node->Remaining;
+		const EKodResourceType Type = Node->Type;
+		const int32 IdValue = Id.Value;
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Node Id=%d Type=%s Remaining=%d"),
+			IdValue,
+			KodResourceTypeName(Type),
+			Remaining);
+		if (Remaining <= 0)
+		{
+			DestroyResourceNodeActor(Id);
+		}
+		return 0;
+	}
+
+	Node->Remaining -= Taken;
+	const int32 Remaining = Node->Remaining;
+	const EKodResourceType Type = Node->Type;
+	const int32 IdValue = Id.Value;
+
+	FKodResourceCost Gain;
+	if (Type == EKodResourceType::Oil)
+	{
+		Gain.Oil = Taken;
+	}
+	else
+	{
+		Gain.Jadeite = Taken;
+	}
+	Deposit(TeamId, Gain);
+
+	UE_LOG(LogTemp, Log, TEXT("KodEcon Node Id=%d Type=%s Remaining=%d"),
+		IdValue,
+		KodResourceTypeName(Type),
+		Remaining);
+
+	if (Remaining <= 0)
+	{
+		DestroyResourceNodeActor(Id);
+	}
+	return Taken;
 }
 
 void UKodSimSubsystem::CopyEntitySnapshot(TArray<FKodSimEntityState>& OutStates, TArray<AActor*>& OutActors) const
@@ -576,8 +858,9 @@ bool UKodSimSubsystem::IsWorldIdle() const
 FString UKodSimSubsystem::ComputeIdleHash() const
 {
 	// Stable when idle (no orders / no micro-integrate). Quantized pose + DA-driven HP.
-	// TeamId is sim state but omitted so this byte layout stays ids / pose / HP / order.
-	// Visual bob and actor yaw are presentation and must not be appended here.
+	// TeamId on combat entities is omitted so that prefix stays ids / pose / HP / order.
+	// Banks and resource nodes are appended after that prefix as integers.
+	// Visual bob, actor yaw, and the resource readout are not appended.
 	TArray<uint8> Bytes;
 	auto Append = [&Bytes](const void* Data, int32 Size)
 	{
@@ -613,6 +896,41 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 
 		const uint8 OrderByte = static_cast<uint8>(S.Order);
 		Append(&OrderByte, sizeof(OrderByte));
+	}
+
+	// Economy is integers only: team id + bank, then node id + type + remaining + quantized position.
+	TArray<int32> TeamKeys;
+	Banks.GetKeys(TeamKeys);
+	TeamKeys.Sort();
+	const int32 BankCount = TeamKeys.Num();
+	Append(&BankCount, sizeof(BankCount));
+	for (int32 TeamId : TeamKeys)
+	{
+		const FKodResourceCost& Bank = Banks.FindChecked(TeamId);
+		Append(&TeamId, sizeof(TeamId));
+		Append(&Bank.Jadeite, sizeof(Bank.Jadeite));
+		Append(&Bank.Oil, sizeof(Bank.Oil));
+	}
+
+	TArray<int32> NodeKeys;
+	ResourceNodes.GetKeys(NodeKeys);
+	NodeKeys.Sort();
+	const int32 NodeCount = NodeKeys.Num();
+	Append(&NodeCount, sizeof(NodeCount));
+	const float NodeQ = FMath::Max(KINDA_SMALL_NUMBER, PoseQuantizeUU);
+	for (int32 NodeKey : NodeKeys)
+	{
+		const FKodResourceNodeState& Node = ResourceNodes.FindChecked(NodeKey);
+		Append(&NodeKey, sizeof(NodeKey));
+		const uint8 TypeByte = static_cast<uint8>(Node.Type);
+		Append(&TypeByte, sizeof(TypeByte));
+		Append(&Node.Remaining, sizeof(Node.Remaining));
+		const int32 QX = FMath::RoundToInt(Node.Position.X / NodeQ);
+		const int32 QY = FMath::RoundToInt(Node.Position.Y / NodeQ);
+		const int32 QZ = FMath::RoundToInt(Node.Position.Z / NodeQ);
+		Append(&QX, sizeof(QX));
+		Append(&QY, sizeof(QY));
+		Append(&QZ, sizeof(QZ));
 	}
 
 	const uint64 Hash = Bytes.Num() > 0

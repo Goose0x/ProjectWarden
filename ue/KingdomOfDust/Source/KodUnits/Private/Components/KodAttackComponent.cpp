@@ -21,8 +21,9 @@ bool UKodAttackComponent::RequestAttack(AActor* Target)
 
 	const FKodEntityId SelfId = Sim->FindIdForActor(Owner);
 	const FKodEntityId TargetId = Sim->FindIdForActor(Target);
-	if (!SelfId.IsValid() || !TargetId.IsValid())
+	if (!SelfId.IsValid() || !TargetId.IsValid() || Sim->IsResourceNode(TargetId))
 	{
+		CurrentTarget = nullptr;
 		return false;
 	}
 

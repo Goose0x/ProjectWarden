@@ -5,6 +5,7 @@
 #include "Tickable.h"
 #include "Sim/KodEntityId.h"
 #include "Sim/KodBuildTicks.h"
+#include "Sim/KodResourceTypes.h"
 #include "KodSimSubsystem.generated.h"
 
 class AActor;
@@ -161,17 +162,89 @@ public:
 
 	/**
 	 * Stable when no units moving and no orders pending.
-	 * Hashes entity ids, quantized positions, HP (DA-driven state), and order.
-	 * TeamId, RetaliateTarget, visual bob, visual yaw, and other presentation (flash, tracer, HP bar, death sink) are not hashed.
+	 * Hashes entity ids, quantized positions, HP (DA-driven state), and order,
+	 * then each team bank (Jadeite, Oil) and each resource node (id, type, remaining, quantized position).
+	 * Those economy fields are integers. TeamId, RetaliateTarget, HarvestPerTrip, visual bob, visual yaw,
+	 * and other presentation (flash, tracer, HP bar, death sink, resource readout) are not hashed.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	FString ComputeIdleHash() const;
+
+	/**
+	 * Replace one team's bank. Match start only — gameplay uses Spend and Deposit.
+	 * Team 0 is seeded in Initialize from StartingJadeite / StartingOil (50 / 0).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
+	void SetTeamBank(int32 TeamId, int32 Jadeite, int32 Oil);
+
+	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
+	bool TryGetBank(int32 TeamId, FKodResourceCost& OutBank) const;
+
+	/** True when the team holds at least Cost. Negative cost fields count as zero. */
+	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
+	bool CanAfford(int32 TeamId, FKodResourceCost Cost) const;
+
+	/**
+	 * Subtract Cost from the team bank. Fails and leaves the bank unchanged when CanAfford is false.
+	 * Logs KodEcon Spend on success and KodEcon Spend Reject when it fails (zero-cost is silent success).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
+	bool Spend(int32 TeamId, FKodResourceCost Cost);
+
+	/**
+	 * Add non-negative amounts into the team bank (creates the bank at zero first if it is missing).
+	 * Logs KodEcon Deposit Team=.. Jadeite=.. Oil=.. Bank=J..,O..
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
+	void Deposit(int32 TeamId, FKodResourceCost Amount);
+
+	/**
+	 * Register a placed or spawned node. Shares the entity id space with units but is not a combat state,
+	 * so auto-acquire, hitscan, and HP bars ignore it. Amount <= 0 is rejected.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
+	FKodEntityId RegisterResourceNode(
+		AActor* Actor,
+		EKodResourceType Type,
+		int32 Amount,
+		int32 HarvestPerTrip,
+		FName DefinitionId);
+
+	/** Drop the sim record. Does not destroy the actor (EndPlay uses this). */
+	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
+	void UnregisterResourceNode(FKodEntityId Id);
+
+	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
+	bool IsResourceNode(FKodEntityId Id) const;
+
+	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
+	bool TryGetResourceNode(FKodEntityId Id, FKodResourceNodeState& OutNode) const;
+
+	/** 2D nearest node. Ties go to the lowest entity id. Origin is not hashed. */
+	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
+	FKodEntityId FindNearestResourceNode(FVector Origin) const;
+
+	/**
+	 * Take up to Amount from the node and Deposit it into TeamId.
+	 * Amount is clamped to Remaining. Remaining 0 unregisters and destroys the actor.
+	 * Logs the Deposit line, then KodEcon Node Id=.. Type=.. Remaining=..
+	 * Returns the amount taken (0 on a miss).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
+	int32 HarvestNode(FKodEntityId Id, int32 Amount, int32 TeamId);
+
+	/** Default 50. L_Slice0 overwrites this from AKodSlice0GameMode at StartPlay. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
+	int32 StartingJadeite = 50;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
+	int32 StartingOil = 0;
 
 	UFUNCTION(BlueprintPure, Category = "Kod|Sim")
 	int64 GetSimTickIndex() const { return SimTickIndex; }
 
 	/**
-	 * Presentation snapshot. Copies registered entities only.
+	 * Presentation snapshot of combat entities (not resource nodes).
 	 * Does not mutate pose, orders, or the idle hash.
 	 */
 	void CopyEntitySnapshot(TArray<FKodSimEntityState>& OutStates, TArray<AActor*>& OutActors) const;
@@ -210,13 +283,23 @@ protected:
 	FKodEntityId FindNearestEnemyInRange(const FKodSimEntityState& State) const;
 	FString GetEntityActorName(int32 IdValue) const;
 	void QuantizePose(FKodSimEntityState& State) const;
+	void QuantizeResourcePosition(FVector& Position) const;
 	void SyncActorPresentation(float Alpha) const;
+	void DestroyResourceNodeActor(FKodEntityId Id);
 
 	UPROPERTY()
 	TMap<int32, TWeakObjectPtr<AActor>> Entities;
 
 	UPROPERTY()
 	TMap<int32, FKodSimEntityState> States;
+
+	/** Per-team Jadeite / Oil. Integers only. Included in ComputeIdleHash. */
+	UPROPERTY()
+	TMap<int32, FKodResourceCost> Banks;
+
+	/** Gather sources. Not iterated by StepSim. Included in ComputeIdleHash. */
+	UPROPERTY()
+	TMap<int32, FKodResourceNodeState> ResourceNodes;
 
 	/** Previous step poses for interpolation. */
 	TMap<int32, FVector> PrevPositions;
