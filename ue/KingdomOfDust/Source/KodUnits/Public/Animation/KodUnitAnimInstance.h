@@ -17,7 +17,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FKodUnitFireSignature);
  * Parent for the Marine AnimBP. Presentation only: reads sim speed and orders,
  * never writes pose, orders, or the idle hash.
  *
- * AnimBP: parent this class. Idle/Run blend on Speed. Aim when bIsAiming.
+ * AnimBP: parent this class. Native mode is Idle or Run on Speed (no walk blend).
+ * Aim when bIsAiming and not moving.
  * Fire when FireCounter changes (or bind OnFire), played at FirePlayRate.
  * Additive HitReact on bHitReact, Mesh Space, base AimIdle frame 0.
  * Death when bIsDead. bDeathVariantB picks Death_B (odd entity id) or Death (even).
@@ -87,7 +88,7 @@ public:
 
 	/**
 	 * Authored run speed, cm/s. Stride is 300 cm/cycle.
-	 * RunPlayRate = Speed / AuthoredRunSpeed.
+	 * Native RunPlayRate = clamp(Speed / AuthoredRunSpeed, 0.8, 1.3).
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Anim")
 	float AuthoredRunSpeed = 450.f;
@@ -152,6 +153,14 @@ private:
 	float HitTime = 0.f;
 	float DeathTime = 0.f;
 	float AimBlend = 0.f;
+	float AimAmount = 0.f;
+	float RunBlend = 0.f;
+	float NativeIdleWeight = 1.f;
+	float NativeRunWeight = 0.f;
+	float RunIdleSeconds = 0.f;
+	float DebugLogAccum = 0.f;
+	bool bRestartRun = true;
+	bool bLoggedSlowRun = false;
 	float FireBlend = 0.f;
 	float DeathBlend = 0.f;
 	float ShotSequenceTime = 1.f / 30.f;

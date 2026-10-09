@@ -105,12 +105,14 @@ Parent the carbine in `Weapon` to socket `weapon_r`.
 
 `AnimClass` on the Ranger Data Asset is optional. **Empty, with any animation sequence set, is native mode:** `UKodUnitAnimInstance` (`/Script/KodUnits.KodUnitAnimInstance`) samples the clips in C++. No AnimBP asset is required. A set `AnimClass` (a Blueprint child of that class) still wins and plays its graph. Log: `KodUnit AnimMode=Native`, `AnimBP`, or `None`.
 
-Native pose, blended in about `0.15` s:
+Native locomotion is SC2-style: Idle or Run, never a walk blend. `Speed` is the sim `MoveSpeed` while a Move is outside acceptance, or while an Attack is still seeking. It is not the interpolated actor position delta. Above about 20 cm/s the unit is **Run**, otherwise **Idle**. `WalkAnim` stays on the data asset and is not sampled. Run play rate is `SimSpeed / AuthoredRunSpeed` (450), clamped to `0.8–1.3`. If the sim speed is under `0.8 * 450`, one log per unit: `KodUnit RunRate=<raw> SimSpeed=<cm/s>`.
+
+Blends: about `0.10` s into run, about `0.12` s back to idle or aim. Run, Idle, and AimIdle loop on `[0, (keys-1)/fps)` so a duplicate last key (Run is 21 keys for a 20-frame cycle) never samples. Run phase is kept across a stop shorter than `0.2` s. Root translation is stripped from the sampled pose. The skeletal path does not use the placeholder bob.
 
 | Clip field | Behaviour |
 |------------|-----------|
-| `IdleAnim` / `WalkAnim` / `RunAnim` | Locomotion by `Speed`. Walk rate is `Speed / 150`, run rate is `Speed / 450` (stride 300 cm/cycle) |
-| `AimIdleAnim` | While aiming and slower than about 40 cm/s |
+| `IdleAnim` / `RunAnim` | Idle, or Run while moving. `WalkAnim` is unused by the native blend |
+| `AimIdleAnim` | While aiming and not moving |
 | `FireAnim` | One-shot over the aim pose on each shot, `FirePlayRate` `0.952` (11 frames at 30 fps stretched to 0.35 s). Muzzle flash at frame 1 (`1/30` s of the clip, advanced by the play rate). A `UKodAnimNotify_Shot` on the sequence is used instead of frame 1 when it is present |
 | `HitReactAnim` | Mesh-space additive (authored on AimIdle frame 0) for the length of the clip |
 | `DeathAnim` / `DeathAnimB` | Even entity id plays Death (hold frame `DeathHoldFrame` **26**). Odd id plays Death_B (hold frame `DeathHoldFrameB` **30**). One shot, then hold. Sink starts `frame / 30 + 0.2` s after the hold frame, not at the clip end |
@@ -129,8 +131,8 @@ The instance reads sim state. It does not write orders, pose, or the idle hash.
 
 | Pin | Meaning |
 |-----|---------|
-| `Speed` | cm/s. Move speed while a Move (or an out-of-range Attack seek) is in progress, else `0` |
-| `AuthoredRunSpeed` | `450`. Stride `300` cm/cycle. `RunPlayRate = Speed / AuthoredRunSpeed` |
+| `Speed` | Sim `MoveSpeed` while moving on a Move or Attack seek, else `0`. Not a frame delta |
+| `AuthoredRunSpeed` | `450`. Stride `300` cm/cycle. Shown run rate is clamped to `0.8–1.3` |
 | `AuthoredWalkSpeed` | `150`. `WalkPlayRate = Speed / AuthoredWalkSpeed` |
 | `FirePlayRate` | `0.952`. Fire is 11 frames at 30 fps, `(11-1)/30` s, and `0.952` makes that `0.35` s |
 | `bIsAiming` | Sim order is Attack and the target is still alive |
@@ -144,7 +146,7 @@ The instance reads sim state. It does not write orders, pose, or the idle hash.
 
 State machine:
 
-1. **Idle / Run / Walk** — `Speed` 0 is Idle. Walk uses `WalkPlayRate`. Run uses `RunPlayRate`.
+1. **Idle / Run** — above about 20 cm/s play Run at `RunPlayRate` (clamped `0.8–1.3`). Otherwise Idle. Do not blend `WalkAnim` in. `WalkPlayRate` remains for a later clip.
 2. **AimIdle / Fire** — when `bIsAiming`, hold AimIdle. Enter Fire when `FireCounter` changes and play it at `FirePlayRate`. Put `UKodAnimNotify_Shot` (`/Script/KodUnits.KodAnimNotify_Shot`, notify name **Kod Shot**) on **frame 1** of Fire.
 3. **HitReact** — additive, **Mesh Space**, on an **AimIdle frame 0** base. Trigger from `bHitReact`.
 4. **Death** — `bDeathVariantB` selects Death_B, otherwise Death. Hold starts at frame 30 or frame 26. The actor stays until `0.2` s after that frame, then the `1.5` s sink. The clip can keep holding its last frame. No death clip assigned keeps the immediate sink.
@@ -186,13 +188,13 @@ The notify drives the existing point light, sphere, cone, and yellow tracer from
 | `BobAmplitudeCm` | 3.5 | Centimetres, before the height scale |
 | `BobFrequencyHz` | 2.5 | Walking cadence |
 | `BobEaseSpeed` | 8 | Eases the bob in while moving and back to the rest attach when stopped |
-| `TurnRateDegreesPerSecond` | 540 | `RInterpConstantTo` on body yaw (`UnitMesh` relative) |
+| `TurnRateDegreesPerSecond` | 900 | `RInterpConstantTo` on body yaw. Skeletal mesh uses this on top of `SkeletalMeshYawOffset`. Cube/static use `UnitMesh` |
 
 The amplitude is multiplied by `(mesh local height × RelativeScale3D.Z) / 170`. The Engine cube (100 cm at scale 1.7) and `MountResolvedStaticMesh`'s ~170 cm Ranger both stay near `BobAmplitudeCm`. Sine weight eases to 0 at rest and the mesh relative location is put back on the captured attach point.
 
-Visual yaw chases sim `YawDegrees` (movement facing, and the attack target while seeking or holding range) and is applied as `UnitMesh` relative yaw, not `SetActorRotation`. The sim value is not written. The actor yaw stays the sim facing. The attack step writes that sim yaw toward the target before the shot, so the body turns to face while it fires.
+Visual yaw chases sim `YawDegrees` (movement facing, and the attack target while seeking or holding range). On a skeletal body that yaw is `SkeletalMeshYawOffset` plus the short-arc catch-up, on the skeletal mesh relative rotation. Cube and static bodies use `UnitMesh` relative yaw. It does not call `SetActorRotation` and it does not write the sim value. The actor yaw stays the interpolated sim facing. A Move snaps sim yaw to the destination immediately; an Attack snaps it toward the target, and the attack step keeps that facing while firing.
 
-Once per unit at BeginPlay: `KodUnitLife <Name> Bob=3.5 Turn=540` (the tunables, not the height-scaled amplitude).
+Once per unit at BeginPlay: `KodUnitLife <Name> Bob=3.5 Turn=900` (the tunables, not the height-scaled amplitude). The skeletal mesh does not bob. Sim yaw is set to the travel direction when a Move is issued, and toward the target when an Attack is issued or firing. Presentation yaw takes the short arc (`FindDeltaAngleDegrees`) and the body catches up at 900 deg/s. `kod.AnimDebug 1` logs `KodUnit AnimDebug` every 0.25 s: Speed, Idle/Run/Aim weights, run time, and run play rate.
 
 ## Hostile test target
 
@@ -336,7 +338,7 @@ A flat local `KoD_alpha.uproject` must list the **same Modules** as `KingdomOfDu
 - [ ] Right-click the floor → Move to the **first** cursor ImpactPoint (that ImpactPoint, not the actor pivot). `PROXY_GROUND` stays BlockAll, so the hit is the floor object name on ECC_Pawn (`sim=0`). Other `PROXY_*` meshes (CC, Dozer, crate, dock, pads, bounds, dirt, labels) are still `NoCollision` and are not that first Pawn hit. The ray walks past any remaining unregistered Pawn blocker the same way click-select does: a sim-registered actor on the ray that is not the current selection → Attack. Self / selection is not an attack target (Move at the first ImpactPoint instead). If ECC_Pawn hits nothing, `GetGroundHitUnderCursor` (ECC_Visibility) still hits the floor. PIE: `RMB Move LocalSelection=… Dest=x,y,z Hit=UEDPIE_0_StaticMeshActor_0 sim=0` then `Move Issued Sources=… Dest=…`, or `RMB Attack LocalSelection=… Target=… Id=…` then `Attack Issued Sources=… Target=… Id=…`. `RMB Miss none` means the floor was muted. `Attack Reject NonSim` means the pivot fallback did not run. A missed floor logs `Slice0 PROXY ground floor not kept (tag KodGround or label PROXY_GROUND). Floor traces will miss.`
 - [ ] Fight. Default spawns are inside range 900, so both idle Marines auto-acquire with no RMB: `KodSim AutoAcquire Unit=… Target=… Reason=InRange` on the lower id, then Fire/Hit, then `Reason=Retaliate` on the unit that was hit while still idle, then its Fire/Hit. Both sides keep firing. HP is the Ranger Data Asset MaxHealth minus 12 per hit (loaded asset 100 → first remaining 88, nine hits to 0; bootstrap catalog 120 → first remaining 108). The lower id lands the kill: `KodSim Kill` then `KodUnit Death`. Orange muzzle flash and yellow tracer play on **both** units. Green bar on team 0 and red bar on team 1 once damaged. The dead unit sinks ~1.5 s, drops out of selection, and is not selectable. A Move order does not acquire until the unit arrives. RMB Attack still works and logs `RMB Attack` / `Attack Issued`.
 - [ ] Selected actors keep their own materials and gain a glow rim. The rim is the local translucent unlit Fresnel material `/Game/Warden/FX/Selection/M_SelectionRim.M_SelectionRim` (parameters RimColor, RimIntensity, RimExponent), loaded by soft object path and applied with `UMeshComponent::SetOverlayMaterial`. It is not committed as a `.uasset`. Material slots are not replaced. Custom depth stays on (`SetRenderCustomDepth(true)`, stencil `1`) so a later post-process outline can use it. Clearing or replacing the selection calls `SetOverlayMaterial(nullptr)` and restores the previous custom depth and stencil. If the rim fails to load, a warning is logged once and only the stencil is applied (no tint). `DefaultEngine.ini` sets `r.CustomDepth=3` so the stencil is written. PIE: `SelectionHighlight LocalSelection=… Meshes=… Overlay=1 Stencil=1` (`Overlay=0` when the material is missing).
-- [ ] One Marine walks; arrival stops in acceptance radius. A Move order does not auto-acquire until that arrival. While it moves, the body bobs (about 3.5 cm at 2.5 Hz) and the body yaw turns to face the move at 540 deg/s, easing level when it stops. Attacking turns yaw toward the target and holds that facing between shots. Spawn log, once per unit: `KodUnitLife <Name> Bob=3.5 Turn=540`. The actor name in logs stays `KodUnit_*`; the player-facing display name is Marine.
+- [ ] One Marine runs; arrival stops in acceptance radius. A Move order does not auto-acquire until that arrival. Native locomotion is Idle or Run (not a walk blend), facing the travel direction at 900 deg/s, and the skeletal mesh does not bob. Firing faces the target. Spawn log, once per unit: `KodUnitLife <Name> Bob=3.5 Turn=900`. The actor name in logs stays `KodUnit_*`; the player-facing display name is Marine.
 - [ ] Idle hash stable across frames when no orders. Bob, visual yaw, muzzle flash, tracer, hit jiggle, death sink, HP bars, `TeamId`, and `RetaliateTarget` are not hashed. The hostile is a second entity, so the hash value differs from a one-unit world. Auto-acquire gives both units an Attack order, so the world is not idle during the fight. After the kill the survivor's order is clear and the hash is stable again.
 - [ ] HP from DA (Ranger 120) — no hardcoded HP in unit Tick
 - [ ] Soft path or bootstrap resolves all six ids

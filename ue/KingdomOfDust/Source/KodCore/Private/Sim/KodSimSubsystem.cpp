@@ -365,7 +365,7 @@ void UKodSimSubsystem::SyncActorPresentation(float Alpha) const
 		const float* PrevYaw = PrevYaws.Find(Pair.Key);
 		const float YawFrom = PrevYaw ? *PrevYaw : Pair.Value.YawDegrees;
 		const float YawTo = Pair.Value.YawDegrees;
-		const float Yaw = FMath::Lerp(YawFrom, YawTo, Alpha);
+		const float Yaw = YawFrom + FMath::FindDeltaAngleDegrees(YawFrom, YawTo) * Alpha;
 		FRotator Rot = Actor->GetActorRotation();
 		Rot.Yaw = Yaw;
 		Actor->SetActorRotation(Rot);
@@ -457,6 +457,20 @@ void UKodSimSubsystem::ConfigureEntity(
 	State->TeamId = TeamId;
 }
 
+namespace
+{
+	void FaceStateToward(FKodSimEntityState& State, const FVector& WorldPoint)
+	{
+		FVector Dir = WorldPoint - State.Position;
+		Dir.Z = 0.f;
+		if (Dir.SizeSquared() <= KINDA_SMALL_NUMBER)
+		{
+			return;
+		}
+		State.YawDegrees = FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X));
+	}
+}
+
 void UKodSimSubsystem::IssueMove(FKodEntityId Id, FVector WorldLocation)
 {
 	if (FKodSimEntityState* State = States.Find(Id.Value))
@@ -465,6 +479,7 @@ void UKodSimSubsystem::IssueMove(FKodEntityId Id, FVector WorldLocation)
 		State->MoveTarget = WorldLocation;
 		State->AttackTarget = FKodEntityId();
 		State->RetaliateTarget = FKodEntityId();
+		FaceStateToward(*State, WorldLocation);
 	}
 }
 
@@ -475,6 +490,10 @@ void UKodSimSubsystem::IssueAttack(FKodEntityId Id, FKodEntityId TargetId)
 		State->Order = EKodSimOrderType::Attack;
 		State->AttackTarget = TargetId;
 		State->RetaliateTarget = FKodEntityId();
+		if (const FKodSimEntityState* TargetState = States.Find(TargetId.Value))
+		{
+			FaceStateToward(*State, TargetState->Position);
+		}
 	}
 }
 
