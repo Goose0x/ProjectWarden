@@ -14,6 +14,7 @@ class UKodAttackComponent;
 class USkeletalMesh;
 class UStaticMesh;
 class UStaticMeshComponent;
+class UMeshComponent;
 class UPointLightComponent;
 class UMaterialInstanceDynamic;
 class UKodSimSubsystem;
@@ -43,6 +44,14 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, Category = "Kod|Team")
 	int32 TeamId = 0;
+
+	/** USA sand #D2C4B1. TeamColor on large armour. Palette is pending Art. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Team")
+	FLinearColor FriendlyTeamColor;
+
+	/** Hostile red #B3261E. Same TeamColor param. Editable per unit. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Team")
+	FLinearColor HostileTeamColor;
 
 	/**
 	 * Vertical bob amplitude on UnitMesh, in cm, before the 170 cm body-height scale.
@@ -84,6 +93,26 @@ public:
 	 */
 	void ApplyHostileCubeTint();
 
+	/**
+	 * Team tint after the body is mounted. Sets TeamColor on a dynamic MID when the
+	 * material has that vector param (TeamMask lives on the material). Otherwise team 1
+	 * uses the Color/BaseColor tint. Team 0 with no TeamColor param is left untinted.
+	 * Does not write sim state.
+	 */
+	void ApplyTeamColor();
+
+	/** Skeletal, or Cube when the skeletal soft ref did not load. StaticMesh if that body won. */
+	const TCHAR* GetMountedBodyName() const;
+
+	/** True after death presentation starts, including a skeletal clip hold before the sink. */
+	bool IsDeathSinking() const { return bDeathSinking; }
+
+	/**
+	 * Shot notify entry. Uses SOCKET_Muzzle, then weapon_r.
+	 * Missing sockets use the timed body-front flash.
+	 */
+	void PlayMuzzleFromShotNotify();
+
 protected:
 	/** Skeletal mesh wins when it loads; else static mesh on UnitMesh; else the Engine cube. */
 	void ApplyBodyMesh(const UKodUnitDefinition* Def);
@@ -112,9 +141,16 @@ protected:
 
 	/** Muzzle light, flash mesh, and tracer. Presentation only. Hidden until a shot. */
 	void EnsureAttackPresentation();
-	void ShowMuzzleAndTracer(AActor* Target);
+	void ShowMuzzleAndTracer(AActor* Target, bool bUseMuzzleWorld, FVector MuzzleWorld);
+	bool TryResolveMuzzleSocket(FVector& OutWorld) const;
+	void PushAnimSimEvent(bool bFired, bool bHit, bool bDead);
+	float GetSkeletalDeathHoldSeconds() const;
+	void ApplySkeletalCapsule();
+	void RestoreDefaultCapsule();
 	void AdvanceAttackPresentation(float DeltaSeconds);
 	void EnsureBodyTint();
+	void WriteBodyTint(const FLinearColor& Tint);
+	void ApplyColorTintFallback(UMeshComponent* VisualBody, const FLinearColor& Tint);
 	void SetBodyRelativeLocation(const FVector& Bobbed);
 	void BeginDeathPresentation();
 	/** Returns true when the actor was destroyed. */
@@ -145,6 +181,20 @@ protected:
 	/** Slice 0 hostile path. ApplyBodyMesh skips the definition static mesh. */
 	bool bForceCubeBody = false;
 
+	/** True only while the Character skeletal mesh is the visible body. */
+	bool bSkeletalBody = false;
+
+	/** Capsule was resized for the skeletal body and should be restored on the cube path. */
+	bool bSkeletalCapsule = false;
+
+	/** AnimBP is in use; wait briefly for UKodAnimNotify_Shot before the timed flash. */
+	bool bAwaitShotNotify = false;
+	float ShotNotifyWait = 0.f;
+	TWeakObjectPtr<AActor> PendingMuzzleTarget;
+
+	/** Seconds to hold before the 1.5 s sink. 0 keeps the immediate sink. */
+	float DeathSinkDelayRemaining = 0.f;
+
 	/** Captured attach point. Bob is an offset on top of this, not a new scale. */
 	FVector BodyRestRelativeLocation = FVector::ZeroVector;
 
@@ -161,6 +211,7 @@ protected:
 	TObjectPtr<UMaterialInstanceDynamic> BodyTintMID;
 
 	FLinearColor BodyRestColor = FLinearColor::White;
+	bool bTeamColorApplied = false;
 	float HitReactRemaining = 0.f;
 	FVector HitJiggleLocal = FVector::ZeroVector;
 

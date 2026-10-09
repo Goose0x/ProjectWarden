@@ -1,4 +1,5 @@
 #include "Actors/KodUnit.h"
+#include "Animation/KodUnitAnimInstance.h"
 #include "Data/KodUnitDefinition.h"
 #include "Data/KodWeaponDefinition.h"
 #include "Components/KodAbilitySystemComponent.h"
@@ -42,6 +43,11 @@ namespace
 	constexpr float DeathSinkDepthCm = 220.f;
 	constexpr float MuzzleForwardCm = 62.f;
 	constexpr float MuzzleUpCm = 72.f;
+	constexpr float SkeletalCapsuleRadius = 34.f;
+	constexpr float SkeletalCapsuleHalfHeight = 90.f;
+	constexpr float DefaultCapsuleRadius = 34.f;
+	constexpr float DefaultCapsuleHalfHeight = 88.f;
+	constexpr float ShotNotifyFallbackSeconds = 0.5f;
 	constexpr float HitJiggleCm = 16.f;
 	constexpr float TracerRadiusScale = 0.28f;
 
@@ -121,6 +127,9 @@ AKodUnit::AKodUnit()
 	// still show if this runs before the sim sync (one frame late) or after it.
 	// Neither write touches FKodSimEntityState or ComputeIdleHash.
 	PrimaryActorTick.TickGroup = TG_PostUpdateWork;
+
+	FriendlyTeamColor = FLinearColor(FColor(0xD2, 0xC4, 0xB1));
+	HostileTeamColor = FLinearColor(FColor(0xB3, 0x26, 0x1E));
 
 	AbilitySystemComponent = CreateDefaultSubobject<UKodAbilitySystemComponent>(TEXT("AbilitySystem"));
 	AbilitySystemComponent->SetIsReplicated(true);
@@ -205,6 +214,15 @@ void AKodUnit::Tick(float DeltaSeconds)
 	{
 		return;
 	}
+	if (bAwaitShotNotify)
+	{
+		ShotNotifyWait += Dt;
+		if (ShotNotifyWait >= ShotNotifyFallbackSeconds)
+		{
+			bAwaitShotNotify = false;
+			ShowMuzzleAndTracer(PendingMuzzleTarget.Get(), false, FVector::ZeroVector);
+		}
+	}
 	AdvanceAttackPresentation(Dt);
 	UpdateLifePresentation(Dt);
 }
@@ -247,12 +265,151 @@ void AKodUnit::ApplyHostileCubeTint()
 
 	// BasicShapeMaterial uses Color. BaseColor covers a parent that uses the other name.
 	// Slot 0 only — no SetOverlayMaterial, so the selection rim (stencil 1) stays free.
-	const FLinearColor HostileRed(0.75f, 0.02f, 0.02f, 1.f);
+	const FLinearColor HostileRed = HostileTeamColor;
 	MID->SetVectorParameterValue(TEXT("Color"), HostileRed);
 	MID->SetVectorParameterValue(TEXT("BaseColor"), HostileRed);
 	UnitMesh->SetMaterial(0, MID);
 	BodyTintMID = MID;
 	BodyRestColor = HostileRed;
+	bTeamColorApplied = false;
+}
+
+namespace
+{
+	bool MaterialHasVectorParam(const UMaterialInterface* Source, FName ParamName)
+	{
+		if (!Source || ParamName.IsNone())
+		{
+			return false;
+		}
+		TArray<FMaterialParameterInfo> Infos;
+		TArray<FGuid> Ids;
+		Source->GetAllParameterInfoOfType(EMaterialParameterType::Vector, Infos, Ids);
+		for (const FMaterialParameterInfo& Info : Infos)
+		{
+			if (Info.Name == ParamName)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
+const TCHAR* AKodUnit::GetMountedBodyName() const
+{
+	if (bSkeletalBody)
+	{
+		return TEXT("Skeletal");
+	}
+	if (UnitMesh && IsEngineCubeMesh(UnitMesh->GetStaticMesh()))
+	{
+		return TEXT("Cube");
+	}
+	return TEXT("StaticMesh");
+}
+
+void AKodUnit::WriteBodyTint(const FLinearColor& Tint)
+{
+	if (!BodyTintMID)
+	{
+		return;
+	}
+	if (bTeamColorApplied)
+	{
+		BodyTintMID->SetVectorParameterValue(TEXT("TeamColor"), Tint);
+	}
+	BodyTintMID->SetVectorParameterValue(TEXT("Color"), Tint);
+	BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), Tint);
+}
+
+void AKodUnit::ApplyColorTintFallback(UMeshComponent* VisualBody, const FLinearColor& Tint)
+{
+	if (!VisualBody)
+	{
+		return;
+	}
+
+	UMaterialInterface* Source = nullptr;
+	if (!bSkeletalBody && UnitMesh && IsEngineCubeMesh(UnitMesh->GetStaticMesh()))
+	{
+		Source = LoadObject<UMaterialInterface>(nullptr, BasicShapeMaterialPath);
+	}
+	if (!Source)
+	{
+		Source = VisualBody->GetMaterial(0);
+	}
+	if (!Source)
+	{
+		return;
+	}
+
+	UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Source, this);
+	if (!MID)
+	{
+		return;
+	}
+	MID->SetVectorParameterValue(TEXT("Color"), Tint);
+	MID->SetVectorParameterValue(TEXT("BaseColor"), Tint);
+	VisualBody->SetMaterial(0, MID);
+	BodyTintMID = MID;
+	BodyRestColor = Tint;
+	bTeamColorApplied = false;
+}
+
+void AKodUnit::ApplyTeamColor()
+{
+	const FLinearColor Tint = (TeamId == 0) ? FriendlyTeamColor : HostileTeamColor;
+	UMeshComponent* VisualBody = nullptr;
+	if (bSkeletalBody)
+	{
+		if (USkeletalMeshComponent* SkelBody = GetMesh())
+		{
+			if (!SkelBody->bHiddenInGame)
+			{
+				VisualBody = SkelBody;
+			}
+		}
+	}
+	if (!VisualBody)
+	{
+		VisualBody = UnitMesh;
+	}
+	if (!VisualBody)
+	{
+		return;
+	}
+
+	bTeamColorApplied = false;
+	BodyTintMID = nullptr;
+	const FName TeamParam(TEXT("TeamColor"));
+	const int32 SlotCount = VisualBody->GetNumMaterials();
+	for (int32 SlotIndex = 0; SlotIndex < SlotCount; ++SlotIndex)
+	{
+		UMaterialInterface* Source = VisualBody->GetMaterial(SlotIndex);
+		if (!MaterialHasVectorParam(Source, TeamParam))
+		{
+			continue;
+		}
+		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Source, this);
+		if (!MID)
+		{
+			continue;
+		}
+		MID->SetVectorParameterValue(TeamParam, Tint);
+		VisualBody->SetMaterial(SlotIndex, MID);
+		bTeamColorApplied = true;
+		if (!BodyTintMID)
+		{
+			BodyTintMID = MID;
+			BodyRestColor = Tint;
+		}
+	}
+	if (bTeamColorApplied || TeamId == 0)
+	{
+		return;
+	}
+	ApplyColorTintFallback(VisualBody, Tint);
 }
 
 float AKodUnit::GetScaledBobAmplitudeCm() const
@@ -504,14 +661,67 @@ void AKodUnit::ApplyBodyMesh(const UKodUnitDefinition* Def)
 	MountCubePlaceholder();
 }
 
+void AKodUnit::ApplySkeletalCapsule()
+{
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCapsuleSize(SkeletalCapsuleRadius, SkeletalCapsuleHalfHeight);
+	}
+	bSkeletalCapsule = true;
+}
+
+void AKodUnit::RestoreDefaultCapsule()
+{
+	if (!bSkeletalCapsule)
+	{
+		return;
+	}
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCapsuleSize(DefaultCapsuleRadius, DefaultCapsuleHalfHeight);
+	}
+	bSkeletalCapsule = false;
+}
+
 void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 {
+	// Delivered mesh is 178.9 cm at scale 1, root at the soles. No 170 cm fit.
+	// Half-height ~90; offset by -half-height so the soles sit on the ground.
+	// Yaw comes from the definition (Marine default -90). Do not retarget this
+	// skeleton onto another asset.
+	ApplySkeletalCapsule();
+	bSkeletalBody = true;
+
+	float YawOffset = -90.f;
+	const UKodUnitDefinition* BodyDef = GetDefinition();
+	if (BodyDef)
+	{
+		YawOffset = BodyDef->SkeletalMeshYawOffset;
+	}
+
 	if (USkeletalMeshComponent* Body = GetMesh())
 	{
 		Body->SetSkeletalMeshAsset(SkelMesh);
+		Body->SetRelativeLocation(FVector(0.f, 0.f, -SkeletalCapsuleHalfHeight));
+		Body->SetRelativeRotation(FRotator(0.f, YawOffset, 0.f));
+		Body->SetRelativeScale3D(FVector::OneVector);
 		Body->SetCanEverAffectNavigation(false);
 		Body->SetHiddenInGame(false);
 		Body->SetVisibility(true);
+
+		UClass* ResolvedAnimClass = UKodUnitAnimInstance::StaticClass();
+		if (BodyDef && !BodyDef->AnimClass.IsNull())
+		{
+			if (UClass* LoadedAnim = BodyDef->AnimClass.LoadSynchronous())
+			{
+				if (LoadedAnim->IsChildOf(UKodUnitAnimInstance::StaticClass()))
+				{
+					ResolvedAnimClass = LoadedAnim;
+				}
+			}
+		}
+		Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+		Body->SetAnimInstanceClass(ResolvedAnimClass);
 	}
 
 	// Hide the cube draw. Keep its QueryOnly Pawn collision so click-select does not move
@@ -523,11 +733,19 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 		KeepSelectCollision();
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("KodUnitBody %s Source=SkeletalMesh"), *GetName());
+	UE_LOG(LogTemp, Log, TEXT("KodUnitBody %s Source=SkeletalMesh Yaw=%.0f Scale=1 CapsuleHH=%.0f Radius=%.0f"),
+		*GetName(),
+		YawOffset,
+		SkeletalCapsuleHalfHeight,
+		SkeletalCapsuleRadius);
 }
 
 void AKodUnit::MountResolvedStaticMesh(UStaticMesh* StaticBody)
 {
+	bSkeletalBody = false;
+	bAwaitShotNotify = false;
+	RestoreDefaultCapsule();
+
 	if (USkeletalMeshComponent* Body = GetMesh())
 	{
 		Body->SetSkeletalMeshAsset(nullptr);
@@ -564,6 +782,10 @@ void AKodUnit::MountResolvedStaticMesh(UStaticMesh* StaticBody)
 
 void AKodUnit::MountCubePlaceholder()
 {
+	bSkeletalBody = false;
+	bAwaitShotNotify = false;
+	RestoreDefaultCapsule();
+
 	if (USkeletalMeshComponent* Body = GetMesh())
 	{
 		Body->SetSkeletalMeshAsset(nullptr);
@@ -710,7 +932,39 @@ void AKodUnit::EnsureAttackPresentation()
 	ShotTracerMesh = MakeFxMesh(FName(TEXT("KodFxTracer")), EngineCylinderPath, TracerMID);
 }
 
-void AKodUnit::ShowMuzzleAndTracer(AActor* Target)
+bool AKodUnit::TryResolveMuzzleSocket(FVector& OutWorld) const
+{
+	TInlineComponentArray<USkeletalMeshComponent*> Parts;
+	GetComponents(Parts);
+
+	const FName MuzzleSocket(TEXT("SOCKET_Muzzle"));
+	const FName WeaponSocket(TEXT("weapon_r"));
+	USkeletalMeshComponent* WeaponPart = nullptr;
+	for (USkeletalMeshComponent* Part : Parts)
+	{
+		if (!Part)
+		{
+			continue;
+		}
+		if (Part->DoesSocketExist(MuzzleSocket))
+		{
+			OutWorld = Part->GetSocketLocation(MuzzleSocket);
+			return true;
+		}
+		if (!WeaponPart && Part->DoesSocketExist(WeaponSocket))
+		{
+			WeaponPart = Part;
+		}
+	}
+	if (WeaponPart)
+	{
+		OutWorld = WeaponPart->GetSocketLocation(WeaponSocket);
+		return true;
+	}
+	return false;
+}
+
+void AKodUnit::ShowMuzzleAndTracer(AActor* Target, bool bUseMuzzleWorld, FVector MuzzleWorld)
 {
 	EnsureAttackPresentation();
 
@@ -730,7 +984,9 @@ void AKodUnit::ShowMuzzleAndTracer(AActor* Target)
 		ShotDir = FVector::ForwardVector;
 	}
 
-	const FVector Muzzle = GetActorLocation() + ShotDir * MuzzleForwardCm + FVector(0.f, 0.f, MuzzleUpCm);
+	const FVector Muzzle = bUseMuzzleWorld
+		? MuzzleWorld
+		: (GetActorLocation() + ShotDir * MuzzleForwardCm + FVector(0.f, 0.f, MuzzleUpCm));
 	const FVector LightAt = Muzzle + ShotDir * 24.f;
 
 	auto ShowAbsolute = [](USceneComponent* Component, const FVector& Location, const FRotator& Rotation, const FVector& Scale)
@@ -825,12 +1081,63 @@ void AKodUnit::AdvanceAttackPresentation(float DeltaSeconds)
 		if (HitReactRemaining <= 0.f)
 		{
 			HitJiggleLocal = FVector::ZeroVector;
-			if (BodyTintMID)
-			{
-				BodyTintMID->SetVectorParameterValue(TEXT("Color"), BodyRestColor);
-				BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), BodyRestColor);
-			}
+			WriteBodyTint(BodyRestColor);
 		}
+	}
+}
+
+void AKodUnit::PushAnimSimEvent(bool bFired, bool bHit, bool bDead)
+{
+	if (!bSkeletalBody)
+	{
+		return;
+	}
+	USkeletalMeshComponent* Body = GetMesh();
+	UKodUnitAnimInstance* Anim = Body ? Cast<UKodUnitAnimInstance>(Body->GetAnimInstance()) : nullptr;
+	if (!Anim)
+	{
+		return;
+	}
+	if (bFired)
+	{
+		Anim->HandleSimFired();
+	}
+	if (bHit)
+	{
+		Anim->HandleSimHit();
+	}
+	if (bDead)
+	{
+		Anim->HandleSimDeath();
+	}
+}
+
+float AKodUnit::GetSkeletalDeathHoldSeconds() const
+{
+	if (!bSkeletalBody)
+	{
+		return 0.f;
+	}
+	const USkeletalMeshComponent* Body = GetMesh();
+	const UKodUnitAnimInstance* Anim = Body ? Cast<UKodUnitAnimInstance>(Body->GetAnimInstance()) : nullptr;
+	return Anim ? Anim->GetDeathSinkDelaySeconds() : 0.f;
+}
+
+void AKodUnit::PlayMuzzleFromShotNotify()
+{
+	if (!bAwaitShotNotify)
+	{
+		return;
+	}
+	bAwaitShotNotify = false;
+	FVector SocketWorld = FVector::ZeroVector;
+	if (TryResolveMuzzleSocket(SocketWorld))
+	{
+		ShowMuzzleAndTracer(PendingMuzzleTarget.Get(), true, SocketWorld);
+	}
+	else
+	{
+		ShowMuzzleAndTracer(PendingMuzzleTarget.Get(), false, FVector::ZeroVector);
 	}
 }
 
@@ -840,7 +1147,23 @@ void AKodUnit::HandleUnitFired(AActor* Attacker, AActor* Target, int32 /*SimTick
 	{
 		return;
 	}
-	ShowMuzzleAndTracer(Target);
+
+	PendingMuzzleTarget = Target;
+	PushAnimSimEvent(true, false, false);
+
+	USkeletalMeshComponent* Body = GetMesh();
+	UClass* AnimClass = (bSkeletalBody && Body) ? Body->GetAnimClass() : nullptr;
+	const bool bWaitForShotNotify = bSkeletalBody && AnimClass && AnimClass != UKodUnitAnimInstance::StaticClass();
+	if (bWaitForShotNotify)
+	{
+		bAwaitShotNotify = true;
+		ShotNotifyWait = 0.f;
+	}
+	else
+	{
+		bAwaitShotNotify = false;
+		ShowMuzzleAndTracer(Target, false, FVector::ZeroVector);
+	}
 }
 
 void AKodUnit::HandleUnitHit(AActor* Attacker, AActor* Target, float /*Health*/, int32 /*TargetId*/)
@@ -851,15 +1174,13 @@ void AKodUnit::HandleUnitHit(AActor* Attacker, AActor* Target, float /*Health*/,
 	}
 
 	EnsureBodyTint();
-	const bool bRestIsRed = BodyRestColor.R > 0.5f && BodyRestColor.G < 0.3f && BodyRestColor.B < 0.3f;
+	const bool bRestIsRed = BodyRestColor.R > BodyRestColor.G * 2.f
+		&& BodyRestColor.R > BodyRestColor.B * 2.f
+		&& BodyRestColor.R > 0.15f;
 	const FLinearColor FlashColor = bRestIsRed
 		? FLinearColor::White
 		: FLinearColor(1.f, 0.15f, 0.12f, 1.f);
-	if (BodyTintMID)
-	{
-		BodyTintMID->SetVectorParameterValue(TEXT("Color"), FlashColor);
-		BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), FlashColor);
-	}
+	WriteBodyTint(FlashColor);
 
 	FVector Away = FVector::ForwardVector;
 	if (Attacker && Attacker != this)
@@ -879,6 +1200,7 @@ void AKodUnit::HandleUnitHit(AActor* Attacker, AActor* Target, float /*Health*/,
 	HitJiggleLocal = GetActorTransform().InverseTransformVectorNoScale(Away * HitJiggleCm);
 	HitJiggleLocal.Z += 8.f;
 	HitReactRemaining = HitReactSeconds;
+	PushAnimSimEvent(false, true, false);
 }
 
 void AKodUnit::HandleUnitKilled(AActor* Target, int32 /*TargetId*/)
@@ -897,8 +1219,11 @@ void AKodUnit::BeginDeathPresentation()
 		return;
 	}
 	bDeathSinking = true;
+	bAwaitShotNotify = false;
 	DeathSinkElapsed = 0.f;
 	DeathSinkStart = GetActorLocation();
+	PushAnimSimEvent(false, false, true);
+	DeathSinkDelayRemaining = GetSkeletalDeathHoldSeconds();
 	SetActorEnableCollision(false);
 	UE_LOG(LogTemp, Log, TEXT("KodUnit Death %s"), *GetName());
 
@@ -917,7 +1242,19 @@ bool AKodUnit::AdvanceDeathSink(float DeltaSeconds)
 	{
 		return false;
 	}
-	DeathSinkElapsed += FMath::Max(0.f, DeltaSeconds);
+	const float Dt = FMath::Max(0.f, DeltaSeconds);
+	if (DeathSinkDelayRemaining > 0.f)
+	{
+		DeathSinkDelayRemaining -= Dt;
+		if (DeathSinkDelayRemaining > 0.f)
+		{
+			return false;
+		}
+		DeathSinkStart = GetActorLocation();
+		DeathSinkElapsed = 0.f;
+		return false;
+	}
+	DeathSinkElapsed += Dt;
 	const float Alpha = FMath::Clamp(DeathSinkElapsed / DeathSinkSeconds, 0.f, 1.f);
 	const float Eased = Alpha * Alpha;
 	const FVector Sunk = DeathSinkStart - FVector(0.f, 0.f, DeathSinkDepthCm * Eased);

@@ -175,7 +175,8 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeRanger(UObject* Outer, UKodWeaponDe
 {
 	UKodUnitDefinition* U = NewObject<UKodUnitDefinition>(Outer, FName(KodWardenPaths::Id_Ranger), RF_Public | RF_Transient);
 	U->DefinitionId = FName(KodWardenPaths::Id_Ranger);
-	U->DisplayName = NSLOCTEXT("Kod", "Unit_Ranger", "Ranger");
+	// Player-facing name. DefinitionId, asset path, and logs stay Ranger.
+	U->DisplayName = NSLOCTEXT("Kod", "Unit_Ranger", "Marine");
 	U->UnitTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Unit.Ranger")), false);
 	U->MaxHealth = 120.f;
 	U->Armor = 0.f;
@@ -313,6 +314,10 @@ AKodUnit* UKodSlice0Bootstrap::SpawnRanger(UWorld* World, const FTransform& Tran
 	if (bForceCubeBody)
 	{
 		Unit->ApplyHostileCubeTint();
+	}
+	else
+	{
+		Unit->ApplyTeamColor();
 	}
 	UE_LOG(LogTemp, Warning, TEXT("SpawnRanger spawned %s at %s"), *Unit->GetName(), *Unit->GetActorLocation().ToString());
 	return Unit;

@@ -55,6 +55,8 @@ public:
 	/**
 	 * Spawn one Ranger at Transform. MaxHealth from the DA only.
 	 * bForceCubeBody keeps the Engine cube and applies the red hostile tint.
+	 * Otherwise the unit mounts the Ranger skeletal mesh when it loads, then static, then the cube,
+	 * and ApplyTeamColor tints TeamColor (or the Color fallback on team 1).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
 	static class AKodUnit* SpawnRanger(UWorld* World, const FTransform& Transform, int32 TeamId = 0, bool bForceCubeBody = false);
