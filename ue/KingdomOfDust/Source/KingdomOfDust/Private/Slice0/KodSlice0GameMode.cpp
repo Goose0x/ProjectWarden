@@ -5,6 +5,7 @@
 #include "Actors/KodUnit.h"
 #include "Actors/KodResourceNode.h"
 #include "Data/KodResourceNodeDefinition.h"
+#include "Data/KodUnitDefinition.h"
 #include "Warden/KodWardenPaths.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Components/PrimitiveComponent.h"
