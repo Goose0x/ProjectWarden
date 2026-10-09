@@ -1,83 +1,41 @@
 #include "Game/KodHUD.h"
+
 #include "Blueprint/UserWidget.h"
-#include "Components/CanvasPanelSlot.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
-#include "Engine/GameViewportClient.h"
-#include "Engine/LocalPlayer.h"
+#include "Engine/Font.h"
+#include "Engine/HitResult.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "GameFramework/PlayerController.h"
 #include "Game/KodPlayerController.h"
 #include "Game/KodPlayerState.h"
-#include "Game/KodResourceReadoutWidget.h"
 #include "Sim/KodResourceTypes.h"
 #include "Sim/KodSimSubsystem.h"
 
 AKodHUD::AKodHUD()
 {
+	bShowHUD = true;
 }
 
 void AKodHUD::DrawHUD()
 {
 	Super::DrawHUD();
-	EnsureReadout();
+	bShowHUD = true;
+
+	if (!bLoggedFirstDraw)
+	{
+		bLoggedFirstDraw = true;
+		const float SizeX = Canvas ? Canvas->SizeX : 0.f;
+		const float SizeY = Canvas ? Canvas->SizeY : 0.f;
+		UE_LOG(LogTemp, Log, TEXT("KodHUD DrawHUD First SizeX=%.0f SizeY=%.0f"), SizeX, SizeY);
+	}
+
 	RefreshReadout();
 	DrawUnitHealthBars();
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
-}
-
-void AKodHUD::EnsureReadout()
-{
-	if (bReadoutCreateLogged && ResourceReadout && ResourceReadout->IsInViewport())
-	{
-		return;
-	}
-
-	APlayerController* PC = GetOwningPlayerController();
-	if (!PC || !PC->IsLocalPlayerController())
-	{
-		return;
-	}
-	const ULocalPlayer* LocalPlayer = PC->GetLocalPlayer();
-	if (!LocalPlayer || !LocalPlayer->ViewportClient)
-	{
-		return;
-	}
-
-	if (!ResourceReadout)
-	{
-		ResourceReadout = CreateWidget<UKodResourceReadoutWidget>(PC, UKodResourceReadoutWidget::StaticClass());
-	}
-	if (!ResourceReadout)
-	{
-		if (!bReadoutCreateLogged)
-		{
-			bReadoutCreateLogged = true;
-			UE_LOG(LogTemp, Log, TEXT("KodHUD Readout Created Owner=%s"), *PC->GetName());
-		}
-		return;
-	}
-
-	ResourceReadout->SetVisibility(ESlateVisibility::HitTestInvisible);
-	if (!ResourceReadout->IsInViewport())
-	{
-		ResourceReadout->AddToViewport(100);
-	}
-	if (UCanvasPanelSlot* ViewportSlot = Cast<UCanvasPanelSlot>(ResourceReadout->Slot))
-	{
-		ViewportSlot->SetAnchors(FAnchors(1.f, 0.f, 1.f, 0.f));
-		ViewportSlot->SetAlignment(FVector2D(1.f, 0.f));
-		ViewportSlot->SetAutoSize(true);
-		ViewportSlot->SetPosition(FVector2D(-24.f, 16.f));
-		ViewportSlot->SetZOrder(100);
-	}
-	ResourceReadout->ForceLayoutPrepass();
-
-	if (!bReadoutCreateLogged)
-	{
-		bReadoutCreateLogged = true;
-		UE_LOG(LogTemp, Log, TEXT("KodHUD Readout Created Owner=%s"), *PC->GetName());
-	}
 }
 
 bool AKodHUD::ReadTeamBank(int32& OutJadeite, int32& OutLuminene) const
@@ -126,22 +84,12 @@ void AKodHUD::RefreshReadout()
 			ShownJadeite = Jadeite;
 			ShownLuminene = Luminene;
 			UE_LOG(LogTemp, Log, TEXT("KodHUD Readout Update J=%d L=%d"), Jadeite, Luminene);
-			if (ResourceReadout)
-			{
-				ResourceReadout->SetDisplayed(Jadeite, Luminene);
-			}
 		}
 	}
 
 	const int32 DrawJadeite = ShownJadeite == MIN_int32 ? 0 : ShownJadeite;
 	const int32 DrawLuminene = ShownLuminene == MIN_int32 ? 0 : ShownLuminene;
-	const bool bWidgetOnScreen = ResourceReadout
-		&& ResourceReadout->IsInViewport()
-		&& ResourceReadout->IsReadoutBuilt();
-	if (!bWidgetOnScreen)
-	{
-		DrawCanvasReadout(DrawJadeite, DrawLuminene);
-	}
+	DrawCanvasReadout(DrawJadeite, DrawLuminene);
 }
 
 void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene)
@@ -151,10 +99,18 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene)
 		return;
 	}
 
-	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
-	if (!Font && GEngine)
+	UFont* Font = nullptr;
+	if (GEngine)
 	{
-		Font = GEngine->GetSmallFont();
+		Font = GEngine->GetMediumFont();
+		if (!Font)
+		{
+			Font = GEngine->GetLargeFont();
+		}
+		if (!Font)
+		{
+			Font = GEngine->GetSmallFont();
+		}
 	}
 
 	const FString Credits = FString::Printf(TEXT("Credits %d"), Jadeite);
@@ -178,7 +134,7 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene)
 	const float Y = 16.f;
 	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.88f), X - Pad, Y - 6.f, TotalW + Pad * 2.f, TextH + 12.f);
 	DrawText(Credits, KodResourceColors::Jadeite(), X, Y, Font, 1.f, false);
-	DrawText(LumineneText, KodResourceColors::LumineneHighlight(), X + CreditsW + Gap, Y, Font, 1.f, false);
+	DrawText(LumineneText, KodResourceColors::LumineneCore(), X + CreditsW + Gap, Y, Font, 1.f, false);
 	DrawText(Supply, FLinearColor(0.72f, 0.72f, 0.72f, 1.f), X + CreditsW + Gap + LumineneW + Gap, Y, Font, 1.f, false);
 }
 
@@ -380,7 +336,7 @@ void AKodHUD::DrawSelectionMarquee()
 void AKodHUD::BeginPlay()
 {
 	Super::BeginPlay();
-	EnsureReadout();
+	bShowHUD = true;
 
 	if (APlayerController* PC = GetOwningPlayerController())
 	{

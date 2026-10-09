@@ -379,7 +379,7 @@ Jadeite is unlit deep jade `#00A86B`. The vent core is unlit `#9EE60B` and the p
 
 ### HUD and selection
 
-`AKodSlice0GameMode` sets `HUDClass` to `AKodHUD`. The readout is a C++ widget (no Widget Blueprint): top-right dark plate, `Credits <n>` in `#00A86B`, `Luminene <n>` in `#C6FF1A`, grey `0/10`. If the local viewport is not ready in BeginPlay, the next HUD draw retries. If the widget still is not on screen, the same line is drawn with the engine canvas. Log once: `KodHUD Readout Created Owner=<pc>`. On a bank change (polled at 4 Hz): `KodHUD Readout Update J=<n> L=<n>`. Credits is only the label. The bank field stays Jadeite. It does not write the sim.
+`AKodSlice0GameMode` sets `HUDClass` to `AKodHUD`. The readout is engine canvas text drawn every `DrawHUD` (no resource widget): top-right dark plate, `Credits <n>` in `#00A86B`, `Luminene <n>` in `#9EE60B`, grey `0/10`, 24 px from the right edge. Log once: `KodHUD DrawHUD First SizeX=<w> SizeY=<h>`. On a bank change (polled at 4 Hz): `KodHUD Readout Update J=<n> L=<n>`. Credits is only the label. The bank field stays Jadeite. It does not write the sim.
 
 Clicking a node logs `Select Node Id=<id> Type=Jadeite|Luminene Remaining=<n>`. The HUD draws that name and the remaining amount for the selected node and the node under the cursor. RMB with only Marines on a node is still **Move** (`RMB Move` then `Move Issued`), not an attack. RMB with a Dozer selected on a node logs `RMB Gather` and `Gather Issued`. Marines in a mixed selection still Move. RMB on the ground cancels gather (`RMB Move` / `Move Issued`) and refunds a pile withdrawal onto the node when it still exists.
 

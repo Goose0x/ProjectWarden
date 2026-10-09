@@ -5,13 +5,12 @@
 #include "KodHUD.generated.h"
 
 class UUserWidget;
-class UKodResourceReadoutWidget;
 
 /**
- * Hosts the in-game HUD. Chrome stays on the widget; DrawHUD paints the
- * selection marquee, unit HP bars, and the name/remaining label on a selected
- * resource node (engine canvas, no Content texture).
- * A C++ resource readout (Credits for Jadeite, Luminene, grey 0/10 supply) is added in BeginPlay.
+ * Hosts the in-game HUD. DrawHUD paints the resource readout, selection marquee,
+ * unit HP bars, and the name/remaining label on a selected resource node
+ * (engine canvas, no Content texture).
+ * The readout is canvas text only: Credits, Luminene, and a grey supply line.
  * HudWidgetClass must be a Widget Blueprint parented to UKodHudRootWidget
  * (Ironstock). Expected content path: /Game/UI/HUD/WBP_KodHUD.
  * KodCore does not link KodUI; the soft class keeps that boundary.
@@ -27,9 +26,6 @@ public:
 	virtual void BeginPlay() override;
 	virtual void DrawHUD() override;
 
-	/** Create the C++ readout once the local player has a viewport. DrawHUD retries. */
-	void EnsureReadout();
-
 	/** Soft ref to WBP_KodHUD (assign in BP / defaults). */
 	UPROPERTY(EditDefaultsOnly, Category = "Kod|UI")
 	TSoftClassPtr<UUserWidget> HudWidgetClass;
@@ -42,14 +38,11 @@ protected:
 	void DrawSelectedResourceNodes();
 	void DrawSelectionMarquee();
 
-	bool bReadoutCreateLogged = false;
+	bool bLoggedFirstDraw = false;
 	int32 ShownJadeite = MIN_int32;
 	int32 ShownLuminene = MIN_int32;
 	float LastReadoutPollSeconds = -1.f;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> HudWidgetInstance;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UKodResourceReadoutWidget> ResourceReadout;
 };
