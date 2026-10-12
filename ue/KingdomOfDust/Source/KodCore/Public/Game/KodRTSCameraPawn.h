@@ -124,8 +124,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
 	float MaxArmLength = 5200.f;
 
+	/** Match zoom-out stops here. 15% tighter than 3600 so units read larger. Config can retune it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
-	float DefaultArmLength = 3600.f;
+	float DefaultArmLength = 3060.f;
 
 	/** How fast the look-at point settles onto the ground under it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
@@ -171,6 +172,9 @@ protected:
 	void FocusCommandCenter();
 	void PollMoveInput(float DeltaSeconds, bool& bOutManualPan);
 	void PollZoom();
+	float ZoomCeiling() const;
+	void ResetZoomAndPitch();
+	bool HasLiftableSelection() const;
 	void PollBookmarks();
 	void PollAlert();
 	void PollRotate();
@@ -190,10 +194,14 @@ protected:
 	void SaveBookmark(int32 SlotNumber);
 	void RecallBookmark(int32 SlotNumber);
 
-	float CurrentArmLength = 3600.f;
-	float TargetArmLength = 3600.f;
+	float CurrentArmLength = 3060.f;
+	float TargetArmLength = 3060.f;
 	FVector PanVelocity = FVector::ZeroVector;
 	bool bGrabbing = false;
+	bool bGrabMoved = false;
+	bool bGrabHasWorld = false;
+	float GrabMouseX = 0.f;
+	float GrabMouseY = 0.f;
 	FVector GrabWorld = FVector::ZeroVector;
 	bool bHaveGround = false;
 	float TargetGroundZ = 0.f;

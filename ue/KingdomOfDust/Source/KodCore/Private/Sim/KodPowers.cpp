@@ -118,7 +118,21 @@ bool UKodSimSubsystem::CastPower(int32 TeamId, FName PowerId, FVector Target)
 	}
 	if (!Cooldown || *Cooldown > 0 || Points < Spec->PointCost)
 	{
-		UE_LOG(LogTemp, Log, TEXT("KodPowers Reject Id=%s Points=%d Cd=%d"), *PowerId.ToString(), Points, Cooldown ? *Cooldown : -1);
+		const TCHAR* Reason = TEXT("Points");
+		if (!Cooldown)
+		{
+			Reason = TEXT("Unknown");
+		}
+		else if (*Cooldown > 0)
+		{
+			Reason = TEXT("Cooldown");
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodPowers Reject Id=%s Reason=%s Points=%d Need=%d Cd=%d"),
+			*PowerId.ToString(),
+			Reason,
+			Points,
+			Spec->PointCost,
+			Cooldown ? *Cooldown : -1);
 		return false;
 	}
 	Points -= Spec->PointCost;
@@ -166,8 +180,63 @@ void UKodSimSubsystem::AwardPowerPoints(int32 TeamId, int32 Amount)
 	}
 }
 
+void UKodSimSubsystem::CopyReconPulses(int32 TeamId, TArray<int32>& OutX, TArray<int32>& OutY, TArray<int32>& OutRadius, TArray<int32>& OutTicksLeft, TArray<int32>& OutDuration) const
+{
+	OutX.Reset();
+	OutY.Reset();
+	OutRadius.Reset();
+	OutTicksLeft.Reset();
+	OutDuration.Reset();
+	TArray<int32> Order;
+	for (int32 Index = 0; Index < ScheduledPowers.Num(); ++Index)
+	{
+		Order.Add(Index);
+	}
+	Order.Sort([this](int32 A, int32 B)
+	{
+		const FKodScheduledPower& Left = ScheduledPowers[A];
+		const FKodScheduledPower& Right = ScheduledPowers[B];
+		if (Left.X != Right.X)
+		{
+			return Left.X < Right.X;
+		}
+		return Left.Y < Right.Y;
+	});
+	for (int32 Index : Order)
+	{
+		const FKodScheduledPower& Power = ScheduledPowers[Index];
+		if (Power.TeamId != TeamId || Power.PowerId != FName(KodWardenPaths::Id_ReconSweep) || Power.Phase != 1)
+		{
+			continue;
+		}
+		OutX.Add(Power.X);
+		OutY.Add(Power.Y);
+		OutRadius.Add(Power.RadiusUU);
+		OutTicksLeft.Add(Power.TicksLeft);
+		OutDuration.Add(FMath::Max(1, Power.DurationTicks));
+	}
+}
+
 void UKodSimSubsystem::StepPowers()
 {
+	if (bGeneralPowers && !bTestIsolation)
+	{
+		FKodPowerSpec Income;
+		if (TryGetPowerSpec(FName(KodWardenPaths::Id_PowerIncome), Income))
+		{
+			if (SimTickIndex == 0 && Income.Amount > 0)
+			{
+				AwardPowerPoints(0, Income.Amount);
+				AwardPowerPoints(1, Income.Amount);
+				UE_LOG(LogTemp, Log, TEXT("KodPowers Income Start=%d"), Income.Amount);
+			}
+			else if (Income.CooldownTicks > 0 && SimTickIndex > 0 && (SimTickIndex % Income.CooldownTicks) == 0)
+			{
+				AwardPowerPoints(0, 1);
+				AwardPowerPoints(1, 1);
+			}
+		}
+	}
 	if (bCheatNoCooldown)
 	{
 		ArtilleryCd0 = 0;
@@ -288,6 +357,7 @@ void UKodSimSubsystem::StepPowers()
 			Power.Phase = 1;
 			Power.TicksLeft = FMath::Max(1, Power.DurationTicks);
 			UE_LOG(LogTemp, Log, TEXT("KodPowers Recon X=%d Y=%d"), Power.X, Power.Y);
+			RaiseCue(FName(TEXT("recon_sweep")), Center, true);
 		}
 	}
 }

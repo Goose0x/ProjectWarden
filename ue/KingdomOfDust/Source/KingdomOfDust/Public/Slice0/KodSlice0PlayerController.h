@@ -59,6 +59,7 @@ protected:
 	bool CancelSelectedConstruction();
 	bool TryResumeBuildUnderCursor();
 	bool AllowTrain(FName UnitId);
+	bool TryArmPower(FName PowerId);
 	void TryBeginPlace(FName TypeId);
 	void IssueTrain(FName UnitId, int32 StructureId);
 	void IssueCancelSlot(int32 StructureId, int32 SlotIndex);

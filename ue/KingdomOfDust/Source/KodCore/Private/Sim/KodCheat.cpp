@@ -169,9 +169,13 @@ namespace
 		{
 			Mode = EKodMatchMode::Replay;
 		}
+		else if (Arg == TEXT("custom"))
+		{
+			Mode = EKodMatchMode::Custom;
+		}
 		else if (!Arg.IsEmpty())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("kod.MatchMode campaign|skirmish|ranked|replay"));
+			UE_LOG(LogTemp, Warning, TEXT("kod.MatchMode campaign|skirmish|ranked|replay|custom"));
 			return;
 		}
 		Sim->SetMatchMode(Mode);
@@ -179,7 +183,7 @@ namespace
 
 	FAutoConsoleCommandWithWorldAndArgs GKodMatchMode(
 		TEXT("kod.MatchMode"),
-		TEXT("Campaign, offline skirmish, ranked, or replay. Usage: kod.MatchMode skirmish"),
+		TEXT("Campaign, offline skirmish, ranked, replay, or custom. Usage: kod.MatchMode skirmish"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodMatchMode));
 }
 
@@ -208,6 +212,8 @@ namespace
 			return TEXT("OnlineRanked");
 		case EKodMatchMode::Replay:
 			return TEXT("Replay");
+		case EKodMatchMode::Custom:
+			return TEXT("Custom");
 		default:
 			return TEXT("OfflineSkirmish");
 		}

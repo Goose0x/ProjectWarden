@@ -19,6 +19,9 @@
 #include "Game/KodUserSettings.h"
 #include "InputCoreTypes.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Sim/KodCheatRows.h"
+#include "Game/KodSpectatorPawn.h"
+#include "Warden/KodWardenPaths.h"
 #include "UnrealClient.h"
 
 AKodRTSCameraPawn::AKodRTSCameraPawn()
@@ -190,7 +193,11 @@ void AKodRTSCameraPawn::Zoom(float AxisValue)
 	{
 		return;
 	}
-	TargetArmLength = FMath::Clamp(TargetArmLength - AxisValue * ZoomStep, MinArmLength, MaxArmLength);
+	if (AxisValue < 0.f && ZoomCeiling() <= DefaultArmLength + 1.f)
+	{
+		return;
+	}
+	TargetArmLength = FMath::Clamp(TargetArmLength - AxisValue * ZoomStep, MinArmLength, ZoomCeiling());
 }
 
 void AKodRTSCameraPawn::OrbitYaw(float AxisValue)
@@ -301,7 +308,7 @@ void AKodRTSCameraPawn::CopyViewFrom(const AKodRTSCameraPawn* Other)
 	}
 	SetActorLocation(Other->GetActorLocation());
 	SetActorRotation(FRotator(0.f, Other->GetActorRotation().Yaw, 0.f));
-	TargetArmLength = FMath::Clamp(Other->GetCurrentArmLength(), MinArmLength, MaxArmLength);
+	TargetArmLength = FMath::Clamp(Other->GetCurrentArmLength(), MinArmLength, ZoomCeiling());
 	CurrentArmLength = TargetArmLength;
 	if (CameraBoom)
 	{
@@ -470,24 +477,53 @@ void AKodRTSCameraPawn::PollMoveInput(float DeltaSeconds, bool& bOutManualPan)
 
 	if (!bRotateDrag && PC->WasInputKeyJustPressed(EKeys::MiddleMouseButton))
 	{
+		bGrabbing = true;
+		bGrabMoved = false;
+		bGrabHasWorld = false;
+		float PressX = 0.f;
+		float PressY = 0.f;
+		PC->GetMousePosition(PressX, PressY);
+		GrabMouseX = PressX;
+		GrabMouseY = PressY;
 		FVector Hit;
 		if (GroundUnderCursor(Hit))
 		{
-			bGrabbing = true;
+			bGrabHasWorld = true;
 			GrabWorld = Hit;
 		}
 	}
-	if (PC->WasInputKeyJustReleased(EKeys::MiddleMouseButton) || bRotateDrag)
+	if (PC->WasInputKeyJustReleased(EKeys::MiddleMouseButton))
+	{
+		float ReleaseX = 0.f;
+		float ReleaseY = 0.f;
+		PC->GetMousePosition(ReleaseX, ReleaseY);
+		const float Drag = FVector2D(ReleaseX - GrabMouseX, ReleaseY - GrabMouseY).Size();
+		if (bGrabbing && !bGrabMoved && Drag < 6.f && !bRotateDrag)
+		{
+			ResetZoomAndPitch();
+		}
+		bGrabbing = false;
+	}
+	else if (bRotateDrag)
 	{
 		bGrabbing = false;
 	}
 	if (bGrabbing)
 	{
-		FVector CursorGround;
-		if (CursorOnPlane(GrabWorld.Z, CursorGround))
+		float MoveX = 0.f;
+		float MoveY = 0.f;
+		if (PC->GetMousePosition(MoveX, MoveY) && FVector2D(MoveX - GrabMouseX, MoveY - GrabMouseY).Size() >= 6.f)
 		{
-			const float Sens = FMath::Max(0.05f, MouseSensitivity);
-			AddActorWorldOffset(FVector(GrabWorld.X - CursorGround.X, GrabWorld.Y - CursorGround.Y, 0.f) * Sens);
+			bGrabMoved = true;
+		}
+		if (bGrabHasWorld)
+		{
+			FVector CursorGround;
+			if (CursorOnPlane(GrabWorld.Z, CursorGround))
+			{
+				const float Sens = FMath::Max(0.05f, MouseSensitivity);
+				AddActorWorldOffset(FVector(GrabWorld.X - CursorGround.X, GrabWorld.Y - CursorGround.Y, 0.f) * Sens);
+			}
 		}
 		PanVelocity = FVector::ZeroVector;
 		bOutManualPan = true;
@@ -568,6 +604,63 @@ void AKodRTSCameraPawn::ApplyPan(float DeltaSeconds, const FVector2D& UnitsPerSe
 	}
 }
 
+float AKodRTSCameraPawn::ZoomCeiling() const
+{
+	if (IsA(AKodSpectatorPawn::StaticClass()))
+	{
+		return MaxArmLength;
+	}
+	const UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	const EKodMatchMode Mode = Sim ? Sim->GetMatchMode() : EKodMatchMode::OfflineSkirmish;
+	if (Mode == EKodMatchMode::Replay || Mode == EKodMatchMode::Custom)
+	{
+		return MaxArmLength;
+	}
+	return FMath::Min(MaxArmLength, DefaultArmLength);
+}
+
+void AKodRTSCameraPawn::ResetZoomAndPitch()
+{
+	TargetArmLength = FMath::Clamp(DefaultArmLength, MinArmLength, ZoomCeiling());
+	CurrentArmLength = TargetArmLength;
+	if (CameraBoom)
+	{
+		CameraBoom->TargetArmLength = CurrentArmLength;
+		CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, 0.f));
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodCam Reset Arm=%.0f Pitch=%.0f"), CurrentArmLength, PitchDegrees);
+}
+
+bool AKodRTSCameraPawn::HasLiftableSelection() const
+{
+	const AKodPlayerController* PC = Cast<AKodPlayerController>(GetController());
+	const UKodSimSubsystem* Sim = GetWorld() ? GetWorld()->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!PC || !Sim)
+	{
+		return false;
+	}
+	for (AActor* Actor : PC->GetLocalSelection())
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+		FKodStructureState Structure;
+		if (!Sim->TryGetStructure(Sim->FindIdForActor(Actor), Structure) || !Structure.bComplete)
+		{
+			continue;
+		}
+		if (Structure.DefinitionId == FName(KodWardenPaths::Id_CommandCenter)
+			|| Structure.DefinitionId == FName(KodWardenPaths::Id_Barracks)
+			|| Structure.DefinitionId == FName(KodWardenPaths::Id_EngineeringBay))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void AKodRTSCameraPawn::PollZoom()
 {
 	if (IsChatFocused())
@@ -591,9 +684,18 @@ void AKodRTSCameraPawn::PollZoom()
 			Wheel = -1.f;
 		}
 	}
-	if (!FMath::IsNearlyZero(Wheel))
+	const float Ceiling = ZoomCeiling();
+	if (Wheel > 0.f || (Wheel < 0.f && Ceiling > DefaultArmLength + 1.f))
 	{
-		TargetArmLength = FMath::Clamp(TargetArmLength - Wheel * ZoomStep, MinArmLength, MaxArmLength);
+		TargetArmLength = FMath::Clamp(TargetArmLength - Wheel * ZoomStep, MinArmLength, Ceiling);
+	}
+	if (PC->WasInputKeyJustPressed(EKeys::End))
+	{
+		TargetArmLength = FMath::Clamp(TargetArmLength - ZoomStep, MinArmLength, Ceiling);
+	}
+	if (Ceiling > DefaultArmLength + 1.f && PC->WasInputKeyJustPressed(EKeys::Z) && !HasLiftableSelection())
+	{
+		TargetArmLength = FMath::Clamp(TargetArmLength + ZoomStep, MinArmLength, Ceiling);
 	}
 }
 
@@ -653,7 +755,7 @@ void AKodRTSCameraPawn::RecallBookmark(int32 SlotNumber)
 	const FKodCameraBookmark& Slot = Bookmarks[Index];
 	SetActorLocation(Slot.Location);
 	SetActorRotation(FRotator(0.f, Slot.Yaw, 0.f));
-	TargetArmLength = FMath::Clamp(Slot.ArmLength, MinArmLength, MaxArmLength);
+	TargetArmLength = FMath::Clamp(Slot.ArmLength, MinArmLength, ZoomCeiling());
 	CurrentArmLength = TargetArmLength;
 	if (CameraBoom)
 	{

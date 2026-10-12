@@ -107,9 +107,10 @@ struct KODCORE_API FKodSimEntityState
 	FKodEntityId AttackTarget;
 
 	/**
-	 * Attacker to retaliate against after a hit taken while Idle.
-	 * Not an order. Consumed by auto-acquire. Not part of ComputeIdleHash.
-	 * An explicit Move / Attack / Stop clears it.
+	 * Attacker to retaliate against after a hit taken while Idle or AttackMove.
+	 * Not an order. Idle consumes it. Attack-move keeps it while the attacker is visible.
+	 * Not part of ComputeIdleHash. An explicit Move / Attack / Stop clears it.
+	 * Gathering workers never receive one.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	FKodEntityId RetaliateTarget;
@@ -713,6 +714,9 @@ public:
 	bool CastPower(int32 TeamId, FName PowerId, FVector Target);
 	void CopyArtilleryTelegraphs(int32 TeamId, TArray<int32>& OutX, TArray<int32>& OutY, TArray<int32>& OutRadius) const;
 
+	/** Active recon sweeps. TicksLeft counts down from Duration. Presentation only. */
+	void CopyReconPulses(int32 TeamId, TArray<int32>& OutX, TArray<int32>& OutY, TArray<int32>& OutRadius, TArray<int32>& OutTicksLeft, TArray<int32>& OutDuration) const;
+
 	bool IssueLiftoff(FKodEntityId StructureId);
 	bool IssueLand(FKodEntityId StructureId, FVector Target);
 	void FinishOrbitalSpawn(FKodEntityId Id, const FKodPendingUnitSpawn& Request);
@@ -773,6 +777,8 @@ protected:
 	void StepSim(float FixedDt);
 	void StepEntityMove(FKodSimEntityState& State, float FixedDt);
 	void StepEntityAttack(FKodSimEntityState& State, float FixedDt);
+	/** Melee ring slot for this attacker. Derived from sorted ids. Not stored. */
+	FVector MeleeSlotPoint(const FKodSimEntityState& State, const FKodSimEntityState& Target) const;
 	void StepAttackMove(FKodSimEntityState& State, float FixedDt);
 	void StepHold(FKodSimEntityState& State, float FixedDt);
 	void StepPatrol(FKodSimEntityState& State, float FixedDt);

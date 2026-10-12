@@ -33,8 +33,8 @@ namespace KodEconomyDefaults
 	inline constexpr int32 JadeiteGatherStandUU = 150;
 	inline constexpr int32 LumineneGatherStandUU = 200;
 	inline constexpr int32 DropOffStandUU = 360;
-	/** Sheet start is 12 AMPs (ECO_START_WORKERS_VAN). Slice 0 uses 3. */
-	inline constexpr int32 WorkerSpawnCount = 3;
+	/** Sheet start is 12 AMPs (ECO_START_WORKERS_VAN). Slice 0 starts 6, SC2 style. */
+	inline constexpr int32 WorkerSpawnCount = 6;
 	inline constexpr int32 SheetStartingWorkers = 12;
 	inline constexpr int32 SupplyPerHq = 15;
 	inline constexpr int32 SupplyPerDepot = 8;

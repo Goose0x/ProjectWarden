@@ -174,6 +174,65 @@ namespace
 		}
 		return bMutedActor;
 	}
+
+	bool CellHoldsResourceNode(const UKodSimSubsystem* Sim, int32 CellX, int32 CellY)
+	{
+		if (!Sim)
+		{
+			return false;
+		}
+		TArray<FKodResourceNodeState> Nodes;
+		Sim->CopyResourceNodes(Nodes);
+		for (const FKodResourceNodeState& Node : Nodes)
+		{
+			const int32 NodeX = KodBuildGrid::CellOf(Node.Position.X);
+			const int32 NodeY = KodBuildGrid::CellOf(Node.Position.Y);
+			if (FMath::Abs(NodeX - CellX) <= 1 && FMath::Abs(NodeY - CellY) <= 1)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	void AutoGatherSplit(UKodSimSubsystem* Sim, const TArray<FKodEntityId>& Workers, const FVector& Anchor, const FVector& FieldDir)
+	{
+		if (!Sim || Workers.Num() == 0)
+		{
+			return;
+		}
+		TArray<FKodResourceNodeState> Nodes;
+		Sim->CopyResourceNodes(Nodes);
+		TArray<FKodEntityId> Near;
+		for (const FKodResourceNodeState& Node : Nodes)
+		{
+			FVector To = Node.Position - Anchor;
+			To.Z = 0.f;
+			if (FVector::DistSquared2D(Node.Position, Anchor) > FMath::Square(2200.f))
+			{
+				continue;
+			}
+			if (FVector::DotProduct(To, FieldDir) <= 0.f)
+			{
+				continue;
+			}
+			Near.Add(Node.Id);
+		}
+		if (Near.Num() == 0)
+		{
+			return;
+		}
+		TArray<FKodEntityId> Ordered = Workers;
+		Ordered.Sort([](const FKodEntityId& A, const FKodEntityId& B)
+		{
+			return A.Value < B.Value;
+		});
+		for (int32 Index = 0; Index < Ordered.Num(); ++Index)
+		{
+			Sim->IssueGather(Ordered[Index], Near[Index % Near.Num()]);
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodEcon AutoGather Workers=%d Nodes=%d"), Ordered.Num(), Near.Num());
+	}
 }
 
 AKodSlice0GameMode::AKodSlice0GameMode()
@@ -635,6 +694,207 @@ void AKodSlice0GameMode::ApplyStartingResources()
 	UE_LOG(LogTemp, Log, TEXT("KodEcon Bank Team=0 Jadeite=%d Luminene=%d"), StartingJadeite, StartingLuminene);
 }
 
+void AKodSlice0GameMode::PlaceFieldAt(const FVector& AnchorLocation, const FVector& FieldDir)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Sim)
+	{
+		return;
+	}
+	UKodSlice0Bootstrap::EnsureCatalog(this);
+	UKodResourceNodeDefinition* JadeiteDef = UKodSlice0Bootstrap::ResolveResourceNode(FName(KodWardenPaths::Id_JadeiteNode), this);
+	UKodResourceNodeDefinition* LumineneDef = UKodSlice0Bootstrap::ResolveResourceNode(FName(KodWardenPaths::Id_LumineneVent), this);
+	if (!LumineneDef)
+	{
+		LumineneDef = UKodSlice0Bootstrap::ResolveResourceNode(FName(KodWardenPaths::Id_OilSource), this);
+	}
+
+	auto RegisterNode = [&](AActor* Actor, EKodResourceType Type, const UKodResourceNodeDefinition* Def) -> bool
+	{
+		if (!Actor)
+		{
+			return false;
+		}
+		const bool bLuminene = Type == EKodResourceType::Luminene;
+		FKodResourceNodeSpec Spec;
+		Spec.Type = Type;
+		Spec.Amount = Def ? Def->Amount : (bLuminene ? KodEconomyDefaults::LumineneNodeAmount : KodEconomyDefaults::JadeiteNodeAmount);
+		Spec.HarvestPerTrip = Def ? Def->HarvestPerTrip : (bLuminene ? KodEconomyDefaults::LumineneHarvestPerTrip : KodEconomyDefaults::JadeiteHarvestPerTrip);
+		Spec.HarvestTicks = (Def && Def->HarvestTicks > 0)
+			? Def->HarvestTicks
+			: (bLuminene ? KodEconomyDefaults::LumineneHarvestTicks : KodEconomyDefaults::JadeiteHarvestTicks);
+		Spec.TricklePerTrip = Def ? Def->TricklePerTrip : (bLuminene ? KodEconomyDefaults::LumineneTricklePerTrip : 0);
+		Spec.GatherStandUU = (Def && Def->GatherStandUU > 0)
+			? Def->GatherStandUU
+			: (bLuminene ? KodEconomyDefaults::LumineneGatherStandUU : KodEconomyDefaults::JadeiteGatherStandUU);
+		Spec.DefinitionId = (Def && !Def->DefinitionId.IsNone())
+			? Def->DefinitionId
+			: FName(bLuminene ? KodWardenPaths::Id_LumineneVent : KodWardenPaths::Id_JadeiteNode);
+		if (AKodResourceNode* Node = Cast<AKodResourceNode>(Actor))
+		{
+			if (Def)
+			{
+				Node->ApplyDefinition(Def);
+			}
+			else
+			{
+				Node->ApplyPlaceholder(Type);
+			}
+		}
+		EnableResourceSelectCollision(Actor);
+		const FKodEntityId Id = Sim->RegisterResourceNode(Actor, Spec);
+		if (!Id.IsValid())
+		{
+			return false;
+		}
+		if (AKodResourceNode* Node = Cast<AKodResourceNode>(Actor))
+		{
+			Node->SetEntityId(Id);
+		}
+		const FVector SpawnedAt = Actor->GetActorLocation();
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Node Spawn Id=%d Type=%s Loc=%.0f,%.0f,%.0f"),
+			Id.Value,
+			KodResourceTypeName(Type),
+			SpawnedAt.X,
+			SpawnedAt.Y,
+			SpawnedAt.Z);
+		return true;
+	};
+
+	constexpr float ArcRadius = 1160.f;
+	constexpr float CrystalSpacing = 120.f;
+	constexpr int32 CrystalCount = 6;
+	const float SinHalf = FMath::Clamp(CrystalSpacing / (2.f * ArcRadius), 0.f, 0.99f);
+	const float StepDeg = FMath::RadiansToDegrees(2.f * FMath::Asin(SinHalf));
+	struct FNodePlacement
+	{
+		EKodResourceType Type = EKodResourceType::Jadeite;
+		FVector Location = FVector::ZeroVector;
+	};
+	TArray<FNodePlacement> Placements;
+	Placements.Reserve(CrystalCount + 1);
+	for (int32 Index = 0; Index < CrystalCount; ++Index)
+	{
+		const float Angle = (static_cast<float>(Index) - 2.5f) * StepDeg;
+		const FVector Dir = FieldDir.RotateAngleAxis(Angle, FVector::UpVector);
+		FNodePlacement Spot;
+		Spot.Type = EKodResourceType::Jadeite;
+		Spot.Location = AnchorLocation + Dir * ArcRadius;
+		Placements.Add(Spot);
+	}
+
+	constexpr float GasFoot = 200.f;
+	constexpr float CcCorner = 500.f * 1.41421356f;
+	const FVector GasDir = FieldDir.RotateAngleAxis(45.f, FVector::UpVector).GetSafeNormal2D();
+	float VentRadius = 1400.f;
+	FVector VentLocation = AnchorLocation + GasDir * VentRadius;
+	for (int32 Push = 0; Push < 8; ++Push)
+	{
+		float Nearest = MAX_flt;
+		for (const FNodePlacement& Spot : Placements)
+		{
+			Nearest = FMath::Min(Nearest, FVector::Dist2D(VentLocation, Spot.Location));
+		}
+		const bool bClearsCc = FVector::Dist2D(VentLocation, AnchorLocation) >= CcCorner + GasFoot;
+		if (Nearest >= 400.f && bClearsCc)
+		{
+			break;
+		}
+		VentRadius += 80.f;
+		VentLocation = AnchorLocation + GasDir * VentRadius;
+	}
+	FNodePlacement VentSpot;
+	VentSpot.Type = EKodResourceType::Luminene;
+	VentSpot.Location = VentLocation;
+	Placements.Add(VentSpot);
+
+	int32 JadeiteCount = 0;
+	int32 LumineneCount = 0;
+	TArray<AActor*> Spawned;
+	for (const FNodePlacement& Spot : Placements)
+	{
+		const float FloorZ = ResolveResourceFloorZ(World, Sim, Spot.Location.X, Spot.Location.Y, AnchorLocation.Z, Spawned);
+		const FTransform Xform(FRotator::ZeroRotator, FVector(Spot.Location.X, Spot.Location.Y, FloorZ));
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AKodResourceNode* Node = World->SpawnActor<AKodResourceNode>(AKodResourceNode::StaticClass(), Xform, Params);
+		if (!Node)
+		{
+			continue;
+		}
+		const UKodResourceNodeDefinition* Def = Spot.Type == EKodResourceType::Luminene ? LumineneDef : JadeiteDef;
+		if (!RegisterNode(Node, Spot.Type, Def))
+		{
+			Node->Destroy();
+			continue;
+		}
+		Spawned.Add(Node);
+		if (Spot.Type == EKodResourceType::Luminene)
+		{
+			++LumineneCount;
+		}
+		else
+		{
+			++JadeiteCount;
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=%d Luminene=%d Arc=1160 Gas=%.0f Source=Default"),
+		JadeiteCount,
+		LumineneCount,
+		VentRadius);
+}
+
+int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FVector& FieldDir, int32 TeamId, int32 Count)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Sim || Count <= 0)
+	{
+		return 0;
+	}
+	int32 Spawned = 0;
+	TArray<AActor*> Ignored;
+	TArray<FKodEntityId> Workers;
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const float Angle = (static_cast<float>(Index) - (static_cast<float>(Count) - 1.f) * 0.5f) * 18.f;
+		const FVector Dir = FieldDir.RotateAngleAxis(Angle, FVector::UpVector);
+		float Radius = 700.f;
+		FVector Spot = AnchorLocation + Dir * Radius;
+		for (int32 Step = 0; Step < 8; ++Step)
+		{
+			const int32 CellX = KodBuildGrid::CellOf(Spot.X);
+			const int32 CellY = KodBuildGrid::CellOf(Spot.Y);
+			if (!Sim->IsCellBlocked(CellX, CellY) && !CellHoldsResourceNode(Sim, CellX, CellY))
+			{
+				break;
+			}
+			Radius += static_cast<float>(KodBuildGrid::CellUU);
+			Spot = AnchorLocation + Dir * Radius;
+		}
+		const float FloorZ = ResolveResourceFloorZ(World, Sim, Spot.X, Spot.Y, AnchorLocation.Z, Ignored);
+		const FTransform Xform(FRotator::ZeroRotator, FVector(Spot.X, Spot.Y, FloorZ + 100.f));
+		AKodUnit* Worker = UKodSlice0Bootstrap::SpawnDozer(World, Xform, TeamId);
+		if (!Worker)
+		{
+			continue;
+		}
+		Ignored.Add(Worker);
+		Workers.Add(Worker->EntityId);
+		++Spawned;
+		const FVector At = Worker->GetActorLocation();
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Worker Spawn Id=%d Team=%d Loc=%.0f,%.0f,%.0f"),
+			Worker->EntityId.Value,
+			TeamId,
+			At.X,
+			At.Y,
+			At.Z);
+	}
+	AutoGatherSplit(Sim, Workers, AnchorLocation, FieldDir);
+	return Spawned;
+}
+
 void AKodSlice0GameMode::SpawnResourceField()
 {
 	UWorld* World = GetWorld();
@@ -857,89 +1117,8 @@ void AKodSlice0GameMode::SpawnResourceField()
 		AnchorLocation.Z,
 		FacingDeg);
 
-	// Chord between neighbours is 120 cm (inside 110–130). The arc faces the anchor.
-	constexpr float ArcRadius = 720.f;
-	constexpr float CrystalSpacing = 120.f;
-	constexpr int32 CrystalCount = 6;
-	const float SinHalf = FMath::Clamp(CrystalSpacing / (2.f * ArcRadius), 0.f, 0.99f);
-	const float StepDeg = FMath::RadiansToDegrees(2.f * FMath::Asin(SinHalf));
-
-	struct FNodePlacement
-	{
-		EKodResourceType Type = EKodResourceType::Jadeite;
-		FVector Location = FVector::ZeroVector;
-	};
-	TArray<FNodePlacement> Placements;
-	Placements.Reserve(CrystalCount + 1);
-	for (int32 Index = 0; Index < CrystalCount; ++Index)
-	{
-		const float Angle = (static_cast<float>(Index) - 2.5f) * StepDeg;
-		const FVector Dir = FieldDir.RotateAngleAxis(Angle, FVector::UpVector);
-		FNodePlacement Spot;
-		Spot.Type = EKodResourceType::Jadeite;
-		Spot.Location = AnchorLocation + Dir * ArcRadius;
-		Placements.Add(Spot);
-	}
-
-	// 52 degrees past the +end of the arc (inside 45–60), then pushed until it is 400 cm from every crystal.
-	const float EndAngle = 2.5f * StepDeg;
-	const float VentAngle = EndAngle + 52.f;
-	const FVector VentDir = FieldDir.RotateAngleAxis(VentAngle, FVector::UpVector).GetSafeNormal2D();
-	float VentRadius = ArcRadius;
-	FVector VentLocation = AnchorLocation + VentDir * VentRadius;
-	for (int32 Push = 0; Push < 8; ++Push)
-	{
-		float Nearest = MAX_flt;
-		for (const FNodePlacement& Spot : Placements)
-		{
-			Nearest = FMath::Min(Nearest, FVector::Dist2D(VentLocation, Spot.Location));
-		}
-		if (Nearest >= 400.f)
-		{
-			break;
-		}
-		VentRadius += 80.f;
-		VentLocation = AnchorLocation + VentDir * VentRadius;
-	}
-	FNodePlacement VentSpot;
-	VentSpot.Type = EKodResourceType::Luminene;
-	VentSpot.Location = VentLocation;
-	Placements.Add(VentSpot);
-
-	int32 JadeiteCount = 0;
-	int32 LumineneCount = 0;
-	TArray<AActor*> Spawned;
-	for (const FNodePlacement& Spot : Placements)
-	{
-		const float FloorZ = ResolveResourceFloorZ(World, Sim, Spot.Location.X, Spot.Location.Y, AnchorLocation.Z, Spawned);
-		const FTransform Xform(FRotator::ZeroRotator, FVector(Spot.Location.X, Spot.Location.Y, FloorZ));
-
-		FActorSpawnParameters Params;
-		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		AKodResourceNode* Node = World->SpawnActor<AKodResourceNode>(AKodResourceNode::StaticClass(), Xform, Params);
-		if (!Node)
-		{
-			continue;
-		}
-		const UKodResourceNodeDefinition* Def = Spot.Type == EKodResourceType::Luminene ? LumineneDef : JadeiteDef;
-		if (!RegisterNode(Node, Spot.Type, Def))
-		{
-			Node->Destroy();
-			continue;
-		}
-		Spawned.Add(Node);
-		if (Spot.Type == EKodResourceType::Luminene)
-		{
-			++LumineneCount;
-		}
-		else
-		{
-			++JadeiteCount;
-		}
-	}
-
+	PlaceFieldAt(AnchorLocation, FieldDir);
 	RegisterCommandCenterDropOff();
-	UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=%d Luminene=%d Source=Default"), JadeiteCount, LumineneCount);
 }
 
 static void ApplyPrototypeStructureMesh(AActor* Actor, const UKodBuildingDefinition* Def)
@@ -970,6 +1149,7 @@ static void ApplyPrototypeStructureMesh(AActor* Actor, const UKodBuildingDefinit
 		{
 			continue;
 		}
+		Comp->SetMobility(EComponentMobility::Movable);
 		Comp->SetStaticMesh(Mesh);
 		if (!Scale.Equals(FVector::OneVector, 0.01f))
 		{
@@ -1127,44 +1307,7 @@ void AKodSlice0GameMode::SpawnWorkersIfNeeded()
 	}
 
 	const int32 Count = FMath::Clamp(WorkerSpawnCount, 1, 8);
-	int32 Spawned = 0;
-	TArray<AActor*> Ignored;
-	int32 HalfSpan = (5 * KodBuildGrid::CellUU) / 2;
-	if (Anchor)
-	{
-		FKodStructureState CcStructure;
-		if (Sim->TryGetStructure(Sim->FindIdForActor(Anchor), CcStructure))
-		{
-			HalfSpan = (FMath::Max(CcStructure.FootprintX, CcStructure.FootprintY) * KodBuildGrid::CellUU) / 2;
-		}
-	}
-	for (int32 Index = 0; Index < Count; ++Index)
-	{
-		const float Angle = (static_cast<float>(Index) - (static_cast<float>(Count) - 1.f) * 0.5f) * 28.f;
-		const FVector Dir = FieldDir.RotateAngleAxis(Angle, FVector::UpVector);
-		float Radius = static_cast<float>(HalfSpan + KodBuildGrid::CellUU);
-		FVector Spot = AnchorLocation + Dir * Radius;
-		for (int32 Step = 0; Step < 8 && Sim->IsCellBlocked(KodBuildGrid::CellOf(Spot.X), KodBuildGrid::CellOf(Spot.Y)); ++Step)
-		{
-			Radius += static_cast<float>(KodBuildGrid::CellUU);
-			Spot = AnchorLocation + Dir * Radius;
-		}
-		const float FloorZ = ResolveResourceFloorZ(World, Sim, Spot.X, Spot.Y, AnchorLocation.Z, Ignored);
-		const FTransform Xform(FRotator::ZeroRotator, FVector(Spot.X, Spot.Y, FloorZ + 100.f));
-		AKodUnit* Worker = UKodSlice0Bootstrap::SpawnDozer(World, Xform, /*TeamId*/ 0);
-		if (!Worker)
-		{
-			continue;
-		}
-		Ignored.Add(Worker);
-		++Spawned;
-		const FVector At = Worker->GetActorLocation();
-		UE_LOG(LogTemp, Log, TEXT("KodEcon Worker Spawn Id=%d Loc=%.0f,%.0f,%.0f"),
-			Worker->EntityId.Value,
-			At.X,
-			At.Y,
-			At.Z);
-	}
+	const int32 Spawned = SpawnWorkerFan(AnchorLocation, FieldDir, /*TeamId*/ 0, Count);
 
 	UE_LOG(LogTemp, Log, TEXT("KodEcon Workers Spawned=%d Anchor=%s"),
 		Spawned,
@@ -1344,29 +1487,18 @@ void AKodSlice0GameMode::SpawnAiOpponent()
 	const int32 Credits = 50 + (Difficulty - 1) * 100;
 	Sim->SetTeamBank(1, Credits, 0);
 
-	const int32 HalfSpan = (FMath::Max(Spec.FootprintX, Spec.FootprintY) * KodBuildGrid::CellUU) / 2;
-	int32 Spawned = 0;
-	for (int32 Index = 0; Index < 6; ++Index)
+	FVector FieldDir = Seed - PlayerLoc;
+	FieldDir.Z = 0.f;
+	if (FieldDir.SizeSquared2D() < 1.f)
 	{
-		const float Angle = static_cast<float>(Index) * 60.f;
-		const FVector Dir = FVector(1.f, 0.f, 0.f).RotateAngleAxis(Angle, FVector::UpVector);
-		float Radius = static_cast<float>(HalfSpan + KodBuildGrid::CellUU);
-		FVector Spot = FVector(Seed.X, Seed.Y, Seed.Z) + Dir * Radius;
-		for (int32 Step = 0; Step < 8 && Sim->IsCellBlocked(KodBuildGrid::CellOf(Spot.X), KodBuildGrid::CellOf(Spot.Y)); ++Step)
-		{
-			Radius += static_cast<float>(KodBuildGrid::CellUU);
-			Spot = FVector(Seed.X, Seed.Y, Seed.Z) + Dir * Radius;
-		}
-		const float WorkerZ = ResolveResourceFloorZ(World, Sim, Spot.X, Spot.Y, Seed.Z, Ignored);
-		const FTransform WorkerXform(FRotator::ZeroRotator, FVector(Spot.X, Spot.Y, WorkerZ + 100.f));
-		AKodUnit* Worker = UKodSlice0Bootstrap::SpawnDozer(World, WorkerXform, /*TeamId*/ 1);
-		if (!Worker)
-		{
-			continue;
-		}
-		Ignored.Add(Worker);
-		++Spawned;
+		FieldDir = FVector(1.f, 0.f, 0.f);
 	}
+	else
+	{
+		FieldDir = FieldDir.GetSafeNormal2D();
+	}
+	PlaceFieldAt(Seed, FieldDir);
+	const int32 Spawned = SpawnWorkerFan(Seed, FieldDir, /*TeamId*/ 1, 6);
 
 	auto SnapYaw = [](const FVector& From, const FVector& To)
 	{

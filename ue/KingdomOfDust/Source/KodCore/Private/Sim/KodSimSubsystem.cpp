@@ -1,4 +1,5 @@
 #include "Sim/KodSimSubsystem.h"
+#include "Warden/KodWardenPaths.h"
 #include "Game/KodPlayerController.h"
 #include "Game/KodPlayerState.h"
 #include "GameFramework/Actor.h"
@@ -424,12 +425,16 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 
 	// Seek until the shot can land, then hold. StepEntityMove may clear the order
 	// when it arrives inside acceptance; put the attack back before the range recheck.
+	// Melee claims a ring slot so attackers do not stack on the target centre.
 	const float Range = FMath::Max(0.f, State.WeaponRange);
+	const bool bMelee = Range <= static_cast<float>(KodBuildGrid::CellUU) * 0.5f + 1.f;
+	const FVector SeekPoint = bMelee ? MeleeSlotPoint(State, *Target) : Target->Position;
 	float DistSq = FVector::DistSquared2D(State.Position, Target->Position);
-	if (DistSq > FMath::Square(Range))
+	const bool bOffSlot = bMelee && FVector::DistSquared2D(State.Position, SeekPoint) > FMath::Square(32.f);
+	if (DistSq > FMath::Square(Range) || bOffSlot)
 	{
 		const FKodEntityId KeptTarget = Target->Id;
-		State.MoveTarget = Target->Position;
+		State.MoveTarget = SeekPoint;
 		StepEntityMove(State, FixedDt);
 		State.Order = EKodSimOrderType::Attack;
 		State.AttackTarget = KeptTarget;
@@ -612,7 +617,7 @@ FKodEntityId UKodSimSubsystem::FindNearestEnemyStructureInRange(const FKodSimEnt
 
 bool UKodSimSubsystem::TryAutoAcquire(FKodSimEntityState& State, float FixedDt)
 {
-	if (State.Order != EKodSimOrderType::None || State.WeaponDamage <= 0.f || State.Health <= 0.f)
+	if (State.Order != EKodSimOrderType::None || State.GatherPhase != EKodGatherPhase::None || State.WeaponDamage <= 0.f || State.Health <= 0.f)
 	{
 		return false;
 	}
@@ -850,6 +855,16 @@ void UKodSimSubsystem::ConfigureEntity(
 	State->BodyRadiusUU = FMath::Clamp(BodyRadiusUU, 8, 256);
 	State->SightRadiusUU = FMath::Clamp(SightRadiusUU, 0, 10000);
 	State->WeaponBackswingTicks = 2;
+	if (DefinitionId == FName(KodWardenPaths::Id_Dozer) && WeaponTable)
+	{
+		if (const FKodWeaponBalanceRow* Melee = WeaponTable->FindRow<FKodWeaponBalanceRow>(FName(KodWardenPaths::Id_DozerMelee), TEXT("KodConfigure"), false))
+		{
+			State->WeaponDamage = static_cast<float>(Melee->Damage);
+			State->WeaponRange = static_cast<float>(Melee->Range);
+			State->WeaponCooldownTicks = FMath::Max(0, Melee->CooldownTicks);
+			State->WeaponCooldownSeconds = static_cast<float>(State->WeaponCooldownTicks) * KodBuildTicks::SimDt;
+		}
+	}
 	ApplyRoster(Id);
 }
 
@@ -867,6 +882,79 @@ namespace
 	}
 }
 
+FVector UKodSimSubsystem::MeleeSlotPoint(const FKodSimEntityState& State, const FKodSimEntityState& Target) const
+{
+	constexpr int32 SlotCount = 8;
+	const float Radius = FMath::Max(48.f, State.WeaponRange - 16.f);
+	TArray<int32> Attackers;
+	TArray<int32> Keys;
+	States.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		const FKodSimEntityState* Other = States.Find(Key);
+		if (!Other || Other->Health <= 0.f || Other->AttackTarget != Target.Id)
+		{
+			continue;
+		}
+		if (Other->WeaponRange > static_cast<float>(KodBuildGrid::CellUU) * 0.5f + 1.f)
+		{
+			continue;
+		}
+		if (Other->Order != EKodSimOrderType::Attack && Other->Order != EKodSimOrderType::AttackMove)
+		{
+			continue;
+		}
+		Attackers.Add(Key);
+	}
+	if (!Attackers.Contains(State.Id.Value))
+	{
+		Attackers.Add(State.Id.Value);
+		Attackers.Sort();
+	}
+
+	bool Taken[SlotCount] = {};
+	int32 MySlot = 0;
+	for (int32 Index = 0; Index < Attackers.Num(); ++Index)
+	{
+		const int32 AttackerId = Attackers[Index];
+		const FKodSimEntityState* Attacker = AttackerId == State.Id.Value ? &State : States.Find(AttackerId);
+		const FVector From = Attacker ? Attacker->Position : State.Position;
+		int32 BestSlot = Index % SlotCount;
+		bool bFree = false;
+		float BestDist = 0.f;
+		for (int32 Slot = 0; Slot < SlotCount; ++Slot)
+		{
+			if (Taken[Slot])
+			{
+				continue;
+			}
+			const float Angle = (2.f * PI * static_cast<float>(Slot)) / static_cast<float>(SlotCount);
+			const FVector Point = Target.Position + FVector(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius, 0.f);
+			const float Dist = FVector::DistSquared2D(From, Point);
+			if (!bFree || Dist < BestDist)
+			{
+				bFree = true;
+				BestDist = Dist;
+				BestSlot = Slot;
+			}
+		}
+		if (bFree)
+		{
+			Taken[BestSlot] = true;
+		}
+		if (AttackerId == State.Id.Value)
+		{
+			MySlot = BestSlot;
+		}
+	}
+
+	const float Angle = (2.f * PI * static_cast<float>(MySlot)) / static_cast<float>(SlotCount);
+	FVector SlotPoint = Target.Position + FVector(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius, 0.f);
+	SlotPoint.Z = State.Position.Z;
+	return SlotPoint;
+}
+
 void UKodSimSubsystem::StepAttackMove(FKodSimEntityState& State, float FixedDt)
 {
 	if (!State.bMobile || State.Health <= 0.f || State.MoveSpeed <= 0.f)
@@ -878,14 +966,34 @@ void UKodSimSubsystem::StepAttackMove(FKodSimEntityState& State, float FixedDt)
 
 	const FVector Dest = State.MoveTarget;
 	const int32 SelfId = State.Id.Value;
-	FKodEntityId Threat = FindNearestEnemyInRange(State);
+	FKodEntityId Threat;
+	bool bFromHit = false;
+	if (State.RetaliateTarget.IsValid() && State.GatherPhase == EKodGatherPhase::None)
+	{
+		const FKodSimEntityState* Aggro = States.Find(State.RetaliateTarget.Value);
+		if (Aggro && Aggro->Health > 0.f && Aggro->TeamId != State.TeamId
+			&& CanTeamSeeWorld(State.TeamId, Aggro->Position.X, Aggro->Position.Y))
+		{
+			Threat = Aggro->Id;
+			bFromHit = true;
+		}
+		else
+		{
+			State.RetaliateTarget = FKodEntityId();
+		}
+	}
 	if (!Threat.IsValid())
 	{
-		Threat = FindNearestEnemyStructureInRange(State);
+		Threat = FindNearestEnemyInRange(State);
+		if (!Threat.IsValid())
+		{
+			Threat = FindNearestEnemyStructureInRange(State);
+		}
 	}
 	if (Threat.IsValid())
 	{
 		State.AttackTarget = Threat;
+		State.bExplicitAttack = false;
 		State.Order = EKodSimOrderType::Attack;
 		StepEntityAttack(State, FixedDt);
 		if (FKodSimEntityState* Live = States.Find(SelfId))
@@ -894,6 +1002,15 @@ void UKodSimSubsystem::StepAttackMove(FKodSimEntityState& State, float FixedDt)
 			{
 				Live->Order = EKodSimOrderType::AttackMove;
 				Live->MoveTarget = Dest;
+				Live->bExplicitAttack = false;
+				if (bFromHit)
+				{
+					const FKodSimEntityState* Still = States.Find(Threat.Value);
+					if (!Still || Still->Health <= 0.f || !CanTeamSeeWorld(Live->TeamId, Still->Position.X, Still->Position.Y))
+					{
+						Live->RetaliateTarget = FKodEntityId();
+					}
+				}
 			}
 		}
 		return;

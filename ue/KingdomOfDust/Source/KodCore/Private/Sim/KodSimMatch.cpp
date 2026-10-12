@@ -1422,7 +1422,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	}
 	uint8 ModeByte = static_cast<uint8>(EKodMatchMode::OfflineSkirmish);
 	Blob.RU8(ModeByte);
-	MatchMode = ModeByte <= static_cast<uint8>(EKodMatchMode::Replay)
+	MatchMode = ModeByte <= static_cast<uint8>(EKodMatchMode::Custom)
 		? static_cast<EKodMatchMode>(ModeByte)
 		: EKodMatchMode::OfflineSkirmish;
 	int32 CheatCount = 0;

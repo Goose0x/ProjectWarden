@@ -336,15 +336,15 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 			{
 				if (WasInputKeyJustPressed(EKeys::K))
 				{
-					ArmedOrder = FName(KodWardenPaths::Id_ArtilleryStrike);
+					TryArmPower(FName(KodWardenPaths::Id_ArtilleryStrike));
 				}
 				if (WasInputKeyJustPressed(EKeys::O))
 				{
-					ArmedOrder = FName(KodWardenPaths::Id_ReconSweep);
+					TryArmPower(FName(KodWardenPaths::Id_ReconSweep));
 				}
 				if (WasInputKeyJustPressed(EKeys::X))
 				{
-					ArmedOrder = FName(KodWardenPaths::Id_FieldRepair);
+					TryArmPower(FName(KodWardenPaths::Id_FieldRepair));
 				}
 			}
 			if (WasInputKeyJustPressed(EKeys::Z))
@@ -957,9 +957,59 @@ bool AKodSlice0PlayerController::AllowTrain(FName UnitId)
 	const FName Fail = HUD->PeekResourceFail(Spec.Cost.Credits, Spec.Cost.Luminene, Spec.Cost.Supply);
 	if (!Fail.IsNone())
 	{
+		UE_LOG(LogTemp, Log, TEXT("KodProd Refuse Reason=%s"), *Fail.ToString());
 		HUD->ShowResourceFlash(Fail);
 		return false;
 	}
+	return true;
+}
+
+bool AKodSlice0PlayerController::TryArmPower(FName PowerId)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	AKodHUD* HUD = Cast<AKodHUD>(GetHUD());
+	if (!Sim || !Sim->AreGeneralPowersEnabled())
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodPowers Reject Id=%s Reason=Off"), *PowerId.ToString());
+		return false;
+	}
+	FKodPowerSpec Spec;
+	if (!Sim->TryGetPowerSpec(PowerId, Spec))
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodPowers Reject Id=%s Reason=Unknown"), *PowerId.ToString());
+		return false;
+	}
+	const int32 Points = Sim->GetPowerPoints(0);
+	const int32 Cooldown = Sim->GetPowerCooldown(0, PowerId);
+	if (Cooldown > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodPowers Reject Id=%s Reason=Cooldown Points=%d Need=%d Cd=%d"),
+			*PowerId.ToString(),
+			Points,
+			Spec.PointCost,
+			Cooldown);
+		if (HUD)
+		{
+			HUD->ShowAlertLine(TEXT("Cooldown"));
+		}
+		return false;
+	}
+	if (Points < Spec.PointCost)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodPowers Reject Id=%s Reason=Points Points=%d Need=%d Cd=%d"),
+			*PowerId.ToString(),
+			Points,
+			Spec.PointCost,
+			Cooldown);
+		if (HUD)
+		{
+			HUD->ShowAlertLine(FString::Printf(TEXT("Need %d points"), Spec.PointCost));
+		}
+		return false;
+	}
+	ArmedOrder = PowerId;
+	UE_LOG(LogTemp, Log, TEXT("KodPowers Arm Id=%s"), *PowerId.ToString());
 	return true;
 }
 
@@ -976,6 +1026,7 @@ void AKodSlice0PlayerController::TryBeginPlace(FName TypeId)
 			const FName Fail = HUD->PeekResourceFail(Spec.Cost.Credits, Spec.Cost.Luminene, 0);
 			if (!Fail.IsNone())
 			{
+				UE_LOG(LogTemp, Log, TEXT("KodProd Refuse Reason=%s"), *Fail.ToString());
 				HUD->ShowResourceFlash(Fail);
 				return;
 			}
@@ -1058,11 +1109,22 @@ bool AKodSlice0PlayerController::ConsumeHudCommandClick()
 	{
 		if (Hit.FailReason == TEXT("Credits") || Hit.FailReason == TEXT("Luminene") || Hit.FailReason == TEXT("Supply"))
 		{
+			UE_LOG(LogTemp, Log, TEXT("KodProd Refuse Reason=%s"), *Hit.FailReason.ToString());
 			HUD->ShowResourceFlash(Hit.FailReason);
 		}
 		else if (Hit.FailReason == FName(TEXT("Requires")))
 		{
 			HUD->ShowCenterMessage(Hit.Tooltip.IsEmpty() ? FString(TEXT("Requires a building")) : Hit.Tooltip);
+		}
+		else if (Hit.FailReason == FName(TEXT("Cooldown")) || Hit.FailReason == FName(TEXT("Points")))
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodPowers Reject Id=%s Reason=%s"), *Hit.Payload.ToString(), *Hit.FailReason.ToString());
+			HUD->ShowAlertLine(Hit.Tooltip.IsEmpty() ? FString(TEXT("Cooldown")) : Hit.Tooltip);
+		}
+		else if (!Hit.FailReason.IsNone())
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodProd Refuse Reason=%s"), *Hit.FailReason.ToString());
+			HUD->ShowAlertLine(Hit.FailReason.ToString());
 		}
 		return true;
 	}
@@ -1117,7 +1179,7 @@ bool AKodSlice0PlayerController::ConsumeHudCommandClick()
 	}
 	else if (Hit.Action == FName(TEXT("Power")))
 	{
-		ArmedOrder = Hit.Payload;
+		TryArmPower(Hit.Payload);
 	}
 	else if (Hit.Action == TEXT("Orbital"))
 	{
@@ -1330,7 +1392,18 @@ bool AKodSlice0PlayerController::ConsumeArmedOrderClick()
 	{
 		if (Cursor.bHasMovePoint)
 		{
-			Sim->CastPower(0, ArmedOrder, Cursor.MovePoint);
+			const FName PowerId = ArmedOrder;
+			if (!Sim->CastPower(0, PowerId, Cursor.MovePoint))
+			{
+				AKodHUD* HUD = Cast<AKodHUD>(GetHUD());
+				const int32 Cooldown = Sim->GetPowerCooldown(0, PowerId);
+				FKodPowerSpec Spec;
+				const int32 Need = Sim->TryGetPowerSpec(PowerId, Spec) ? Spec.PointCost : 0;
+				if (HUD)
+				{
+					HUD->ShowAlertLine(Cooldown > 0 ? FString(TEXT("Cooldown")) : FString::Printf(TEXT("Need %d points"), Need));
+				}
+			}
 		}
 		ArmedOrder = FName();
 		return true;

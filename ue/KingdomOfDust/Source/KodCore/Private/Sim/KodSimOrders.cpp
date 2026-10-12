@@ -346,10 +346,14 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 	State.CooldownRemaining = static_cast<float>(ScaledTicks) * KodBuildTicks::SimDt;
 	const float HealthLeft = Target.Health;
 
+	const bool bGathering = Target.GatherPhase != EKodGatherPhase::None;
+	const bool bIdle = Target.Order == EKodSimOrderType::None;
+	const bool bAttackMoving = Target.Order == EKodSimOrderType::AttackMove;
 	if (HealthLeft > 0.f
-		&& Target.Order == EKodSimOrderType::None
+		&& !bGathering
 		&& Target.WeaponDamage > 0.f
-		&& Target.TeamId != AttackerTeam)
+		&& Target.TeamId != AttackerTeam
+		&& (bIdle || bAttackMoving))
 	{
 		Target.RetaliateTarget.Value = AttackerId;
 	}

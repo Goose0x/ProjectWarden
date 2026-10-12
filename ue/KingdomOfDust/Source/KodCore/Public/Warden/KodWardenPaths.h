@@ -27,6 +27,7 @@ namespace KodWardenPaths
 	constexpr const TCHAR* Id_Ranger = TEXT("Ranger");
 	constexpr const TCHAR* Id_CombatStim = TEXT("CombatStim");
 	constexpr const TCHAR* Id_Dozer = TEXT("Dozer");
+	constexpr const TCHAR* Id_DozerMelee = TEXT("DozerMelee");
 	constexpr const TCHAR* Id_CommandCenter = TEXT("CommandCenter");
 	constexpr const TCHAR* Id_Barracks = TEXT("Barracks");
 	constexpr const TCHAR* Id_SupplyDepot = TEXT("SupplyDepot");
@@ -46,6 +47,8 @@ namespace KodWardenPaths
 	constexpr const TCHAR* Id_ArtilleryStrike = TEXT("ArtilleryStrike");
 	constexpr const TCHAR* Id_ReconSweep = TEXT("ReconSweep");
 	constexpr const TCHAR* Id_FieldRepair = TEXT("FieldRepair");
+	/** Balance row. Amount is the starting pool. CooldownTicks is the trickle interval. */
+	constexpr const TCHAR* Id_PowerIncome = TEXT("PowerIncome");
 	constexpr const TCHAR* Id_USA = TEXT("USA");
 	constexpr const TCHAR* Id_JadeiteNode = TEXT("JadeiteNode");
 	constexpr const TCHAR* Id_LumineneVent = TEXT("LumineneVent");
