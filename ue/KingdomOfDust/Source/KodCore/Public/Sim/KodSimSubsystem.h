@@ -600,6 +600,8 @@ public:
 	bool TryGetPrimaryTrain(FKodEntityId StructureId, FName& OutUnitId) const;
 	void SetPlayableWorldBox(const FBox& WorldBox);
 	bool TryGetPlayableCellBounds(int32& OutMinX, int32& OutMinY, int32& OutMaxX, int32& OutMaxY) const;
+	/** True when every node and its gather-stand ring sit at least InsetCells inside the playable box. */
+	bool AreResourcePointsInset(int32 InsetCells) const;
 	void BindStructureActor(FKodEntityId Id, AActor* Actor);
 	void ConsumePendingBuildingSpawns(TArray<FKodPendingBuildingSpawn>& OutSpawns);
 	/** TeamId < 0 blocks every footprint, including a lowered depot. The owner walks their own lowered depot. */

@@ -54,6 +54,50 @@ bool UKodSimSubsystem::TryGetPlayableCellBounds(int32& OutMinX, int32& OutMinY, 
 	return true;
 }
 
+bool UKodSimSubsystem::AreResourcePointsInset(int32 InsetCells) const
+{
+	if (!bHasPlayable || InsetCells < 0)
+	{
+		return false;
+	}
+	const float Inset = static_cast<float>(InsetCells * KodBuildGrid::CellUU);
+	const float MinX = static_cast<float>(PlayMinX * KodBuildGrid::CellUU) + Inset;
+	const float MinY = static_cast<float>(PlayMinY * KodBuildGrid::CellUU) + Inset;
+	const float MaxX = static_cast<float>((PlayMaxX + 1) * KodBuildGrid::CellUU) - Inset;
+	const float MaxY = static_cast<float>((PlayMaxY + 1) * KodBuildGrid::CellUU) - Inset;
+	auto Inside = [MinX, MinY, MaxX, MaxY](const FVector& Point)
+	{
+		return Point.X >= MinX && Point.X <= MaxX && Point.Y >= MinY && Point.Y <= MaxY;
+	};
+	TArray<FKodResourceNodeState> Nodes;
+	CopyResourceNodes(Nodes);
+	for (const FKodResourceNodeState& Node : Nodes)
+	{
+		if (!Inside(Node.Position))
+		{
+			UE_LOG(LogTemp, Error, TEXT("KodPlayable Inset Fail Node=%d Loc=%.0f,%.0f"), Node.Id.Value, Node.Position.X, Node.Position.Y);
+			return false;
+		}
+		const float Stand = static_cast<float>(FMath::Max(1, Node.GatherStandUU));
+		const FVector Offsets[4] = {
+			FVector(Stand, 0.f, 0.f),
+			FVector(-Stand, 0.f, 0.f),
+			FVector(0.f, Stand, 0.f),
+			FVector(0.f, -Stand, 0.f)
+		};
+		for (const FVector& Offset : Offsets)
+		{
+			const FVector StandPoint = Node.Position + Offset;
+			if (!Inside(StandPoint))
+			{
+				UE_LOG(LogTemp, Error, TEXT("KodPlayable Inset Fail Stand Node=%d Loc=%.0f,%.0f"), Node.Id.Value, StandPoint.X, StandPoint.Y);
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 bool UKodSimSubsystem::IsCellBlocked(int32 CellX, int32 CellY, int32 TeamId) const
 {
 	TArray<int32> Keys;

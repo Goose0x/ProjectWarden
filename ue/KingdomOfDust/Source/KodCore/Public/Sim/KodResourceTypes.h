@@ -36,6 +36,8 @@ namespace KodEconomyDefaults
 	/** Sheet start is 12 AMPs (ECO_START_WORKERS_VAN). Slice 0 starts 8, idle. */
 	inline constexpr int32 WorkerSpawnCount = 8;
 	inline constexpr int32 SheetStartingWorkers = 12;
+	/** 128 cells of 200 uu, centred on the origin. Half-extent is 12800. */
+	inline constexpr int32 PlayableCells = 128;
 	inline constexpr int32 SupplyPerHq = 15;
 	inline constexpr int32 SupplyPerDepot = 8;
 	inline constexpr int32 SupplyHardCap = 200;

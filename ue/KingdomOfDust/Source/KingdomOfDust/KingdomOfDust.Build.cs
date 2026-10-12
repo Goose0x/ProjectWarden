@@ -21,6 +21,10 @@ public class KingdomOfDust : ModuleRules
 			"KodUI"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"Niagara",
+			"AssetRegistry"
+		});
 	}
 }

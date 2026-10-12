@@ -920,7 +920,17 @@ FVector UKodSimSubsystem::MeleeSlotPoint(const FKodSimEntityState& State, const 
 		}
 		Cached = &MeleeAttackersByTarget.Add(Target.Id.Value, MoveTemp(Attackers));
 	}
-	const TArray<int32>& Attackers = *Cached;
+	TArray<int32> Attackers = *Cached;
+	const bool bJoinsRing = State.AttackTarget == Target.Id
+		&& State.WeaponRange <= MeleeLimit
+		&& !(State.bCanGather && !State.bExplicitAttack)
+		&& (State.Order == EKodSimOrderType::Attack || State.Order == EKodSimOrderType::AttackMove);
+	if (bJoinsRing && !Attackers.Contains(State.Id.Value))
+	{
+		Attackers.Add(State.Id.Value);
+		Attackers.Sort();
+		MeleeAttackersByTarget.Add(Target.Id.Value, Attackers);
+	}
 
 	bool Taken[SlotCount] = {};
 	int32 MySlot = 0;

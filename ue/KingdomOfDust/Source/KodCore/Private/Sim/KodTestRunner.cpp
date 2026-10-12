@@ -43,13 +43,19 @@ namespace
 	{
 		if (Args.Num() < 1)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("kod.Test <marines|stim|bunker> [runs] [seed]"));
+			UE_LOG(LogTemp, Warning, TEXT("kod.Test <marines|stim|bunker|bounds> [runs] [seed]"));
 			return;
 		}
 		UKodSimSubsystem* Sim = FindPlaySim(World);
 		if (!Sim)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("kod.Test: no sim (start PIE)"));
+			return;
+		}
+		if (Args[0].Equals(TEXT("bounds"), ESearchCase::IgnoreCase))
+		{
+			const bool bOk = Sim->AreResourcePointsInset(2);
+			UE_LOG(LogTemp, Log, TEXT("KodTest Bounds Inset=2 OK=%d"), bOk ? 1 : 0);
 			return;
 		}
 		const int32 Runs = Args.Num() > 1 ? FMath::Max(1, FCString::Atoi(*Args[1])) : 1;
@@ -71,7 +77,7 @@ namespace
 
 	FAutoConsoleCommandWithWorldAndArgs GKodTest(
 		TEXT("kod.Test"),
-		TEXT("Seeded headless matchup. Usage: kod.Test marines|stim|bunker [runs] [seed]"),
+		TEXT("Seeded headless matchup, or bounds inset. Usage: kod.Test marines|stim|bunker|bounds [runs] [seed]"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodTest));
 
 	FAutoConsoleCommandWithWorldAndArgs GKodTestSummary(

@@ -96,7 +96,8 @@ namespace
 		if (!Material->GetUsageByFlag(MATUSAGE_Nanite))
 		{
 			bool bNeedsRecompile = false;
-			Material->SetMaterialUsage(bNeedsRecompile, MATUSAGE_Nanite);
+			UMaterialInterface* UsageMaterial = Material;
+			UsageMaterial->SetMaterialUsage(bNeedsRecompile, MATUSAGE_Nanite);
 			(void)bNeedsRecompile;
 		}
 		Material->SetShadingModel(bUnlit ? MSM_Unlit : MSM_DefaultLit);
