@@ -6,6 +6,8 @@
 #include "Engine/World.h"
 #include "Game/KodPlayerController.h"
 #include "Game/KodPlayerState.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "Game/KodPortraitStage.h"
 #include "Game/KodRTSCameraPawn.h"
 #include "Sim/KodBuildTypes.h"
 #include "Sim/KodResourceTypes.h"
@@ -635,6 +637,27 @@ void AKodHUD::DrawPortrait()
 
 	DrawRect(FLinearColor(0.03f, 0.04f, 0.05f, 0.94f), X, Y, Width, PanelH);
 	DrawRect(FLinearColor(0.45f, 0.38f, 0.22f, 1.f), X, Y, Width, 3.f * Scale);
+	AActor* PortraitActor = PC->GetLocalSelection().Num() > 0 ? PC->GetLocalSelection()[0] : nullptr;
+	if (!PortraitStage && World)
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		PortraitStage = World->SpawnActor<AKodPortraitStage>(AKodPortraitStage::StaticClass(), FVector(0.f, 0.f, -200000.f), FRotator::ZeroRotator, Params);
+	}
+	if (PortraitStage && PortraitActor)
+	{
+		int32 TeamId = 0;
+		const FKodEntityId PortraitId = Sim->FindIdForActor(PortraitActor);
+		if (const FKodSimEntityState* PortraitState = FindFrameState(PortraitId.Value))
+		{
+			TeamId = PortraitState->TeamId;
+		}
+		PortraitStage->ShowSubject(PortraitActor, TeamId);
+		if (UTextureRenderTarget2D* Target = PortraitStage->GetRenderTarget())
+		{
+			DrawTexture(Target, X + 4.f * Scale, Y + 8.f * Scale, Width - 8.f * Scale, PanelH - 36.f * Scale, 0.f, 0.f, 1.f, 1.f);
+		}
+	}
 	if (!DrawUnitPortrait(FName(*Name), X, Y, Width, PanelH))
 	{
 		UFont* Font = GEngine ? GEngine->GetLargeFont() : HudFont();
@@ -681,14 +704,49 @@ void AKodHUD::DrawSelectionPanel()
 		TArray<int32> Cargo;
 	};
 
-	TArray<FTile> Tiles;
+	TArray<int32> Wanted;
+	TSet<int32> SelectedIds;
 	for (AActor* Actor : PC->GetLocalSelection())
 	{
 		if (!Actor)
 		{
 			continue;
 		}
-		const FKodEntityId Id = Sim->FindIdForActor(Actor);
+		const int32 IdValue = Sim->FindIdForActor(Actor).Value;
+		if (IdValue > 0)
+		{
+			SelectedIds.Add(IdValue);
+			Wanted.AddUnique(IdValue);
+		}
+	}
+	for (int32 Group = 0; Group < 10; ++Group)
+	{
+		const TArray<FKodEntityId> Members = PC->GetControlGroupIds(Group);
+		bool bOverlap = false;
+		for (const FKodEntityId& Member : Members)
+		{
+			if (SelectedIds.Contains(Member.Value))
+			{
+				bOverlap = true;
+				break;
+			}
+		}
+		if (!bOverlap)
+		{
+			continue;
+		}
+		for (const FKodEntityId& Member : Members)
+		{
+			Wanted.AddUnique(Member.Value);
+		}
+	}
+	Wanted.Sort();
+
+	TArray<FTile> Tiles;
+	for (int32 IdValue : Wanted)
+	{
+		FKodEntityId Id;
+		Id.Value = IdValue;
 		if (!Id.IsValid())
 		{
 			continue;
@@ -831,16 +889,41 @@ void AKodHUD::DrawSelectionPanel()
 			}
 		}
 		RememberChrome(FName(TEXT("Tile")), Tile.EntityId, Tile.TypeId, X, Y, X + PanelW, Y + PanelH);
+		const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+		const float* HitUntil = WireHitUntil.Find(Tile.EntityId);
+		const bool bFlash = HitUntil && *HitUntil > Now;
+		DrawWireHeat(X + PanelW - 90.f * Scale, Y + 16.f * Scale, 70.f * Scale, 130.f * Scale, Tile.EntityId, FMath::RoundToInt(Tile.Health), FMath::RoundToInt(Tile.MaxHealth), Tile.bStructure, bFlash);
 		return;
 	}
 
-	const int32 Shown = FMath::Min(Tiles.Num(), 24);
+	constexpr int32 PageSize = 24;
+	const int32 Pages = FMath::Max(1, FMath::DivideAndRoundUp(Tiles.Num(), PageSize));
+	if (SelectionPage >= Pages)
+	{
+		SelectionPage = 0;
+	}
+	const int32 PageStart = SelectionPage * PageSize;
+	const int32 Shown = FMath::Min(PageSize, Tiles.Num() - PageStart);
+	if (Pages > 1)
+	{
+		for (int32 Page = 0; Page < Pages; ++Page)
+		{
+			const float TabX = X + Page * 28.f * Scale;
+			const float TabY = Y - 22.f * Scale;
+			DrawRect(Page == SelectionPage ? FLinearColor(0.2f, 0.35f, 0.22f, 1.f) : FLinearColor(0.08f, 0.08f, 0.08f, 0.9f), TabX, TabY, 24.f * Scale, 18.f * Scale);
+			DrawText(FString::FromInt(Page + 1), FLinearColor::White, TabX + 6.f * Scale, TabY + 2.f * Scale, Font, 0.7f * Scale, false);
+			RememberChrome(FName(TEXT("Page")), Page, FName(), TabX, TabY, TabX + 24.f * Scale, TabY + 18.f * Scale);
+		}
+	}
 	constexpr int32 Cols = 8;
 	const float TileW = (PanelW - 16.f * Scale) / Cols;
 	const float TileH = (PanelH - 12.f * Scale) / 3.f;
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 	for (int32 Index = 0; Index < Shown; ++Index)
 	{
-		const FTile& Tile = Tiles[Index];
+		const FTile& Tile = Tiles[PageStart + Index];
+		const float* HitUntil = WireHitUntil.Find(Tile.EntityId);
+		const bool bFlash = HitUntil && *HitUntil > Now;
 		const int32 Col = Index % Cols;
 		const int32 Row = Index / Cols;
 		const float TileX = X + 8.f * Scale + Col * TileW;
@@ -856,6 +939,7 @@ void AKodHUD::DrawSelectionPanel()
 		const float Fraction = FMath::Clamp(Tile.Health / FMath::Max(1.f, Tile.MaxHealth), 0.f, 1.f);
 		DrawRect(FLinearColor(0.1f, 0.1f, 0.1f, 1.f), TileX, TileY + BoxH - 4.f * Scale, Box, 3.f * Scale);
 		DrawRect(Ink, TileX, TileY + BoxH - 4.f * Scale, Box * Fraction, 3.f * Scale);
+		DrawWireHeat(TileX + 4.f * Scale, TileY + 2.f * Scale, Box - 8.f * Scale, BoxH - 10.f * Scale, Tile.EntityId, FMath::RoundToInt(Tile.Health), FMath::RoundToInt(Tile.MaxHealth), Tile.bStructure, bFlash);
 		RememberChrome(FName(TEXT("Tile")), Tile.EntityId, Tile.TypeId, TileX, TileY, TileX + Box, TileY + BoxH);
 	}
 }

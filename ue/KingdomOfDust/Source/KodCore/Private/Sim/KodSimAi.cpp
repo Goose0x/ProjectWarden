@@ -230,6 +230,7 @@ void UKodSimSubsystem::StepAI()
 	int32 WorkerCount = 0;
 	int32 QueuedWorkers = 0;
 	bool bDepotInProgress = false;
+	bool bDepotComplete = false;
 	bool bHasBarracks = false;
 	FKodEntityId CcId;
 	FKodEntityId BarracksIdValue;
@@ -252,9 +253,16 @@ void UKodSimSubsystem::StepAI()
 			Base = Structure->Position;
 			CcId = Structure->Id;
 		}
-		if (Structure->DefinitionId == DepotId && !Structure->bComplete)
+		if (Structure->DefinitionId == DepotId)
 		{
-			bDepotInProgress = true;
+			if (Structure->bComplete)
+			{
+				bDepotComplete = true;
+			}
+			else
+			{
+				bDepotInProgress = true;
+			}
 		}
 		if (Structure->DefinitionId == BarracksId)
 		{
@@ -352,7 +360,15 @@ void UKodSimSubsystem::StepAI()
 		return false;
 	};
 
-	if (bNeedDepot && !bDepotInProgress)
+	const bool bDepotBeforeBarracks = !bHasBarracks && !bDepotComplete;
+	if (bDepotBeforeBarracks)
+	{
+		if (!bDepotInProgress)
+		{
+			TryBuildNearBase(DepotId);
+		}
+	}
+	else if (bNeedDepot && !bDepotInProgress)
 	{
 		TryBuildNearBase(DepotId);
 	}
@@ -369,7 +385,7 @@ void UKodSimSubsystem::StepAI()
 			ReserveCredits += FMath::Max(0, BarracksSpec->Cost.Credits);
 		}
 	}
-	if (bNeedDepot && !bDepotInProgress)
+	if (bDepotBeforeBarracks || (bNeedDepot && !bDepotInProgress))
 	{
 		if (const FKodBuildSpec* DepotSpec = BuildSpecs.Find(DepotId))
 		{

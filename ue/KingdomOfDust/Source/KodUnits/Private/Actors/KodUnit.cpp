@@ -734,6 +734,27 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 	}
 
 	Definition = Def;
+	if (!Def->PortraitMesh.IsNull())
+	{
+		if (USkeletalMesh* Bust = Def->PortraitMesh.LoadSynchronous())
+		{
+			USkeletalMeshComponent* PortraitComp = FindComponentByTag<USkeletalMeshComponent>(FName(TEXT("PortraitMesh")));
+			if (!PortraitComp)
+			{
+				PortraitComp = NewObject<USkeletalMeshComponent>(this, TEXT("PortraitBust"));
+				PortraitComp->ComponentTags.Add(FName(TEXT("PortraitMesh")));
+				PortraitComp->SetSkeletalMeshAsset(Bust);
+				PortraitComp->SetVisibility(false);
+				PortraitComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				PortraitComp->SetupAttachment(GetRootComponent());
+				PortraitComp->RegisterComponent();
+			}
+			else
+			{
+				PortraitComp->SetSkeletalMeshAsset(Bust);
+			}
+		}
+	}
 
 	float WeaponDamage = 0.f;
 	float WeaponRange = 0.f;

@@ -194,6 +194,9 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 			CancelPlacement();
 		}
 	}
+	bool bAteT = false;
+	bool bAteC = false;
+	bool bAteR = false;
 	if ((bBuildMenu || bAdvancedMenu) && HasSelectedWorker())
 	{
 		FName HotkeyPlace;
@@ -202,11 +205,13 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 			if (WasInputKeyJustPressed(EKeys::T))
 			{
 				HotkeyPlace = FName(KodWardenPaths::Id_Turret);
+				bAteT = true;
 			}
 		}
 		else if (WasInputKeyJustPressed(EKeys::C))
 		{
 			HotkeyPlace = FName(KodWardenPaths::Id_CommandCenter);
+			bAteC = true;
 		}
 		else if (WasInputKeyJustPressed(EKeys::D))
 		{
@@ -215,6 +220,7 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 		else if (WasInputKeyJustPressed(EKeys::R))
 		{
 			HotkeyPlace = FName(KodWardenPaths::Id_Barracks);
+			bAteR = true;
 		}
 		else if (WasInputKeyJustPressed(EKeys::E))
 		{
@@ -237,11 +243,11 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 	{
 		PlaceType = FName();
 	}
-	if (!bBuildMenu && !bAdvancedMenu && WasInputKeyJustPressed(EKeys::R))
+	if (!bAteR && !bBuildMenu && !bAdvancedMenu && WasInputKeyJustPressed(EKeys::R))
 	{
 		ToggleSelectedDepots();
 	}
-	if (!bBuildMenu && !bAdvancedMenu && WasInputKeyJustPressed(EKeys::C))
+	if (!bAteC && !bBuildMenu && !bAdvancedMenu && WasInputKeyJustPressed(EKeys::C))
 	{
 		CastSelectedHeal();
 	}
@@ -271,7 +277,7 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 		EnqueueTrainOnSelectedStructures();
 		IssueStopOnSelectedUnits();
 	}
-	if (WasInputKeyJustPressed(EKeys::T))
+	if (!bAteT && WasInputKeyJustPressed(EKeys::T))
 	{
 		IssueAbility(FName(KodWardenPaths::Id_CombatStim));
 	}

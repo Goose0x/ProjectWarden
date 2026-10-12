@@ -121,6 +121,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
 	TSoftObjectPtr<USkeletalMesh> SkeletalMesh;
 
+	/** Optional bust. Empty keeps a copy of the body mesh in the portrait capture. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	TSoftObjectPtr<USkeletalMesh> PortraitMesh;
+
 	/**
 	 * Relative yaw on the skeletal mesh component. The Marine bind pose faces +Y,
 	 * so -90 lines the mesh up with actor forward (+X). The skeleton is SK_Marine_Skeleton.

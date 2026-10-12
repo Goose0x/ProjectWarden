@@ -13,7 +13,9 @@
 #include "GameFramework/PlayerController.h"
 #include "Game/KodPlayerController.h"
 #include "Game/KodPlayerState.h"
+#include "Game/KodPortraitStage.h"
 #include "Game/KodRTSCameraPawn.h"
+#include "Game/KodSpectatorPawn.h"
 #include "Sim/KodResourceTypes.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Warden/KodWardenPaths.h"
@@ -63,6 +65,8 @@ void AKodHUD::DrawHUD()
 	DrawScaffolds();
 	RefreshReadout();
 	DrawGameClock();
+	DrawAlertFeed();
+	DrawSpectatorPanel();
 	DrawProductionPanel();
 	DrawCommandCard();
 	DrawBuildHint();
@@ -564,6 +568,323 @@ void AKodHUD::ShowCenterMessage(const FString& Text)
 {
 	FlashText = Text;
 	FlashUntilSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() + 1.6f : 0.f;
+}
+
+void AKodHUD::SetSelectionPage(int32 Page)
+{
+	SelectionPage = FMath::Max(0, Page);
+}
+
+bool AKodHUD::ConsumePortraitClick()
+{
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+	const bool bDouble = PortraitClickSeconds >= 0.f && Now - PortraitClickSeconds < 0.3f;
+	PortraitClickSeconds = bDouble ? -1.f : Now;
+	return bDouble;
+}
+
+float AKodHUD::WireZoneRemain(int32 UnitId, int32 ZoneIndex, int32 ZoneCount, int32 Health, int32 MaxHealth)
+{
+	const int32 Count = FMath::Max(1, ZoneCount);
+	const int32 MaxH = FMath::Max(1, MaxHealth);
+	const int32 Hp = FMath::Clamp(Health, 0, MaxH);
+	const int32 Missing = MaxH - Hp;
+	TArray<int32> Order;
+	Order.Reserve(Count);
+	for (int32 Zone = 0; Zone < Count; ++Zone)
+	{
+		Order.Add(Zone);
+	}
+	Order.Sort([UnitId](int32 A, int32 B)
+	{
+		const uint32 KeyA = (static_cast<uint32>(UnitId) * 2654435761u) ^ (static_cast<uint32>(A) * 2246822519u);
+		const uint32 KeyB = (static_cast<uint32>(UnitId) * 2654435761u) ^ (static_cast<uint32>(B) * 2246822519u);
+		return KeyA < KeyB;
+	});
+	int32 Rank = 0;
+	for (int32 Index = 0; Index < Order.Num(); ++Index)
+	{
+		if (Order[Index] == ZoneIndex)
+		{
+			Rank = Index;
+			break;
+		}
+	}
+	const int32 Base = MaxH / Count;
+	const int32 Extra = MaxH % Count;
+	auto CapacityAt = [Base, Extra](int32 R)
+	{
+		return Base + (R < Extra ? 1 : 0);
+	};
+	int32 Before = 0;
+	for (int32 R = 0; R < Rank; ++R)
+	{
+		Before += CapacityAt(R);
+	}
+	const int32 Capacity = FMath::Max(1, CapacityAt(Rank));
+	const int32 Taken = FMath::Clamp(Missing - Before, 0, Capacity);
+	return static_cast<float>(Capacity - Taken) / static_cast<float>(Capacity);
+}
+
+void AKodHUD::BindAlertFeed()
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			Sim->OnCue.AddDynamic(this, &AKodHUD::HandleAlertCue);
+			Sim->OnUnitHit.AddDynamic(this, &AKodHUD::HandleWireHit);
+		}
+	}
+}
+
+void AKodHUD::HandleWireHit(AActor* Attacker, AActor* Target, float Health, int32 TargetId)
+{
+	(void)Attacker;
+	(void)Health;
+	if (TargetId <= 0 || !GetWorld())
+	{
+		return;
+	}
+	WireHitUntil.Add(TargetId, GetWorld()->GetTimeSeconds() + 0.35f);
+}
+
+void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
+{
+	(void)bAtLocation;
+	FString Text;
+	if (CueId == FName(TEXT("base_under_attack")))
+	{
+		Text = TEXT("Base under attack");
+	}
+	else if (CueId == FName(TEXT("units_under_attack")))
+	{
+		Text = TEXT("Units under attack");
+	}
+	else if (CueId == FName(TEXT("unit_ready_amp")) || CueId == FName(TEXT("unit_ready_marine")) || CueId == FName(TEXT("unit_ready_medic")))
+	{
+		Text = TEXT("Unit ready");
+	}
+	else if (CueId == FName(TEXT("structure_complete")))
+	{
+		Text = TEXT("Construction complete");
+	}
+	else if (CueId == FName(TEXT("research_complete")))
+	{
+		Text = TEXT("Research complete");
+	}
+	else if (CueId == FName(TEXT("not_enough_credits")))
+	{
+		Text = TEXT("Not enough Credits");
+	}
+	else if (CueId == FName(TEXT("not_enough_luminene")))
+	{
+		Text = TEXT("Not enough Luminene");
+	}
+	else if (CueId == FName(TEXT("not_enough_supply")))
+	{
+		Text = TEXT("Not enough supply");
+	}
+	else if (CueId == FName(TEXT("cant_build")))
+	{
+		Text = TEXT("Can't build here");
+	}
+	else
+	{
+		return;
+	}
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+	const bool bAttack = CueId == FName(TEXT("base_under_attack")) || CueId == FName(TEXT("units_under_attack"));
+	if (bAttack)
+	{
+		if (const float* Until = AlertThrottleUntil.Find(CueId))
+		{
+			if (Now < *Until)
+			{
+				return;
+			}
+		}
+		AlertThrottleUntil.Add(CueId, Now + 4.f);
+	}
+	FKodAlertLine Line;
+	Line.Text = Text;
+	Line.CueId = CueId;
+	Line.World = Location;
+	Line.Until = Now + 5.f;
+	AlertLines.Add(Line);
+	while (AlertLines.Num() > 6)
+	{
+		AlertLines.RemoveAt(0);
+	}
+	if (!Location.IsNearlyZero())
+	{
+		AddMinimapPing(Location);
+		if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetOwningPawn()))
+		{
+			CameraPawn->NoteAlert(Location);
+		}
+	}
+}
+
+void AKodHUD::DrawWireHeat(float X, float Y, float W, float H, int32 UnitId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash)
+{
+	const int32 Zones = bStructure ? 4 : 6;
+	auto ColorOf = [this, UnitId, Health, MaxHealth, Zones, bFlash](int32 Zone)
+	{
+		if (bFlash)
+		{
+			return FLinearColor(0.95f, 0.15f, 0.12f, 1.f);
+		}
+		const float Remain = WireZoneRemain(UnitId, Zone, Zones, Health, MaxHealth);
+		if (Remain >= 0.75f)
+		{
+			return FLinearColor(0.25f, 0.85f, 0.3f, 1.f);
+		}
+		if (Remain >= 0.5f)
+		{
+			return FLinearColor(0.92f, 0.82f, 0.2f, 1.f);
+		}
+		if (Remain >= 0.25f)
+		{
+			return FLinearColor(0.95f, 0.5f, 0.12f, 1.f);
+		}
+		return FLinearColor(0.9f, 0.16f, 0.12f, 1.f);
+	};
+	auto Seg = [this, X, Y, W, H](float U0, float V0, float U1, float V1, const FLinearColor& Ink)
+	{
+		DrawLine(X + U0 * W, Y + V0 * H, X + U1 * W, Y + V1 * H, Ink, 2.f);
+	};
+	if (bStructure)
+	{
+		Seg(0.15f, 0.15f, 0.85f, 0.15f, ColorOf(0));
+		Seg(0.85f, 0.15f, 0.85f, 0.85f, ColorOf(1));
+		Seg(0.85f, 0.85f, 0.15f, 0.85f, ColorOf(2));
+		Seg(0.15f, 0.85f, 0.15f, 0.15f, ColorOf(3));
+		Seg(0.5f, 0.15f, 0.5f, 0.85f, ColorOf(0));
+		Seg(0.15f, 0.5f, 0.85f, 0.5f, ColorOf(2));
+		return;
+	}
+	Seg(0.5f, 0.08f, 0.5f, 0.22f, ColorOf(0));
+	Seg(0.38f, 0.16f, 0.62f, 0.16f, ColorOf(0));
+	Seg(0.5f, 0.22f, 0.5f, 0.55f, ColorOf(1));
+	Seg(0.5f, 0.28f, 0.22f, 0.48f, ColorOf(2));
+	Seg(0.5f, 0.28f, 0.78f, 0.48f, ColorOf(3));
+	Seg(0.5f, 0.55f, 0.32f, 0.92f, ColorOf(4));
+	Seg(0.5f, 0.55f, 0.68f, 0.92f, ColorOf(5));
+}
+
+void AKodHUD::DrawAlertFeed()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+	for (int32 Index = AlertLines.Num() - 1; Index >= 0; --Index)
+	{
+		if (AlertLines[Index].Until < Now)
+		{
+			AlertLines.RemoveAt(Index);
+		}
+	}
+	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
+	float Y = 72.f * Scale;
+	if (Cast<AKodSpectatorPawn>(GetOwningPawn()))
+	{
+		Y = 250.f * Scale;
+	}
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	for (int32 Index = AlertLines.Num() - 1; Index >= 0; --Index)
+	{
+		const FKodAlertLine& Line = AlertLines[Index];
+		const float Alpha = FMath::Clamp((Line.Until - Now) / 1.5f, 0.25f, 1.f);
+		const FString Glyph = Line.Text.Left(2).ToUpper();
+		DrawRect(FLinearColor(0.05f, 0.06f, 0.07f, 0.86f * Alpha), 16.f * Scale, Y, 280.f * Scale, 28.f * Scale);
+		DrawRect(FLinearColor(0.25f, 0.45f, 0.32f, Alpha), 20.f * Scale, Y + 4.f * Scale, 22.f * Scale, 20.f * Scale);
+		DrawText(Glyph, FLinearColor(1.f, 1.f, 1.f, Alpha), 22.f * Scale, Y + 6.f * Scale, Font, 0.55f * Scale, false);
+		DrawText(Line.Text, FLinearColor(0.92f, 0.9f, 0.82f, Alpha), 48.f * Scale, Y + 6.f * Scale, Font, 0.8f * Scale, false);
+		Y += 32.f * Scale;
+	}
+}
+
+void AKodHUD::DrawSpectatorPanel()
+{
+	if (!Canvas || !Cast<AKodSpectatorPawn>(GetOwningPawn()))
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
+	const float X = 16.f * Scale;
+	const float Y = 16.f * Scale;
+	const float W = 360.f * Scale;
+	DrawRect(FLinearColor(0.03f, 0.04f, 0.05f, 0.92f), X, Y, W, 220.f * Scale);
+	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+	DrawText(TEXT("Production"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X + 8.f * Scale, Y + 4.f * Scale, Font, Scale, false);
+	float Row = Y + 24.f * Scale;
+	for (int32 TeamId = 0; TeamId <= 1; ++TeamId)
+	{
+		FKodResourceCost Bank;
+		Sim->TryGetBank(TeamId, Bank);
+		int32 Used = 0;
+		int32 Cap = 0;
+		Sim->TryGetSupply(TeamId, Used, Cap);
+		const FLinearColor Ink = TeamId == 0 ? FLinearColor(0.3f, 0.85f, 0.4f, 1.f) : FLinearColor(0.9f, 0.25f, 0.18f, 1.f);
+		const float BarW = (W - 16.f * Scale) * 0.5f;
+		DrawRect(Ink, X + 8.f * Scale + TeamId * BarW, Row, BarW - 4.f * Scale, 8.f * Scale);
+		DrawText(FString::Printf(TEXT("T%d  %dC  %dL  %d/%d"), TeamId, Bank.Jadeite, Bank.Luminene, Used, Cap),
+			FLinearColor::White, X + 8.f * Scale, Row + 10.f * Scale, Font, 0.75f * Scale, false);
+		Row += 28.f * Scale;
+	}
+	int32 Shown = 0;
+	for (const FKodStructureState& Structure : FrameStructures)
+	{
+		if (Shown >= 6)
+		{
+			break;
+		}
+		const bool bBuilding = !Structure.bComplete && Structure.BuildTimeTotal > 0;
+		const bool bTrain = Structure.Slots.Num() > 0;
+		const bool bResearch = Structure.Research.Num() > 0;
+		if (!bBuilding && !bTrain && !bResearch)
+		{
+			continue;
+		}
+		float Fraction = 0.f;
+		FString Label = Structure.DisplayId.IsNone() ? Structure.DefinitionId.ToString() : Structure.DisplayId.ToString();
+		if (bTrain)
+		{
+			Label = FString::Printf(TEXT("T%d %s"), Structure.TeamId, *Structure.Slots[0].UnitId.ToString());
+			if (Structure.ActiveBuildTime > 0)
+			{
+				Fraction = 1.f - static_cast<float>(Structure.ActiveTicksRemaining) / static_cast<float>(Structure.ActiveBuildTime);
+			}
+		}
+		else if (bResearch)
+		{
+			Label = FString::Printf(TEXT("T%d %s"), Structure.TeamId, *Structure.Research[0].UnitId.ToString());
+			if (Structure.ResearchBuildTime > 0)
+			{
+				Fraction = 1.f - static_cast<float>(Structure.ResearchTicksRemaining) / static_cast<float>(Structure.ResearchBuildTime);
+			}
+		}
+		else
+		{
+			Label = FString::Printf(TEXT("T%d %s"), Structure.TeamId, *Label);
+			Fraction = static_cast<float>(Structure.BuildTicksDone) / static_cast<float>(Structure.BuildTimeTotal);
+		}
+		Fraction = FMath::Clamp(Fraction, 0.f, 1.f);
+		DrawText(Label, FLinearColor::White, X + 8.f * Scale, Row, Font, 0.7f * Scale, false);
+		DrawRect(FLinearColor(0.1f, 0.1f, 0.1f, 1.f), X + 170.f * Scale, Row + 2.f * Scale, 160.f * Scale, 8.f * Scale);
+		DrawRect(FLinearColor(0.3f, 0.75f, 0.4f, 1.f), X + 170.f * Scale, Row + 2.f * Scale, 160.f * Scale * Fraction, 8.f * Scale);
+		Row += 16.f * Scale;
+		++Shown;
+	}
 }
 
 void AKodHUD::ShowResourceFlash(FName Reason)
@@ -1448,6 +1769,7 @@ void AKodHUD::BeginPlay()
 {
 	Super::BeginPlay();
 	bShowHUD = true;
+	BindAlertFeed();
 
 	if (APlayerController* PC = GetOwningPlayerController())
 	{
