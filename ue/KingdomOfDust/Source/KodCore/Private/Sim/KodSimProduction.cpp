@@ -176,7 +176,9 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 		Drop.Position = Structure.Position;
 		const int32 HalfX = (Structure.FootprintX * KodBuildGrid::CellUU) / 2;
 		const int32 HalfY = (Structure.FootprintY * KodBuildGrid::CellUU) / 2;
-		const int32 HalfDiag = CeilSqrtInt(HalfX * HalfX + HalfY * HalfY);
+		const int32 HalfDiag = CeilSqrtInt(static_cast<int32>(FMath::Min<int64>(
+			static_cast<int64>(HalfX) * HalfX + static_cast<int64>(HalfY) * HalfY,
+			46340 * 46340)));
 		const int32 FootprintClearance = HalfDiag + 120;
 		Drop.StandUU = FMath::Max(Spec.DropOffStandUU, FootprintClearance);
 		DropOffs.Add(Id.Value, Drop);

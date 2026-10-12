@@ -1,4 +1,5 @@
 #include "Game/KodPlayerController.h"
+#include "Game/KodHUD.h"
 #include "Game/KodRTSCameraPawn.h"
 #include "Game/KodSpectatorPawn.h"
 #include "Engine/LocalPlayer.h"
@@ -138,10 +139,27 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 	{
 		HandleSelectCompleted();
 	}
-	if (WasInputKeyJustPressed(EKeys::RightMouseButton) && !ConsumePlacementRightClick())
+	if (WasInputKeyJustPressed(EKeys::RightMouseButton) && !IsCursorOverCommandCard() && !ConsumePlacementRightClick())
 	{
 		HandleRightClickCommand();
 	}
+}
+
+bool AKodPlayerController::IsCursorOverCommandCard() const
+{
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY))
+	{
+		return false;
+	}
+	const AKodHUD* HUD = Cast<AKodHUD>(GetHUD());
+	if (!HUD)
+	{
+		return false;
+	}
+	FKodHudCommandHit Hit;
+	return HUD->GetCommandHit(MouseX, MouseY, Hit) && Hit.bInsideChrome;
 }
 
 void AKodPlayerController::PanCamera(FVector2D AxisValue)

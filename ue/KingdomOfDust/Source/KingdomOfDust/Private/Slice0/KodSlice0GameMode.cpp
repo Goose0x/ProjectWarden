@@ -6,6 +6,7 @@
 #include "Actors/KodUnit.h"
 #include "Actors/KodResourceNode.h"
 #include "Data/KodResourceNodeDefinition.h"
+#include "Data/KodAbilityDefinition.h"
 #include "Data/KodUnitDefinition.h"
 #include "Data/KodBuildingDefinition.h"
 #include "Warden/KodWardenPaths.h"
@@ -291,6 +292,17 @@ void AKodSlice0GameMode::StartPlay()
 				Spec.Cost = Marine->Cost;
 				Spec.bCanGather = false;
 				Sim->RegisterTrainSpec(Spec);
+				if (Marine->Abilities.Num() > 0)
+				{
+					for (const FKodAbilitySpec& Ability : Marine->Abilities)
+					{
+						Sim->RegisterUnitAbility(Spec.UnitId, Ability);
+					}
+				}
+				else if (const UKodAbilityDefinition* Stim = UKodSlice0Bootstrap::MakeCombatStim(this))
+				{
+					Sim->RegisterUnitAbility(Spec.UnitId, Stim->ToSpec());
+				}
 			}
 			auto RegisterBuild = [Sim, this](const TCHAR* TypeId, const TArray<FName>& Trains)
 			{

@@ -15,6 +15,28 @@
 #include "Sim/KodSimSubsystem.h"
 #include "Warden/KodWardenPaths.h"
 
+namespace
+{
+	FName PlayerFacingName(const UKodSimSubsystem* Sim, FName EngineId)
+	{
+		FName Label = EngineId;
+		FKodTrainSpec Spec;
+		if (Sim && Sim->TryGetTrainSpec(EngineId, Spec) && !Spec.DisplayId.IsNone())
+		{
+			Label = Spec.DisplayId;
+		}
+		if (Label == FName(KodWardenPaths::Id_Dozer) || EngineId == FName(KodWardenPaths::Id_Dozer))
+		{
+			return FName(TEXT("AMP"));
+		}
+		if (Label == FName(KodWardenPaths::Id_Ranger) || EngineId == FName(KodWardenPaths::Id_Ranger))
+		{
+			return FName(TEXT("Marine"));
+		}
+		return Label;
+	}
+}
+
 AKodHUD::AKodHUD()
 {
 	bShowHUD = true;
@@ -218,7 +240,7 @@ void AKodHUD::DrawProductionPanel()
 
 	const float X = 24.f;
 	float Y = 108.f;
-	const FString TrainName = Structure.Trains[0].ToString();
+	const FString TrainName = PlayerFacingName(Sim, Structure.Trains[0]).ToString();
 	const FString Title = FString::Printf(TEXT("S Train %s  Backspace Cancel"), *TrainName);
 	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.82f), X - 8.f, Y - 8.f, 280.f, 36.f + 22.f * 5.f);
 	DrawText(Title, FLinearColor::White, X, Y, Font, 1.f, false);
@@ -231,7 +253,7 @@ void AKodHUD::DrawProductionPanel()
 	for (int32 Index = 0; Index < Structure.Slots.Num(); ++Index)
 	{
 		const FKodProductionSlot& Slot = Structure.Slots[Index];
-		const FString Name = Slot.DisplayId.IsNone() ? Slot.UnitId.ToString() : Slot.DisplayId.ToString();
+		const FString Name = PlayerFacingName(Sim, Slot.DisplayId.IsNone() ? Slot.UnitId : Slot.DisplayId).ToString();
 		DrawText(Name, KodResourceColors::Jadeite(), X, Y, Font, 1.f, false);
 		float Fraction = 0.f;
 		if (Index == 0 && Slot.bStarted && Structure.ActiveBuildTime > 0)
@@ -374,6 +396,10 @@ void AKodHUD::DrawCommandCard()
 	const FKodStructureState* Trainer = nullptr;
 	FKodStructureState TrainerState;
 	bool bWorker = false;
+	bool bMarine = false;
+	bool bStimReady = false;
+	int32 StimRemaining = 0;
+	int32 StimDuration = 1;
 	for (AActor* Actor : PC->GetLocalSelection())
 	{
 		if (!Actor)
@@ -388,16 +414,35 @@ void AKodHUD::DrawCommandCard()
 			Trainer = &TrainerState;
 		}
 		FKodSimEntityState State;
-		if (Sim->TryGetState(Id, State) && State.bCanGather && State.Health > 0.f)
+		if (!Sim->TryGetState(Id, State) || State.Health <= 0.f)
+		{
+			continue;
+		}
+		if (State.bCanGather)
 		{
 			bWorker = true;
+		}
+		if (Sim->UnitHasAbility(State.DefinitionId, FName(KodWardenPaths::Id_CombatStim)))
+		{
+			bMarine = true;
+			StimRemaining = FMath::Max(StimRemaining, State.AbilityTicksRemaining);
+			FKodAbilitySpec Ability;
+			if (Sim->TryGetAbilitySpec(FName(KodWardenPaths::Id_CombatStim), Ability))
+			{
+				StimDuration = FMath::Max(1, Ability.DurationTicks);
+				if (State.AbilityCooldownTicks <= 0 && State.Health > static_cast<float>(Ability.HealthCost))
+				{
+					bStimReady = true;
+				}
+			}
 		}
 	}
 
 	const bool bBuildMenu = PC->IsWorkerBuildMenuOpen();
 	const bool bTrainCard = Trainer != nullptr;
 	const bool bBuildCard = !bTrainCard && bWorker;
-	if (!bTrainCard && !bBuildCard)
+	const bool bMarineCard = !bTrainCard && bMarine;
+	if (!bTrainCard && !bBuildCard && !bMarineCard)
 	{
 		return;
 	}
@@ -462,7 +507,7 @@ void AKodHUD::DrawCommandCard()
 			}
 			FKodTrainSpec Spec;
 			const bool bHaveSpec = Sim->TryGetTrainSpec(UnitId, Spec);
-			const FString Label = (bHaveSpec && !Spec.DisplayId.IsNone()) ? Spec.DisplayId.ToString() : UnitId.ToString();
+			const FString Label = PlayerFacingName(Sim, (bHaveSpec && !Spec.DisplayId.IsNone()) ? Spec.DisplayId : UnitId).ToString();
 			const int32 Credits = bHaveSpec ? Spec.Cost.Credits : 0;
 			const int32 Luminene = bHaveSpec ? Spec.Cost.Luminene : 0;
 			const int32 Supply = bHaveSpec ? Spec.Cost.Supply : 0;
@@ -492,7 +537,7 @@ void AKodHUD::DrawCommandCard()
 			if (bFilled)
 			{
 				const FKodProductionSlot& Job = Trainer->Slots[Slot];
-				const FString Name = Job.DisplayId.IsNone() ? Job.UnitId.ToString() : Job.DisplayId.ToString();
+				const FString Name = PlayerFacingName(Sim, Job.DisplayId.IsNone() ? Job.UnitId : Job.DisplayId).ToString();
 				DrawText(Name, FLinearColor::White, X + 4.f, QueueY + 2.f, Font, 0.7f, false);
 				float Fraction = 0.f;
 				if (Slot == 0 && Job.bStarted && Trainer->ActiveBuildTime > 0)
@@ -519,11 +564,29 @@ void AKodHUD::DrawCommandCard()
 	}
 	else
 	{
-		if (!bBuildMenu)
+		if (bMarineCard)
+		{
+			FKodAbilitySpec Ability;
+			const bool bHave = Sim->TryGetAbilitySpec(FName(KodWardenPaths::Id_CombatStim), Ability);
+			const FString Label = (bHave && !Ability.DisplayName.IsNone()) ? Ability.DisplayName.ToString() : TEXT("Stim");
+			const FString Hotkey = (bHave && !Ability.Hotkey.IsNone()) ? Ability.Hotkey.ToString() : TEXT("T");
+			const int32 Seconds = (bHave ? Ability.DurationTicks : StimDuration) / 16;
+			const FString Tooltip = FString::Printf(TEXT("%s\n%d HP\n%ds\n+50%% speed"), *Label, bHave ? Ability.HealthCost : 10, Seconds);
+			const FName Fail = bStimReady ? NAME_None : TEXT("Health");
+			AddButton(0, 0, OriginX, OriginY, Label, Hotkey, TEXT("Ability"), FName(KodWardenPaths::Id_CombatStim), 0, INDEX_NONE, bStimReady, Fail, Tooltip);
+			if (StimRemaining > 0)
+			{
+				const float Fraction = FMath::Clamp(static_cast<float>(StimRemaining) / static_cast<float>(StimDuration), 0.f, 1.f);
+				const float X = OriginX;
+				const float Y = OriginY;
+				DrawRect(FLinearColor(1.f, 0.45f, 0.1f, 0.45f), X, Y, Button, Button * Fraction);
+			}
+		}
+		if (bWorker && !bBuildMenu)
 		{
 			AddButton(0, 2, OriginX, OriginY, TEXT("Build"), TEXT("B"), TEXT("BuildMenu"), NAME_None, 0, INDEX_NONE, true, NAME_None, TEXT("Build"));
 		}
-		else
+		else if (bWorker)
 		{
 			const FName Types[3] = {
 				FName(KodWardenPaths::Id_SupplyDepot),
@@ -532,6 +595,7 @@ void AKodHUD::DrawCommandCard()
 			};
 			const TCHAR* Keys[3] = { TEXT("D"), TEXT("R"), TEXT("E") };
 			const TCHAR* Labels[3] = { TEXT("Depot"), TEXT("Barracks"), TEXT("Rig") };
+			const int32 FirstCol = bMarineCard ? 1 : 0;
 			for (int32 Index = 0; Index < 3; ++Index)
 			{
 				FKodBuildSpec Spec;
@@ -542,7 +606,7 @@ void AKodHUD::DrawCommandCard()
 				const FName Fail = bHave ? PeekResourceFail(Credits, Luminene, 0) : NAME_None;
 				const FString Tooltip = FString::Printf(TEXT("%s\n%d Credits\n%d Luminene\n%ds"),
 					Labels[Index], Credits, Luminene, FMath::Max(0, Ticks) / 16);
-				AddButton(Index, 0, OriginX, OriginY, Labels[Index], Keys[Index], TEXT("Place"), Types[Index], 0, INDEX_NONE, Fail.IsNone(), Fail, Tooltip);
+				AddButton(FirstCol + Index, 0, OriginX, OriginY, Labels[Index], Keys[Index], TEXT("Place"), Types[Index], 0, INDEX_NONE, Fail.IsNone(), Fail, Tooltip);
 			}
 		}
 	}
@@ -611,12 +675,7 @@ void AKodHUD::DrawSelectionSummary()
 		{
 			continue;
 		}
-		FName Label = State.DefinitionId;
-		FKodTrainSpec Spec;
-		if (Sim->TryGetTrainSpec(State.DefinitionId, Spec) && !Spec.DisplayId.IsNone())
-		{
-			Label = Spec.DisplayId;
-		}
+		const FName Label = PlayerFacingName(Sim, State.DefinitionId);
 		if (!Label.IsNone())
 		{
 			Counts.FindOrAdd(Label) += 1;

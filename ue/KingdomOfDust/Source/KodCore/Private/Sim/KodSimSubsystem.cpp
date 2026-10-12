@@ -20,6 +20,8 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Structures.Reset();
 	TrainSpecs.Reset();
 	BuildSpecs.Reset();
+	AbilitySpecs.Reset();
+	UnitAbilities.Reset();
 	PendingSpawns.Reset();
 	PendingBuildingSpawns.Reset();
 	bHasPlayable = false;
@@ -45,6 +47,8 @@ void UKodSimSubsystem::Deinitialize()
 	Structures.Reset();
 	TrainSpecs.Reset();
 	BuildSpecs.Reset();
+	AbilitySpecs.Reset();
+	UnitAbilities.Reset();
 	PendingSpawns.Reset();
 	PendingBuildingSpawns.Reset();
 	bHasPlayable = false;
@@ -113,7 +117,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 			&& State->GatherPhase == EKodGatherPhase::None
 			&& IsWorldCellBlocked(State->Position))
 		{
-			const FVector Push = SteerAroundBuildings(*State, FVector(FMath::Max(1.f, State->MoveSpeed) * FixedDt, 0.f, 0.f));
+			const FVector Push = SteerAroundBuildings(*State, FVector(FMath::Max(1.f, EffectiveMoveSpeed(*State)) * FixedDt, 0.f, 0.f));
 			State->Position += Push;
 			QuantizePose(*State);
 		}
@@ -144,6 +148,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 	}
 	StepProduction();
 	StepConstruction();
+	StepAbilities();
 }
 
 void UKodSimSubsystem::StepEntityMove(FKodSimEntityState& State, float FixedDt)
@@ -170,7 +175,7 @@ void UKodSimSubsystem::StepEntityMove(FKodSimEntityState& State, float FixedDt)
 	FVector Dir = ToTarget;
 	Dir.Z = 0.f;
 	Dir.Normalize();
-	FVector Delta = SteerAroundBuildings(State, Dir * (State.MoveSpeed * FixedDt));
+	FVector Delta = SteerAroundBuildings(State, Dir * (EffectiveMoveSpeed(State) * FixedDt));
 	if (Delta.SizeSquared2D() > KINDA_SMALL_NUMBER)
 	{
 		State.YawDegrees = FMath::RadiansToDegrees(FMath::Atan2(Delta.Y, Delta.X));
@@ -244,7 +249,9 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 
 		const float Mitigated = FMath::Max(0.f, State.WeaponDamage);
 		Target->Health = FMath::Max(0.f, Target->Health - Mitigated);
-		State.CooldownRemaining = FMath::Max(0.01f, State.WeaponCooldownSeconds);
+		const int32 AttackPermille = FMath::Clamp(State.AbilityAttackPermille, 1, 10000);
+		const float ScaledCooldown = State.WeaponCooldownSeconds * (1000.f / static_cast<float>(AttackPermille));
+		State.CooldownRemaining = FMath::Max(0.01f, ScaledCooldown);
 		const float HealthLeft = Target->Health;
 
 		// Hit while idle: retaliate next acquire, even if the attacker is outside range.
@@ -1095,7 +1102,7 @@ bool UKodSimSubsystem::AdvanceGatherMove(FKodSimEntityState& State, const FVecto
 	const FVector Before = State.Position;
 	const FVector Dir = ToTarget / Dist;
 	State.YawDegrees = FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X));
-	const float Step = FMath::Max(0.f, State.MoveSpeed) * FixedDt;
+	const float Step = FMath::Max(0.f, EffectiveMoveSpeed(State)) * FixedDt;
 	// Land on the stand ring. Do not snap onto the node or building origin.
 	const float Travel = FMath::Min(Step, FMath::Max(0.f, Dist - Accept));
 	if (Travel <= KINDA_SMALL_NUMBER)
@@ -1679,6 +1686,17 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		const uint8 SupplyCounted = S.bSupplyCounted ? 1 : 0;
 		Append(&SupplyCounted, sizeof(SupplyCounted));
 		Append(&S.BuildSite.Value, sizeof(S.BuildSite.Value));
+		const FString AbilityName = S.ActiveAbilityId.ToString();
+		const int32 AbilityLen = AbilityName.Len();
+		Append(&AbilityLen, sizeof(AbilityLen));
+		if (AbilityLen > 0)
+		{
+			Append(*AbilityName, AbilityLen * static_cast<int32>(sizeof(TCHAR)));
+		}
+		Append(&S.AbilityTicksRemaining, sizeof(S.AbilityTicksRemaining));
+		Append(&S.AbilityCooldownTicks, sizeof(S.AbilityCooldownTicks));
+		Append(&S.AbilityMovePermille, sizeof(S.AbilityMovePermille));
+		Append(&S.AbilityAttackPermille, sizeof(S.AbilityAttackPermille));
 	}
 
 	// Economy is integers only: team id + bank, then node id + type + remaining + quantized position,

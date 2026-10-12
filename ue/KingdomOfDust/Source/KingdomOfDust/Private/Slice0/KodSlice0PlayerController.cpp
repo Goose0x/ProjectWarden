@@ -199,6 +199,10 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 	{
 		EnqueueTrainOnSelectedStructures();
 	}
+	if (WasInputKeyJustPressed(EKeys::T))
+	{
+		IssueAbility(FName(KodWardenPaths::Id_CombatStim));
+	}
 	if (WasInputKeyJustPressed(EKeys::BackSpace))
 	{
 		if (!PlaceType.IsNone())
@@ -714,5 +718,36 @@ bool AKodSlice0PlayerController::ConsumeHudCommandClick()
 	{
 		IssueCancelSlot(Hit.StructureId, Hit.SlotIndex);
 	}
+	else if (Hit.Action == TEXT("Ability"))
+	{
+		IssueAbility(Hit.Payload);
+	}
 	return true;
+}
+
+void AKodSlice0PlayerController::IssueAbility(FName AbilityId)
+{
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Commands || !Sim || AbilityId.IsNone())
+	{
+		return;
+	}
+	FKodCommand Cmd;
+	Cmd.Type = EKodCommandType::UseAbility;
+	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	Cmd.PayloadName = AbilityId;
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodSimEntityState State;
+		if (Sim->TryGetState(Id, State) && Sim->UnitHasAbility(State.DefinitionId, AbilityId))
+		{
+			Cmd.SourceEntities.Add(Id);
+		}
+	}
+	if (Cmd.SourceEntities.Num() > 0)
+	{
+		Commands->Enqueue(Cmd);
+	}
 }

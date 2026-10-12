@@ -25,6 +25,7 @@ namespace KodWardenPaths
 	/** Bare FName / Primary Asset Name law strings. */
 	constexpr const TCHAR* Id_RangerRifle = TEXT("RangerRifle");
 	constexpr const TCHAR* Id_Ranger = TEXT("Ranger");
+	constexpr const TCHAR* Id_CombatStim = TEXT("CombatStim");
 	constexpr const TCHAR* Id_Dozer = TEXT("Dozer");
 	constexpr const TCHAR* Id_CommandCenter = TEXT("CommandCenter");
 	constexpr const TCHAR* Id_Barracks = TEXT("Barracks");

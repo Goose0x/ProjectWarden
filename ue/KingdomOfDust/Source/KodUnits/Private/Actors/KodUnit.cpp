@@ -17,6 +17,7 @@
 #include "Components/PointLightComponent.h"
 #include "Animation/AnimEnums.h"
 #include "Animation/AnimInstance.h"
+#include "Components/MeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
@@ -230,6 +231,7 @@ void AKodUnit::Tick(float DeltaSeconds)
 	}
 	AdvanceAttackPresentation(Dt);
 	UpdateLifePresentation(Dt);
+	UpdateStimCue();
 }
 
 void AKodUnit::SetForceCubeBody(bool bInForce)
@@ -360,6 +362,41 @@ void AKodUnit::ApplyColorTintFallback(UMeshComponent* VisualBody, const FLinearC
 	BodyTintMID = MID;
 	BodyRestColor = Tint;
 	bTeamColorApplied = false;
+}
+
+void AKodUnit::UpdateStimCue()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	FKodSimEntityState State;
+	const bool bStim = Sim && Sim->TryGetState(EntityId, State) && State.AbilityTicksRemaining > 0;
+	if (!bStim)
+	{
+		if (bStimCue)
+		{
+			bStimCue = false;
+			ApplyTeamColor();
+		}
+		return;
+	}
+	bStimCue = true;
+	UMeshComponent* VisualBody = bSkeletalBody ? static_cast<UMeshComponent*>(GetMesh()) : static_cast<UMeshComponent*>(UnitMesh);
+	if (!BodyTintMID && VisualBody)
+	{
+		const FLinearColor Rest = (TeamId == 0) ? FriendlyTeamColor : HostileTeamColor;
+		ApplyColorTintFallback(VisualBody, Rest);
+	}
+	if (!BodyTintMID || !World)
+	{
+		return;
+	}
+	const float Pulse = 0.5f + 0.5f * FMath::Sin(World->GetTimeSeconds() * 10.f);
+	const FLinearColor Rest = (TeamId == 0) ? FriendlyTeamColor : HostileTeamColor;
+	const FLinearColor Stim(1.f, 0.42f, 0.08f);
+	const FLinearColor Mix = FMath::Lerp(Rest, Stim, 0.35f + 0.5f * Pulse);
+	BodyTintMID->SetVectorParameterValue(TEXT("Color"), Mix);
+	BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), Mix);
+	BodyTintMID->SetVectorParameterValue(TEXT("TeamColor"), Mix);
 }
 
 void AKodUnit::ApplyTeamColor()

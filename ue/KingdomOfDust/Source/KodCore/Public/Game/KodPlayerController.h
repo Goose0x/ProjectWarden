@@ -121,6 +121,9 @@ protected:
 	/** True when the command card consumed the click. */
 	virtual bool ConsumeHudCommandClick() { return false; }
 
+	/** Right-click on the card must not order the world. */
+	bool IsCursorOverCommandCard() const;
+
 	/** True when a build ghost consumed the click. */
 	virtual bool ConsumePlacementLeftClick() { return false; }
 	virtual bool ConsumePlacementRightClick() { return false; }
