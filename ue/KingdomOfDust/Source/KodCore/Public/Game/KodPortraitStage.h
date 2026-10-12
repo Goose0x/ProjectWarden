@@ -1,9 +1,35 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Animation/AnimSequence.h"
+#include "Components/ActorComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "GameFramework/Actor.h"
 #include "KodPortraitStage.generated.h"
+
+/** Idle and talk sequences pushed by the selected unit. Presentation only. */
+UCLASS()
+class KODCORE_API UKodPortraitHooks : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	void SetSequences(UAnimSequence* InIdle, UAnimSequence* InTalk)
+	{
+		Idle = InIdle;
+		Talk = InTalk;
+	}
+
+	UAnimSequence* GetIdle() const { return Idle; }
+	UAnimSequence* GetTalk() const { return Talk; }
+
+private:
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> Idle;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> Talk;
+};
 
 class USceneCaptureComponent2D;
 class UTextureRenderTarget2D;
@@ -29,6 +55,9 @@ public:
 
 	/** One capture. The HUD calls this at 12 Hz while the portrait is on screen. */
 	void CapturePortrait();
+
+	/** Plays the talk sequence for Seconds, then returns to idle. No-op when talk is empty. */
+	void NotifyVoice(float Seconds);
 
 	void AppendHiddenPrimitives(TSet<FPrimitiveComponentId>& Out) const;
 
@@ -70,4 +99,12 @@ private:
 	float Sway = 0.f;
 	bool bSway = false;
 	int32 ShownTeam = 0;
+	bool bTalking = false;
+	float TalkLeft = 0.f;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> IdleSeq;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> TalkSeq;
 };

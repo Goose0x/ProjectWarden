@@ -11,6 +11,7 @@
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "Warden/KodWardenPaths.h"
 #include "Game/KodPlayerController.h"
+#include "Game/KodPortraitStage.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SceneComponent.h"
@@ -44,7 +45,7 @@ namespace
 	constexpr float LifeMoveSpeedThreshold = 200.f;
 	constexpr float MuzzleFlashSeconds = 0.06f;
 	constexpr float TracerSeconds = 0.08f;
-	constexpr float HitReactSeconds = 0.1f;
+	constexpr float HitReactSeconds = 0.2f;
 	constexpr float DeathSinkSeconds = 1.5f;
 	constexpr float DeathSinkDepthCm = 220.f;
 	constexpr float MuzzleForwardCm = 62.f;
@@ -215,6 +216,16 @@ void AKodUnit::BeginPlay()
 void AKodUnit::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (HitStopUntil > 0.f)
+	{
+		const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+		if (Now < HitStopUntil)
+		{
+			return;
+		}
+		CustomTimeDilation = 1.f;
+		HitStopUntil = -1.f;
+	}
 	UpdateCargoPresentation();
 	const float Dt = FMath::Max(0.f, DeltaSeconds);
 	if (AdvanceDeathSink(Dt))
@@ -734,6 +745,21 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 	}
 
 	Definition = Def;
+	if (!Def->IdleAnim.IsNull() || !Def->TalkAnim.IsNull())
+	{
+		UAnimSequence* Idle = Def->IdleAnim.IsNull() ? nullptr : Def->IdleAnim.LoadSynchronous();
+		UAnimSequence* Talk = Def->TalkAnim.IsNull() ? nullptr : Def->TalkAnim.LoadSynchronous();
+		if (Idle || Talk)
+		{
+			UKodPortraitHooks* Hooks = FindComponentByClass<UKodPortraitHooks>();
+			if (!Hooks)
+			{
+				Hooks = NewObject<UKodPortraitHooks>(this, TEXT("PortraitHooks"));
+				Hooks->RegisterComponent();
+			}
+			Hooks->SetSequences(Idle, Talk);
+		}
+	}
 	if (!Def->PortraitMesh.IsNull())
 	{
 		if (USkeletalMesh* Bust = Def->PortraitMesh.LoadSynchronous())
@@ -1606,6 +1632,11 @@ void AKodUnit::BeginDeathPresentation()
 	bDeathSinking = true;
 	bAwaitShotNotify = false;
 	DeathSinkElapsed = 0.f;
+	if (UWorld* World = GetWorld())
+	{
+		CustomTimeDilation = 0.f;
+		HitStopUntil = World->GetTimeSeconds() + 0.07f;
+	}
 	DeathSinkStart = GetActorLocation();
 	PushAnimSimEvent(false, false, true);
 	DeathSinkDelayRemaining = GetSkeletalDeathHoldSeconds();

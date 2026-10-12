@@ -839,6 +839,7 @@ void UKodSimSubsystem::StepConstruction()
 		{
 			Structure->bComplete = true;
 			Structure->bActivelyBuilding = false;
+			EnsureStructureDropOff(*Structure, 0);
 			if (Builder)
 			{
 				Builder->BuildSite = FKodEntityId();
@@ -876,6 +877,11 @@ bool UKodSimSubsystem::IssueLiftoff(FKodEntityId StructureId)
 	Structure->bAirborne = true;
 	Structure->bLiftMoving = false;
 	Structure->LiftSpeedUU = FMath::Max(16, Spec->LiftSpeedUU);
+	if (Structure->bIsDropOff)
+	{
+		DropOffs.Remove(StructureId.Value);
+		UE_LOG(LogTemp, Log, TEXT("KodEcon DropOff Lift Id=%d"), StructureId.Value);
+	}
 	InvalidatePathsOverFootprint(Structure->CellX, Structure->CellY, Structure->FootprintX, Structure->FootprintY);
 	UE_LOG(LogTemp, Log, TEXT("KodBuild Liftoff Id=%d"), StructureId.Value);
 	return true;
@@ -939,6 +945,7 @@ void UKodSimSubsystem::StepLiftoff()
 				Combat->YawDegrees = static_cast<float>(GetTeamFacing(Structure->TeamId));
 				QuantizePose(*Combat);
 			}
+			EnsureStructureDropOff(*Structure, 0);
 			InvalidatePathsOverFootprint(Structure->CellX, Structure->CellY, Structure->FootprintX, Structure->FootprintY);
 			UE_LOG(LogTemp, Log, TEXT("KodBuild Land Id=%d Cell=%d,%d"), Key, Structure->CellX, Structure->CellY);
 			continue;

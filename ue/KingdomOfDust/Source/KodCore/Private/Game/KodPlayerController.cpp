@@ -804,6 +804,10 @@ void AKodPlayerController::IssueMoveToSelection_Implementation(FVector WorldLoca
 	{
 		Sim->IssueMove(Id, WorldLocation);
 	}
+	if (Sources.Num() > 0)
+	{
+		NotifyCommandMarker(WorldLocation, false);
+	}
 }
 
 void AKodPlayerController::IssueAttackToSelection_Implementation(AActor* Target)
@@ -845,6 +849,7 @@ void AKodPlayerController::IssueAttackToSelection_Implementation(AActor* Target)
 		Issued,
 		*Target->GetName(),
 		TargetId.Value);
+	NotifyCommandMarker(Target->GetActorLocation(), true);
 }
 
 void AKodPlayerController::IssueGatherToSelection_Implementation(AActor* Node, FVector NonGathererMovePoint)
@@ -1418,6 +1423,8 @@ void AKodPlayerController::IssueMinimapGroundOrder(FVector WorldLocation)
 	{
 		return;
 	}
+	bool bIssued = false;
+	bool bAttack = false;
 	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
 	{
 		FKodSimEntityState State;
@@ -1428,10 +1435,32 @@ void AKodPlayerController::IssueMinimapGroundOrder(FVector WorldLocation)
 		if (State.WeaponDamage > 0.f)
 		{
 			Sim->IssueAttackMove(Id, WorldLocation);
+			bAttack = true;
 		}
 		else
 		{
 			Sim->IssueMove(Id, WorldLocation);
+		}
+		bIssued = true;
+	}
+	if (bIssued)
+	{
+		NotifyCommandMarker(WorldLocation, bAttack);
+	}
+}
+
+void AKodPlayerController::NotifyCommandMarker(const FVector& WorldLocation, bool bAttack)
+{
+	if (AKodHUD* HUD = Cast<AKodHUD>(GetHUD()))
+	{
+		HUD->AddCommandMarker(WorldLocation, bAttack ? 1 : 0);
+	}
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			const FName CueId = bAttack ? FName(TEXT("command_attack")) : FName(TEXT("command_move"));
+			Sim->RaiseCue(CueId, WorldLocation, true);
 		}
 	}
 }

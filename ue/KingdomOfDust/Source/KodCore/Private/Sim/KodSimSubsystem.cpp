@@ -91,6 +91,7 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bTestIsolation = false;
 	bLoadRespawn = false;
 	LoadRespawnTicks = 0;
+	JuiceTexts.Reset();
 	EnsureBalanceTables();
 	SimHz = KodBuildTicks::SimHz;
 	MaxCatchUpSteps = KodBuildTicks::MaxCatchUpSteps;
@@ -120,6 +121,7 @@ void UKodSimSubsystem::Deinitialize()
 	UnitAbilities.Reset();
 	PendingSpawns.Reset();
 	PendingBuildingSpawns.Reset();
+	JuiceTexts.Reset();
 	AcquireGrid.Reset();
 	StoredPaths.Reset();
 	TeamVision.Reset();
@@ -1077,6 +1079,29 @@ FKodEntityId UKodSimSubsystem::RegisterDropOff(AActor* Actor, int32 TeamId, int3
 	return Id;
 }
 
+void UKodSimSubsystem::PushJuiceText(const FVector& Position, int32 Amount, uint8 Kind)
+{
+	if (bTestIsolation || Amount == 0)
+	{
+		return;
+	}
+	if (JuiceTexts.Num() >= 48)
+	{
+		JuiceTexts.RemoveAt(0);
+	}
+	FKodJuiceText Text;
+	Text.Position = Position;
+	Text.Amount = Amount;
+	Text.Kind = Kind;
+	JuiceTexts.Add(Text);
+}
+
+void UKodSimSubsystem::ConsumeJuiceText(TArray<FKodJuiceText>& Out)
+{
+	Out = MoveTemp(JuiceTexts);
+	JuiceTexts.Reset();
+}
+
 void UKodSimSubsystem::UnregisterDropOff(FKodEntityId Id)
 {
 	DropOffs.Remove(Id.Value);
@@ -1106,6 +1131,13 @@ FKodEntityId UKodSimSubsystem::FindNearestDropOff(int32 TeamId, FVector Origin) 
 		if (!Drop || Drop->TeamId != TeamId)
 		{
 			continue;
+		}
+		if (const FKodStructureState* Structure = Structures.Find(Key))
+		{
+			if (Structure->bAirborne || !Structure->bComplete)
+			{
+				continue;
+			}
 		}
 		const int32 DropX = FMath::RoundToInt(Drop->Position.X / Q);
 		const int32 DropY = FMath::RoundToInt(Drop->Position.Y / Q);
@@ -1714,26 +1746,7 @@ void UKodSimSubsystem::StepEntityGather(FKodSimEntityState& State, float FixedDt
 		const FKodDropOffState* Drop = DropOffs.Find(State.GatherDropOff.Value);
 		if (!Drop)
 		{
-			FKodResourceCost Gain;
-			Gain.Jadeite = State.CargoJadeite;
-			Gain.Luminene = State.CargoLuminene;
-			State.CargoJadeite = 0;
-			State.CargoLuminene = 0;
-			State.bCargoFromTrickle = false;
-			Deposit(State.TeamId, Gain);
-			if (State.GatherNode.IsValid() && ResourceNodes.Contains(State.GatherNode.Value))
-			{
-				BeginGatherLeg(State, EKodGatherPhase::ToNode);
-			}
-			else if (RetargetGatherNode(State))
-			{
-				BeginGatherLeg(State, EKodGatherPhase::ToNode);
-			}
-			else
-			{
-				ClearGatherFields(State);
-				QuantizePose(State);
-			}
+			QuantizePose(State);
 			return;
 		}
 
@@ -1760,6 +1773,9 @@ void UKodSimSubsystem::StepEntityGather(FKodSimEntityState& State, float FixedDt
 		if (Gain.Jadeite > 0 || Gain.Luminene > 0)
 		{
 			Deposit(State.TeamId, Gain);
+			const int32 Shown = Gain.Jadeite > 0 ? Gain.Jadeite : Gain.Luminene;
+			PushJuiceText(Drop->Position, Shown, 1);
+			RaiseCue(FName(TEXT("resource_drop")), Drop->Position, true);
 		}
 
 		if (!State.GatherNode.IsValid() || !ResourceNodes.Contains(State.GatherNode.Value))

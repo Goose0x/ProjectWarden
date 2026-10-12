@@ -71,6 +71,7 @@ void UKodSimSubsystem::RecalcSupplyCap(int32 TeamId)
 	for (int32 Key : Keys)
 	{
 		const FKodStructureState* Structure = Structures.Find(Key);
+		// A lifted structure still provides supply.
 		if (Structure && Structure->bComplete && Structure->TeamId == TeamId)
 		{
 			Sum += FMath::Max(0, Structure->SupplyProvided);
@@ -85,6 +86,37 @@ void UKodSimSubsystem::RecalcSupplyCap(int32 TeamId)
 	}
 	Row.Cap = Sum;
 	LogSupply(TeamId, Row);
+}
+
+void UKodSimSubsystem::EnsureStructureDropOff(const FKodStructureState& Structure, int32 StandOverride)
+{
+	if (!Structure.bIsDropOff || !Structure.bComplete || Structure.bAirborne || !Structure.Id.IsValid())
+	{
+		return;
+	}
+	if (DropOffs.Contains(Structure.Id.Value))
+	{
+		return;
+	}
+	FKodDropOffState Drop;
+	Drop.Id = Structure.Id;
+	Drop.TeamId = Structure.TeamId;
+	Drop.Position = Structure.Position;
+	const int32 HalfX = (Structure.FootprintX * KodBuildGrid::CellUU) / 2;
+	const int32 HalfY = (Structure.FootprintY * KodBuildGrid::CellUU) / 2;
+	const int32 HalfDiag = CeilSqrtInt(static_cast<int32>(FMath::Min<int64>(
+		static_cast<int64>(HalfX) * HalfX + static_cast<int64>(HalfY) * HalfY,
+		46340 * 46340)));
+	const int32 FootprintClearance = HalfDiag + 120;
+	const int32 Requested = StandOverride > 0 ? StandOverride : KodEconomyDefaults::DropOffStandUU;
+	Drop.StandUU = FMath::Max(Requested, FootprintClearance);
+	DropOffs.Add(Structure.Id.Value, Drop);
+	UE_LOG(LogTemp, Log, TEXT("KodEcon DropOff Id=%d Team=%d Loc=%.0f,%.0f,%.0f"),
+		Structure.Id.Value,
+		Structure.TeamId,
+		Drop.Position.X,
+		Drop.Position.Y,
+		Drop.Position.Z);
 }
 
 void UKodSimSubsystem::AccountUnitSupply(FKodEntityId Id, int32 Cost, bool bAlreadyPaid)
@@ -169,27 +201,7 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 		Structure.RallyPoint = Structure.ExitPoint;
 	}
 
-	if (Spec.bIsDropOff && !DropOffs.Contains(Id.Value))
-	{
-		FKodDropOffState Drop;
-		Drop.Id = Id;
-		Drop.TeamId = Spec.TeamId;
-		Drop.Position = Structure.Position;
-		const int32 HalfX = (Structure.FootprintX * KodBuildGrid::CellUU) / 2;
-		const int32 HalfY = (Structure.FootprintY * KodBuildGrid::CellUU) / 2;
-		const int32 HalfDiag = CeilSqrtInt(static_cast<int32>(FMath::Min<int64>(
-			static_cast<int64>(HalfX) * HalfX + static_cast<int64>(HalfY) * HalfY,
-			46340 * 46340)));
-		const int32 FootprintClearance = HalfDiag + 120;
-		Drop.StandUU = FMath::Max(Spec.DropOffStandUU, FootprintClearance);
-		DropOffs.Add(Id.Value, Drop);
-		UE_LOG(LogTemp, Log, TEXT("KodEcon DropOff Id=%d Team=%d Loc=%.0f,%.0f,%.0f"),
-			Id.Value,
-			Spec.TeamId,
-			Drop.Position.X,
-			Drop.Position.Y,
-			Drop.Position.Z);
-	}
+	EnsureStructureDropOff(Structure, Spec.DropOffStandUU);
 
 	RecalcSupplyCap(Spec.TeamId);
 	if (!States.Contains(Id.Value))

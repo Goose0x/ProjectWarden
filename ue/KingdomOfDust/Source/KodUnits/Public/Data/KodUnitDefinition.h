@@ -146,6 +146,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	TSoftObjectPtr<UAnimSequence> IdleAnim;
 
+	/** Portrait talk. Empty until a VO line is assigned. Not hashed. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	TSoftObjectPtr<UAnimSequence> TalkAnim;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	TSoftObjectPtr<UAnimSequence> WalkAnim;
 

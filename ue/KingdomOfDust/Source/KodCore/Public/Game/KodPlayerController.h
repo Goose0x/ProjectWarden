@@ -201,6 +201,9 @@ protected:
 	void IssueAttackToSelection(AActor* Target);
 	virtual void IssueAttackToSelection_Implementation(AActor* Target);
 
+	/** Green move ring or red attack ring, and the matching cue. Presentation only. */
+	void NotifyCommandMarker(const FVector& WorldLocation, bool bAttack);
+
 	/**
 	 * Workers on the selection gather Node. Everyone else Moves to NonGathererMovePoint.
 	 * Slice 0 enqueues both through UKodCommandSubsystem.

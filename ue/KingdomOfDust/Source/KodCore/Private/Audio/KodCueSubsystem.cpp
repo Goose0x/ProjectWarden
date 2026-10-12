@@ -3,19 +3,25 @@
 #include "Kismet/GameplayStatics.h"
 #include "Sim/KodSimSubsystem.h"
 
+bool UKodCueSubsystem::IsVoiceCue(FName CueId)
+{
+	const FString Name = CueId.ToString();
+	return Name.StartsWith(TEXT("vo_"))
+		|| Name.StartsWith(TEXT("unit_ready_"))
+		|| Name.StartsWith(TEXT("not_enough_"))
+		|| CueId == FName(TEXT("base_under_attack"))
+		|| CueId == FName(TEXT("units_under_attack"))
+		|| CueId == FName(TEXT("research_complete"))
+		|| CueId == FName(TEXT("victory"))
+		|| CueId == FName(TEXT("defeat"))
+		|| CueId == FName(TEXT("structure_complete"));
+}
+
 namespace
 {
 	bool IsAnnouncerCue(FName CueId)
 	{
-		const FString Name = CueId.ToString();
-		return Name.StartsWith(TEXT("unit_ready_"))
-			|| Name.StartsWith(TEXT("not_enough_"))
-			|| CueId == FName(TEXT("base_under_attack"))
-			|| CueId == FName(TEXT("units_under_attack"))
-			|| CueId == FName(TEXT("research_complete"))
-			|| CueId == FName(TEXT("victory"))
-			|| CueId == FName(TEXT("defeat"))
-			|| CueId == FName(TEXT("structure_complete"));
+		return UKodCueSubsystem::IsVoiceCue(CueId);
 	}
 
 	const TCHAR* KnownCueIds[] = {
@@ -39,7 +45,11 @@ namespace
 		TEXT("ui_click"),
 		TEXT("cant_build"),
 		TEXT("expand_or_be_exposed"),
-		TEXT("exposed")
+		TEXT("exposed"),
+		TEXT("artillery_strike"),
+		TEXT("resource_drop"),
+		TEXT("command_move"),
+		TEXT("command_attack")
 	};
 }
 

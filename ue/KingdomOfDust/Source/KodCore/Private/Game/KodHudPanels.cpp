@@ -474,10 +474,19 @@ void AKodHUD::DrawMinimap()
 			{
 				continue;
 			}
-			const FLinearColor Ping(0.35f, 0.82f, 1.f, 0.95f);
-			const float R = 8.f * Scale;
-			DrawLine(X - R, Y - R, X + R, Y + R, Ping, 2.f);
-			DrawLine(X - R, Y + R, X + R, Y - R, Ping, 2.f);
+			const float Life = FMath::Clamp((MinimapPingUntil[Index] - Now) / 6.f, 0.f, 1.f);
+			const float Grow = 1.f - Life;
+			const float R = (4.f + 16.f * Grow) * Scale;
+			const FLinearColor Ping(0.35f, 0.82f, 1.f, Life);
+			const int32 Steps = 10;
+			FVector2D Prev(X + R, Y);
+			for (int32 Step = 1; Step <= Steps; ++Step)
+			{
+				const float Angle = (static_cast<float>(Step) / static_cast<float>(Steps)) * 2.f * PI;
+				const FVector2D Next(X + FMath::Cos(Angle) * R, Y + FMath::Sin(Angle) * R);
+				DrawLine(Prev.X, Prev.Y, Next.X, Next.Y, Ping, 1.5f);
+				Prev = Next;
+			}
 		}
 	}
 

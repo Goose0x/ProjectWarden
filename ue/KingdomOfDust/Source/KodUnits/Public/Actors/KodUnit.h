@@ -213,6 +213,9 @@ protected:
 	/** Seconds to hold before the 1.5 s sink. 0 keeps the immediate sink. */
 	float DeathSinkDelayRemaining = 0.f;
 
+	/** World time. The actor stays frozen until this, then the death sink runs. Presentation only. */
+	float HitStopUntil = -1.f;
+
 	/** Captured attach point. Bob is an offset on top of this, not a new scale. */
 	FVector BodyRestRelativeLocation = FVector::ZeroVector;
 

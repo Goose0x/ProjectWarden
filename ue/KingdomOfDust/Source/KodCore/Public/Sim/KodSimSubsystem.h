@@ -21,6 +21,15 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKodOnUnitKilled, AActor*, Target, 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKodOnTrainCompleted, FVector, Location, int32, TeamId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FKodOnCue, FName, CueId, FVector, Location, bool, bAtLocation);
 
+/** Floating combat or resource text. Presentation only. Not hashed and not saved. */
+struct KODCORE_API FKodJuiceText
+{
+	FVector Position = FVector::ZeroVector;
+	int32 Amount = 0;
+	/** 0 is damage, 1 is a resource drop. */
+	uint8 Kind = 0;
+};
+
 UENUM(BlueprintType)
 enum class EKodSimOrderType : uint8
 {
@@ -634,6 +643,10 @@ public:
 	void SetHealAutocast(FKodEntityId UnitId, bool bEnabled);
 	bool CastHeal(FKodEntityId UnitId);
 	void RaiseCue(FName CueId, FVector Location, bool bAtLocation);
+
+	/** Presentation floaters. Drained by the HUD. Not hashed. */
+	void PushJuiceText(const FVector& Position, int32 Amount, uint8 Kind);
+	void ConsumeJuiceText(TArray<FKodJuiceText>& Out);
 	EKodMatchOutcome GetMatchOutcome() const { return MatchOutcome; }
 	bool IsMatchOver() const { return MatchOutcome != EKodMatchOutcome::None; }
 
@@ -757,6 +770,10 @@ protected:
 	bool TryGetEnemyStart(FVector& OutPoint) const;
 	void CompleteCurrentOrder(FKodSimEntityState& State, float FixedDt);
 	bool TryApplyWeapon(FKodSimEntityState& State, FKodSimEntityState& Target);
+	/** OnUnitKilled, unit_death, structure destroy, bunker cargo, and the kill log. */
+	void FinishEntityDeath(FKodSimEntityState& Target, int32 KillerTeam);
+	void StripDeadFromCargo(int32 DeadId);
+	void EnsureStructureDropOff(const FKodStructureState& Structure, int32 StandOverride);
 	FVector GetSteeredGoal(FKodSimEntityState& State);
 	void StepEntityGather(FKodSimEntityState& State, float FixedDt);
 	/** Move toward Target and stop at AcceptUU. True when the worker is inside that radius. */
@@ -850,6 +867,9 @@ protected:
 	/** Drop-off buildings. A structure drop-off also has combat HP. Included in ComputeIdleHash. */
 	UPROPERTY()
 	TMap<int32, FKodDropOffState> DropOffs;
+
+	/** Presentation only. Not a UPROPERTY, so it stays out of the idle hash and the save blob. */
+	TArray<FKodJuiceText> JuiceTexts;
 
 	TMap<int32, FKodSupplyState> Supply;
 	TMap<int32, FKodStructureState> Structures;

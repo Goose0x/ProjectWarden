@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "NiagaraComponent.h"
 #include "Sim/KodEntityId.h"
 #include "KodBuilding.generated.h"
 
@@ -28,6 +29,9 @@ public:
 	/** 0, 1, 2, 3 for build progress under 33%, 66%, 100%, and finished. Art reads this. */
 	int32 GetScaffoldStage() const;
 
+	/** Smoke under 35% HP and fire under 15%. Empty Niagara slots do nothing. */
+	void UpdateLowHealthFx(float Health, float MaxHealth);
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Kod|Data")
 	TSoftObjectPtr<UKodBuildingDefinition> Definition;
 
@@ -53,4 +57,14 @@ private:
 	bool bSawComplete = false;
 	bool bCompletionFlash = false;
 	float FlashLeft = 0.f;
+	bool bLoggedLowHealth = false;
+
+	UPROPERTY()
+	TObjectPtr<UKodBuildingDefinition> CachedDef;
+
+	UPROPERTY()
+	TObjectPtr<UNiagaraComponent> SmokeFx;
+
+	UPROPERTY()
+	TObjectPtr<UNiagaraComponent> FireFx;
 };

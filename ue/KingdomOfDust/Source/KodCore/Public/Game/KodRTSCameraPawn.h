@@ -49,6 +49,9 @@ public:
 	/** Recent alert for the minimap ping. Space still uses the last alert after the ping fades. */
 	bool GetActiveAlert(FVector& OutLocation) const;
 
+	/** Light world shake. Ignored when the camera-shake setting is off. Presentation only. */
+	void AddShakeAt(const FVector& WorldPoint, float Amplitude);
+
 	/** Four ground corners of the view, near-left, near-right, far-right, far-left. */
 	bool GetGroundViewCorners(FVector& OutNearLeft, FVector& OutNearRight, FVector& OutFarRight, FVector& OutFarLeft) const;
 
@@ -213,4 +216,7 @@ protected:
 		float ArmLength = 0.f;
 	};
 	FKodCameraBookmark Bookmarks[4];
+
+	float ShakeAmp = 0.f;
+	FVector ShakeApplied = FVector::ZeroVector;
 };
