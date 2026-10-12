@@ -196,18 +196,20 @@ void UKodSimSubsystem::EnsureBalanceTables()
 	Dozer.CanGather = 1;
 	AddUnit(KodWardenPaths::Id_Dozer, Dozer);
 
-	FKodUnitBalanceRow Ranger;
-	Ranger.MaxHealth = 120;
-	Ranger.Armor = 0;
-	Ranger.MoveSpeed = 450;
-	Ranger.Sight = 1600;
-	Ranger.Credits = 75;
-	Ranger.Supply = 1;
-	Ranger.BuildTicks = 80;
-	Ranger.Biological = 1;
-	Ranger.Infantry = 1;
-	Ranger.CargoSize = 1;
-	AddUnit(KodWardenPaths::Id_Ranger, Ranger);
+	FKodUnitBalanceRow Marine;
+	Marine.MaxHealth = 120;
+	Marine.Armor = 0;
+	Marine.MoveSpeed = 450;
+	Marine.Sight = 1600;
+	Marine.Credits = 75;
+	Marine.Supply = 1;
+	Marine.BuildTicks = 80;
+	Marine.Biological = 1;
+	Marine.Infantry = 1;
+	Marine.CargoSize = 1;
+	// Row name is the engine id. This table is the DT_KodUnitStats stand-in (object name "Unit").
+	// The reserved Ranger heavy has no row until Strategy authors its stats.
+	AddUnit(KodWardenPaths::Id_Marine, Marine);
 
 	FKodUnitBalanceRow Medic;
 	Medic.MaxHealth = 60;
@@ -353,7 +355,7 @@ void UKodSimSubsystem::ApplyBalance()
 			Spec->PowerPoints = Row->PowerPoints > 0 ? Row->PowerPoints : Row->Credits;
 		}
 		const FKodWeaponBalanceRow* Weapon = nullptr;
-		if (Name == FName(KodWardenPaths::Id_Ranger))
+		if (Name == FName(KodWardenPaths::Id_Marine))
 		{
 			Weapon = FindMutableRow<FKodWeaponBalanceRow>(WeaponTable, FName(KodWardenPaths::Id_RangerRifle));
 		}

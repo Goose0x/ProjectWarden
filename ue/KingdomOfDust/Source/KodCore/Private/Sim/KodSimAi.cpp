@@ -331,7 +331,7 @@ void UKodSimSubsystem::StepAI()
 	ChooseAiOpener();
 
 	const FName DozerId(KodWardenPaths::Id_Dozer);
-	const FName RangerId(KodWardenPaths::Id_Ranger);
+	const FName MarineUnitId(KodWardenPaths::Id_Marine);
 	const FName DepotId(KodWardenPaths::Id_SupplyDepot);
 	const FName BarracksId(KodWardenPaths::Id_Barracks);
 	const FName CcTypeId(KodWardenPaths::Id_CommandCenter);
@@ -653,7 +653,7 @@ void UKodSimSubsystem::StepAI()
 	if (BarracksIdValue.IsValid())
 	{
 		const bool bWantMedic = Diff >= 2 && bEngBayComplete && MarineCount >= 4 && ((SimTickIndex / AiThinkPeriod) % 4) == 0;
-		EnqueueIfOpen(BarracksIdValue, bWantMedic ? MedicId : RangerId, bNeedDepot && !bDepotInProgress ? ReserveCredits : 0);
+		EnqueueIfOpen(BarracksIdValue, bWantMedic ? MedicId : MarineUnitId, bNeedDepot && !bDepotInProgress ? ReserveCredits : 0);
 	}
 	if (EngBayEntity.IsValid() && Diff >= 2)
 	{

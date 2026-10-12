@@ -233,7 +233,7 @@ bool UKodSimSubsystem::RunScriptedTest(FName Scenario, int32 Runs, int32 Seed)
 		Id.Value = NextId++;
 		FKodSimEntityState State;
 		State.Id = Id;
-		State.DefinitionId = FName(KodWardenPaths::Id_Ranger);
+		State.DefinitionId = FName(KodWardenPaths::Id_Marine);
 		State.TeamId = TeamId;
 		State.Position = Pos;
 		State.bMobile = true;

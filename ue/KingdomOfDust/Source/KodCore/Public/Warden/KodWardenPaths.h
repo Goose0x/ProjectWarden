@@ -12,6 +12,12 @@ namespace KodWardenPaths
 	constexpr const TCHAR* DataRoot = TEXT("/Game/Warden/Data");
 
 	constexpr const TCHAR* RangerRifle = TEXT("/Game/Warden/Data/RangerRifle.RangerRifle");
+	/** Marine infantry DataAsset. NAOMI renames the old Ranger package to this path. */
+	constexpr const TCHAR* Marine = TEXT("/Game/Warden/Data/Marine.Marine");
+	/**
+	 * Reserved for the Vanguard heavy. Do not save a DataAsset here while
+	 * DefaultEngine.ini still PackageRedirects /Game/Warden/Data/Ranger to Marine.
+	 */
 	constexpr const TCHAR* Ranger = TEXT("/Game/Warden/Data/Ranger.Ranger");
 	constexpr const TCHAR* Dozer = TEXT("/Game/Warden/Data/Dozer.Dozer");
 	constexpr const TCHAR* CommandCenter = TEXT("/Game/Warden/Data/CommandCenter.CommandCenter");
@@ -24,7 +30,27 @@ namespace KodWardenPaths
 
 	/** Bare FName / Primary Asset Name law strings. */
 	constexpr const TCHAR* Id_RangerRifle = TEXT("RangerRifle");
+	/** Vanguard infantry. Was the engine id Ranger through sim blob version 10. */
+	constexpr const TCHAR* Id_Marine = TEXT("Marine");
+	/** Reserved Vanguard heavy. Not the infantry, and not trainable until Strategy authors stats. */
 	constexpr const TCHAR* Id_Ranger = TEXT("Ranger");
+
+	/** Current sim blob. Version 11 writes Marine. Older blobs say Ranger for that infantry. */
+	inline constexpr int32 SimSaveVersion = 11;
+
+	/**
+	 * Saves and replays below SimSaveVersion stored the Marine as Ranger.
+	 * A version 11+ Ranger is the heavy stub and must not be rewritten.
+	 * The alias is applied on load only. It is not part of the idle hash.
+	 */
+	inline FName AliasLegacyMarineId(FName Id, int32 LoadedVersion)
+	{
+		if (LoadedVersion < SimSaveVersion && Id == FName(Id_Ranger))
+		{
+			return FName(Id_Marine);
+		}
+		return Id;
+	}
 	/** Cube proxy. Used when the enemy faction is Scinder. */
 	constexpr const TCHAR* Id_ScinderInfantry = TEXT("ScinderInfantry");
 	constexpr const TCHAR* Id_ScnFighter = TEXT("SCN_FIGHTER");
@@ -61,9 +87,10 @@ namespace KodWardenPaths
 	constexpr const TCHAR* Id_OilSource = TEXT("OilSource");
 
 	/**
-	 * Ranger body presentation (not a DataAsset id).
+	 * Current Marine body presentation (not a DataAsset id, and not the Ranger heavy).
 	 * Mount folder is /Game/Warden/Characters/USA/Ranger/ — not /Game/Units/Meshes/.
 	 * Soft Dev imports the LOW FBX locally and renames the static mesh to SM_Ranger_Body.
+	 * The heavy stub leaves its mesh empty until the Ranger rebake v2 is assigned.
 	 * Bootstrap must leave UKodUnitDefinition mesh refs null; this path 404s until that import.
 	 * Skeletal mesh is a later anim pass. Slice 0 uses the static mesh on AKodUnit::UnitMesh.
 	 */

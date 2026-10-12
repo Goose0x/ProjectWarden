@@ -62,7 +62,8 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 
 	UKodDataCatalog* Catalog = NewObject<UKodDataCatalog>(CatalogOuter, TEXT("KodSlice0Catalog"), RF_Transient);
 	UKodWeaponDefinition* Rifle = MakeRangerRifle(Catalog);
-	UKodUnitDefinition* Ranger = MakeRanger(Catalog, Rifle);
+	UKodUnitDefinition* Marine = MakeMarine(Catalog, Rifle);
+	UKodUnitDefinition* RangerHeavy = MakeRanger(Catalog);
 	UKodUnitDefinition* ScinderInfantry = MakeScinderInfantry(Catalog, Rifle);
 	UKodUnitDefinition* ScnFighter = MakeScnFighter(Catalog);
 	UKodUnitDefinition* ScnTwinblade = MakeScnTwinblade(Catalog);
@@ -70,7 +71,7 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	UKodUnitDefinition* Dozer = MakeDozer(Catalog);
 	UKodBuildingDefinition* CC = MakeCommandCenter(Catalog, Dozer);
 	UKodUnitDefinition* Medic = MakeMedic(Catalog);
-	UKodBuildingDefinition* Barracks = MakeBarracks(Catalog, Ranger);
+	UKodBuildingDefinition* Barracks = MakeBarracks(Catalog, Marine);
 	if (Barracks && Medic)
 	{
 		Barracks->TrainableUnits.Add(Medic);
@@ -103,16 +104,17 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	IsrPlatform->Cost.Supply = 0;
 	IsrPlatform->Cost.BuildTime = 0;
 	IsrPlatform->BuildTicks = 0;
-	UKodFactionDefinition* USA = MakeUSA(Catalog, CC, Dozer, Ranger);
+	UKodFactionDefinition* USA = MakeUSA(Catalog, CC, Dozer, Marine);
 	UKodResourceNodeDefinition* JadeiteNode = MakeJadeiteNode(Catalog);
 	UKodResourceNodeDefinition* LumineneVent = MakeLumineneVent(Catalog);
 
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_RangerRifle), Rifle);
-	if (Ranger && Ranger->Abilities.Num() > 0)
+	if (Marine && Marine->Abilities.Num() > 0)
 	{
 		Catalog->RegisterAsset(FName(KodWardenPaths::Id_CombatStim), MakeCombatStim(Catalog));
 	}
-	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Ranger), Ranger);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Marine), Marine);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Ranger), RangerHeavy);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScinderInfantry), ScinderInfantry);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScnFighter), ScnFighter);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScnTwinblade), ScnTwinblade);
@@ -143,9 +145,36 @@ UObject* UKodSlice0Bootstrap::ResolveDefinition(FName DefinitionId, UObject* Out
 	{
 		return nullptr;
 	}
-	if (UObject* Loaded = TryLoadWardenAsset(DefinitionId))
+	const FName MarineId(KodWardenPaths::Id_Marine);
+	const FName HeavyId(KodWardenPaths::Id_Ranger);
+	// Ranger is the reserved heavy. /Game/Warden/Data/Ranger is still the Marine
+	// DataAsset until NAOMI renames it, and CoreRedirects send that package to Marine.
+	// The heavy is the catalog stub only, so a load cannot turn it back into the infantry.
+	if (DefinitionId != HeavyId)
 	{
-		return Loaded;
+		if (UObject* Loaded = TryLoadWardenAsset(DefinitionId))
+		{
+			if (UKodUnitDefinition* LoadedUnit = Cast<UKodUnitDefinition>(Loaded))
+			{
+				if (DefinitionId == MarineId && (LoadedUnit->DefinitionId.IsNone() || LoadedUnit->DefinitionId == HeavyId))
+				{
+					const FName CopyName(TEXT("MarineFromLegacyRanger"));
+					if (UKodUnitDefinition* ExistingCopy = FindObject<UKodUnitDefinition>(GetTransientPackage(), *CopyName.ToString()))
+					{
+						return ExistingCopy;
+					}
+					UKodUnitDefinition* Copy = DuplicateObject<UKodUnitDefinition>(LoadedUnit, GetTransientPackage(), CopyName);
+					if (Copy)
+					{
+						Copy->DefinitionId = MarineId;
+						Copy->UnitTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Unit.Marine")), false);
+						Copy->SetFlags(RF_Transient);
+						return Copy;
+					}
+				}
+			}
+			return Loaded;
+		}
 	}
 	UKodDataCatalog* Catalog = EnsureCatalog(Outer);
 	return Catalog ? Catalog->FindAsset(DefinitionId) : nullptr;
@@ -263,13 +292,12 @@ UKodAbilityDefinition* UKodSlice0Bootstrap::MakeCombatStim(UObject* Outer)
 	return Ability;
 }
 
-UKodUnitDefinition* UKodSlice0Bootstrap::MakeRanger(UObject* Outer, UKodWeaponDefinition* Rifle)
+UKodUnitDefinition* UKodSlice0Bootstrap::MakeMarine(UObject* Outer, UKodWeaponDefinition* Rifle)
 {
-	UKodUnitDefinition* U = NewObject<UKodUnitDefinition>(Outer, FName(KodWardenPaths::Id_Ranger), RF_Public | RF_Transient);
-	U->DefinitionId = FName(KodWardenPaths::Id_Ranger);
-	// Player-facing name. DefinitionId, asset path, and logs stay Ranger.
-	U->DisplayName = NSLOCTEXT("Kod", "Unit_Ranger", "Marine");
-	U->UnitTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Unit.Ranger")), false);
+	UKodUnitDefinition* U = NewObject<UKodUnitDefinition>(Outer, FName(KodWardenPaths::Id_Marine), RF_Public | RF_Transient);
+	U->DefinitionId = FName(KodWardenPaths::Id_Marine);
+	U->DisplayName = NSLOCTEXT("Kod", "Unit_Marine", "Marine");
+	U->UnitTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Unit.Marine")), false);
 	U->MaxHealth = 120.f;
 	U->Armor = 0.f;
 	U->bBiological = true;
@@ -287,15 +315,39 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeRanger(UObject* Outer, UKodWeaponDe
 	{
 		U->PrimaryWeapon = Rifle;
 	}
-	// Presentation stays unset. Soft Dev wires StaticMesh to KodWardenPaths::RangerBodyStaticMesh
-	// on /Game/Warden/Data/Ranger after the local SM_Ranger_Body import. Do not assign that path
-	// here — the uasset is local, and a miss would log a load error on every spawn.
+	// Presentation stays unset. The current body is SM_Ranger_Body, wired on
+	// /Game/Warden/Data/Marine after NAOMI renames the old Ranger DataAsset.
+	// Do not assign that path here — the uasset is local, and a miss would log a load error on every spawn.
 	U->SkeletalMesh.Reset();
 	U->StaticMesh.Reset();
 	if (UKodAbilityDefinition* Stim = MakeCombatStim(U))
 	{
 		U->Abilities.Add(Stim->ToSpec());
 	}
+	return U;
+}
+
+UKodUnitDefinition* UKodSlice0Bootstrap::MakeRanger(UObject* Outer)
+{
+	UKodUnitDefinition* U = NewObject<UKodUnitDefinition>(Outer, FName(KodWardenPaths::Id_Ranger), RF_Public | RF_Transient);
+	U->DefinitionId = FName(KodWardenPaths::Id_Ranger);
+	U->DisplayName = NSLOCTEXT("Kod", "Unit_RangerHeavy", "Ranger");
+	U->UnitTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Unit.Ranger")), false);
+	// Reserved Vanguard heavy. The rebake v2 body is not assigned yet.
+	// No weapon, no train cost, and not on the Barracks list until Strategy authors stats.
+	U->MaxHealth = 1.f;
+	U->Armor = 0.f;
+	U->MoveSpeed = 0.f;
+	U->SightRadius = 0.f;
+	U->Cost.Credits = 0;
+	U->Cost.Luminene = 0;
+	U->Cost.Supply = 0;
+	U->Cost.BuildTime = 0;
+	U->BuildTicks = 0;
+	U->BuildTimeSeconds = 0.f;
+	U->PrimaryWeapon.Reset();
+	U->SkeletalMesh.Reset();
+	U->StaticMesh.Reset();
 	return U;
 }
 
@@ -445,7 +497,7 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeCommandCenter(UObject* Outer, U
 	return B;
 }
 
-UKodBuildingDefinition* UKodSlice0Bootstrap::MakeBarracks(UObject* Outer, UKodUnitDefinition* Ranger)
+UKodBuildingDefinition* UKodSlice0Bootstrap::MakeBarracks(UObject* Outer, UKodUnitDefinition* Marine)
 {
 	UKodBuildingDefinition* B = NewObject<UKodBuildingDefinition>(Outer, FName(KodWardenPaths::Id_Barracks), RF_Public | RF_Transient);
 	B->DefinitionId = FName(KodWardenPaths::Id_Barracks);
@@ -467,9 +519,9 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeBarracks(UObject* Outer, UKodUn
 	B->PowerProvided = 0.f;
 	B->SightRadius = 1400.f;
 	B->TrainableUnits.Reset();
-	if (Ranger)
+	if (Marine)
 	{
-		B->TrainableUnits.Add(Ranger);
+		B->TrainableUnits.Add(Marine);
 	}
 	return B;
 }
@@ -604,7 +656,7 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeTurret(UObject* Outer)
 	return B;
 }
 
-UKodFactionDefinition* UKodSlice0Bootstrap::MakeUSA(UObject* Outer, UKodBuildingDefinition* CC, UKodUnitDefinition* Dozer, UKodUnitDefinition* Ranger)
+UKodFactionDefinition* UKodSlice0Bootstrap::MakeUSA(UObject* Outer, UKodBuildingDefinition* CC, UKodUnitDefinition* Dozer, UKodUnitDefinition* Marine)
 {
 	UKodFactionDefinition* F = NewObject<UKodFactionDefinition>(Outer, FName(KodWardenPaths::Id_USA), RF_Public | RF_Transient);
 	F->DefinitionId = FName(KodWardenPaths::Id_USA);
@@ -618,10 +670,10 @@ UKodFactionDefinition* UKodSlice0Bootstrap::MakeUSA(UObject* Outer, UKodBuilding
 	{
 		F->StartingUnits.Add(Dozer);
 	}
-	if (Ranger)
+	if (Marine)
 	{
-		F->StartingUnits.Add(Ranger);
-		F->StartingUnits.Add(Ranger);
+		F->StartingUnits.Add(Marine);
+		F->StartingUnits.Add(Marine);
 	}
 	return F;
 }
@@ -660,16 +712,21 @@ UKodResourceNodeDefinition* UKodSlice0Bootstrap::MakeLumineneVent(UObject* Outer
 
 AKodUnit* UKodSlice0Bootstrap::SpawnRanger(UWorld* World, const FTransform& Transform, int32 TeamId, bool bForceCubeBody)
 {
+	return SpawnMarine(World, Transform, TeamId, bForceCubeBody);
+}
+
+AKodUnit* UKodSlice0Bootstrap::SpawnMarine(UWorld* World, const FTransform& Transform, int32 TeamId, bool bForceCubeBody)
+{
 	const FVector Location = Transform.GetLocation();
 	if (!World)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("SpawnRanger failed: no world (requested %s)"), *Location.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("SpawnMarine failed: no world (requested %s)"), *Location.ToString());
 		return nullptr;
 	}
-	UKodUnitDefinition* Def = ResolveUnit(FName(KodWardenPaths::Id_Ranger), GetTransientPackage());
+	UKodUnitDefinition* Def = ResolveUnit(FName(KodWardenPaths::Id_Marine), GetTransientPackage());
 	if (!Def)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("SpawnRanger failed: Ranger definition missing at %s"), *Location.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("SpawnMarine failed: Marine definition missing at %s"), *Location.ToString());
 		return nullptr;
 	}
 
@@ -678,7 +735,7 @@ AKodUnit* UKodSlice0Bootstrap::SpawnRanger(UWorld* World, const FTransform& Tran
 	AKodUnit* Unit = World->SpawnActor<AKodUnit>(AKodUnit::StaticClass(), Transform, Params);
 	if (!Unit)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("SpawnRanger failed: SpawnActor returned null at %s"), *Location.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("SpawnMarine failed: SpawnActor returned null at %s"), *Location.ToString());
 		return nullptr;
 	}
 	Unit->Definition = Def;
@@ -693,7 +750,7 @@ AKodUnit* UKodSlice0Bootstrap::SpawnRanger(UWorld* World, const FTransform& Tran
 	{
 		Unit->ApplyHostileCubeTint();
 	}
-	UE_LOG(LogTemp, Warning, TEXT("SpawnRanger spawned %s at %s"), *Unit->GetName(), *Unit->GetActorLocation().ToString());
+	UE_LOG(LogTemp, Warning, TEXT("SpawnMarine spawned %s at %s"), *Unit->GetName(), *Unit->GetActorLocation().ToString());
 	return Unit;
 }
 

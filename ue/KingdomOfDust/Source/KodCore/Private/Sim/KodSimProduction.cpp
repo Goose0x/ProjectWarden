@@ -2,6 +2,7 @@
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "Warden/KodWardenPaths.h"
 
 namespace
 {
@@ -442,7 +443,7 @@ void UKodSimSubsystem::FinishActiveProduction(FKodStructureState& Structure)
 	{
 		ReadyId = FName(TEXT("unit_ready_amp"));
 	}
-	else if (Slot.UnitId == FName(TEXT("Ranger")))
+	else if (Slot.UnitId == FName(KodWardenPaths::Id_Marine))
 	{
 		ReadyId = FName(TEXT("unit_ready_marine"));
 	}

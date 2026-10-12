@@ -28,7 +28,8 @@ enum class EKodDeathStyle : uint8
  * Primary data asset for a unit archetype.
  * Runtime MUST load MaxHealth / MoveSpeed / BuildTicks from this DA —
  * UPROPERTY defaults are editor-only conveniences, never match-state truth.
- * Slice 0 id law: Ranger, Dozer under /Game/Warden/Data/.
+ * Slice 0 id law: Marine, Dozer, and the reserved Ranger heavy under /Game/Warden/Data/.
+ * Dozer is the AMP worker engine id. DisplayName is AMP.
  */
 UCLASS(BlueprintType)
 class KODUNITS_API UKodUnitDefinition : public UPrimaryDataAsset
@@ -36,7 +37,7 @@ class KODUNITS_API UKodUnitDefinition : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
-	/** Must match asset name exactly (e.g. Ranger). */
+	/** Must match asset name exactly (e.g. Marine). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Identity")
 	FName DefinitionId;
 
@@ -64,7 +65,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
 	FKodTrainCost Cost;
 
-	/** Dozer. Copied onto the sim entity. Rangers stay false. */
+	/** Dozer (AMP). Copied onto the sim entity. Marines stay false. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
 	bool bCanGather = false;
 
@@ -120,7 +121,7 @@ public:
 
 	/**
 	 * Authoritative build duration in sim ticks (SimHz=16).
-	 * Ranger=80, Dozer=128 per Slice 0 sheet.
+	 * Marine=80, Dozer=128 per Slice 0 sheet.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
 	int32 BuildTicks = 80;

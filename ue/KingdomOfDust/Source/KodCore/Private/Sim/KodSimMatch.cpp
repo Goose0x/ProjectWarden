@@ -335,7 +335,7 @@ void UKodSimSubsystem::ResyncActors() const
 TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 {
 	FBlob Blob;
-	const int32 Version = 10;
+	const int32 Version = KodWardenPaths::SimSaveVersion;
 	Blob.WInt(Version);
 	Blob.W(&SimTickIndex, sizeof(SimTickIndex));
 	TArray<int32> Keys;
@@ -807,7 +807,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version < 6 || Version > 10)
+	if (!Blob.RInt(Version) || Version < 6 || Version > KodWardenPaths::SimSaveVersion)
 	{
 		return;
 	}
@@ -958,7 +958,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		Blob.RInt(AbilityCd);
 		Blob.RInt(MovePermille);
 		Blob.RInt(AttackPermille);
-		S->DefinitionId = FName(*Name);
+		S->DefinitionId = KodWardenPaths::AliasLegacyMarineId(FName(*Name), Version);
 		S->TeamId = TeamId;
 		S->bMobile = Mobile != 0;
 		S->bCanGather = Gather != 0;
@@ -1162,7 +1162,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		FKodStructureState* Structure = &AddedStructure;
 		Structure->Id.Value = Key;
 		SeenStructureIds.Add(Key);
-		Structure->DefinitionId = FName(*StructDef);
+		Structure->DefinitionId = KodWardenPaths::AliasLegacyMarineId(FName(*StructDef), Version);
 		Structure->Position = FVector(StructX, StructY, StructZ);
 		if (FKodSimEntityState* Combat = States.Find(Key))
 		{
@@ -1180,7 +1180,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 			FKodProductionSlot Slot;
 			FString UnitName;
 			Blob.RStr(UnitName);
-			Slot.UnitId = FName(*UnitName);
+			Slot.UnitId = KodWardenPaths::AliasLegacyMarineId(FName(*UnitName), Version);
 			Blob.RInt(Slot.BuildTime);
 			uint8 Started = 0;
 			Blob.RU8(Started);
@@ -1371,7 +1371,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 			Blob.RInt(Entry.Id);
 			Blob.RInt(Entry.TeamId);
 			Blob.RStr(DefName);
-			Entry.DefinitionId = FName(*DefName);
+			Entry.DefinitionId = KodWardenPaths::AliasLegacyMarineId(FName(*DefName), Version);
 			Blob.RInt(Entry.PosX);
 			Blob.RInt(Entry.PosY);
 			Blob.RInt(Entry.FootprintX);
@@ -1768,7 +1768,7 @@ bool UKodSimSubsystem::CollectSavedEntityIds(const TArray<uint8>& Bytes, TSet<in
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version < 6 || Version > 10)
+	if (!Blob.RInt(Version) || Version < 6 || Version > KodWardenPaths::SimSaveVersion)
 	{
 		return false;
 	}
