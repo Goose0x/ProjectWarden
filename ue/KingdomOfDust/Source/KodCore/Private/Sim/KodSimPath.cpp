@@ -1,0 +1,310 @@
+#include "Sim/KodSimSubsystem.h"
+
+#include "Algo/Reverse.h"
+
+namespace
+{
+	int64 PackCell(int32 X, int32 Y)
+	{
+		return (static_cast<int64>(static_cast<uint32>(X)) << 32) | static_cast<uint32>(Y);
+	}
+
+	int32 Octile(int32 X0, int32 Y0, int32 X1, int32 Y1)
+	{
+		const int32 DX = FMath::Abs(X1 - X0);
+		const int32 DY = FMath::Abs(Y1 - Y0);
+		return 10 * (DX + DY) + 4 * FMath::Min(DX, DY);
+	}
+}
+
+bool UKodSimSubsystem::IsPathCellClear(int32 X0, int32 Y0, int32 X1, int32 Y1) const
+{
+	int32 X = X0;
+	int32 Y = Y0;
+	const int32 DX = FMath::Abs(X1 - X0);
+	const int32 DY = FMath::Abs(Y1 - Y0);
+	const int32 StepX = X0 < X1 ? 1 : -1;
+	const int32 StepY = Y0 < Y1 ? 1 : -1;
+	int32 Err = DX - DY;
+	while (X != X1 || Y != Y1)
+	{
+		const int32 Twice = Err * 2;
+		if (Twice > -DY)
+		{
+			Err -= DY;
+			X += StepX;
+		}
+		if (Twice < DX)
+		{
+			Err += DX;
+			Y += StepY;
+		}
+		if ((X != X1 || Y != Y1) && IsCellBlocked(X, Y))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
+{
+	int32 StartX = KodBuildGrid::CellOf(From.X);
+	int32 StartY = KodBuildGrid::CellOf(From.Y);
+	int32 GoalX = KodBuildGrid::CellOf(To.X);
+	int32 GoalY = KodBuildGrid::CellOf(To.Y);
+	if (StartX == GoalX && StartY == GoalY)
+	{
+		return 0;
+	}
+	if (IsPathCellClear(StartX, StartY, GoalX, GoalY))
+	{
+		return 0;
+	}
+
+	if (IsCellBlocked(StartX, StartY))
+	{
+		bool bFound = false;
+		for (int32 Radius = 1; Radius <= 3 && !bFound; ++Radius)
+		{
+			for (int32 X = StartX - Radius; X <= StartX + Radius && !bFound; ++X)
+			{
+				for (int32 Y = StartY - Radius; Y <= StartY + Radius; ++Y)
+				{
+					if (!IsCellBlocked(X, Y))
+					{
+						StartX = X;
+						StartY = Y;
+						bFound = true;
+						break;
+					}
+				}
+			}
+		}
+	}
+	if (IsCellBlocked(GoalX, GoalY))
+	{
+		bool bFound = false;
+		int32 Best = MAX_int32;
+		int32 BestX = GoalX;
+		int32 BestY = GoalY;
+		for (int32 Radius = 1; Radius <= 4; ++Radius)
+		{
+			for (int32 X = GoalX - Radius; X <= GoalX + Radius; ++X)
+			{
+				for (int32 Y = GoalY - Radius; Y <= GoalY + Radius; ++Y)
+				{
+					if (IsCellBlocked(X, Y))
+					{
+						continue;
+					}
+					const int32 Score = FMath::Abs(X - GoalX) + FMath::Abs(Y - GoalY);
+					if (!bFound || Score < Best || (Score == Best && (X < BestX || (X == BestX && Y < BestY))))
+					{
+						bFound = true;
+						Best = Score;
+						BestX = X;
+						BestY = Y;
+					}
+				}
+			}
+			if (bFound)
+			{
+				break;
+			}
+		}
+		GoalX = BestX;
+		GoalY = BestY;
+	}
+
+	struct FNode
+	{
+		int32 X = 0;
+		int32 Y = 0;
+		int32 G = 0;
+		int32 F = 0;
+		int32 Parent = INDEX_NONE;
+	};
+
+	TArray<FNode> Nodes;
+	TArray<int32> Open;
+	TMap<int64, int32> BestG;
+	FNode Start;
+	Start.X = StartX;
+	Start.Y = StartY;
+	Start.G = 0;
+	Start.F = Octile(StartX, StartY, GoalX, GoalY);
+	Start.Parent = INDEX_NONE;
+	Nodes.Add(Start);
+	Open.Add(0);
+	BestG.Add(PackCell(StartX, StartY), 0);
+
+	constexpr int32 MaxExpand = 2048;
+	int32 Expanded = 0;
+	int32 Found = INDEX_NONE;
+	const int32 Neighbors[8][3] = {
+		{1, 0, 10}, {-1, 0, 10}, {0, 1, 10}, {0, -1, 10},
+		{1, 1, 14}, {1, -1, 14}, {-1, 1, 14}, {-1, -1, 14}
+	};
+
+	while (Open.Num() > 0 && Expanded < MaxExpand)
+	{
+		int32 BestSlot = 0;
+		for (int32 Slot = 1; Slot < Open.Num(); ++Slot)
+		{
+			const FNode& A = Nodes[Open[Slot]];
+			const FNode& B = Nodes[Open[BestSlot]];
+			const bool bBetter = A.F < B.F
+				|| (A.F == B.F && (A.G < B.G || (A.G == B.G && (A.X < B.X || (A.X == B.X && A.Y < B.Y)))));
+			if (bBetter)
+			{
+				BestSlot = Slot;
+			}
+		}
+		const int32 Current = Open[BestSlot];
+		Open.RemoveAt(BestSlot);
+		const FNode Here = Nodes[Current];
+		if (const int32* Known = BestG.Find(PackCell(Here.X, Here.Y)))
+		{
+			if (*Known < Here.G)
+			{
+				continue;
+			}
+		}
+		++Expanded;
+		if (Here.X == GoalX && Here.Y == GoalY)
+		{
+			Found = Current;
+			break;
+		}
+		for (int32 NeighborIndex = 0; NeighborIndex < 8; ++NeighborIndex)
+		{
+			const int32 NextX = Here.X + Neighbors[NeighborIndex][0];
+			const int32 NextY = Here.Y + Neighbors[NeighborIndex][1];
+			const int32 StepCost = Neighbors[NeighborIndex][2];
+			if (IsCellBlocked(NextX, NextY))
+			{
+				continue;
+			}
+			if (StepCost == 14
+				&& (IsCellBlocked(Here.X + Neighbors[NeighborIndex][0], Here.Y)
+					|| IsCellBlocked(Here.X, Here.Y + Neighbors[NeighborIndex][1])))
+			{
+				continue;
+			}
+			const int32 NextG = Here.G + StepCost;
+			const int64 Key = PackCell(NextX, NextY);
+			if (const int32* Known = BestG.Find(Key))
+			{
+				if (*Known <= NextG)
+				{
+					continue;
+				}
+			}
+			BestG.Add(Key, NextG);
+			FNode Next;
+			Next.X = NextX;
+			Next.Y = NextY;
+			Next.G = NextG;
+			Next.F = NextG + Octile(NextX, NextY, GoalX, GoalY);
+			Next.Parent = Current;
+			const int32 Index = Nodes.Add(Next);
+			Open.Add(Index);
+		}
+	}
+
+	if (Found == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodPath Miss From=%d,%d To=%d,%d"), StartX, StartY, GoalX, GoalY);
+		return 0;
+	}
+
+	TArray<int32> RawX;
+	TArray<int32> RawY;
+	for (int32 Cursor = Found; Cursor != INDEX_NONE; Cursor = Nodes[Cursor].Parent)
+	{
+		RawX.Add(Nodes[Cursor].X);
+		RawY.Add(Nodes[Cursor].Y);
+	}
+	Algo::Reverse(RawX);
+	Algo::Reverse(RawY);
+
+	TArray<int32> SmoothX;
+	TArray<int32> SmoothY;
+	int32 Anchor = 0;
+	SmoothX.Add(RawX[0]);
+	SmoothY.Add(RawY[0]);
+	while (Anchor < RawX.Num() - 1)
+	{
+		int32 Farthest = Anchor + 1;
+		for (int32 Index = RawX.Num() - 1; Index > Anchor; --Index)
+		{
+			if (IsPathCellClear(RawX[Anchor], RawY[Anchor], RawX[Index], RawY[Index]))
+			{
+				Farthest = Index;
+				break;
+			}
+		}
+		SmoothX.Add(RawX[Farthest]);
+		SmoothY.Add(RawY[Farthest]);
+		Anchor = Farthest;
+	}
+
+	if (StoredPaths.Num() > 24)
+	{
+		StoredPaths.RemoveAt(0);
+	}
+	FKodStoredPath Path;
+	Path.Id = NextPathId++;
+	if (NextPathId < 1)
+	{
+		NextPathId = 1;
+	}
+	Path.CellX = SmoothX;
+	Path.CellY = SmoothY;
+	StoredPaths.Add(Path);
+	UE_LOG(LogTemp, Log, TEXT("KodPath Plan From=%d,%d To=%d,%d Len=%d Id=%d"),
+		StartX,
+		StartY,
+		GoalX,
+		GoalY,
+		SmoothX.Num(),
+		Path.Id);
+	return Path.Id;
+}
+
+FVector UKodSimSubsystem::GetSteeredGoal(FKodSimEntityState& State) const
+{
+	if (State.PathId == 0)
+	{
+		return State.MoveTarget;
+	}
+	const FKodStoredPath* Path = nullptr;
+	for (const FKodStoredPath& Stored : StoredPaths)
+	{
+		if (Stored.Id == State.PathId)
+		{
+			Path = &Stored;
+			break;
+		}
+	}
+	if (!Path || Path->CellX.Num() == 0)
+	{
+		State.PathId = 0;
+		return State.MoveTarget;
+	}
+	while (State.PathCursor < Path->CellX.Num())
+	{
+		const float X = KodBuildGrid::CellCenter(Path->CellX[State.PathCursor]) + static_cast<float>(State.PathOffsetX);
+		const float Y = KodBuildGrid::CellCenter(Path->CellY[State.PathCursor]) + static_cast<float>(State.PathOffsetY);
+		const float DX = X - State.Position.X;
+		const float DY = Y - State.Position.Y;
+		if (DX * DX + DY * DY > FMath::Square(120.f))
+		{
+			return FVector(X, Y, State.Position.Z);
+		}
+		++State.PathCursor;
+	}
+	State.PathId = 0;
+	return State.MoveTarget;
+}

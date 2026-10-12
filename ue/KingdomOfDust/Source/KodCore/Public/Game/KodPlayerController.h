@@ -154,6 +154,10 @@ protected:
 		FKodEntityId AttackId;
 		AActor* GatherActor = nullptr;
 		FKodEntityId GatherId;
+		AActor* FollowActor = nullptr;
+		FKodEntityId FollowId;
+		AActor* ClickedActor = nullptr;
+		FKodEntityId ClickedId;
 		bool bHasMovePoint = false;
 		bool bSim = false;
 		FVector MovePoint = FVector::ZeroVector;
@@ -195,6 +199,13 @@ protected:
 	UFUNCTION(BlueprintNativeEvent, Category = "Kod|Command")
 	void IssueGatherToSelection(AActor* Node, FVector NonGathererMovePoint);
 	virtual void IssueGatherToSelection_Implementation(AActor* Node, FVector NonGathererMovePoint);
+
+	virtual void IssueFollowToSelection(AActor* Target, bool bGuard);
+
+	/** Armed M / A / P / G click. Default does nothing. */
+	virtual bool ConsumeArmedOrderClick() { return false; }
+
+	virtual FName GetArmedOrderName() const { return FName(); }
 
 	void BeginMarquee(FVector2D ScreenPos);
 	void UpdateMarquee(FVector2D ScreenPos);

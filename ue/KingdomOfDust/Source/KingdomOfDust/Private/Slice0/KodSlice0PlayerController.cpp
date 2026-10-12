@@ -34,6 +34,7 @@ void AKodSlice0PlayerController::IssueMoveToSelection_Implementation(FVector Wor
 	FKodCommand Cmd;
 	Cmd.Type = EKodCommandType::Move;
 	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	Cmd.bQueued = ShiftQueued();
 	Cmd.SourceEntities = GetLocalSelectedEntityIds();
 	Cmd.TargetLocation = WorldLocation;
 	UE_LOG(LogTemp, Log, TEXT("Move Issued Sources=%d Dest=%.0f,%.0f,%.0f"),
@@ -73,6 +74,7 @@ void AKodSlice0PlayerController::IssueAttackToSelection_Implementation(AActor* T
 
 	FKodCommand Cmd;
 	Cmd.Type = EKodCommandType::Attack;
+	Cmd.bQueued = ShiftQueued();
 	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
 	Cmd.SourceEntities = GetLocalSelectedEntityIds();
 	Cmd.SourceEntities.Remove(TargetId);
@@ -110,12 +112,14 @@ void AKodSlice0PlayerController::IssueGatherToSelection_Implementation(AActor* N
 
 	FKodCommand GatherCmd;
 	GatherCmd.Type = EKodCommandType::Gather;
+	GatherCmd.bQueued = ShiftQueued();
 	GatherCmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
 	GatherCmd.TargetEntity = NodeId;
 	GatherCmd.TargetLocation = Node->GetActorLocation();
 
 	FKodCommand MoveCmd;
 	MoveCmd.Type = EKodCommandType::Move;
+	MoveCmd.bQueued = GatherCmd.bQueued;
 	MoveCmd.IssuerPlayerId = GatherCmd.IssuerPlayerId;
 	MoveCmd.TargetLocation = NonGathererMovePoint;
 
@@ -205,9 +209,32 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 		PlaceType = NAME_None;
 	}
 	UpdateBuildGhost();
+	if (WasInputKeyJustPressed(EKeys::M))
+	{
+		ArmOrder(FName(TEXT("Move")));
+	}
+	if (WasInputKeyJustPressed(EKeys::A))
+	{
+		ArmOrder(FName(TEXT("Attack")));
+	}
+	if (WasInputKeyJustPressed(EKeys::P))
+	{
+		ArmOrder(FName(TEXT("Patrol")));
+	}
+	if (WasInputKeyJustPressed(EKeys::G) && !bBuildMenu)
+	{
+		ArmOrder(FName(TEXT("Guard")));
+	}
+	if (WasInputKeyJustPressed(EKeys::H))
+	{
+		IssueHoldOnSelectedUnits();
+	}
 	if (WasInputKeyJustPressed(EKeys::S))
 	{
-		EnqueueTrainOnSelectedStructures();
+		if (!EnqueueTrainOnSelectedStructures())
+		{
+			IssueStopOnSelectedUnits();
+		}
 	}
 	if (WasInputKeyJustPressed(EKeys::T))
 	{
@@ -435,15 +462,16 @@ bool AKodSlice0PlayerController::ApplySelectedStructureRally(const FKodCursorCom
 	return !bHasUnits;
 }
 
-void AKodSlice0PlayerController::EnqueueTrainOnSelectedStructures()
+bool AKodSlice0PlayerController::EnqueueTrainOnSelectedStructures()
 {
 	UWorld* World = GetWorld();
 	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
 	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
 	if (!Commands || !Sim)
 	{
-		return;
+		return false;
 	}
+	bool bAny = false;
 	FKodCommand Cmd;
 	Cmd.Type = EKodCommandType::Train;
 	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
@@ -465,8 +493,10 @@ void AKodSlice0PlayerController::EnqueueTrainOnSelectedStructures()
 			One.PayloadName = TrainId;
 			One.SourceEntities.Add(Id);
 			Commands->Enqueue(One);
+			bAny = true;
 		}
 	}
+	return bAny;
 }
 
 void AKodSlice0PlayerController::CancelTrainOnSelectedStructures()
@@ -855,6 +885,202 @@ bool AKodSlice0PlayerController::ConsumeHudCommandClick()
 	else if (Hit.Action == TEXT("Ability"))
 	{
 		IssueAbility(Hit.Payload);
+	}
+	else if (Hit.Action == TEXT("OrderStop") || Hit.Action == TEXT("Stop"))
+	{
+		IssueStopOnSelectedUnits();
+	}
+	else if (Hit.Action == TEXT("OrderHold") || Hit.Action == TEXT("Hold"))
+	{
+		IssueHoldOnSelectedUnits();
+	}
+	else if (Hit.Action == TEXT("OrderMove") || Hit.Action == TEXT("Move")
+		|| Hit.Action == TEXT("OrderAttack") || Hit.Action == TEXT("Attack")
+		|| Hit.Action == TEXT("OrderPatrol") || Hit.Action == TEXT("Patrol")
+		|| Hit.Action == TEXT("OrderGuard") || Hit.Action == TEXT("Guard"))
+	{
+		ArmOrder(Hit.Action);
+	}
+	return true;
+}
+
+bool AKodSlice0PlayerController::ShiftQueued() const
+{
+	return IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
+}
+
+void AKodSlice0PlayerController::ArmOrder(FName OrderName)
+{
+	ArmedOrder = ArmedOrder == OrderName ? FName() : OrderName;
+	UE_LOG(LogTemp, Log, TEXT("KodOrder Arm %s"), ArmedOrder.IsNone() ? TEXT("Clear") : *ArmedOrder.ToString());
+}
+
+FName AKodSlice0PlayerController::GetArmedOrderName() const
+{
+	return ArmedOrder;
+}
+
+void AKodSlice0PlayerController::IssueStopOnSelectedUnits()
+{
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Commands || !Sim)
+	{
+		return;
+	}
+	FKodCommand Cmd;
+	Cmd.Type = EKodCommandType::Stop;
+	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodSimEntityState State;
+		if (Sim->TryGetState(Id, State) && State.bMobile)
+		{
+			Cmd.SourceEntities.Add(Id);
+		}
+	}
+	if (Cmd.SourceEntities.Num() > 0)
+	{
+		Commands->Enqueue(Cmd);
+	}
+}
+
+void AKodSlice0PlayerController::IssueHoldOnSelectedUnits()
+{
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Commands || !Sim)
+	{
+		return;
+	}
+	FKodCommand Cmd;
+	Cmd.Type = EKodCommandType::Hold;
+	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodSimEntityState State;
+		if (Sim->TryGetState(Id, State) && State.bMobile)
+		{
+			Cmd.SourceEntities.Add(Id);
+		}
+	}
+	if (Cmd.SourceEntities.Num() > 0)
+	{
+		Commands->Enqueue(Cmd);
+	}
+}
+
+void AKodSlice0PlayerController::IssueFollowToSelection(AActor* Target, bool bGuard)
+{
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Commands || !Sim || !Target)
+	{
+		Super::IssueFollowToSelection(Target, bGuard);
+		return;
+	}
+	const FKodEntityId TargetId = Sim->FindIdForActor(Target);
+	FKodCommand Cmd;
+	Cmd.Type = bGuard ? EKodCommandType::Guard : EKodCommandType::Follow;
+	Cmd.bQueued = ShiftQueued();
+	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	Cmd.TargetEntity = TargetId;
+	Cmd.TargetLocation = Target->GetActorLocation();
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		if (Id != TargetId)
+		{
+			Cmd.SourceEntities.Add(Id);
+		}
+	}
+	if (Cmd.SourceEntities.Num() > 0)
+	{
+		Commands->Enqueue(Cmd);
+	}
+}
+
+bool AKodSlice0PlayerController::ConsumeArmedOrderClick()
+{
+	if (ArmedOrder.IsNone())
+	{
+		return false;
+	}
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Commands || !Sim)
+	{
+		return false;
+	}
+	const FKodCursorCommand Cursor = TraceCursorCommand();
+	FKodCommand Cmd;
+	Cmd.bQueued = ShiftQueued();
+	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	Cmd.SourceEntities = GetLocalSelectedEntityIds();
+	if (ArmedOrder == FName(TEXT("OrderMove")) || ArmedOrder == FName(TEXT("Move")))
+	{
+		if (!Cursor.bHasMovePoint)
+		{
+			return true;
+		}
+		Cmd.Type = EKodCommandType::Move;
+		Cmd.TargetLocation = Cursor.MovePoint;
+	}
+	else if (ArmedOrder == FName(TEXT("OrderPatrol")) || ArmedOrder == FName(TEXT("Patrol")))
+	{
+		if (!Cursor.bHasMovePoint)
+		{
+			return true;
+		}
+		Cmd.Type = EKodCommandType::Patrol;
+		Cmd.TargetLocation = Cursor.MovePoint;
+	}
+	else if (ArmedOrder == FName(TEXT("OrderAttack")) || ArmedOrder == FName(TEXT("Attack")))
+	{
+		if (Cursor.ClickedActor && !Sim->IsResourceNode(Cursor.ClickedId))
+		{
+			Cmd.Type = EKodCommandType::Attack;
+			Cmd.TargetEntity = Cursor.ClickedId;
+			Cmd.TargetLocation = Cursor.ClickedActor->GetActorLocation();
+			Cmd.SourceEntities.Remove(Cmd.TargetEntity);
+		}
+		else if (Cursor.bHasMovePoint)
+		{
+			Cmd.Type = EKodCommandType::AttackMove;
+			Cmd.TargetLocation = Cursor.MovePoint;
+		}
+		else
+		{
+			return true;
+		}
+	}
+	else if (ArmedOrder == FName(TEXT("OrderGuard")) || ArmedOrder == FName(TEXT("Guard")))
+	{
+		AActor* Subject = Cursor.FollowActor ? Cursor.FollowActor : Cursor.AttackActor;
+		if (!Subject)
+		{
+			return true;
+		}
+		Cmd.Type = EKodCommandType::Guard;
+		Cmd.TargetEntity = Cursor.FollowActor ? Cursor.FollowId : Cursor.AttackId;
+		Cmd.TargetLocation = Subject->GetActorLocation();
+		Cmd.SourceEntities.Remove(Cmd.TargetEntity);
+	}
+	else
+	{
+		ArmedOrder = FName();
+		return false;
+	}
+	if (Cmd.SourceEntities.Num() > 0)
+	{
+		Commands->Enqueue(Cmd);
+	}
+	if (!Cmd.bQueued)
+	{
+		ArmedOrder = FName();
 	}
 	return true;
 }

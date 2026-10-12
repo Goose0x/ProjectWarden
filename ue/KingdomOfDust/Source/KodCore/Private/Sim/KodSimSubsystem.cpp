@@ -36,6 +36,8 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bTeam0HadStructure = false;
 	bTeam1HadStructure = false;
 	AcquireGrid.Reset();
+	StoredPaths.Reset();
+	NextPathId = 1;
 	SimHz = KodBuildTicks::SimHz;
 	MaxCatchUpSteps = KodBuildTicks::MaxCatchUpSteps;
 	SetTeamBank(0, StartingJadeite, StartingLuminene);
@@ -165,6 +167,18 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 		case EKodSimOrderType::AttackMove:
 			StepAttackMove(*State, FixedDt);
 			break;
+		case EKodSimOrderType::Hold:
+			StepHold(*State, FixedDt);
+			break;
+		case EKodSimOrderType::Patrol:
+			StepPatrol(*State, FixedDt);
+			break;
+		case EKodSimOrderType::Follow:
+			StepFollow(*State, FixedDt, false);
+			break;
+		case EKodSimOrderType::Guard:
+			StepFollow(*State, FixedDt, true);
+			break;
 		default:
 			// Idle: auto-acquire or hold a quantized pose. An explicit Move is not this branch.
 			if (!TryAutoAcquire(*State, FixedDt))
@@ -174,6 +188,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 			break;
 		}
 	}
+	StepSeparation();
 	StepProduction();
 	StepConstruction();
 	StepAbilities();
@@ -190,14 +205,39 @@ void UKodSimSubsystem::StepEntityMove(FKodSimEntityState& State, float FixedDt)
 		return;
 	}
 
-	const FVector ToTarget = State.MoveTarget - State.Position;
+	const bool bFollowPath = State.PathId != 0;
+	const FVector Goal = GetSteeredGoal(State);
+	const bool bPathDone = State.PathId == 0;
+	const FVector ToTarget = Goal - State.Position;
 	const float DistSq = ToTarget.SizeSquared2D();
 	const float Accept = FMath::Max(1.f, State.AcceptanceRadius * 0.5f);
-	if (DistSq <= FMath::Square(Accept))
+	if (!bFollowPath || bPathDone)
 	{
-		State.Position.X = State.MoveTarget.X;
-		State.Position.Y = State.MoveTarget.Y;
-		State.Order = EKodSimOrderType::None;
+		if (DistSq <= FMath::Square(Accept))
+		{
+			State.Position.X = State.MoveTarget.X;
+			State.Position.Y = State.MoveTarget.Y;
+			if (State.Order == EKodSimOrderType::Patrol)
+			{
+				const FVector Next = State.PatrolAnchor;
+				State.PatrolAnchor = State.MoveTarget;
+				State.MoveTarget = Next;
+				State.PathId = PlanMovePath(State.Position, State.MoveTarget);
+				State.PathCursor = 0;
+				QuantizePose(State);
+				return;
+			}
+			if (State.Order == EKodSimOrderType::Move)
+			{
+				CompleteCurrentOrder(State, FixedDt);
+				return;
+			}
+			QuantizePose(State);
+			return;
+		}
+	}
+	else if (DistSq <= FMath::Square(Accept))
+	{
 		QuantizePose(State);
 		return;
 	}
@@ -254,78 +294,9 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 		State.YawDegrees = FMath::RadiansToDegrees(FMath::Atan2(ToTarget.Y, ToTarget.X));
 	}
 
-	if (State.CooldownTicksRemaining <= 0 && State.WeaponDamage > 0.f)
+	if (State.WeaponDamage > 0.f && TryApplyWeapon(State, *Target))
 	{
-		// Hitscan — no actor bullets. Slice 0: raw Damage only; target Armor is not applied yet.
-		auto ActorOf = [this](int32 IdValue) -> AActor*
-		{
-			if (const TWeakObjectPtr<AActor>* Found = Entities.Find(IdValue))
-			{
-				return Found->Get();
-			}
-			return nullptr;
-		};
-		auto NameOf = [](const AActor* NamedActor) -> FString
-		{
-			return NamedActor ? NamedActor->GetName() : FString(TEXT("None"));
-		};
-
-		AActor* AttackerActor = ActorOf(State.Id.Value);
-		AActor* TargetActor = ActorOf(Target->Id.Value);
-		const FString AttackerName = NameOf(AttackerActor);
-		const FString TargetName = NameOf(TargetActor);
-		const int32 TargetIdValue = Target->Id.Value;
-		const FKodEntityId DeadId = Target->Id;
-		const bool bStructureTarget = Structures.Contains(DeadId.Value);
-
-		const float Mitigated = FMath::Max(0.f, State.WeaponDamage);
-		Target->Health = FMath::Max(0.f, Target->Health - Mitigated);
-		const int32 AttackPermille = FMath::Clamp(State.AbilityAttackPermille, 1, 10000);
-		const int32 ScaledTicks = FMath::Max(1, (FMath::Max(1, State.WeaponCooldownTicks) * 1000) / AttackPermille);
-		State.CooldownTicksRemaining = ScaledTicks;
-		State.CooldownRemaining = static_cast<float>(ScaledTicks) * KodBuildTicks::SimDt;
-		const float HealthLeft = Target->Health;
-
-		// Hit while idle: retaliate next acquire, even if the attacker is outside range.
-		// A unit that already has Move or Attack keeps that order.
-		if (HealthLeft > 0.f
-			&& Target->Order == EKodSimOrderType::None
-			&& Target->WeaponDamage > 0.f
-			&& Target->TeamId != State.TeamId)
-		{
-			Target->RetaliateTarget = State.Id;
-		}
-
-		UE_LOG(LogTemp, Log, TEXT("KodSim Fire Attacker=%s Target=%s Tick=%lld"),
-			*AttackerName,
-			*TargetName,
-			static_cast<long long>(SimTickIndex));
-		OnUnitFired.Broadcast(AttackerActor, TargetActor, static_cast<int32>(SimTickIndex));
-
-		UE_LOG(LogTemp, Log, TEXT("KodSim Hit Target=%s Id=%d HP=%.0f"),
-			*TargetName,
-			TargetIdValue,
-			HealthLeft);
-		OnUnitHit.Broadcast(AttackerActor, TargetActor, HealthLeft, TargetIdValue);
-
-		if (HealthLeft <= 0.f)
-		{
-			UE_LOG(LogTemp, Log, TEXT("KodSim Kill Target=%s Id=%d"),
-				*TargetName,
-				TargetIdValue);
-			State.Order = EKodSimOrderType::None;
-			State.AttackTarget = FKodEntityId();
-			QuantizePose(State);
-			// Remove before the delegate so listeners cannot select or attack the corpse.
-			// Do not touch Target or State after this; TMap::Remove can rehash.
-			UnregisterEntity(DeadId);
-			OnUnitKilled.Broadcast(TargetActor, TargetIdValue);
-			if (bStructureTarget && TargetActor && !TargetActor->IsActorBeingDestroyed())
-			{
-				TargetActor->Destroy();
-			}
-			return;
-		}
+		return;
 	}
 
 	QuantizePose(State);
@@ -646,8 +617,9 @@ void UKodSimSubsystem::ConfigureEntity(
 	float WeaponDamage,
 	float WeaponRange,
 	float WeaponCooldownSeconds,
-	int32 TeamId,
-	bool bCanGather)
+		int32 TeamId,
+	bool bCanGather,
+	int32 BodyRadiusUU)
 {
 	FKodSimEntityState* State = States.Find(Id.Value);
 	if (!State)
@@ -668,6 +640,8 @@ void UKodSimSubsystem::ConfigureEntity(
 	State->CooldownRemaining = 0.f;
 	State->TeamId = TeamId;
 	State->bCanGather = bCanGather;
+	State->BodyRadiusUU = FMath::Clamp(BodyRadiusUU, 8, 256);
+	State->WeaponBackswingTicks = 2;
 }
 
 namespace
@@ -722,46 +696,6 @@ void UKodSimSubsystem::StepAttackMove(FKodSimEntityState& State, float FixedDt)
 	StepEntityMove(State, FixedDt);
 }
 
-void UKodSimSubsystem::IssueMove(FKodEntityId Id, FVector WorldLocation)
-{
-	if (FKodSimEntityState* State = States.Find(Id.Value))
-	{
-		if (State->GatherPhase != EKodGatherPhase::None || State->IsCarryingCargo())
-		{
-			RefundGatherCargo(*State);
-			ClearGatherFields(*State);
-		}
-		ClearBuildAssignment(*State);
-		State->Order = EKodSimOrderType::Move;
-		State->MoveTarget = WorldLocation;
-		State->AttackTarget = FKodEntityId();
-		State->RetaliateTarget = FKodEntityId();
-		FaceStateToward(*State, WorldLocation);
-	}
-}
-
-void UKodSimSubsystem::IssueAttackMove(FKodEntityId Id, FVector WorldLocation)
-{
-	if (FKodSimEntityState* State = States.Find(Id.Value))
-	{
-		if (!State->bMobile)
-		{
-			return;
-		}
-		if (State->GatherPhase != EKodGatherPhase::None || State->IsCarryingCargo())
-		{
-			RefundGatherCargo(*State);
-			ClearGatherFields(*State);
-		}
-		ClearBuildAssignment(*State);
-		State->Order = EKodSimOrderType::AttackMove;
-		State->MoveTarget = WorldLocation;
-		State->AttackTarget = FKodEntityId();
-		State->RetaliateTarget = FKodEntityId();
-		FaceStateToward(*State, WorldLocation);
-	}
-}
-
 bool UKodSimSubsystem::IsAttackable(FKodEntityId TargetId, int32 AttackerTeam) const
 {
 	if (!TargetId.IsValid() || IsResourceNode(TargetId))
@@ -778,45 +712,6 @@ bool UKodSimSubsystem::IsAttackable(FKodEntityId TargetId, int32 AttackerTeam) c
 		return false;
 	}
 	return true;
-}
-
-void UKodSimSubsystem::IssueAttack(FKodEntityId Id, FKodEntityId TargetId)
-{
-	FKodSimEntityState* State = States.Find(Id.Value);
-	if (!State || !IsAttackable(TargetId, State->TeamId))
-	{
-		return;
-	}
-	if (State->GatherPhase != EKodGatherPhase::None || State->IsCarryingCargo())
-	{
-		RefundGatherCargo(*State);
-		ClearGatherFields(*State);
-	}
-	ClearBuildAssignment(*State);
-	State->Order = EKodSimOrderType::Attack;
-	State->AttackTarget = TargetId;
-	State->RetaliateTarget = FKodEntityId();
-	if (const FKodSimEntityState* TargetState = States.Find(TargetId.Value))
-	{
-		FaceStateToward(*State, TargetState->Position);
-	}
-}
-
-void UKodSimSubsystem::IssueStop(FKodEntityId Id)
-{
-	if (FKodSimEntityState* State = States.Find(Id.Value))
-	{
-		if (State->GatherPhase != EKodGatherPhase::None || State->IsCarryingCargo())
-		{
-			RefundGatherCargo(*State);
-			ClearGatherFields(*State);
-		}
-		ClearBuildAssignment(*State);
-		State->Order = EKodSimOrderType::None;
-		State->AttackTarget = FKodEntityId();
-		State->RetaliateTarget = FKodEntityId();
-		QuantizePose(*State);
-	}
 }
 
 namespace
@@ -1930,6 +1825,31 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&S.SupplyCost, sizeof(S.SupplyCost));
 		Append(&S.WeaponCooldownTicks, sizeof(S.WeaponCooldownTicks));
 		Append(&S.CooldownTicksRemaining, sizeof(S.CooldownTicksRemaining));
+		Append(&S.BodyRadiusUU, sizeof(S.BodyRadiusUU));
+		Append(&S.WeaponBackswingTicks, sizeof(S.WeaponBackswingTicks));
+		Append(&S.BackswingTicksRemaining, sizeof(S.BackswingTicksRemaining));
+		Append(&S.FollowTarget.Value, sizeof(S.FollowTarget.Value));
+		Append(&S.PathId, sizeof(S.PathId));
+		Append(&S.PathCursor, sizeof(S.PathCursor));
+		Append(&S.PathOffsetX, sizeof(S.PathOffsetX));
+		Append(&S.PathOffsetY, sizeof(S.PathOffsetY));
+		const int32 PatrolX = FMath::RoundToInt(S.PatrolAnchor.X);
+		const int32 PatrolY = FMath::RoundToInt(S.PatrolAnchor.Y);
+		Append(&PatrolX, sizeof(PatrolX));
+		Append(&PatrolY, sizeof(PatrolY));
+		const int32 QueueCount = S.OrderQueue.Num();
+		Append(&QueueCount, sizeof(QueueCount));
+		for (const FKodQueuedOrder& Step : S.OrderQueue)
+		{
+			const uint8 Kind = static_cast<uint8>(Step.Order);
+			Append(&Kind, sizeof(Kind));
+			Append(&Step.X, sizeof(Step.X));
+			Append(&Step.Y, sizeof(Step.Y));
+			Append(&Step.TargetId, sizeof(Step.TargetId));
+			Append(&Step.PathId, sizeof(Step.PathId));
+			Append(&Step.OffsetX, sizeof(Step.OffsetX));
+			Append(&Step.OffsetY, sizeof(Step.OffsetY));
+		}
 		const uint8 SupplyCounted = S.bSupplyCounted ? 1 : 0;
 		Append(&SupplyCounted, sizeof(SupplyCounted));
 		Append(&S.BuildSite.Value, sizeof(S.BuildSite.Value));
@@ -2053,6 +1973,7 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&Blocked, sizeof(Blocked));
 		const int32 RallyNode = Structure.bRallyNode ? Structure.RallyNode.Value : 0;
 		Append(&RallyNode, sizeof(RallyNode));
+		Append(&Structure.RallyUnit.Value, sizeof(Structure.RallyUnit.Value));
 		const int32 RQX = FMath::RoundToInt(Structure.RallyPoint.X / NodeQ);
 		const int32 RQY = FMath::RoundToInt(Structure.RallyPoint.Y / NodeQ);
 		const int32 RQZ = FMath::RoundToInt(Structure.RallyPoint.Z / NodeQ);

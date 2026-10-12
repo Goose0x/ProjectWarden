@@ -59,6 +59,7 @@ void AKodHUD::DrawHUD()
 	RefreshReadout();
 	DrawProductionPanel();
 	DrawCommandCard();
+	DrawBuildHint();
 	DrawMinimap();
 	DrawIdleWorkerButton();
 	DrawControlGroupTabs();
@@ -301,7 +302,12 @@ void AKodHUD::DrawBuildHint()
 	{
 		return;
 	}
-	const FString Hint = PC->GetBuildMenuHint();
+	FString Hint = PC->GetBuildMenuHint();
+	const FName Armed = PC->GetArmedOrderName();
+	if (!Armed.IsNone())
+	{
+		Hint = FString::Printf(TEXT("%s click    Shift queues"), *Armed.ToString());
+	}
 	if (Hint.IsEmpty())
 	{
 		return;
@@ -627,6 +633,15 @@ void AKodHUD::DrawCommandCard()
 	}
 	else
 	{
+		if (bMarineCard || bWorker)
+		{
+			AddButton(0, 1, OriginX, OriginY, TEXT("Move"), TEXT("M"), TEXT("Move"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Move"));
+			AddButton(1, 1, OriginX, OriginY, TEXT("Stop"), TEXT("S"), TEXT("Stop"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Stop"));
+			AddButton(2, 1, OriginX, OriginY, TEXT("Hold"), TEXT("H"), TEXT("Hold"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Hold"));
+			AddButton(3, 1, OriginX, OriginY, TEXT("Patrol"), TEXT("P"), TEXT("Patrol"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Patrol"));
+			AddButton(4, 1, OriginX, OriginY, TEXT("Attack"), TEXT("A"), TEXT("Attack"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Attack"));
+			AddButton(4, 2, OriginX, OriginY, TEXT("Guard"), TEXT("G"), TEXT("Guard"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Guard"));
+		}
 		if (bMarineCard)
 		{
 			FKodAbilitySpec Ability;

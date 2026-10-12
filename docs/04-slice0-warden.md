@@ -566,6 +566,22 @@ KodAI Orders Cleared Count=6
 
 A left click inside the minimap square, the selection panel, or the portrait does not start a world box select. The HUD copies units and structures once per draw and reuses that sorted snapshot for the minimap, the selection panel, and the supply-blocked check. Structure auto-acquire and attack-move look up a uniform grid of 1024 uu cells, rebuilt at the start of each sim tick from sorted entity ids. The grid is not hashed. F12 or Shift+/ toggles a canvas hotkey list.
 
+## B7 — commands and unit feel
+
+Command card and hotkeys: **M** move, **A** attack, **S** stop on units and train on structures, **H** hold, **P** patrol, **G** guard. Right-click is smart: ground moves, an enemy attacks, a friendly unit follows, and a worker on a resource gathers. **A** then click attack-moves on the ground and force-attacks a unit or structure, including a friendly. Shift queues the next order. A structure rally can be ground, a resource node, or a unit.
+
+Weapon cooldown keeps ticking while the unit moves. Damage lands after a 2-tick backswing; a move order during that windup cancels the shot. When a move finishes, an idle armed unit acquires again. Hold position fires in range and does not chase. Combat Stim subtracts HP, flashes the hit, and will not go below 1.
+
+Units use their definition radius. Each sim tick pushes overlapping bodies apart on the acquire grid: a moving unit shoves an idle friendly out of the way, and two moving units split the overlap. They also path around structure footprints with grid A*. A group order shares one smoothed path and gives each follower a side offset.
+
+```
+KodOrder Move Unit=4 Dest=… Path=1
+KodOrder Queue Unit=4 Kind=Attack Target=9
+KodPath Plan From=3,4 To=12,8 Len=4 Id=1
+KodAbility Damage Unit=4 HP=90
+KodProd Rally Struct=3 Node=0 Unit=8
+```
+
 ## Camera — SC2 player view
 
 `AKodRTSCameraPawn` is the player camera. Pitch **-56°**, yaw **0** (looks north), vertical FOV **42** (horizontal FOV follows the window). The pawn is the ground look-at point. Default arm length **3600** (about 20 SC2 cells of ground at 200 uu, zoom clamped **2400–5200**). All of those are `Config` on the class.

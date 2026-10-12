@@ -22,7 +22,11 @@ enum class EKodCommandType : uint8
 	ResumeBuild UMETA(DisplayName = "Resume Build"),
 	CancelBuild UMETA(DisplayName = "Cancel Build"),
 	UseAbility UMETA(DisplayName = "Use Ability"),
-	AttackMove UMETA(DisplayName = "Attack Move")
+	AttackMove UMETA(DisplayName = "Attack Move"),
+	Hold UMETA(DisplayName = "Hold"),
+	Patrol UMETA(DisplayName = "Patrol"),
+	Follow UMETA(DisplayName = "Follow"),
+	Guard UMETA(DisplayName = "Guard")
 };
 
 /**
