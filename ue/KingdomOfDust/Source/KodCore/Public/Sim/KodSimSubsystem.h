@@ -328,6 +328,7 @@ public:
 	bool CancelLastTrain(FKodEntityId StructureId);
 	void SetStructureRally(FKodEntityId StructureId, FVector GroundPoint, FKodEntityId NodeId);
 	void ConsumePendingSpawns(TArray<FKodPendingUnitSpawn>& OutSpawns);
+	/** Presentation hook. Does not start the next slot or change supply. */
 	void NotifyTrainSpawned(int32 StructureId);
 
 	/** Default 50. L_Slice0 overwrites this from AKodSlice0GameMode at StartPlay. */

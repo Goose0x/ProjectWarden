@@ -1622,7 +1622,8 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	Append(&BankCount, sizeof(BankCount));
 	for (int32 TeamId : TeamKeys)
 	{
-		const FKodResourceCost& Bank = Banks.FindChecked(TeamId);
+		const FKodResourceCost* BankPtr = Banks.Find(TeamId);
+		const FKodResourceCost Bank = BankPtr ? *BankPtr : FKodResourceCost();
 		Append(&TeamId, sizeof(TeamId));
 		Append(&Bank.Jadeite, sizeof(Bank.Jadeite));
 		Append(&Bank.Luminene, sizeof(Bank.Luminene));

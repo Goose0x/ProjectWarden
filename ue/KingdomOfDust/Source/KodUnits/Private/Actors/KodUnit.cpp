@@ -725,7 +725,7 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 				WeaponCooldown,
 				TeamId,
 				bGather);
-			Sim->AccountUnitSupply(EntityId, Def->Cost.Supply, false);
+			Sim->AccountUnitSupply(EntityId, Def->Cost.Supply, bSupplyPrepaid);
 		}
 	}
 

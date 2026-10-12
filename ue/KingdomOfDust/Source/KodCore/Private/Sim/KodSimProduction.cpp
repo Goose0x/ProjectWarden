@@ -324,6 +324,14 @@ void UKodSimSubsystem::FinishActiveProduction(FKodStructureState& Structure)
 	Spawn.RallyNode = Structure.RallyNode;
 	Spawn.bRallyNode = Structure.bRallyNode;
 	PendingSpawns.Add(Spawn);
+
+	// Count supply and start the next slot in this step. Catch-up steps must not
+	// wait for the actor, or a later slot can start early and pass the cap.
+	AddSupplyUsed(Structure.TeamId, Slot.Supply);
+	if (Structure.Slots.Num() > 0)
+	{
+		TryStartProduction(Structure);
+	}
 }
 
 void UKodSimSubsystem::StepProduction()
@@ -362,11 +370,6 @@ void UKodSimSubsystem::ConsumePendingSpawns(TArray<FKodPendingUnitSpawn>& OutSpa
 
 void UKodSimSubsystem::NotifyTrainSpawned(int32 StructureId)
 {
-	if (FKodStructureState* Structure = Structures.Find(StructureId))
-	{
-		if (Structure->Slots.Num() > 0 && !Structure->Slots[0].bStarted)
-		{
-			TryStartProduction(*Structure);
-		}
-	}
+	// The actor spawn is presentation. Supply and the next slot were decided in the step.
+	(void)StructureId;
 }

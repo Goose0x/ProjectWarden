@@ -43,7 +43,6 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 	if (!Def)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("KodProd Complete Spawned=None"));
-		Sim->NotifyTrainSpawned(Request.StructureId);
 		return;
 	}
 
@@ -54,12 +53,12 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 	if (!Unit)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("KodProd Complete Spawned=None"));
-		Sim->NotifyTrainSpawned(Request.StructureId);
 		return;
 	}
 
 	Unit->Definition = Def;
 	Unit->TeamId = Request.TeamId;
+	Unit->bSupplyPrepaid = true;
 	if (Def->bCanGather)
 	{
 		Unit->Tags.AddUnique(FName(TEXT("KodUnitDozer")));
@@ -75,5 +74,4 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 	{
 		Sim->IssueMove(Unit->EntityId, Request.RallyPoint);
 	}
-	Sim->NotifyTrainSpawned(Request.StructureId);
 }
