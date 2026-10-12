@@ -135,6 +135,8 @@ protected:
 	void DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed, int32 SupplyCap);
 	void DrawProductionPanel();
 	void DrawBuildHint();
+	void DrawThreatRings();
+	void DrawIsrPopup();
 	void DrawCommandCard();
 	void DrawSelectionSummary();
 	void DrawResourceFlash();
@@ -242,6 +244,10 @@ protected:
 	float FlashUntilSeconds = -1.f;
 	bool bChatOpen = false;
 	FString ChatLine;
+	float IsrCaptureAccum = 0.f;
+
+	UPROPERTY()
+	TObjectPtr<class AKodIsrMonitor> IsrMonitor;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> HudWidgetInstance;

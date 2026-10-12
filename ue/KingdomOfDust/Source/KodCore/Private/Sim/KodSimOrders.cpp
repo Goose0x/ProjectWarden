@@ -1,5 +1,7 @@
 #include "Sim/KodSimSubsystem.h"
 
+#include "Warden/KodWardenPaths.h"
+
 #include "GameFramework/Actor.h"
 
 namespace
@@ -247,6 +249,14 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 	{
 		return false;
 	}
+	if (Target.bFlyer)
+	{
+		const FKodStructureState* AttackerStructure = Structures.Find(State.Id.Value);
+		if (!AttackerStructure || !AttackerStructure->bAttacksAir)
+		{
+			return false;
+		}
+	}
 	if (State.CooldownTicksRemaining > 0 || State.WeaponDamage <= 0.f)
 	{
 		return false;
@@ -369,6 +379,10 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 					NoteStructureRazed(AttackerTeam);
 				}
 			}
+		}
+		if (Target.DefinitionId == FName(TEXT("IsrPlatform")))
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodOrbital Down Id=%d Reason=Destroyed"), DeadId.Value);
 		}
 		UnregisterEntity(DeadId);
 		OnUnitKilled.Broadcast(TargetActor, TargetIdValue);

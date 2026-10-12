@@ -4,6 +4,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Engine/Canvas.h"
 #include "Engine/Texture2D.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "Engine/HitResult.h"
@@ -11,6 +12,7 @@
 #include "InputCoreTypes.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
+#include "Game/KodIsrMonitor.h"
 #include "Game/KodPlayerController.h"
 #include "Game/KodApmTracker.h"
 #include "Game/KodPlayerState.h"
@@ -85,6 +87,8 @@ void AKodHUD::DrawHUD()
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
 	DrawHotkeyLegend();
+	DrawThreatRings();
+	DrawIsrPopup();
 	DrawShellMenus();
 	if (bChatOpen && Canvas)
 	{
@@ -502,6 +506,119 @@ void AKodHUD::DrawProductionPanel()
 	}
 }
 
+void AKodHUD::DrawThreatRings()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	APlayerController* PC = GetOwningPlayerController();
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	const AKodPlayerController* KodPC = Cast<AKodPlayerController>(PC);
+	if (!PC || !Sim || !KodPC)
+	{
+		return;
+	}
+	const int32 LocalTeam = ReadLocalTeamId();
+	auto DrawRing = [this, PC](const FVector& Center, float Radius)
+	{
+		constexpr int32 Segments = 32;
+		FVector2D Previous = FVector2D::ZeroVector;
+		bool bHavePrevious = false;
+		for (int32 Index = 0; Index <= Segments; ++Index)
+		{
+			const float Angle = (2.f * PI * static_cast<float>(Index)) / static_cast<float>(Segments);
+			const FVector Point = Center + FVector(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius, 40.f);
+			FVector2D Screen = FVector2D::ZeroVector;
+			if (!PC->ProjectWorldLocationToScreen(Point, Screen, true))
+			{
+				bHavePrevious = false;
+				continue;
+			}
+			if (bHavePrevious)
+			{
+				DrawLine(Previous.X, Previous.Y, Screen.X, Screen.Y, FLinearColor(0.95f, 0.35f, 0.2f, 0.9f), 1.5f);
+			}
+			Previous = Screen;
+			bHavePrevious = true;
+		}
+	};
+	for (AActor* Actor : KodPC->GetLocalSelection())
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+		const FKodEntityId Id = Sim->FindIdForActor(Actor);
+		FKodStructureState Structure;
+		if (!Sim->TryGetStructure(Id, Structure) || Structure.TeamId != LocalTeam || Structure.AttackRangeUU <= 0 || !Structure.bAttacksAir)
+		{
+			continue;
+		}
+		DrawRing(Structure.Position, static_cast<float>(Structure.AttackRangeUU));
+	}
+	FName PlaceType;
+	FVector PlaceCenter = FVector::ZeroVector;
+	if (KodPC->TryGetPlacementAim(PlaceType, PlaceCenter))
+	{
+		FKodBuildSpec Spec;
+		if (Sim->TryGetBuildSpec(PlaceType, Spec) && Spec.bAttacksAir && Spec.AttackRangeUU > 0)
+		{
+			DrawRing(PlaceCenter, static_cast<float>(Spec.AttackRangeUU));
+		}
+	}
+}
+
+void AKodHUD::DrawIsrPopup()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Sim || Sim->IsTestIsolation())
+	{
+		return;
+	}
+	FVector Center = FVector::ZeroVector;
+	int32 Sight = 0;
+	int32 IsrId = 0;
+	if (!Sim->TryGetOwnedIsr(ReadLocalTeamId(), Center, Sight, IsrId))
+	{
+		return;
+	}
+	if (!IsrMonitor)
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		IsrMonitor = World->SpawnActor<AKodIsrMonitor>(AKodIsrMonitor::StaticClass(), FTransform(Center), Params);
+	}
+	if (!IsrMonitor)
+	{
+		return;
+	}
+	IsrMonitor->AimAt(Center, Sight);
+	IsrCaptureAccum += World->GetDeltaSeconds();
+	if (IsrCaptureAccum >= 0.12f)
+	{
+		IsrCaptureAccum = 0.f;
+		IsrMonitor->CaptureView();
+	}
+	const float W = 240.f;
+	const float H = 168.f;
+	const float X = Canvas->SizeX - W - 28.f;
+	const float Y = 72.f;
+	DrawRect(FLinearColor(0.02f, 0.03f, 0.02f, 0.92f), X - 6.f, Y - 22.f, W + 12.f, H + 30.f);
+	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+	DrawText(TEXT("ISR"), FLinearColor(0.55f, 0.85f, 1.f, 1.f), X, Y - 18.f, Font, 1.f, false);
+	if (UTextureRenderTarget2D* Target = IsrMonitor->GetRenderTarget())
+	{
+		DrawTexture(Target, X, Y, W, H, 0.f, 0.f, 1.f, 1.f);
+	}
+}
+
 void AKodHUD::DrawBuildHint()
 {
 	if (!Canvas)
@@ -663,6 +780,16 @@ void AKodHUD::HandleWireHit(AActor* Attacker, AActor* Target, float Health, int3
 
 void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 {
+	if (const UWorld* World = GetWorld())
+	{
+		if (const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			if (Sim->IsTestIsolation())
+			{
+				return;
+			}
+		}
+	}
 	(void)bAtLocation;
 	FString Text;
 	if (CueId == FName(TEXT("base_under_attack")))
@@ -1410,6 +1537,44 @@ void AKodHUD::DrawCommandCard()
 	if (bBunker && !bTrainCard)
 	{
 		AddButton(0, 0, OriginX, OriginY, TEXT("Unload"), TEXT("U"), TEXT("UnloadAll"), FName(), SelectedBuilding.Id.Value, INDEX_NONE, SelectedBuilding.Cargo.Num() > 0, FName(), TEXT("Unload all"));
+	}
+	const bool bCc = bHaveBuilding && SelectedBuilding.DefinitionId == FName(KodWardenPaths::Id_CommandCenter);
+	if (bCc)
+	{
+		FKodSimEntityState CcState;
+		const bool bHaveCcState = Sim->TryGetState(SelectedBuilding.Id, CcState);
+		const bool bSatellite = bHaveCcState && CcState.EnergyMax > 0;
+		if (!bSatellite)
+		{
+			FKodUpgradeSpec FeedSpec;
+			const bool bHaveFeed = Sim->TryGetUpgradeSpec(FName(KodWardenPaths::Id_SatelliteFeed), FeedSpec);
+			FName Fail = bHaveFeed ? PeekResourceFail(FeedSpec.Credits, FeedSpec.Luminene, 0) : FName();
+			const FString Tooltip = FString::Printf(TEXT("Satellite Feed\n%d Credits\n%d Luminene\n%ds"),
+				bHaveFeed ? FeedSpec.Credits : 0,
+				bHaveFeed ? FeedSpec.Luminene : 0,
+				(bHaveFeed ? FeedSpec.BuildTicks : 0) / 16);
+			AddButton(0, 2, OriginX, OriginY, TEXT("Feed"), TEXT("F"), TEXT("Research"), FName(KodWardenPaths::Id_SatelliteFeed), SelectedBuilding.Id.Value, INDEX_NONE, Fail.IsNone(), Fail, Tooltip);
+		}
+		else
+		{
+			auto OrbitalButton = [&](int32 Col, const TCHAR* Label, const TCHAR* Hotkey, FName AbilityId, int32 Cooldown)
+			{
+				FKodAbilitySpec Ability;
+				const bool bHaveAbility = Sim->TryGetAbilitySpec(AbilityId, Ability);
+				const int32 Cost = bHaveAbility ? Ability.EnergyCost : 0;
+				const bool bReady = bHaveCcState && CcState.Energy >= Cost && Cooldown <= 0;
+				const FName Fail = bReady ? FName() : FName(TEXT("Energy"));
+				const FString Tooltip = FString::Printf(TEXT("%s\n%d energy"), Label, Cost);
+				AddButton(Col, 2, OriginX, OriginY, Label, Hotkey, TEXT("Orbital"), AbilityId, SelectedBuilding.Id.Value, INDEX_NONE, bReady, Fail, Tooltip);
+			};
+			OrbitalButton(0, TEXT("Gatherer"), TEXT("N"), FName(KodWardenPaths::Id_OrbitalGathererDrop), SelectedBuilding.GathererCd);
+			OrbitalButton(1, TEXT("Supply"), TEXT("Y"), FName(KodWardenPaths::Id_SupplyBoost), SelectedBuilding.SupplyCd);
+			OrbitalButton(2, TEXT("ISR"), TEXT("I"), FName(KodWardenPaths::Id_IsrView), SelectedBuilding.IsrCd);
+			if (bHaveCcState)
+			{
+				DrawText(FString::Printf(TEXT("Energy %d/%d"), CcState.Energy, CcState.EnergyMax), FLinearColor(0.45f, 0.75f, 1.f, 1.f), OriginX, OriginY - 22.f, Font, 0.75f, false);
+			}
+		}
 	}
 
 	float MouseX = 0.f;

@@ -144,6 +144,16 @@ void UKodCueSubsystem::HandleCue(FName CueId, FVector Location, bool bAtLocation
 	{
 		return;
 	}
+	if (const UWorld* World = GetWorld())
+	{
+		if (const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			if (Sim->IsTestIsolation())
+			{
+				return;
+			}
+		}
+	}
 	UWorld* World = GetWorld();
 	if (!World)
 	{

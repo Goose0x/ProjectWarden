@@ -54,4 +54,20 @@ struct KODCORE_API FKodAbilitySpec
 	/** 1000 is unchanged. 1500 is +50% attack rate (shorter cooldown). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Ability")
 	int32 AttackPermille = 1000;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Ability")
+	int32 EnergyCost = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Ability")
+	int32 SupplyBonus = 0;
+
+	/** Copied onto a dropped gatherer. 1000 leaves the node harvest ticks unchanged. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Ability")
+	int32 GatherRatePermille = 1000;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Ability")
+	int32 SightUU = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Ability")
+	int32 OrbitRadiusUU = 0;
 };

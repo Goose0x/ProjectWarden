@@ -288,6 +288,44 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 	{
 		IssueAbility(FName(KodWardenPaths::Id_CombatStim));
 	}
+	if (!bBuildMenu && !bAdvancedMenu)
+	{
+		FKodEntityId CcId;
+		if (UKodSimSubsystem* OrbitalSim = GetWorld() ? GetWorld()->GetSubsystem<UKodSimSubsystem>() : nullptr)
+		{
+			for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+			{
+				FKodStructureState Structure;
+				if (OrbitalSim->TryGetStructure(Id, Structure) && Structure.DefinitionId == FName(KodWardenPaths::Id_CommandCenter) && Structure.bComplete)
+				{
+					CcId = Id;
+					break;
+				}
+			}
+			if (CcId.IsValid() && WasInputKeyJustPressed(EKeys::F))
+			{
+				FKodSimEntityState CcState;
+				if (!OrbitalSim->TryGetState(CcId, CcState) || CcState.EnergyMax <= 0)
+				{
+					OrbitalSim->EnqueueResearch(CcId, FName(KodWardenPaths::Id_SatelliteFeed));
+				}
+			}
+			if (CcId.IsValid() && WasInputKeyJustPressed(EKeys::N))
+			{
+				OrbitalSim->UseOrbitalAbility(CcId, FName(KodWardenPaths::Id_OrbitalGathererDrop), FVector::ZeroVector, FKodEntityId());
+			}
+			if (CcId.IsValid() && WasInputKeyJustPressed(EKeys::Y))
+			{
+				ArmedOrder = FName(TEXT("OrbitalSupply"));
+				ArmedStructureId = CcId.Value;
+			}
+			if (CcId.IsValid() && WasInputKeyJustPressed(EKeys::I))
+			{
+				ArmedOrder = FName(TEXT("OrbitalIsr"));
+				ArmedStructureId = CcId.Value;
+			}
+		}
+	}
 	if (WasInputKeyJustPressed(EKeys::BackSpace))
 	{
 		if (!PlaceType.IsNone())
@@ -1005,6 +1043,26 @@ bool AKodSlice0PlayerController::ConsumeHudCommandClick()
 	{
 		ToggleSelectedDepots();
 	}
+	else if (Hit.Action == TEXT("Orbital"))
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+			{
+				FKodEntityId CcId;
+				CcId.Value = Hit.StructureId;
+				if (Hit.Payload == FName(KodWardenPaths::Id_OrbitalGathererDrop))
+				{
+					Sim->UseOrbitalAbility(CcId, Hit.Payload, FVector::ZeroVector, FKodEntityId());
+				}
+				else
+				{
+					ArmedOrder = Hit.Payload == FName(KodWardenPaths::Id_SupplyBoost) ? FName(TEXT("OrbitalSupply")) : FName(TEXT("OrbitalIsr"));
+					ArmedStructureId = Hit.StructureId;
+				}
+			}
+		}
+	}
 	else if (Hit.Action == TEXT("Research"))
 	{
 		if (UWorld* World = GetWorld())
@@ -1071,6 +1129,27 @@ void AKodSlice0PlayerController::ArmOrder(FName OrderName)
 FName AKodSlice0PlayerController::GetArmedOrderName() const
 {
 	return ArmedOrder;
+}
+
+FName AKodSlice0PlayerController::GetPlacementType() const
+{
+	return PlaceType;
+}
+
+bool AKodSlice0PlayerController::TryGetPlacementAim(FName& OutType, FVector& OutCenter) const
+{
+	if (PlaceType.IsNone())
+	{
+		return false;
+	}
+	const AKodBuildGhost* Ghost = BuildGhost.Get();
+	if (!Ghost || Ghost->IsHidden())
+	{
+		return false;
+	}
+	OutType = PlaceType;
+	OutCenter = Ghost->GetActorLocation();
+	return true;
 }
 
 void AKodSlice0PlayerController::IssueStopOnSelectedUnits()
@@ -1169,6 +1248,22 @@ bool AKodSlice0PlayerController::ConsumeArmedOrderClick()
 		return false;
 	}
 	const FKodCursorCommand Cursor = TraceCursorCommand();
+	if (ArmedOrder == FName(TEXT("OrbitalSupply")) || ArmedOrder == FName(TEXT("OrbitalIsr")))
+	{
+		FKodEntityId CcId;
+		CcId.Value = ArmedStructureId;
+		if (ArmedOrder == FName(TEXT("OrbitalSupply")))
+		{
+			Sim->UseOrbitalAbility(CcId, FName(KodWardenPaths::Id_SupplyBoost), Cursor.MovePoint, Cursor.ClickedId);
+		}
+		else if (Cursor.bHasMovePoint)
+		{
+			Sim->UseOrbitalAbility(CcId, FName(KodWardenPaths::Id_IsrView), Cursor.MovePoint, FKodEntityId());
+		}
+		ArmedOrder = FName();
+		ArmedStructureId = 0;
+		return true;
+	}
 	FKodCommand Cmd;
 	Cmd.bQueued = ShiftQueued();
 	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;

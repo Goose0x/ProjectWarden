@@ -335,7 +335,7 @@ void UKodSimSubsystem::ResyncActors() const
 TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 {
 	FBlob Blob;
-	const int32 Version = 2;
+	const int32 Version = 3;
 	Blob.WInt(Version);
 	Blob.W(&SimTickIndex, sizeof(SimTickIndex));
 	TArray<int32> Keys;
@@ -416,6 +416,12 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 		Blob.WInt(S.AbilityCooldownTicks);
 		Blob.WInt(S.AbilityMovePermille);
 		Blob.WInt(S.AbilityAttackPermille);
+		Blob.WInt(S.GatherRatePermille > 0 ? S.GatherRatePermille : 1000);
+		Blob.WInt(S.OrbitAngle);
+		Blob.WInt(S.OrbitCenterX);
+		Blob.WInt(S.OrbitCenterY);
+		Blob.WInt(S.OrbitRadiusUU);
+		Blob.WInt(S.OrbitTicksRemaining);
 	}
 	TArray<int32> UniqueTeams;
 	Banks.GetKeys(UniqueTeams);
@@ -519,6 +525,11 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 		Blob.WFloat(Structure.RallyPoint.X);
 		Blob.WFloat(Structure.RallyPoint.Y);
 		Blob.WFloat(Structure.RallyPoint.Z);
+		Blob.WInt(Structure.BonusSupply);
+		Blob.WInt(Structure.BonusSupplyTicksRemaining);
+		Blob.WInt(Structure.GathererCd);
+		Blob.WInt(Structure.SupplyCd);
+		Blob.WInt(Structure.IsrCd);
 	}
 	Blob.WU8(static_cast<uint8>(MatchOutcome));
 	Blob.WU8(bAiEnabled ? 1 : 0);
@@ -540,6 +551,7 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 		Blob.WInt(TeamId);
 		Blob.WInt(Tech.InfantryWeapons);
 		Blob.WInt(Tech.InfantryArmor);
+		Blob.WInt(Tech.SatelliteFeed);
 	}
 	TArray<int32> FacingTeams;
 	TeamFacingYaw.GetKeys(FacingTeams);
@@ -657,7 +669,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version != 2)
+	if (!Blob.RInt(Version) || Version != 3)
 	{
 		return;
 	}
@@ -866,6 +878,24 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		S->AbilityCooldownTicks = AbilityCd;
 		S->AbilityMovePermille = MovePermille;
 		S->AbilityAttackPermille = AttackPermille;
+		int32 GatherRate = 1000;
+		int32 OrbitAngle = 0;
+		int32 OrbitX = 0;
+		int32 OrbitY = 0;
+		int32 OrbitRadius = 0;
+		int32 OrbitTicks = 0;
+		Blob.RInt(GatherRate);
+		Blob.RInt(OrbitAngle);
+		Blob.RInt(OrbitX);
+		Blob.RInt(OrbitY);
+		Blob.RInt(OrbitRadius);
+		Blob.RInt(OrbitTicks);
+		S->GatherRatePermille = GatherRate > 0 ? GatherRate : 1000;
+		S->OrbitAngle = OrbitAngle;
+		S->OrbitCenterX = OrbitX;
+		S->OrbitCenterY = OrbitY;
+		S->OrbitRadiusUU = OrbitRadius;
+		S->OrbitTicksRemaining = OrbitTicks;
 	}
 	{
 		TArray<int32> StateKeys;
@@ -1101,6 +1131,11 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		Structure->ResearchTicksRemaining = ResearchLeft;
 		Structure->Research = Research;
 		Structure->RallyPoint = FVector(RallyX, RallyY, RallyZ);
+		Blob.RInt(Structure->BonusSupply);
+		Blob.RInt(Structure->BonusSupplyTicksRemaining);
+		Blob.RInt(Structure->GathererCd);
+		Blob.RInt(Structure->SupplyCd);
+		Blob.RInt(Structure->IsrCd);
 	}
 	{
 		TArray<int32> StructureKeys;
@@ -1143,6 +1178,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		Blob.RInt(TeamId);
 		Blob.RInt(Tech.InfantryWeapons);
 		Blob.RInt(Tech.InfantryArmor);
+		Blob.RInt(Tech.SatelliteFeed);
 		TeamTech.Add(TeamId, Tech);
 	}
 	int32 FacingCount = 0;
@@ -1325,7 +1361,7 @@ bool UKodSimSubsystem::CollectSavedEntityIds(const TArray<uint8>& Bytes, TSet<in
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version != 2)
+	if (!Blob.RInt(Version) || Version != 3)
 	{
 		return false;
 	}
@@ -1410,7 +1446,7 @@ bool UKodSimSubsystem::CollectSavedEntityIds(const TArray<uint8>& Bytes, TSet<in
 			}
 		}
 		FString Ability;
-		if (!SkipBytes(1) || !SkipInts(1) || !Blob.RStr(Ability) || !SkipInts(4))
+		if (!SkipBytes(1) || !SkipInts(1) || !Blob.RStr(Ability) || !SkipInts(10))
 		{
 			return false;
 		}
@@ -1537,6 +1573,29 @@ bool UKodSimSubsystem::LoadSkirmishSlot(int32 Slot)
 	}
 	DestroyEntitiesNotIn(Keep);
 	ImportSimBlob(Save->Blob);
+	bLoadRespawn = true;
+	LoadRespawnTicks = 0;
+	TArray<int32> BoundKeys;
+	Entities.GetKeys(BoundKeys);
+	BoundKeys.Sort();
+	TArray<AActor*> BoundActors;
+	for (int32 Key : BoundKeys)
+	{
+		FKodEntityId Id;
+		Id.Value = Key;
+		if (AActor* Actor = ResolveEntity(Id))
+		{
+			BoundActors.Add(Actor);
+		}
+	}
+	Entities.Reset();
+	for (AActor* Actor : BoundActors)
+	{
+		if (Actor && !Actor->IsActorBeingDestroyed())
+		{
+			Actor->Destroy();
+		}
+	}
 	QueueMissingActors();
 	ResyncActors();
 	const FString After = ComputeIdleHash();

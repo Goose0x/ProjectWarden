@@ -30,6 +30,21 @@ struct KODCORE_API FKodAbilityBalanceRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
 	int32 AttackPermille = 1000;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 EnergyCost = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 SupplyBonus = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 GatherRatePermille = 1000;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 SightUU = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 OrbitRadiusUU = 0;
 };
 
 /** Unit integers. Defaults match the slice 0 bootstrap. */
@@ -85,6 +100,10 @@ struct KODCORE_API FKodUnitBalanceRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
 	int32 EnergyStart = 0;
+
+	/** 1000 matches the node harvest ticks. 2000 mines twice as fast. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 GatherRatePermille = 1000;
 };
 
 /** Weapon integers. Damage, range, and cooldown ticks. */
@@ -181,4 +200,13 @@ struct KODCORE_API FKodUpgradeBalanceRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
 	int32 ArmorBonus = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 SatelliteFeed = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 EnergyMax = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 EnergyStart = 0;
 };

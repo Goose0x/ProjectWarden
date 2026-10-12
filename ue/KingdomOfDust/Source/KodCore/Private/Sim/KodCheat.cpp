@@ -34,6 +34,7 @@ namespace
 		return nullptr;
 	}
 
+#if !UE_BUILD_SHIPPING
 	void KodCheat(const TArray<FString>& Args, UWorld* World)
 	{
 		UKodSimSubsystem* Sim = FindPlaySim(World);
@@ -53,6 +54,7 @@ namespace
 		}
 		Sim->ApplyCheatLine(Line);
 	}
+#endif
 
 	void KodCompetitive(const TArray<FString>& Args, UWorld* World)
 	{
@@ -82,10 +84,12 @@ namespace
 		Sim->SetBalanceField(FName(*Args[0]), FName(*Args[1]), FName(*Args[2]), FCString::Atoi(*Args[3]));
 	}
 
+#if !UE_BUILD_SHIPPING
 	FAutoConsoleCommandWithWorldAndArgs GKodCheat(
 		TEXT("kod.Cheat"),
 		TEXT("SC2-style cheat. Usage: kod.Cheat invincible | add credits [n] | add luminene [n] | instant build | no supply cap | reveal map | no cooldown"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodCheat));
+#endif
 
 	FAutoConsoleCommandWithWorldAndArgs GKodCompetitive(
 		TEXT("kod.Competitive"),
@@ -106,6 +110,10 @@ void UKodSimSubsystem::SetCompetitive(bool bEnabled)
 
 bool UKodSimSubsystem::ApplyCheatLine(const FString& Line)
 {
+#if UE_BUILD_SHIPPING
+	UE_LOG(LogTemp, Log, TEXT("KodCheat Refused Shipping"));
+	return false;
+#else
 	FString Text = Line.TrimStartAndEnd();
 	if (Text.StartsWith(TEXT("kod.Cheat"), ESearchCase::IgnoreCase))
 	{
@@ -208,4 +216,5 @@ bool UKodSimSubsystem::ApplyCheatLine(const FString& Line)
 		bMatchCheated = true;
 	}
 	return bUsed;
+#endif
 }

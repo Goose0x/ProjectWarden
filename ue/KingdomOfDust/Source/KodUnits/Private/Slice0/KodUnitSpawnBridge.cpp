@@ -73,6 +73,10 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 		Unit->EntityId = Existing;
 	}
 	Unit->ApplyDefinition(Def);
+	if (Request.GatherRatePermille > 0 || Request.OrbitTicks > 0)
+	{
+		Sim->FinishOrbitalSpawn(Unit->EntityId, Request);
+	}
 	if (bRestore)
 	{
 		Sim->RestoreImportedState(Unit->EntityId, Kept);
