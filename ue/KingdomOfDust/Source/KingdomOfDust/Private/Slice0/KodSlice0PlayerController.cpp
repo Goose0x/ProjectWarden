@@ -65,7 +65,7 @@ void AKodSlice0PlayerController::IssueAttackToSelection_Implementation(AActor* T
 		UE_LOG(LogTemp, Log, TEXT("Attack Reject NonSim Target=%s"), *Target->GetName());
 		return;
 	}
-	if (Sim->IsResourceNode(TargetId) || Sim->IsDropOff(TargetId))
+	if (!Sim->IsAttackable(TargetId, GetLocalTeamId()))
 	{
 		UE_LOG(LogTemp, Log, TEXT("Attack Reject Node Target=%s Id=%d"), *Target->GetName(), TargetId.Value);
 		return;
@@ -161,6 +161,16 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 	if (!IsLocalPlayerController() || Cast<AKodSpectatorPawn>(GetPawn()))
 	{
 		return;
+	}
+	if (const UWorld* MatchWorld = GetWorld())
+	{
+		if (const UKodSimSubsystem* MatchSim = MatchWorld->GetSubsystem<UKodSimSubsystem>())
+		{
+			if (MatchSim->IsMatchOver())
+			{
+				return;
+			}
+		}
 	}
 	if (WasInputKeyJustPressed(EKeys::B) && HasSelectedWorker())
 	{

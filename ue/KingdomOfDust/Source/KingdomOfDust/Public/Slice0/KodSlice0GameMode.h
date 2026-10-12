@@ -83,4 +83,7 @@ private:
 
 	/** KodGround / PROXY_GROUND box becomes the sim placement limit. */
 	void PublishPlayableBounds();
+
+	/** Team 1 command center and six AMPs. Skipped when kod.AI is 0. */
+	void SpawnAiOpponent();
 };
