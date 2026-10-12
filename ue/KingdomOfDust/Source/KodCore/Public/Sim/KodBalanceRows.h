@@ -1,0 +1,184 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/DataTable.h"
+#include "KodBalanceRows.generated.h"
+
+/** Ability integers. Defaults match the Combat Stim bootstrap. */
+USTRUCT(BlueprintType)
+struct KODCORE_API FKodAbilityBalanceRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Credits = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Luminene = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 HealthCost = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 CooldownTicks = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 DurationTicks = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 MovePermille = 1000;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 AttackPermille = 1000;
+};
+
+/** Unit integers. Defaults match the slice 0 bootstrap. */
+USTRUCT(BlueprintType)
+struct KODCORE_API FKodUnitBalanceRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 MaxHealth = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Armor = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 MoveSpeed = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Sight = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Credits = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Luminene = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Supply = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 BuildTicks = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Biological = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Infantry = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Flyer = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Healer = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 CanGather = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 CargoSize = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 EnergyMax = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 EnergyStart = 0;
+};
+
+/** Weapon integers. Damage, range, and cooldown ticks. */
+USTRUCT(BlueprintType)
+struct KODCORE_API FKodWeaponBalanceRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Damage = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Range = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 CooldownTicks = 0;
+};
+
+/** Structure integers. Defaults match the slice 0 bootstrap. */
+USTRUCT(BlueprintType)
+struct KODCORE_API FKodStructureBalanceRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 MaxHealth = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Credits = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Luminene = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 BuildTicks = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 SupplyProvided = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 FootprintX = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 FootprintY = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 MenuTier = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 TownHall = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 CanLower = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 CargoCap = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 AttackDamage = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 AttackRangeUU = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 AttacksAir = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Extractor = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 DropOff = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Sight = 0;
+};
+
+/** Upgrade integers. Defaults match the engineering-bay placeholders. */
+USTRUCT(BlueprintType)
+struct KODCORE_API FKodUpgradeBalanceRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Credits = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Luminene = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 BuildTicks = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 WeaponBonus = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 ArmorBonus = 0;
+};

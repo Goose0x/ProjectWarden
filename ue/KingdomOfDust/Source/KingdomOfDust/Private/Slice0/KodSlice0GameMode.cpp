@@ -467,6 +467,14 @@ void AKodSlice0GameMode::StartPlay()
 	SpawnWorkersIfNeeded();
 	PublishPlayableBounds();
 	SpawnAiOpponent();
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			Sim->EnsureBalanceTables();
+			Sim->ApplyBalance();
+		}
+	}
 }
 
 void AKodSlice0GameMode::PublishPlayableBounds()

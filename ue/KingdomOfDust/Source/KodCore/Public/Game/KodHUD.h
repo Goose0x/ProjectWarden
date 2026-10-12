@@ -102,6 +102,12 @@ public:
 	void SetHotkeyGrid(bool bShow) { bHotkeyLegend = bShow; }
 	int32 GetHealthBarMode() const { return HealthBarMode; }
 	bool IsHotkeyGridShown() const { return bHotkeyLegend; }
+	bool IsChatOpen() const { return bChatOpen; }
+	void OpenChat();
+	void CloseChat();
+	void AppendChatText(const FString& Text);
+	void BackspaceChat();
+	void SubmitChat();
 	/** True on the second click inside 0.3 seconds. */
 	bool ConsumePortraitClick();
 
@@ -234,6 +240,8 @@ protected:
 	float ChromeMaxY = 0.f;
 	FString FlashText;
 	float FlashUntilSeconds = -1.f;
+	bool bChatOpen = false;
+	FString ChatLine;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> HudWidgetInstance;

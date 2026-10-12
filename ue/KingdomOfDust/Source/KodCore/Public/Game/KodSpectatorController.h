@@ -17,5 +17,5 @@ public:
 	AKodSpectatorController();
 
 	virtual void BeginPlay() override;
-	virtual void BuildHiddenComponentList(const FVector& ViewLocation, TSet<FPrimitiveComponentId>& HiddenComponents) override;
+	virtual void UpdateHiddenComponents(const FVector& ViewLocation, TSet<FPrimitiveComponentId>& HiddenComponents) override;
 };

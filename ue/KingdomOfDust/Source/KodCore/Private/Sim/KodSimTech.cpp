@@ -456,6 +456,10 @@ void UKodSimSubsystem::StepTech()
 				Structure->ResearchBuildTime = FMath::Max(1, Job.BuildTime);
 				Structure->ResearchTicksRemaining = Structure->ResearchBuildTime;
 			}
+			if (bCheatInstantBuild && Structure->TeamId == 0 && Structure->ResearchTicksRemaining > 1)
+			{
+				Structure->ResearchTicksRemaining = 1;
+			}
 			if (Structure->ResearchTicksRemaining > 0)
 			{
 				--Structure->ResearchTicksRemaining;

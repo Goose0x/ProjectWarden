@@ -65,8 +65,32 @@ namespace
 			UE_LOG(LogTemp, Warning, TEXT("kod.AIDifficulty: no sim (start PIE)"));
 			return;
 		}
-		Sim->SetAiDifficulty(FCString::Atoi(*Args[0]));
-		UE_LOG(LogTemp, Log, TEXT("KodAI Difficulty=%d"), Sim->GetAiDifficulty());
+		const FString Name = Args[0];
+		int32 Difficulty = 1;
+		if (Name.Equals(TEXT("Easy"), ESearchCase::IgnoreCase))
+		{
+			Difficulty = 1;
+		}
+		else if (Name.Equals(TEXT("Medium"), ESearchCase::IgnoreCase))
+		{
+			Difficulty = 2;
+		}
+		else if (Name.Equals(TEXT("Hard"), ESearchCase::IgnoreCase))
+		{
+			Difficulty = 3;
+		}
+		else if (Name.Equals(TEXT("Elite"), ESearchCase::IgnoreCase))
+		{
+			Difficulty = 4;
+		}
+		else
+		{
+			Difficulty = FMath::Max(1, FCString::Atoi(*Name));
+		}
+		Sim->SetAiDifficulty(Difficulty);
+		const TCHAR* Labels[] = { TEXT("Easy"), TEXT("Easy"), TEXT("Medium"), TEXT("Hard"), TEXT("Elite") };
+		const int32 LabelIndex = FMath::Clamp(Sim->GetAiDifficulty(), 1, 4);
+		UE_LOG(LogTemp, Log, TEXT("KodAI Difficulty=%d Name=%s"), Sim->GetAiDifficulty(), Labels[LabelIndex]);
 	}
 
 	FAutoConsoleCommandWithWorldAndArgs GKodAI(

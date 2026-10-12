@@ -1,5 +1,8 @@
 #include "Sim/KodSimSubsystem.h"
 
+#include "Game/KodAIMemorySaveGame.h"
+#include "Hash/CityHash.h"
+#include "Kismet/GameplayStatics.h"
 #include "Warden/KodWardenPaths.h"
 
 namespace
@@ -135,7 +138,7 @@ bool UKodSimSubsystem::TryGetEnemyStart(FVector& OutPoint) const
 
 void UKodSimSubsystem::EvaluateMatch()
 {
-	if (MatchOutcome != EKodMatchOutcome::None)
+	if (bTestIsolation || MatchOutcome != EKodMatchOutcome::None)
 	{
 		return;
 	}
@@ -174,18 +177,148 @@ void UKodSimSubsystem::EvaluateMatch()
 		MatchOutcome = EKodMatchOutcome::Defeat;
 		UE_LOG(LogTemp, Log, TEXT("KodAI Match Defeat"));
 		RaiseCue(FName(TEXT("defeat")), FVector::ZeroVector, false);
+		RememberAiMatch();
 	}
 	else if (bTeam1HadStructure && Team1 == 0)
 	{
 		MatchOutcome = EKodMatchOutcome::Victory;
 		UE_LOG(LogTemp, Log, TEXT("KodAI Match Victory"));
 		RaiseCue(FName(TEXT("victory")), FVector::ZeroVector, false);
+		RememberAiMatch();
 	}
+}
+
+void UKodSimSubsystem::ChooseAiOpener()
+{
+	if (bAiOpenerChosen)
+	{
+		return;
+	}
+	const FName Openers[3] = {
+		FName(TEXT("MacroUpgrades")),
+		FName(TEXT("SafeExpand")),
+		FName(TEXT("TimingAttack"))
+	};
+	int32 Weights[3] = {1, 1, 1};
+	int32 WinSum = 0;
+	int32 LossSum = 0;
+	if (USaveGame* Loaded = UGameplayStatics::LoadGameFromSlot(TEXT("KodAIMemory"), 0))
+	{
+		if (const UKodAIMemorySaveGame* Memory = Cast<UKodAIMemorySaveGame>(Loaded))
+		{
+			for (const FKodOpenerRecord& Record : Memory->Records)
+			{
+				WinSum += FMath::Max(0, Record.Wins);
+				LossSum += FMath::Max(0, Record.Losses);
+				for (int32 Index = 0; Index < 3; ++Index)
+				{
+					if (Record.Opener == Openers[Index])
+					{
+						Weights[Index] = 1 + FMath::Max(0, Record.Wins) * 2;
+						if (Record.Losses > Record.Wins)
+						{
+							Weights[Index] = 1;
+						}
+					}
+				}
+			}
+		}
+	}
+	int32 Total = 0;
+	for (int32 Weight : Weights)
+	{
+		Total += FMath::Max(1, Weight);
+	}
+	uint8 SeedBytes[12];
+	const int32 Diff = FMath::Max(1, AiDifficulty);
+	FMemory::Memcpy(SeedBytes, &Diff, sizeof(Diff));
+	FMemory::Memcpy(SeedBytes + 4, &WinSum, sizeof(WinSum));
+	FMemory::Memcpy(SeedBytes + 8, &LossSum, sizeof(LossSum));
+	const uint64 Seed = CityHash64(reinterpret_cast<const char*>(SeedBytes), sizeof(SeedBytes));
+	int32 Cursor = static_cast<int32>(Seed % static_cast<uint64>(FMath::Max(1, Total)));
+	int32 Picked = 0;
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		const int32 Weight = FMath::Max(1, Weights[Index]);
+		if (Cursor < Weight)
+		{
+			Picked = Index;
+			break;
+		}
+		Cursor -= Weight;
+	}
+	AiOpener = Picked;
+	bAiOpenerChosen = true;
+	UE_LOG(LogTemp, Log, TEXT("KodAI Opener=%s"), *Openers[Picked].ToString());
+}
+
+void UKodSimSubsystem::RememberAiMatch()
+{
+	if (bAiMemoryWritten || !bAiOpenerChosen)
+	{
+		return;
+	}
+	const FName Openers[3] = {
+		FName(TEXT("MacroUpgrades")),
+		FName(TEXT("SafeExpand")),
+		FName(TEXT("TimingAttack"))
+	};
+	const int32 Index = FMath::Clamp(AiOpener, 0, 2);
+	UKodAIMemorySaveGame* Memory = Cast<UKodAIMemorySaveGame>(UGameplayStatics::LoadGameFromSlot(TEXT("KodAIMemory"), 0));
+	if (!Memory)
+	{
+		Memory = NewObject<UKodAIMemorySaveGame>();
+	}
+	FKodOpenerRecord* Record = nullptr;
+	for (FKodOpenerRecord& Existing : Memory->Records)
+	{
+		if (Existing.Opener == Openers[Index])
+		{
+			Record = &Existing;
+			break;
+		}
+	}
+	if (!Record)
+	{
+		FKodOpenerRecord Added;
+		Added.Opener = Openers[Index];
+		Memory->Records.Add(Added);
+		Memory->Records.Sort([](const FKodOpenerRecord& A, const FKodOpenerRecord& B)
+		{
+			return A.Opener.ToString() < B.Opener.ToString();
+		});
+		for (FKodOpenerRecord& Existing : Memory->Records)
+		{
+			if (Existing.Opener == Openers[Index])
+			{
+				Record = &Existing;
+				break;
+			}
+		}
+	}
+	if (!Record)
+	{
+		return;
+	}
+	if (MatchOutcome == EKodMatchOutcome::Defeat)
+	{
+		++Record->Wins;
+	}
+	else if (MatchOutcome == EKodMatchOutcome::Victory)
+	{
+		++Record->Losses;
+	}
+	bAiMemoryWritten = true;
+	UGameplayStatics::SaveGameToSlot(Memory, TEXT("KodAIMemory"), 0);
+	UE_LOG(LogTemp, Log, TEXT("KodAI Memory Opener=%s Wins=%d Losses=%d"),
+		*Record->Opener.ToString(),
+		Record->Wins,
+		Record->Losses);
 }
 
 void UKodSimSubsystem::StepAI()
 {
-	if (!bAiEnabled || !bAiSeeded || MatchOutcome != EKodMatchOutcome::None)
+	if (bTestIsolation || !bAiEnabled || !bAiSeeded || MatchOutcome != EKodMatchOutcome::None)
 	{
 		return;
 	}
@@ -194,10 +327,15 @@ void UKodSimSubsystem::StepAI()
 		return;
 	}
 
+	ChooseAiOpener();
+
 	const FName DozerId(KodWardenPaths::Id_Dozer);
 	const FName RangerId(KodWardenPaths::Id_Ranger);
 	const FName DepotId(KodWardenPaths::Id_SupplyDepot);
 	const FName BarracksId(KodWardenPaths::Id_Barracks);
+	const FName CcTypeId(KodWardenPaths::Id_CommandCenter);
+	const FName EngBayId(KodWardenPaths::Id_EngineeringBay);
+	const FName MedicId(KodWardenPaths::Id_Medic);
 
 	TArray<int32> Keys;
 	States.GetKeys(Keys);
@@ -229,11 +367,17 @@ void UKodSimSubsystem::StepAI()
 
 	int32 WorkerCount = 0;
 	int32 QueuedWorkers = 0;
+	int32 CcCount = 0;
+	int32 MarineCount = 0;
 	bool bDepotInProgress = false;
 	bool bDepotComplete = false;
 	bool bHasBarracks = false;
+	bool bCcInProgress = false;
+	bool bEngBayComplete = false;
+	bool bEngBayStarted = false;
 	FKodEntityId CcId;
 	FKodEntityId BarracksIdValue;
+	FKodEntityId EngBayEntity;
 	FVector Base = FVector::ZeroVector;
 	bool bHaveBase = false;
 
@@ -247,11 +391,31 @@ void UKodSimSubsystem::StepAI()
 		{
 			continue;
 		}
-		if (!bHaveBase && Structure->DefinitionId == FName(KodWardenPaths::Id_CommandCenter))
+		if (Structure->DefinitionId == CcTypeId)
 		{
-			bHaveBase = true;
-			Base = Structure->Position;
-			CcId = Structure->Id;
+			++CcCount;
+			if (!Structure->bComplete)
+			{
+				bCcInProgress = true;
+			}
+			if (!bHaveBase)
+			{
+				bHaveBase = true;
+				Base = Structure->Position;
+				CcId = Structure->Id;
+			}
+		}
+		if (Structure->DefinitionId == EngBayId)
+		{
+			bEngBayStarted = true;
+			if (Structure->bComplete)
+			{
+				bEngBayComplete = true;
+				if (!EngBayEntity.IsValid())
+				{
+					EngBayEntity = Structure->Id;
+				}
+			}
 		}
 		if (Structure->DefinitionId == DepotId)
 		{
@@ -284,9 +448,29 @@ void UKodSimSubsystem::StepAI()
 	for (int32 Key : Keys)
 	{
 		const FKodSimEntityState* State = States.Find(Key);
-		if (State && State->TeamId == AiTeamId && State->bCanGather && State->Health > 0.f)
+		if (!State || State->Health <= 0.f)
+		{
+			continue;
+		}
+		if (State->TeamId == AiTeamId && State->bCanGather)
 		{
 			++WorkerCount;
+		}
+		if (State->TeamId == AiTeamId && State->bInfantry && State->WeaponDamage > 0.f && !State->bHealer)
+		{
+			++MarineCount;
+		}
+		if (State->TeamId == 0 && CanTeamSeeWorld(AiTeamId, State->Position.X, State->Position.Y))
+		{
+			bScoutSawEnemy = true;
+		}
+	}
+	for (int32 Key : StructureKeys)
+	{
+		const FKodStructureState* Structure = Structures.Find(Key);
+		if (Structure && Structure->TeamId == 0 && CanTeamSeeWorld(AiTeamId, Structure->Position.X, Structure->Position.Y))
+		{
+			bScoutSawEnemy = true;
 		}
 	}
 
@@ -360,8 +544,37 @@ void UKodSimSubsystem::StepAI()
 		return false;
 	};
 
+	const int32 Diff = FMath::Clamp(AiDifficulty, 1, 4);
+	const int32 MarginSeconds[5] = {0, 90, 60, 45, 30};
+	int32 Margin = MarginSeconds[Diff];
+	if (AiOpener == 1)
+	{
+		Margin += 20;
+	}
+	else if (AiOpener == 2)
+	{
+		Margin = FMath::Max(20, Margin - 15);
+	}
+	if (bScoutSawEnemy && AiOpener == 1)
+	{
+		Margin += 15;
+	}
+	int32 ExpandAt = ExposedTicks - (71 * 16) - Margin * 16;
+	if (ExpandAt < 60 * 16)
+	{
+		ExpandAt = 60 * 16;
+	}
+	const bool bWantSecondCc = CcCount < 2 && !bCcInProgress && SimTickIndex >= ExpandAt;
+
 	const bool bDepotBeforeBarracks = !bHasBarracks && !bDepotComplete;
-	if (bDepotBeforeBarracks)
+	if (bWantSecondCc)
+	{
+		if (TryBuildNearBase(CcTypeId))
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodAI Expand Tick=%lld"), static_cast<long long>(SimTickIndex));
+		}
+	}
+	else if (bDepotBeforeBarracks)
 	{
 		if (!bDepotInProgress)
 		{
@@ -375,6 +588,10 @@ void UKodSimSubsystem::StepAI()
 	else if (!bHasBarracks)
 	{
 		TryBuildNearBase(BarracksId);
+	}
+	else if (Diff >= 2 && bHasBarracks && !bEngBayStarted)
+	{
+		TryBuildNearBase(EngBayId);
 	}
 
 	int32 ReserveCredits = 0;
@@ -390,6 +607,13 @@ void UKodSimSubsystem::StepAI()
 		if (const FKodBuildSpec* DepotSpec = BuildSpecs.Find(DepotId))
 		{
 			ReserveCredits += FMath::Max(0, DepotSpec->Cost.Credits);
+		}
+	}
+	if (bWantSecondCc)
+	{
+		if (const FKodBuildSpec* CcSpec = BuildSpecs.Find(CcTypeId))
+		{
+			ReserveCredits += FMath::Max(0, CcSpec->Cost.Credits);
 		}
 	}
 
@@ -427,7 +651,16 @@ void UKodSimSubsystem::StepAI()
 	}
 	if (BarracksIdValue.IsValid())
 	{
-		EnqueueIfOpen(BarracksIdValue, RangerId, bNeedDepot && !bDepotInProgress ? ReserveCredits : 0);
+		const bool bWantMedic = Diff >= 2 && bEngBayComplete && MarineCount >= 4 && ((SimTickIndex / AiThinkPeriod) % 4) == 0;
+		EnqueueIfOpen(BarracksIdValue, bWantMedic ? MedicId : RangerId, bNeedDepot && !bDepotInProgress ? ReserveCredits : 0);
+	}
+	if (EngBayEntity.IsValid() && Diff >= 2)
+	{
+		const FKodTeamTech* Tech = TeamTech.Find(AiTeamId);
+		if (!Tech || Tech->InfantryWeapons <= 0)
+		{
+			EnqueueResearch(EngBayEntity, FName(KodWardenPaths::Id_InfantryWeapons));
+		}
 	}
 
 	if (!bAiScoutSent)
@@ -507,7 +740,48 @@ void UKodSimSubsystem::StepAI()
 
 	const int32 Difficulty = FMath::Max(1, AiDifficulty);
 	const int32 FromTime = AiWaveTimeStep > 0 ? static_cast<int32>(SimTickIndex / AiWaveTimeStep) * Difficulty : 0;
-	const int32 WaveSize = FMath::Clamp(AiWaveBase + FromTime + AiWavesLaunched * Difficulty, AiWaveBase, AiWaveCap);
+	int32 WaveSize = FMath::Clamp(AiWaveBase + FromTime + AiWavesLaunched * Difficulty, AiWaveBase, AiWaveCap);
+	if (bScoutSawEnemy && AiOpener == 2)
+	{
+		WaveSize = FMath::Max(4, WaveSize / 2);
+	}
+	const int32 NeedPct[5] = {0, 70, 100, 120, 140};
+	const int32 OwnArmy = ArmyValueFor(AiTeamId);
+	int32 SeenEnemy = 0;
+	for (int32 Key : Keys)
+	{
+		const FKodSimEntityState* State = States.Find(Key);
+		if (!State || State->TeamId != 0 || State->Health <= 0.f || !State->bMobile)
+		{
+			continue;
+		}
+		if (!CanTeamSeeWorld(AiTeamId, State->Position.X, State->Position.Y))
+		{
+			continue;
+		}
+		FKodTrainSpec Spec;
+		if (TryGetTrainSpec(State->DefinitionId, Spec))
+		{
+			SeenEnemy += FMath::Max(0, Spec.Cost.Credits);
+		}
+	}
+	const int32 UsedDiff = FMath::Clamp(Difficulty, 1, 4);
+	if (SeenEnemy > 0 && OwnArmy * 100 < SeenEnemy * NeedPct[UsedDiff])
+	{
+		for (int32 MarineKey : IdleMarines)
+		{
+			FKodEntityId MarineId;
+			MarineId.Value = MarineKey;
+			IssueMove(MarineId, bHaveBase ? Base : FVector::ZeroVector);
+		}
+		if (!bAiRetreating)
+		{
+			bAiRetreating = true;
+			UE_LOG(LogTemp, Log, TEXT("KodAI Retreat Own=%d Enemy=%d"), OwnArmy, SeenEnemy);
+		}
+		return;
+	}
+	bAiRetreating = false;
 	if (IdleMarines.Num() < WaveSize)
 	{
 		return;

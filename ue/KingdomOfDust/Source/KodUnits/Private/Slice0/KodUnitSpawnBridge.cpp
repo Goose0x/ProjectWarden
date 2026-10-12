@@ -63,7 +63,23 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 	{
 		Unit->Tags.AddUnique(FName(TEXT("KodUnitDozer")));
 	}
+	FKodSimEntityState Kept;
+	const bool bRestore = Request.RestoreId > 0;
+	if (bRestore)
+	{
+		FKodEntityId Existing;
+		Existing.Value = Request.RestoreId;
+		Sim->TryGetState(Existing, Kept);
+		Unit->EntityId = Existing;
+	}
 	Unit->ApplyDefinition(Def);
+	if (bRestore)
+	{
+		Sim->RestoreImportedState(Unit->EntityId, Kept);
+		Sim->AttachRestoredActor(Unit->EntityId, Unit);
+		UE_LOG(LogTemp, Log, TEXT("KodLoad Spawned=%s Id=%d"), *Unit->GetName(), Unit->EntityId.Value);
+		return;
+	}
 	UE_LOG(LogTemp, Log, TEXT("KodProd Complete Spawned=%s"), *Unit->GetName());
 
 	if (Request.RallyUnit.IsValid())

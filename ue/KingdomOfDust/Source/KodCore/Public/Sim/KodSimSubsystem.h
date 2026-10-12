@@ -9,6 +9,7 @@
 #include "Sim/KodProductionTypes.h"
 #include "Sim/KodBuildTypes.h"
 #include "Sim/KodAbilityTypes.h"
+#include "Sim/KodBalanceRows.h"
 #include "KodSimSubsystem.generated.h"
 
 class AActor;
@@ -634,7 +635,25 @@ public:
 	};
 
 	void CopyStatSamples(int32 TeamId, TArray<FKodStatSample>& Out) const;
+	void CopyOlderStatSamples(int32 TeamId, TArray<FKodStatSample>& Out) const;
 	void GetTeamTotals(int32 TeamId, int32& Collected, int32& Trained, int32& Killed, int32& Built, int32& Razed) const;
+
+	bool IsMatchCheated() const { return bMatchCheated; }
+	bool IsCompetitive() const { return bCompetitive; }
+	void SetCompetitive(bool bEnabled);
+	/** SC2-style line. Refused while competitive is on. Any accepted cheat sets the match flag. */
+	bool ApplyCheatLine(const FString& Line);
+
+	void AttachRestoredActor(FKodEntityId Id, AActor* Actor);
+	void RestoreImportedState(FKodEntityId Id, const FKodSimEntityState& State);
+
+	void EnsureBalanceTables();
+	void ApplyBalance();
+	bool SetBalanceField(FName Table, FName Row, FName Field, int32 Value);
+
+	/** Headless seeded matchup. Stashes the live sim and restores it when the runs finish. */
+	bool RunScriptedTest(FName Scenario, int32 Runs, int32 Seed);
+	void LogTestSummary() const;
 
 	/**
 	 * Presentation snapshot of combat entities (not resource nodes).
@@ -723,10 +742,13 @@ protected:
 	void StepProduction();
 	void StepAbilities();
 	void StepAI();
+	void ChooseAiOpener();
+	void RememberAiMatch();
 	void StepTech();
 	void StepExposed();
 	void ApplyExposedReveal();
 	void RecordMatchSample();
+	void CollapseStatWindow(TArray<FKodStatSample>& Samples, TArray<FKodStatSample>& Older);
 	void NoteResources(int32 TeamId, int32 Amount);
 	void NoteUnitTrained(int32 TeamId);
 	void NoteUnitKilled(int32 TeamId);
@@ -736,6 +758,10 @@ protected:
 	TArray<uint8> ExportSimBlob() const;
 	void ImportSimBlob(const TArray<uint8>& Blob);
 	void ResyncActors() const;
+	bool CollectSavedEntityIds(const TArray<uint8>& Blob, TSet<int32>& OutIds) const;
+	void DestroyEntitiesNotIn(const TSet<int32>& Keep);
+	void QueueMissingActors();
+	void AppendBalanceHash(TArray<uint8>& Bytes) const;
 	void ApplyRoster(FKodEntityId Id);
 	void EjectBunker(FKodEntityId BunkerId);
 	bool CellHasUnit(int32 CellX, int32 CellY) const;
@@ -833,6 +859,76 @@ protected:
 	FKodTeamTotals Totals1;
 	TArray<FKodStatSample> Samples0;
 	TArray<FKodStatSample> Samples1;
+	TArray<FKodStatSample> OlderSamples0;
+	TArray<FKodStatSample> OlderSamples1;
+
+	bool bMatchCheated = false;
+	bool bCompetitive = false;
+	bool bCheatInvincible = false;
+	bool bCheatInstantBuild = false;
+	bool bCheatNoSupply = false;
+	bool bCheatReveal = false;
+	bool bCheatNoCooldown = false;
+	int32 DamageDealt0 = 0;
+	int32 DamageDealt1 = 0;
+	int32 DamageTaken0 = 0;
+	int32 DamageTaken1 = 0;
+	int32 AiOpener = 0;
+	bool bAiOpenerChosen = false;
+	bool bScoutSawEnemy = false;
+	bool bAiRetreating = false;
+	bool bAiMemoryWritten = false;
+
+	UPROPERTY()
+	TObjectPtr<UDataTable> AbilityTable;
+	UPROPERTY()
+	TObjectPtr<UDataTable> UnitTable;
+	UPROPERTY()
+	TObjectPtr<UDataTable> WeaponTable;
+	UPROPERTY()
+	TObjectPtr<UDataTable> StructureTable;
+	UPROPERTY()
+	TObjectPtr<UDataTable> UpgradeTable;
+
+	struct FKodTestResult
+	{
+		FString Scenario;
+		int32 Seed = 0;
+		int32 Run = 0;
+		int32 Winner = -1;
+		int32 TimeSeconds = 0;
+		int32 Survivors0 = 0;
+		int32 Survivors1 = 0;
+		int32 Dealt0 = 0;
+		int32 Dealt1 = 0;
+		int32 Taken0 = 0;
+		int32 Taken1 = 0;
+		int32 Dps0 = 0;
+		int32 Dps1 = 0;
+		FString Hash;
+	};
+	TArray<FKodTestResult> TestResults;
+
+	struct FKodMatchSnapshot
+	{
+		TArray<uint8> Blob;
+		TMap<int32, TWeakObjectPtr<AActor>> Entities;
+		TArray<FKodPendingUnitSpawn> PendingSpawns;
+		TArray<FKodPendingBuildingSpawn> PendingBuildingSpawns;
+		TMap<int32, FVector> PrevPositions;
+		TMap<int32, float> PrevYaws;
+		int32 NextId = 1;
+		float TimeAccumulator = 0.f;
+		bool bSimPaused = false;
+		bool bMenuMode = false;
+		bool bHasPlayable = false;
+		int32 PlayMinX = 0;
+		int32 PlayMinY = 0;
+		int32 PlayMaxX = 0;
+		int32 PlayMaxY = 0;
+	};
+	FKodMatchSnapshot TestStash;
+	bool bTestIsolation = false;
 
 	/** Cell -> sorted entity ids. Rebuilt at the start of each sim tick. */
 	TMap<int64, TArray<int32>> AcquireGrid;
@@ -868,6 +964,8 @@ protected:
 
 	TArray<FKodStoredPath> StoredPaths;
 	int32 NextPathId = 1;
+	TArray<FKodStoredPath> TestStashPaths;
+	int32 TestStashNextPathId = 1;
 	bool bAiCheatVision = false;
 	/** Playable build grid. Each team array is Width * Height, row-major. 0 unexplored, 1 explored, 2 visible. */
 	int32 VisionOriginX = 0;

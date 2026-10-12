@@ -152,9 +152,37 @@ void UKodSimSubsystem::CopyStatSamples(int32 TeamId, TArray<FKodStatSample>& Out
 	Out = TeamId == 0 ? Samples0 : Samples1;
 }
 
+void UKodSimSubsystem::CopyOlderStatSamples(int32 TeamId, TArray<FKodStatSample>& Out) const
+{
+	Out = TeamId == 0 ? OlderSamples0 : OlderSamples1;
+}
+
+void UKodSimSubsystem::CollapseStatWindow(TArray<FKodStatSample>& Samples, TArray<FKodStatSample>& Older)
+{
+	constexpr int32 FullSamples = 30 * 60 / 5;
+	constexpr int32 CollapseCount = 12;
+	constexpr int32 OlderCap = 512;
+	while (Samples.Num() > FullSamples && Samples.Num() >= CollapseCount)
+	{
+		FKodStatSample Collapsed = Samples[CollapseCount - 1];
+		int32 Income = 0;
+		for (int32 Index = 0; Index < CollapseCount; ++Index)
+		{
+			Income += Samples[Index].Income;
+		}
+		Collapsed.Income = Income;
+		Older.Add(Collapsed);
+		Samples.RemoveAt(0, CollapseCount);
+	}
+	while (Older.Num() > OlderCap)
+	{
+		Older.RemoveAt(0);
+	}
+}
+
 void UKodSimSubsystem::RecordMatchSample()
 {
-	if (SimTickIndex <= 0 || (SimTickIndex % (5 * 16)) != 0)
+	if (bTestIsolation || SimTickIndex <= 0 || (SimTickIndex % (5 * 16)) != 0)
 	{
 		return;
 	}
@@ -174,11 +202,13 @@ void UKodSimSubsystem::RecordMatchSample()
 	};
 	Push(0, Totals0, Samples0);
 	Push(1, Totals1, Samples1);
+	CollapseStatWindow(Samples0, OlderSamples0);
+	CollapseStatWindow(Samples1, OlderSamples1);
 }
 
 void UKodSimSubsystem::StepExposed()
 {
-	if (!bExposedRule)
+	if (bTestIsolation || !bExposedRule)
 	{
 		return;
 	}
@@ -305,7 +335,7 @@ void UKodSimSubsystem::ResyncActors() const
 TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 {
 	FBlob Blob;
-	const int32 Version = 1;
+	const int32 Version = 2;
 	Blob.WInt(Version);
 	Blob.W(&SimTickIndex, sizeof(SimTickIndex));
 	TArray<int32> Keys;
@@ -317,6 +347,13 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 		const FKodSimEntityState& S = States.FindChecked(Key);
 		Blob.WInt(Key);
 		Blob.WStr(S.DefinitionId.ToString());
+		Blob.WInt(S.TeamId);
+		Blob.WU8(S.bMobile ? 1 : 0);
+		Blob.WU8(S.bCanGather ? 1 : 0);
+		Blob.WFloat(S.YawDegrees);
+		Blob.WInt(FMath::RoundToInt(S.MoveSpeed));
+		Blob.WInt(FMath::RoundToInt(S.WeaponDamage));
+		Blob.WInt(FMath::RoundToInt(S.WeaponRange));
 		Blob.WFloat(S.Position.X);
 		Blob.WFloat(S.Position.Y);
 		Blob.WFloat(S.Position.Z);
@@ -435,6 +472,12 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 	{
 		const FKodStructureState& Structure = Structures.FindChecked(Key);
 		Blob.WInt(Key);
+		Blob.WStr(Structure.DefinitionId.ToString());
+		Blob.WFloat(Structure.Position.X);
+		Blob.WFloat(Structure.Position.Y);
+		Blob.WFloat(Structure.Position.Z);
+		const FKodSimEntityState* Combat = States.Find(Key);
+		Blob.WFloat(Combat ? Combat->YawDegrees : 0.f);
 		Blob.WInt(Structure.TeamId);
 		Blob.WInt(Structure.SupplyProvided);
 		Blob.WInt(Structure.Slots.Num());
@@ -589,6 +632,23 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 	};
 	WriteSamples(Samples0);
 	WriteSamples(Samples1);
+	WriteSamples(OlderSamples0);
+	WriteSamples(OlderSamples1);
+	Blob.WU8(bMatchCheated ? 1 : 0);
+	Blob.WU8(bCompetitive ? 1 : 0);
+	Blob.WU8(bCheatInvincible ? 1 : 0);
+	Blob.WU8(bCheatInstantBuild ? 1 : 0);
+	Blob.WU8(bCheatNoSupply ? 1 : 0);
+	Blob.WU8(bCheatReveal ? 1 : 0);
+	Blob.WU8(bCheatNoCooldown ? 1 : 0);
+	Blob.WInt(DamageDealt0);
+	Blob.WInt(DamageDealt1);
+	Blob.WInt(DamageTaken0);
+	Blob.WInt(DamageTaken1);
+	Blob.WInt(AiOpener);
+	Blob.WU8(bAiOpenerChosen ? 1 : 0);
+	Blob.WU8(bScoutSawEnemy ? 1 : 0);
+	Blob.WU8(bAiRetreating ? 1 : 0);
 	return Blob.Bytes;
 }
 
@@ -597,20 +657,38 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version != 1)
+	if (!Blob.RInt(Version) || Version != 2)
 	{
 		return;
 	}
 	Blob.R(&SimTickIndex, sizeof(SimTickIndex));
 	int32 EntityCount = 0;
 	Blob.RInt(EntityCount);
+	TSet<int32> SeenEntityIds;
 	for (int32 Index = 0; Index < EntityCount; ++Index)
 	{
 		int32 Key = 0;
 		FString Name;
 		Blob.RInt(Key);
 		Blob.RStr(Name);
-		FKodSimEntityState* S = States.Find(Key);
+		int32 TeamId = 0;
+		uint8 Mobile = 1;
+		uint8 Gather = 0;
+		float Yaw = 0.f;
+		int32 MoveSpeed = 0;
+		int32 WeaponDamage = 0;
+		int32 WeaponRange = 0;
+		Blob.RInt(TeamId);
+		Blob.RU8(Mobile);
+		Blob.RU8(Gather);
+		Blob.RFloat(Yaw);
+		Blob.RInt(MoveSpeed);
+		Blob.RInt(WeaponDamage);
+		Blob.RInt(WeaponRange);
+		FKodSimEntityState& Added = States.FindOrAdd(Key);
+		FKodSimEntityState* S = &Added;
+		S->Id.Value = Key;
+		SeenEntityIds.Add(Key);
 		float X = 0.f;
 		float Y = 0.f;
 		float Z = 0.f;
@@ -730,11 +808,14 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		Blob.RInt(AbilityCd);
 		Blob.RInt(MovePermille);
 		Blob.RInt(AttackPermille);
-		if (!S)
-		{
-			continue;
-		}
 		S->DefinitionId = FName(*Name);
+		S->TeamId = TeamId;
+		S->bMobile = Mobile != 0;
+		S->bCanGather = Gather != 0;
+		S->YawDegrees = Yaw;
+		S->MoveSpeed = static_cast<float>(MoveSpeed);
+		S->WeaponDamage = static_cast<float>(WeaponDamage);
+		S->WeaponRange = static_cast<float>(WeaponRange);
 		S->Position = FVector(X, Y, Z);
 		S->Health = Health;
 		S->MaxHealth = MaxHealth;
@@ -786,6 +867,24 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		S->AbilityMovePermille = MovePermille;
 		S->AbilityAttackPermille = AttackPermille;
 	}
+	{
+		TArray<int32> StateKeys;
+		States.GetKeys(StateKeys);
+		for (int32 Key : StateKeys)
+		{
+			if (!SeenEntityIds.Contains(Key))
+			{
+				FKodEntityId Id;
+				Id.Value = Key;
+				AActor* Actor = ResolveEntity(Id);
+				UnregisterEntity(Id);
+				if (Actor && !Actor->IsActorBeingDestroyed())
+				{
+					Actor->Destroy();
+				}
+			}
+		}
+	}
 	int32 TeamCount = 0;
 	Blob.RInt(TeamCount);
 	for (int32 Index = 0; Index < TeamCount; ++Index)
@@ -809,6 +908,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	}
 	int32 NodeCount = 0;
 	Blob.RInt(NodeCount);
+	TSet<int32> SeenNodes;
 	for (int32 Index = 0; Index < NodeCount; ++Index)
 	{
 		int32 Key = 0;
@@ -823,15 +923,27 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		Blob.RFloat(X);
 		Blob.RFloat(Y);
 		Blob.RFloat(Z);
-		if (FKodResourceNodeState* Node = ResourceNodes.Find(Key))
+		FKodResourceNodeState& Node = ResourceNodes.FindOrAdd(Key);
+		Node.Id.Value = Key;
+		Node.Type = static_cast<EKodResourceType>(TypeByte);
+		Node.Remaining = Remaining;
+		Node.Position = FVector(X, Y, Z);
+		SeenNodes.Add(Key);
+	}
+	{
+		TArray<int32> NodeKeys;
+		ResourceNodes.GetKeys(NodeKeys);
+		for (int32 Key : NodeKeys)
 		{
-			Node->Type = static_cast<EKodResourceType>(TypeByte);
-			Node->Remaining = Remaining;
-			Node->Position = FVector(X, Y, Z);
+			if (!SeenNodes.Contains(Key))
+			{
+				ResourceNodes.Remove(Key);
+			}
 		}
 	}
 	int32 DropCount = 0;
 	Blob.RInt(DropCount);
+	TSet<int32> SeenDrops;
 	for (int32 Index = 0; Index < DropCount; ++Index)
 	{
 		int32 Key = 0;
@@ -844,19 +956,50 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		Blob.RFloat(X);
 		Blob.RFloat(Y);
 		Blob.RFloat(Z);
-		if (FKodDropOffState* Drop = DropOffs.Find(Key))
+		FKodDropOffState& Drop = DropOffs.FindOrAdd(Key);
+		Drop.Id.Value = Key;
+		Drop.TeamId = TeamId;
+		Drop.Position = FVector(X, Y, Z);
+		SeenDrops.Add(Key);
+	}
+	{
+		TArray<int32> DropKeys;
+		DropOffs.GetKeys(DropKeys);
+		for (int32 Key : DropKeys)
 		{
-			Drop->TeamId = TeamId;
-			Drop->Position = FVector(X, Y, Z);
+			if (!SeenDrops.Contains(Key))
+			{
+				DropOffs.Remove(Key);
+			}
 		}
 	}
 	int32 StructureCount = 0;
 	Blob.RInt(StructureCount);
+	TSet<int32> SeenStructureIds;
 	for (int32 Index = 0; Index < StructureCount; ++Index)
 	{
 		int32 Key = 0;
 		Blob.RInt(Key);
-		FKodStructureState* Structure = Structures.Find(Key);
+		FString StructDef;
+		float StructX = 0.f;
+		float StructY = 0.f;
+		float StructZ = 0.f;
+		float StructYaw = 0.f;
+		Blob.RStr(StructDef);
+		Blob.RFloat(StructX);
+		Blob.RFloat(StructY);
+		Blob.RFloat(StructZ);
+		Blob.RFloat(StructYaw);
+		FKodStructureState& AddedStructure = Structures.FindOrAdd(Key);
+		FKodStructureState* Structure = &AddedStructure;
+		Structure->Id.Value = Key;
+		SeenStructureIds.Add(Key);
+		Structure->DefinitionId = FName(*StructDef);
+		Structure->Position = FVector(StructX, StructY, StructZ);
+		if (FKodSimEntityState* Combat = States.Find(Key))
+		{
+			Combat->YawDegrees = StructYaw;
+		}
 		int32 TeamId = 0;
 		int32 SupplyProvided = 0;
 		int32 SlotCount = 0;
@@ -935,18 +1078,9 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		Blob.RFloat(RallyX);
 		Blob.RFloat(RallyY);
 		Blob.RFloat(RallyZ);
-		if (!Structure)
-		{
-			continue;
-		}
 		Structure->TeamId = TeamId;
 		Structure->SupplyProvided = SupplyProvided;
-		for (int32 SlotIndex = 0; SlotIndex < Slots.Num() && SlotIndex < Structure->Slots.Num(); ++SlotIndex)
-		{
-			Structure->Slots[SlotIndex].UnitId = Slots[SlotIndex].UnitId;
-			Structure->Slots[SlotIndex].BuildTime = Slots[SlotIndex].BuildTime;
-			Structure->Slots[SlotIndex].bStarted = Slots[SlotIndex].bStarted;
-		}
+		Structure->Slots = Slots;
 		Structure->ActiveTicksRemaining = Active;
 		Structure->CellX = CellX;
 		Structure->CellY = CellY;
@@ -965,12 +1099,19 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		Structure->CargoCap = CargoCap;
 		Structure->Cargo = Cargo;
 		Structure->ResearchTicksRemaining = ResearchLeft;
-		for (int32 ResearchIndex = 0; ResearchIndex < Research.Num() && ResearchIndex < Structure->Research.Num(); ++ResearchIndex)
-		{
-			Structure->Research[ResearchIndex].UnitId = Research[ResearchIndex].UnitId;
-			Structure->Research[ResearchIndex].BuildTime = Research[ResearchIndex].BuildTime;
-		}
+		Structure->Research = Research;
 		Structure->RallyPoint = FVector(RallyX, RallyY, RallyZ);
+	}
+	{
+		TArray<int32> StructureKeys;
+		Structures.GetKeys(StructureKeys);
+		for (int32 Key : StructureKeys)
+		{
+			if (!SeenStructureIds.Contains(Key))
+			{
+				Structures.Remove(Key);
+			}
+		}
 	}
 	uint8 Outcome = 0;
 	uint8 AiOn = 0;
@@ -1118,6 +1259,51 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	};
 	ReadSamples(Samples0);
 	ReadSamples(Samples1);
+	ReadSamples(OlderSamples0);
+	ReadSamples(OlderSamples1);
+	uint8 Cheated = 0;
+	uint8 Competitive = 0;
+	uint8 Invincible = 0;
+	uint8 Instant = 0;
+	uint8 NoSupply = 0;
+	uint8 Reveal = 0;
+	uint8 NoCooldown = 0;
+	Blob.RU8(Cheated);
+	Blob.RU8(Competitive);
+	Blob.RU8(Invincible);
+	Blob.RU8(Instant);
+	Blob.RU8(NoSupply);
+	Blob.RU8(Reveal);
+	Blob.RU8(NoCooldown);
+	bMatchCheated = Cheated != 0;
+	bCompetitive = Competitive != 0;
+	bCheatInvincible = Invincible != 0;
+	bCheatInstantBuild = Instant != 0;
+	bCheatNoSupply = NoSupply != 0;
+	bCheatReveal = Reveal != 0;
+	bCheatNoCooldown = NoCooldown != 0;
+	Blob.RInt(DamageDealt0);
+	Blob.RInt(DamageDealt1);
+	Blob.RInt(DamageTaken0);
+	Blob.RInt(DamageTaken1);
+	Blob.RInt(AiOpener);
+	uint8 OpenerChosen = 0;
+	uint8 ScoutSaw = 0;
+	uint8 Retreating = 0;
+	Blob.RU8(OpenerChosen);
+	Blob.RU8(ScoutSaw);
+	Blob.RU8(Retreating);
+	bAiOpenerChosen = OpenerChosen != 0;
+	bScoutSawEnemy = ScoutSaw != 0;
+	bAiRetreating = Retreating != 0;
+	int32 MaxId = 0;
+	TArray<int32> LiveKeys;
+	States.GetKeys(LiveKeys);
+	for (int32 Key : LiveKeys)
+	{
+		MaxId = FMath::Max(MaxId, Key);
+	}
+	NextId = FMath::Max(NextId, MaxId + 1);
 }
 
 bool UKodSimSubsystem::SaveSkirmishSlot(int32 Slot)
@@ -1134,6 +1320,204 @@ bool UKodSimSubsystem::SaveSkirmishSlot(int32 Slot)
 	return bOk;
 }
 
+bool UKodSimSubsystem::CollectSavedEntityIds(const TArray<uint8>& Bytes, TSet<int32>& OutIds) const
+{
+	FBlob Blob;
+	Blob.Bytes = Bytes;
+	int32 Version = 0;
+	if (!Blob.RInt(Version) || Version != 2)
+	{
+		return false;
+	}
+	int64 Tick = 0;
+	if (!Blob.R(&Tick, sizeof(Tick)))
+	{
+		return false;
+	}
+	int32 EntityCount = 0;
+	if (!Blob.RInt(EntityCount) || EntityCount < 0 || EntityCount > 100000)
+	{
+		return false;
+	}
+	auto SkipInts = [&Blob](int32 Count) -> bool
+	{
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			int32 Value = 0;
+			if (!Blob.RInt(Value))
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+	auto SkipFloats = [&Blob](int32 Count) -> bool
+	{
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			float Value = 0.f;
+			if (!Blob.RFloat(Value))
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+	auto SkipBytes = [&Blob](int32 Count) -> bool
+	{
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			uint8 Value = 0;
+			if (!Blob.RU8(Value))
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+	for (int32 Index = 0; Index < EntityCount; ++Index)
+	{
+		int32 Key = 0;
+		FString Name;
+		if (!Blob.RInt(Key) || !Blob.RStr(Name))
+		{
+			return false;
+		}
+		OutIds.Add(Key);
+		int32 TeamId = 0;
+		if (!Blob.RInt(TeamId) || !SkipBytes(2) || !SkipFloats(1) || !SkipInts(3) || !SkipFloats(5))
+		{
+			return false;
+		}
+		if (!SkipBytes(2) || !SkipBytes(1) || !SkipInts(2) || !SkipBytes(1) || !SkipInts(2) || !SkipBytes(1))
+		{
+			return false;
+		}
+		if (!SkipInts(2) || !SkipBytes(1) || !SkipInts(10) || !SkipBytes(5) || !SkipInts(10) || !SkipFloats(2))
+		{
+			return false;
+		}
+		int32 QueueCount = 0;
+		if (!Blob.RInt(QueueCount) || QueueCount < 0 || QueueCount > 64)
+		{
+			return false;
+		}
+		for (int32 Step = 0; Step < QueueCount; ++Step)
+		{
+			if (!SkipBytes(1) || !SkipInts(6))
+			{
+				return false;
+			}
+		}
+		FString Ability;
+		if (!SkipBytes(1) || !SkipInts(1) || !Blob.RStr(Ability) || !SkipInts(4))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+void UKodSimSubsystem::DestroyEntitiesNotIn(const TSet<int32>& Keep)
+{
+	TArray<int32> Live;
+	Entities.GetKeys(Live);
+	Live.Sort();
+	for (int32 Key : Live)
+	{
+		if (Keep.Contains(Key))
+		{
+			continue;
+		}
+		FKodEntityId Id;
+		Id.Value = Key;
+		AActor* Actor = ResolveEntity(Id);
+		UnregisterEntity(Id);
+		if (Actor && !Actor->IsActorBeingDestroyed())
+		{
+			Actor->Destroy();
+		}
+	}
+	TArray<int32> StateKeys;
+	States.GetKeys(StateKeys);
+	for (int32 Key : StateKeys)
+	{
+		if (Keep.Contains(Key))
+		{
+			continue;
+		}
+		FKodEntityId Id;
+		Id.Value = Key;
+		UnregisterEntity(Id);
+	}
+}
+
+void UKodSimSubsystem::QueueMissingActors()
+{
+	TArray<int32> Keys;
+	States.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		FKodEntityId Id;
+		Id.Value = Key;
+		if (ResolveEntity(Id))
+		{
+			continue;
+		}
+		const FKodSimEntityState* State = States.Find(Key);
+		if (!State || State->Health <= 0.f)
+		{
+			continue;
+		}
+		if (const FKodStructureState* Structure = Structures.Find(Key))
+		{
+			FKodPendingBuildingSpawn Spawn;
+			Spawn.StructureId = Key;
+			Spawn.RestoreId = Key;
+			Spawn.TypeId = Structure->DefinitionId;
+			Spawn.TeamId = Structure->TeamId;
+			Spawn.Location = Structure->Position;
+			Spawn.FootprintX = FMath::Max(1, Structure->FootprintX);
+			Spawn.FootprintY = FMath::Max(1, Structure->FootprintY);
+			Spawn.YawDegrees = FMath::RoundToInt(State->YawDegrees);
+			PendingBuildingSpawns.Add(Spawn);
+			continue;
+		}
+		if (!State->bMobile)
+		{
+			continue;
+		}
+		FKodPendingUnitSpawn Spawn;
+		Spawn.RestoreId = Key;
+		Spawn.UnitId = State->DefinitionId;
+		Spawn.TeamId = State->TeamId;
+		Spawn.SupplyCost = State->SupplyCost;
+		Spawn.Location = State->Position;
+		Spawn.Yaw = State->YawDegrees;
+		PendingSpawns.Add(Spawn);
+	}
+}
+
+void UKodSimSubsystem::AttachRestoredActor(FKodEntityId Id, AActor* Actor)
+{
+	if (!Id.IsValid() || !Actor)
+	{
+		return;
+	}
+	Entities.Add(Id.Value, Actor);
+	NextId = FMath::Max(NextId, Id.Value + 1);
+}
+
+void UKodSimSubsystem::RestoreImportedState(FKodEntityId Id, const FKodSimEntityState& State)
+{
+	FKodSimEntityState& Live = States.FindOrAdd(Id.Value);
+	Live = State;
+	Live.Id = Id;
+	PrevPositions.Add(Id.Value, Live.Position);
+	PrevYaws.Add(Id.Value, Live.YawDegrees);
+}
+
 bool UKodSimSubsystem::LoadSkirmishSlot(int32 Slot)
 {
 	const int32 UseSlot = FMath::Clamp(Slot, 1, 3);
@@ -1145,7 +1529,15 @@ bool UKodSimSubsystem::LoadSkirmishSlot(int32 Slot)
 		UE_LOG(LogTemp, Warning, TEXT("KodLoad Slot=%d Missing"), UseSlot);
 		return false;
 	}
+	TSet<int32> Keep;
+	if (!CollectSavedEntityIds(Save->Blob, Keep))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodLoad Slot=%d BadBlob"), UseSlot);
+		return false;
+	}
+	DestroyEntitiesNotIn(Keep);
 	ImportSimBlob(Save->Blob);
+	QueueMissingActors();
 	ResyncActors();
 	const FString After = ComputeIdleHash();
 	UE_LOG(LogTemp, Log, TEXT("KodLoad Slot=%d HashBefore=%s HashAfter=%s"), UseSlot, *Save->StateHash, *After);
