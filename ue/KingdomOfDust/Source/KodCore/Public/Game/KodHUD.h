@@ -55,6 +55,7 @@ public:
 	AKodHUD();
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void DrawHUD() override;
 
 	/** Last frame's command card. True when the cursor is on the card, including an empty cell. */
@@ -114,6 +115,9 @@ public:
 	/** True on the second click inside 0.3 seconds. */
 	bool ConsumePortraitClick();
 
+	/** Drops a pending portrait double-click so a selection click cannot complete it. */
+	void CancelPortraitClick();
+
 	/**
 	 * How much of one wireframe zone is still intact, 0 to 1.
 	 * Zones take damage in an order seeded by UnitId.
@@ -167,6 +171,7 @@ protected:
 	void DrawShellMenus();
 	void DrawWireHeat(float X, float Y, float W, float H, int32 UnitId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash);
 	void BindAlertFeed();
+	void HandleJuiceText(FVector Position, int32 Amount, uint8 Kind);
 	bool TryDrawIcon(FName IconId, float X, float Y, float SizeX, float SizeY);
 	void CacheSimSnapshot();
 	const FKodSimEntityState* FindFrameState(int32 EntityId) const;

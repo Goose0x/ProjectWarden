@@ -6,6 +6,7 @@
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Engine/StreamableManager.h"
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
@@ -176,10 +177,6 @@ void AKodBuilding::UpdateLowHealthFx(float Health, float MaxHealth)
 		UNiagaraSystem* System = Soft.Get();
 		if (!System)
 		{
-			System = Soft.LoadSynchronous();
-		}
-		if (!System)
-		{
 			return;
 		}
 		Comp = UNiagaraFunctionLibrary::SpawnSystemAttached(
@@ -203,8 +200,46 @@ void AKodBuilding::UpdateLowHealthFx(float Health, float MaxHealth)
 	}
 }
 
+void AKodBuilding::PreloadLowHealthFx()
+{
+	if (LowHealthHandle.IsValid())
+	{
+		LowHealthHandle->CancelHandle();
+		LowHealthHandle.Reset();
+	}
+	if (!CachedDef)
+	{
+		return;
+	}
+	TArray<FSoftObjectPath> Paths;
+	if (!CachedDef->LowHealthSmoke.IsNull())
+	{
+		Paths.Add(CachedDef->LowHealthSmoke.ToSoftObjectPath());
+	}
+	if (!CachedDef->LowHealthFire.IsNull())
+	{
+		Paths.Add(CachedDef->LowHealthFire.ToSoftObjectPath());
+	}
+	if (Paths.Num() == 0)
+	{
+		return;
+	}
+	LowHealthHandle = LowHealthStream.RequestAsyncLoad(
+		Paths,
+		FStreamableDelegate(),
+		0,
+		false,
+		false,
+		TEXT("KodLowHealthFx"));
+}
+
 void AKodBuilding::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (LowHealthHandle.IsValid())
+	{
+		LowHealthHandle->CancelHandle();
+		LowHealthHandle.Reset();
+	}
 	if (UWorld* World = GetWorld())
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
@@ -236,6 +271,7 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 	}
 	Definition = Def;
 	CachedDef = Def;
+	PreloadLowHealthFx();
 
 	if (UWorld* World = GetWorld())
 	{

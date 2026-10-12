@@ -261,15 +261,39 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 	bool bBlockWorldSelect = false;
 	float PressX = 0.f;
 	float PressY = 0.f;
+	AKodHUD* PressHUD = Cast<AKodHUD>(GetHUD());
+	FKodHudChromeHit PressChrome;
+	bool bPortraitClick = false;
 	if (GetMousePosition(PressX, PressY))
 	{
-		if (const AKodHUD* BlockHUD = Cast<AKodHUD>(GetHUD()))
+		if (PressHUD)
 		{
-			bBlockWorldSelect = BlockHUD->BlocksWorldSelect(PressX, PressY);
+			bBlockWorldSelect = PressHUD->BlocksWorldSelect(PressX, PressY);
+			bPortraitClick = PressHUD->GetChromeHit(PressX, PressY, PressChrome)
+				&& PressChrome.Kind == FName(TEXT("Portrait"));
 		}
 	}
-	if (WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bAltDrag && bBlockWorldSelect)
+	if (WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bAltDrag && bPortraitClick)
 	{
+		if (PressHUD->ConsumePortraitClick())
+		{
+			if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn()))
+			{
+				if (GetLocalSelection().Num() > 0 && GetLocalSelection()[0])
+				{
+					CameraPawn->JumpTo(GetLocalSelection()[0]->GetActorLocation());
+				}
+			}
+		}
+		bSelectPressed = false;
+		bMarqueeActive = false;
+	}
+	else if (WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bAltDrag && bBlockWorldSelect)
+	{
+		if (PressHUD)
+		{
+			PressHUD->CancelPortraitClick();
+		}
 		ConsumeMinimapClick();
 		ConsumeChromeClick();
 		bSelectPressed = false;
@@ -280,6 +304,10 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 		&& !ConsumeHudCommandClick()
 		&& !ConsumePlacementLeftClick())
 	{
+		if (PressHUD)
+		{
+			PressHUD->CancelPortraitClick();
+		}
 		HandleSelectStarted();
 	}
 	if (bSelectPressed)
@@ -1573,19 +1601,6 @@ bool AKodPlayerController::ConsumeChromeClick()
 	}
 	if (Hit.Kind == FName(TEXT("Portrait")))
 	{
-		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))
-		{
-			if (MutableHUD->ConsumePortraitClick())
-			{
-				if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn()))
-				{
-					if (GetLocalSelection().Num() > 0 && GetLocalSelection()[0])
-					{
-						CameraPawn->JumpTo(GetLocalSelection()[0]->GetActorLocation());
-					}
-				}
-			}
-		}
 		return true;
 	}
 	if (Hit.Kind == FName(TEXT("Unload")) || Hit.Kind == FName(TEXT("UnloadAll")))

@@ -91,7 +91,7 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bTestIsolation = false;
 	bLoadRespawn = false;
 	LoadRespawnTicks = 0;
-	JuiceTexts.Reset();
+	OnJuiceText.Clear();
 	EnsureBalanceTables();
 	SimHz = KodBuildTicks::SimHz;
 	MaxCatchUpSteps = KodBuildTicks::MaxCatchUpSteps;
@@ -105,6 +105,7 @@ void UKodSimSubsystem::Deinitialize()
 	OnUnitKilled.Clear();
 	OnTrainCompleted.Clear();
 	OnCue.Clear();
+	OnJuiceText.Clear();
 	Entities.Reset();
 	States.Reset();
 	Banks.Reset();
@@ -121,7 +122,6 @@ void UKodSimSubsystem::Deinitialize()
 	UnitAbilities.Reset();
 	PendingSpawns.Reset();
 	PendingBuildingSpawns.Reset();
-	JuiceTexts.Reset();
 	AcquireGrid.Reset();
 	StoredPaths.Reset();
 	TeamVision.Reset();
@@ -1085,21 +1085,7 @@ void UKodSimSubsystem::PushJuiceText(const FVector& Position, int32 Amount, uint
 	{
 		return;
 	}
-	if (JuiceTexts.Num() >= 48)
-	{
-		JuiceTexts.RemoveAt(0);
-	}
-	FKodJuiceText Text;
-	Text.Position = Position;
-	Text.Amount = Amount;
-	Text.Kind = Kind;
-	JuiceTexts.Add(Text);
-}
-
-void UKodSimSubsystem::ConsumeJuiceText(TArray<FKodJuiceText>& Out)
-{
-	Out = MoveTemp(JuiceTexts);
-	JuiceTexts.Reset();
+	OnJuiceText.Broadcast(Position, Amount, Kind);
 }
 
 void UKodSimSubsystem::UnregisterDropOff(FKodEntityId Id)

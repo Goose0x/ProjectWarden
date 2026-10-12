@@ -60,7 +60,7 @@ namespace
 			}
 			for (TFieldIterator<FIntProperty> It(Table->GetRowStruct()); It; ++It)
 			{
-				const int32 Value = It->GetPropertyValue_InContainer(*RowPtr);
+				const int32 Value = static_cast<int32>(It->GetPropertyValue_InContainer(*RowPtr));
 				Append(&Value, sizeof(Value));
 			}
 		}
@@ -560,12 +560,17 @@ bool UKodSimSubsystem::SetBalanceField(FName TableName, FName RowName, FName Fie
 	{
 		Table = UpgradeTable;
 	}
+	else if (Which.Equals(TEXT("Power"), ESearchCase::IgnoreCase))
+	{
+		Table = PowerTable;
+	}
 	if (!Table || !Table->GetRowStruct())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("KodBalance Miss Table=%s"), *Which);
 		return false;
 	}
-	uint8** RowPtr = Table->GetRowMap().Find(RowName);
+	const TMap<FName, uint8*>& Rows = Table->GetRowMap();
+	uint8* const* RowPtr = Rows.Find(RowName);
 	if (!RowPtr || !*RowPtr)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("KodBalance Miss Row=%s"), *RowName.ToString());
@@ -577,7 +582,7 @@ bool UKodSimSubsystem::SetBalanceField(FName TableName, FName RowName, FName Fie
 		UE_LOG(LogTemp, Warning, TEXT("KodBalance Miss Field=%s"), *Field.ToString());
 		return false;
 	}
-	Prop->SetPropertyValue_InContainer(*RowPtr, Value);
+	Prop->SetPropertyValue_InContainer(const_cast<uint8*>(*RowPtr), Value);
 	ApplyBalance();
 	UE_LOG(LogTemp, Log, TEXT("KodBalance Table=%s Row=%s Field=%s Value=%d"),
 		*Which,

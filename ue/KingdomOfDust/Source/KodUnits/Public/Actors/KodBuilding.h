@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/StreamableManager.h"
 #include "GameFramework/Actor.h"
 #include "NiagaraComponent.h"
 #include "Sim/KodEntityId.h"
@@ -67,4 +68,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UNiagaraComponent> FireFx;
+
+	void PreloadLowHealthFx();
+
+	FStreamableManager LowHealthStream;
+	TSharedPtr<FStreamableHandle> LowHealthHandle;
 };
