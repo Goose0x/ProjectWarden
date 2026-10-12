@@ -51,7 +51,8 @@ namespace
 		TEXT("resource_drop"),
 		TEXT("command_move"),
 		TEXT("command_attack"),
-		TEXT("cheat_enabled")
+		TEXT("cheat_enabled"),
+		TEXT("objective_complete")
 	};
 }
 

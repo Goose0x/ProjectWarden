@@ -211,14 +211,15 @@ void AKodHUD::DrawVanguardChrome()
 		return;
 	}
 	const float Bottom = Canvas->SizeY;
-	const float TopRaised = MapSpec(0.f, 736.f, 1.f, 1.f).Y;
-	const float TopWell = MapSpec(0.f, 776.f, 1.f, 1.f).Y;
-	const float SeamX = MapSpec(328.f, 0.f, 1.f, 1.f).X;
-	const float PortX = MapSpec(1064.f, 0.f, 1.f, 1.f).X;
-	const FLinearColor Gunmetal = Tok(0x3A, 0x3F, 0x45, 0.97f);
-	const FLinearColor Steel = Tok(0x5C, 0x64, 0x6C, 0.96f);
-	const FLinearColor Well = Tok(0x1F, 0x23, 0x27, 0.94f);
-	const FLinearColor Brass = Tok(0xB0, 0x8D, 0x57, 1.f);
+	const float TopRaised = MapSpec(0.f, 756.f, 1.f, 1.f).Y;
+	const float TopWell = MapSpec(0.f, 862.f, 1.f, 1.f).Y;
+	const float SeamX = MapSpec(442.f, 0.f, 1.f, 1.f).X;
+	const float PortX = MapSpec(1474.f, 0.f, 1.f, 1.f).X;
+	const bool bScinder = HudSkin == 1;
+	const FLinearColor Gunmetal = bScinder ? Tok(0x6E, 0x5B, 0x4F, 0.97f) : Tok(0x3A, 0x3F, 0x45, 0.97f);
+	const FLinearColor Steel = bScinder ? Tok(0xA0, 0x78, 0x55, 0.96f) : Tok(0x5C, 0x64, 0x6C, 0.96f);
+	const FLinearColor Well = bScinder ? Tok(0x1B, 0x43, 0x32, 0.94f) : Tok(0x1F, 0x23, 0x27, 0.94f);
+	const FLinearColor Brass = bScinder ? Tok(0xDF, 0xD4, 0xC0, 1.f) : Tok(0xB0, 0x8D, 0x57, 1.f);
 	auto FillTrap = [this](float X0, float Top0, float X1, float Top1, float Y1, const FLinearColor& Ink)
 	{
 		const FTexture* White = (Canvas && Canvas->DefaultTexture) ? Canvas->DefaultTexture->GetResource() : nullptr;
@@ -259,27 +260,135 @@ void AKodHUD::DrawVanguardChrome()
 	DrawLine(SeamX, TopWell, SeamX, Bottom, Brass, 1.5f);
 	DrawLine(PortX, TopWell, PortX, Bottom, Brass, 1.5f);
 
-	const FKodScreenRect MapWell = MapSpec(18.f, 780.f, 250.f, 250.f);
+	const FKodScreenRect MapWell = MapSpec(8.f, 792.f, 280.f, 280.f);
 	DrawRect(Well, MapWell.X, MapWell.Y, MapWell.W, MapWell.H);
-	const FKodScreenRect SelWell = MapSpec(332.f, 820.f, 718.f, 222.f);
+	const FKodScreenRect SelWell = MapSpec(517.f, 870.f, 768.f, 202.f);
 	DrawRect(Tok(0x1F, 0x23, 0x27, 0.88f), SelWell.X, SelWell.Y, SelWell.W, SelWell.H);
-	const FKodScreenRect PortWell = MapSpec(1068.f, 792.f, 220.f, 246.f);
+	const FKodScreenRect PortWell = MapSpec(1301.f, 862.f, 173.f, 205.f);
 	DrawRect(Well, PortWell.X, PortWell.Y, PortWell.W, PortWell.H);
 	DrawRect(Brass, PortWell.X, PortWell.Y, PortWell.W, 2.f * FrameScale);
-	const FKodScreenRect CardWell = MapSpec(1310.f, 848.f, 344.f, 204.f);
+	const FKodScreenRect CardWell = MapSpec(1507.f, 826.f, 404.f, 240.f);
 	DrawRect(Well, CardWell.X, CardWell.Y, CardWell.W, CardWell.H);
+	DrawTopBar();
+}
 
+void AKodHUD::DrawTopBar()
+{
+	if (!Canvas)
+	{
+		return;
+	}
 	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
-	const FKodScreenRect Chat = MapSpec(1490.f, 804.f, 44.f, 36.f);
-	const FKodScreenRect Menu = MapSpec(1542.f, 804.f, 112.f, 36.f);
-	DrawPlate(Chat.X, Chat.Y, Chat.W, Chat.H, Tok(0x5C, 0x64, 0x6C), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
-	DrawRect(Brass, Chat.X, Chat.Y, Chat.W, 1.5f);
-	DrawText(TEXT("Chat"), Tok(0xE6, 0xE6, 0xE0), Chat.X + 6.f * FrameScale, Chat.Y + 8.f * FrameScale, Font, 0.65f * FrameScale, false);
-	RememberChrome(FName(TEXT("ChatBtn")), 0, FName(), Chat.X, Chat.Y, Chat.X + Chat.W, Chat.Y + Chat.H);
-	DrawPlate(Menu.X, Menu.Y, Menu.W, Menu.H, Tok(0x5C, 0x64, 0x6C), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
-	DrawRect(Brass, Menu.X, Menu.Y, Menu.W, 1.5f);
-	DrawText(TEXT("MENU"), Tok(0xE6, 0xE6, 0xE0), Menu.X + 28.f * FrameScale, Menu.Y + 8.f * FrameScale, Font, 0.75f * FrameScale, false);
-	RememberChrome(FName(TEXT("MenuBtn")), 0, FName(), Menu.X, Menu.Y, Menu.X + Menu.W, Menu.Y + Menu.H);
+	const FLinearColor Plate = HudSkin == 1 ? Tok(0x4F, 0x40, 0x38, 0.85f) : Tok(0x1F, 0x23, 0x27, 0.55f);
+	const FLinearColor Ink = HudSkin == 1 ? Tok(0xED, 0xE6, 0xD8) : Tok(0xE6, 0xE6, 0xE0);
+	const TCHAR* Labels[] = { TEXT("MENU  F10"), TEXT("LOG  F11"), TEXT("HELP  F12") };
+	const float Xs[] = { 0.f, 108.f, 260.f };
+	const float Ws[] = { 104.f, 148.f, 100.f };
+	const FName Kinds[] = { FName(TEXT("MenuBtn")), FName(TEXT("ChatBtn")), FName(TEXT("HelpBtn")) };
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		const FKodScreenRect Tab = MapSpec(Xs[Index], 0.f, Ws[Index], 28.f);
+		DrawRect(Plate, Tab.X, Tab.Y, Tab.W, Tab.H);
+		DrawText(Labels[Index], Ink, Tab.X + 8.f * FrameScale, Tab.Y + 6.f * FrameScale, Font, 0.7f * FrameScale, false);
+		RememberChrome(Kinds[Index], 0, FName(), Tab.X, Tab.Y, Tab.X + Tab.W, Tab.Y + Tab.H);
+	}
+}
+
+void AKodHUD::DrawFaultlineObjectives()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim || !World || !World->GetMapName().Contains(TEXT("Faultline")))
+	{
+		return;
+	}
+	int32 Collected = 0;
+	int32 Trained = 0;
+	int32 Killed = 0;
+	int32 Built = 0;
+	int32 Razed = 0;
+	Sim->GetTeamTotals(0, Collected, Trained, Killed, Built, Razed);
+	int32 Depots = 0;
+	int32 Barracks = 0;
+	int32 Infantry = 0;
+	int32 Outposts = 0;
+	int32 Bases = 0;
+	for (const FKodStructureState& Structure : FrameStructures)
+	{
+		if (Structure.TeamId == 0 && Structure.bComplete && Structure.DefinitionId == FName(KodWardenPaths::Id_SupplyDepot))
+		{
+			++Depots;
+		}
+		if (Structure.TeamId == 0 && Structure.bComplete && Structure.DefinitionId == FName(KodWardenPaths::Id_Barracks))
+		{
+			++Barracks;
+		}
+		if (Structure.TeamId == 1 && Structure.DefinitionId == FName(TEXT("KodEnemyOutpost")))
+		{
+			FKodSimEntityState State;
+			if (Sim->TryGetState(Structure.Id, State) && State.Health > 0.f)
+			{
+				++Outposts;
+			}
+		}
+		if (Structure.TeamId == 1 && Structure.DefinitionId == FName(TEXT("KodEnemyBase")))
+		{
+			FKodSimEntityState State;
+			if (Sim->TryGetState(Structure.Id, State) && State.Health > 0.f)
+			{
+				++Bases;
+			}
+		}
+	}
+	for (const FKodSimEntityState& State : FrameStates)
+	{
+		if (State.TeamId == 0 && State.bInfantry && State.Health > 0.f)
+		{
+			++Infantry;
+		}
+	}
+	const bool Done[] = {
+		Collected >= 300,
+		Depots >= 1,
+		Barracks >= 1,
+		Infantry >= 5 || Trained >= 5,
+		Outposts == 0,
+		Bases == 0
+	};
+	const TCHAR* Lines[] = {
+		TEXT("Gather 300 Jadeite"),
+		TEXT("Build a supply structure"),
+		TEXT("Build a barracks"),
+		TEXT("Train 5 infantry"),
+		TEXT("Destroy the enemy outpost"),
+		TEXT("Destroy the enemy base")
+	};
+	const FKodScreenRect Panel = MapSpec(16.f, 40.f, 460.f, 220.f);
+	const FLinearColor Back = HudSkin == 1 ? Tok(0x1B, 0x43, 0x32, 0.7f) : Tok(0x1F, 0x23, 0x27, 0.7f);
+	const FLinearColor Accent = HudSkin == 1 ? Tok(0xDF, 0xD4, 0xC0) : Tok(0xFF, 0xD2, 0x3F);
+	DrawRect(Back, Panel.X, Panel.Y, Panel.W, Panel.H);
+	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+	DrawText(TEXT("MAIN OBJECTIVES"), Accent, Panel.X + 10.f * FrameScale, Panel.Y + 6.f * FrameScale, Font, 0.85f * FrameScale, false);
+	for (int32 Index = 0; Index < 6; ++Index)
+	{
+		const float Y = Panel.Y + (28.f + 26.f * static_cast<float>(Index)) * FrameScale;
+		const float X = Panel.X + 10.f * FrameScale;
+		DrawRect(Done[Index] ? Tok(0x4C, 0xD9, 0x64) : Tok(0xE6, 0xE6, 0xE0, 0.15f), X, Y, 14.f * FrameScale, 14.f * FrameScale);
+		DrawText(Lines[Index], Done[Index] ? Tok(0x8E, 0x94, 0x9A) : Tok(0xE6, 0xE6, 0xE0), X + 22.f * FrameScale, Y, Font, 0.75f * FrameScale, false);
+		const uint8 Bit = static_cast<uint8>(1 << Index);
+		if (Done[Index] && (ObjectiveDoneMask & Bit) == 0)
+		{
+			ObjectiveDoneMask |= Bit;
+			if (UKodSimSubsystem* Live = World->GetSubsystem<UKodSimSubsystem>())
+			{
+				Live->RaiseCue(FName(TEXT("objective_complete")), FVector::ZeroVector, false);
+			}
+		}
+	}
 }
 
 void AKodHUD::DrawHUD()
@@ -288,6 +397,7 @@ void AKodHUD::DrawHUD()
 	bShowHUD = true;
 	BuildVanguardFrame();
 	DrawVanguardChrome();
+	DrawFaultlineObjectives();
 
 	if (!bLoggedFirstDraw)
 	{
@@ -892,7 +1002,7 @@ void AKodHUD::DrawGameClock()
 	{
 		Font = GEngine->GetSmallFont();
 	}
-	const FKodScreenRect Clock = MapSpec(18.f, 748.f, 108.f, 28.f);
+	const FKodScreenRect Clock = MapSpec(208.f, 762.f, 80.f, 26.f);
 	DrawPlate(Clock.X, Clock.Y, Clock.W, Clock.H, Tok(0x1F, 0x23, 0x27, 0.9f), TEXT("T_UI_VG_Chip_Resource"), 12.f, 8.f, 12.f, 8.f);
 	DrawText(Label, Tok(0xB0, 0x8D, 0x57), Clock.X + 8.f * FrameScale, Clock.Y + 6.f * FrameScale, Font, FrameScale, false);
 }
@@ -1004,17 +1114,27 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed,
 		}
 	}
 	const FString Supply = FString::Printf(TEXT("%d/%d"), SupplyUsed, SupplyCap);
+	int32 Workers = 0;
+	for (const FKodSimEntityState& State : FrameStates)
+	{
+		if (State.TeamId == ReadLocalTeamId() && State.bCanGather && State.Health > 0.f)
+		{
+			++Workers;
+		}
+	}
+	const FString WorkerText = FString::Printf(TEXT("%d"), Workers);
 	const float EdgeShift = SafeMaxX - (FrameOriginX + 1904.f * FrameScale);
-	const float ChipX[3] = { 1500.f, 1638.f, 1776.f };
-	const FString ChipText[3] = { Credits, LumineneText, Supply };
-	const FLinearColor ChipInk[3] = {
-		Tok(0xB0, 0x8D, 0x57),
+	const float ChipX[4] = { 1376.f, 1514.f, 1652.f, 1790.f };
+	const FString ChipText[4] = { WorkerText, Credits, LumineneText, Supply };
+	const FLinearColor ChipInk[4] = {
+		Tok(0xE6, 0xE6, 0xE0),
+		HudSkin == 1 ? Tok(0xDF, 0xD4, 0xC0) : Tok(0xB0, 0x8D, 0x57),
 		Tok(0xFF, 0xD2, 0x3F),
 		bSupplyBlocked ? Tok(0xE5, 0x38, 0x3B) : Tok(0xE6, 0xE6, 0xE0)
 	};
-	for (int32 Index = 0; Index < 3; ++Index)
+	for (int32 Index = 0; Index < 4; ++Index)
 	{
-		const FKodScreenRect Chip = MapSpec(ChipX[Index], 16.f, 128.f, 40.f);
+		const FKodScreenRect Chip = MapSpec(ChipX[Index], 0.f, 130.f, 28.f);
 		const float X = Chip.X + EdgeShift;
 		DrawPlate(X, Chip.Y, Chip.W, Chip.H, Tok(0x1F, 0x23, 0x27, 0.92f), TEXT("T_UI_VG_Chip_Resource"), 12.f, 8.f, 12.f, 8.f);
 		DrawText(ChipText[Index], ChipInk[Index], X + 10.f * FrameScale, Chip.Y + 8.f * FrameScale, Font, FrameScale, false);
@@ -1554,7 +1674,7 @@ void AKodHUD::DrawSpectatorPanel()
 	{
 		return;
 	}
-	const FKodScreenRect Tab = MapSpec(16.f, 16.f, 560.f, 36.f);
+	const FKodScreenRect Tab = MapSpec(16.f, 40.f, 560.f, 36.f);
 	const float Scale = FrameScale;
 	const float X = Tab.X + (SafeMinX - FrameOriginX);
 	const float Y = Tab.Y;
@@ -2074,11 +2194,11 @@ void AKodHUD::DrawCommandCard()
 		Font = GEngine->GetSmallFont();
 	}
 
-	const float Button = 64.f * FrameScale;
+	const float Button = 76.f * FrameScale;
 	const float Gap = 6.f * FrameScale;
 	constexpr int32 Cols = 5;
 	constexpr int32 Rows = 3;
-	const FKodScreenRect Card = MapSpec(1310.f, 848.f, 344.f, 204.f);
+	const FKodScreenRect Card = MapSpec(1507.f, 826.f, 404.f, 240.f);
 	const float CardW = Card.W;
 	const float CardH = Card.H;
 	const float QueueH = 0.f;
@@ -2110,7 +2230,8 @@ void AKodHUD::DrawCommandCard()
 			DrawText(Glyph, FLinearColor::White, X + 5.f, Y + 5.f, Font, 0.55f, false);
 		}
 		DrawText(Label, Ink, X + 6.f, Y + 24.f, Font, 0.65f, false);
-		DrawText(Hotkey, Tok(0xB0, 0x8D, 0x57), X + Button - 16.f * FrameScale, Y + Button - 16.f * FrameScale, Font, 0.7f * FrameScale, false);
+		const FLinearColor HotkeyInk = HudSkin == 1 ? Tok(0xDF, 0xD4, 0xC0) : Tok(0xFF, 0xD2, 0x3F);
+		DrawText(Hotkey, bEnabled ? HotkeyInk : Tok(0x8E, 0x94, 0x9A, 0.6f), X + 4.f * FrameScale, Y + 2.f * FrameScale, Font, 0.75f * FrameScale, false);
 		FKodHudCommandHit Hit;
 		Hit.bInsideChrome = true;
 		Hit.bEnabled = bEnabled;
@@ -2512,7 +2633,7 @@ void AKodHUD::DrawResourceFlash()
 	{
 		Font = GEngine->GetMediumFont();
 	}
-	const FKodScreenRect Flash = MapSpec(660.f, 700.f, 600.f, 40.f);
+	const FKodScreenRect Flash = MapSpec(660.f, 790.f, 600.f, 40.f);
 	DrawRect(Tok(0x1F, 0x23, 0x27, 0.9f), Flash.X, Flash.Y, Flash.W, Flash.H);
 	DrawText(FlashText, Tok(0xFF, 0xD2, 0x3F), Flash.X + 12.f * FrameScale, Flash.Y + 6.f * FrameScale, Font, FrameScale, false);
 }
@@ -3165,6 +3286,23 @@ void AKodHUD::DrawShellMenus()
 		Labels.Add(TEXT("Quit"));
 		TArray<int32> Choices = { 8, 3, 9 };
 		StackIn(PausePanel, TEXT("Kingdom of Dust"), Labels, Choices);
+		const TCHAR* FactionNames[] = { TEXT("VANGUARD"), TEXT("SCINDER") };
+		for (int32 Index = 0; Index < 2; ++Index)
+		{
+			const FKodScreenRect Tile = MapSpec(64.f, 168.f + 130.f * static_cast<float>(Index), 600.f, 120.f);
+			const bool bOn = HudSkin == Index;
+			const FLinearColor Glass = bOn ? Tok(0x23, 0xAD, 0xFF, 0.35f) : Tok(0x0A, 0x16, 0x22, 0.7f);
+			DrawRect(Glass, Tile.X, Tile.Y, Tile.W, Tile.H);
+			DrawText(FactionNames[Index], FLinearColor::White, Tile.X + 24.f * Scale, Tile.Y + 44.f * Scale, Font, Scale, false);
+			RememberChrome(FName(TEXT("Faction")), Index, FName(), Tile.X, Tile.Y, Tile.X + Tile.W, Tile.Y + Tile.H);
+		}
+		const TCHAR* Locked[] = { TEXT("RSF"), TEXT("RU"), TEXT("CN") };
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			const FKodScreenRect Tile = MapSpec(64.f, 428.f + 130.f * static_cast<float>(Index), 600.f, 120.f);
+			DrawRect(Tok(0x0A, 0x16, 0x22, 0.4f), Tile.X, Tile.Y, Tile.W, Tile.H);
+			DrawText(FString::Printf(TEXT("%s  LOCKED"), Locked[Index]), Tok(0x8E, 0x94, 0x9A), Tile.X + 24.f * Scale, Tile.Y + 44.f * Scale, Font, Scale, false);
+		}
 	}
 	else if (MenuPage == 5 && Sim)
 	{

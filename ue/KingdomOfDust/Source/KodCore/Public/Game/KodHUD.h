@@ -103,6 +103,7 @@ public:
 	class AKodPortraitStage* GetPortraitStage() const { return PortraitStage; }
 	bool IsMenuOpen() const { return MenuPage != 0; }
 	void TogglePauseMenu();
+	void SetHudSkin(int32 Skin) { HudSkin = Skin == 1 ? 1 : 0; }
 	void SetMenuPage(int32 Page);
 	void HandleMenuChoice(int32 Choice);
 	void SetHealthBarMode(int32 Mode) { HealthBarMode = FMath::Clamp(Mode, 0, 2); }
@@ -184,6 +185,8 @@ protected:
 	void DrawControlGroupTabs();
 	void DrawHotkeyLegend();
 	void DrawWorldFog();
+	void DrawFaultlineObjectives();
+	void DrawTopBar();
 	void DrawGameClock();
 	void DrawScaffolds();
 	void DrawAlertFeed();
@@ -272,6 +275,9 @@ protected:
 	int32 CommandSubgroupCount = 0;
 	int32 SelectionPage = 0;
 	int32 MenuPage = 0;
+	/** 0 Vanguard, 1 Scinder. Flat token swap. Presentation only. */
+	int32 HudSkin = 0;
+	uint8 ObjectiveDoneMask = 0;
 	int32 ScoreTab = 0;
 	int32 HealthBarMode = 1;
 	float PortraitCaptureAccum = 0.f;

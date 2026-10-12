@@ -659,6 +659,8 @@ public:
 	void SetHealAutocast(FKodEntityId UnitId, bool bEnabled);
 	bool CastHeal(FKodEntityId UnitId);
 	void RaiseCue(FName CueId, FVector Location, bool bAtLocation);
+	/** Armour and optional gun on a structure that is already registered. */
+	void TuneStructureCombat(FKodEntityId Id, int32 Armor, float WeaponDamage, float WeaponRange);
 
 	/** Broadcasts a floater. Nothing is stored on the sim, hashed, or saved. */
 	void PushJuiceText(const FVector& Position, int32 Amount, uint8 Kind);

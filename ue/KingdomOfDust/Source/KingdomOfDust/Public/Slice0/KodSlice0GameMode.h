@@ -28,6 +28,7 @@ public:
 
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void StartPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 
 	/** When true, spawn one Ranger at origin+offset for walk gate smoke. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Slice0")

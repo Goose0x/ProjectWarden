@@ -85,7 +85,7 @@ public:
 	 * 42 puts a 180 cm Marine in an SC2-like amount of ground.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
-	float VerticalFovDegrees = 42.f;
+	float VerticalFovDegrees = 40.f;
 
 	/** World units per second at full scroll. SC2 "Scroll speed". */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
@@ -119,14 +119,14 @@ public:
 	float ZoomInterpSpeed = 12.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
-	float MinArmLength = 2400.f;
+	float MinArmLength = 1800.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
-	float MaxArmLength = 5200.f;
+	float MaxArmLength = 3200.f;
 
 	/** Match zoom-out stops here. 15% tighter than 3600 so units read larger. Config can retune it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
-	float DefaultArmLength = 3060.f;
+	float DefaultArmLength = 2600.f;
 
 	/** How fast the look-at point settles onto the ground under it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
@@ -194,8 +194,8 @@ protected:
 	void SaveBookmark(int32 SlotNumber);
 	void RecallBookmark(int32 SlotNumber);
 
-	float CurrentArmLength = 3060.f;
-	float TargetArmLength = 3060.f;
+	float CurrentArmLength = 2600.f;
+	float TargetArmLength = 2600.f;
 	FVector PanVelocity = FVector::ZeroVector;
 	bool bGrabbing = false;
 	bool bGrabMoved = false;

@@ -41,6 +41,9 @@ AKodRTSCameraPawn::AKodRTSCameraPawn()
 	CameraBoom->bDoCollisionTest = false;
 	CameraBoom->bEnableCameraLag = false;
 	CameraBoom->bEnableCameraRotationLag = false;
+	CameraBoom->bInheritPitch = false;
+	CameraBoom->bInheritRoll = false;
+	CameraBoom->bUsePawnControlRotation = false;
 	CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, 0.f));
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
@@ -381,8 +384,11 @@ void AKodRTSCameraPawn::MaintainBoom()
 	{
 		return;
 	}
-	CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, 0.f));
+	const float ClosePitch = -50.f;
+	const float UsePitch = CurrentArmLength <= MinArmLength + 1.f ? ClosePitch : PitchDegrees;
+	CameraBoom->SetRelativeRotation(FRotator(UsePitch, 0.f, 0.f));
 	CameraBoom->bEnableCameraLag = false;
+	CameraBoom->bEnableCameraRotationLag = false;
 }
 
 void AKodRTSCameraPawn::FocusCommandCenter()
