@@ -126,9 +126,9 @@ bool UKodJadeitePaletteSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 	return World && World->IsGameWorld();
 }
 
-void UKodJadeitePaletteSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+void UKodJadeitePaletteSubsystem::Initialize(FSubsystemCollectionBase& InCollection)
 {
-	Super::Initialize(Collection);
+	Super::Initialize(InCollection);
 	LoadSettings();
 	ResolveCollection();
 	PushCollection();

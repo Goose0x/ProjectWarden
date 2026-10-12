@@ -622,6 +622,31 @@ namespace
 				Box->SetCollisionResponseToAllChannels(ECR_Overlap);
 				continue;
 			}
+			if (Type == TEXT("spawn-point") || Type == TEXT("waypoint"))
+			{
+				const TArray<TSharedPtr<FJsonValue>>* Centre = nullptr;
+				FVector At = RectCenter(Rect, 80.f);
+				if (Feature->TryGetArrayField(TEXT("centre_uu"), Centre) && Centre && Centre->Num() >= 2)
+				{
+					At.X = static_cast<float>((*Centre)[0]->AsNumber());
+					At.Y = static_cast<float>((*Centre)[1]->AsNumber());
+				}
+				FActorSpawnParameters MarkerParams;
+				MarkerParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+				AActor* Marker = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform(At), MarkerParams);
+				if (Marker)
+				{
+					if (!Tag.IsEmpty())
+					{
+						Marker->Tags.Add(FName(*Tag));
+					}
+					if (!Id.IsEmpty())
+					{
+						Marker->Tags.Add(FName(*Id));
+					}
+				}
+				continue;
+			}
 			if (Type != TEXT("enemy-structure"))
 			{
 				continue;
@@ -641,6 +666,10 @@ namespace
 				continue;
 			}
 			Building->Tags.Add(FName(*Tag));
+			if (!Id.IsEmpty())
+			{
+				Building->Tags.Add(FName(*Id));
+			}
 			Building->TeamId = 1;
 			if (UStaticMeshComponent* Mesh = Building->FindComponentByClass<UStaticMeshComponent>())
 			{
@@ -680,6 +709,266 @@ namespace
 				*Id, *Key, Hp, Armor, RegenMilli, At.X, At.Y);
 		}
 		return Outposts;
+	}
+
+	bool ActorHasId(UWorld* World, const FString& Id)
+	{
+		if (!World || Id.IsEmpty())
+		{
+			return false;
+		}
+		const FName Name(*Id);
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (It->ActorHasTag(Name))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	int32 CountTag(UWorld* World, const TCHAR* Tag)
+	{
+		int32 Count = 0;
+		if (!World)
+		{
+			return 0;
+		}
+		const FName Name(Tag);
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (It->ActorHasTag(Name))
+			{
+				++Count;
+			}
+		}
+		return Count;
+	}
+
+	FVector CellToWorld(int32 CellX, int32 CellY, float Z)
+	{
+		return FVector((static_cast<float>(CellX) + 0.5f) * 200.f - 11200.f,
+			(static_cast<float>(CellY) + 0.5f) * 200.f - 11200.f,
+			Z);
+	}
+
+	AActor* SpawnMarkerActor(UWorld* World, const FVector& At, const FString& Tag, const FString& Id)
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AActor* Marker = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform(At), Params);
+		if (!Marker)
+		{
+			return nullptr;
+		}
+		if (!Tag.IsEmpty())
+		{
+			Marker->Tags.Add(FName(*Tag));
+		}
+		if (!Id.IsEmpty())
+		{
+			Marker->Tags.Add(FName(*Id));
+		}
+		return Marker;
+	}
+
+	void SpawnLayoutStructure(UWorld* World, UKodSimSubsystem* Sim, const FString& Id, const FString& Tag, int32 CellX, int32 CellY, int32 CellW, int32 CellH, const TMap<FString, FScnBuilding>& Buildings)
+	{
+		if (ActorHasId(World, Id))
+		{
+			return;
+		}
+		const FVector At = CellToWorld(CellX + FMath::Max(0, CellW - 1) / 2, CellY + FMath::Max(0, CellH - 1) / 2, 80.f);
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AKodBuilding* Building = World->SpawnActor<AKodBuilding>(AKodBuilding::StaticClass(), FTransform(At), Params);
+		if (!Building)
+		{
+			return;
+		}
+		Building->Tags.Add(FName(*Tag));
+		Building->Tags.Add(FName(*Id));
+		Building->TeamId = 1;
+		const FString Key = BuildingKey(Id);
+		const FScnBuilding* Row = Buildings.Find(Key);
+		const int32 Hp = Row ? Row->Hp : 1000;
+		const int32 Armor = Row ? Row->Armor : 1;
+		const int32 RegenMilli = Row ? Row->RegenMilli : 2000;
+		const bool bOutpost = Tag == TEXT("KodEnemyOutpost");
+		const bool bHq = Id == TEXT("ENEMY_HQ");
+		FKodStructureSpec Spec;
+		Spec.DefinitionId = FName(*Tag);
+		Spec.DisplayId = FName(*Id);
+		Spec.TeamId = 1;
+		Spec.MaxHealth = static_cast<float>(Hp);
+		Spec.FootprintX = bHq ? 5 : (bOutpost && Id == TEXT("OUTPOST_SPIRE") ? 3 : FMath::Max(1, CellW));
+		Spec.FootprintY = bHq ? 5 : (bOutpost && Id == TEXT("OUTPOST_SPIRE") ? 3 : FMath::Max(1, CellH));
+		const FKodEntityId Built = Sim->RegisterStructure(Building, Spec);
+		Building->EntityId = Built;
+		if (Built.IsValid())
+		{
+			const bool bGun = bOutpost || Id.Contains(TEXT("TOWER"));
+			Sim->TuneStructureCombat(Built, Armor, bGun ? 12.f : 0.f, bGun ? 700.f : 0.f);
+			Sim->SetStructureVitals(Built, Hp, Armor, RegenMilli);
+		}
+	}
+
+	void DiscoverLayoutV2(UWorld* World, UKodSimSubsystem* Sim, const TMap<FString, FScnBuilding>& Buildings)
+	{
+		TSharedPtr<FJsonObject> Root;
+		if (!LoadJson(TEXT("layout.json"), Root))
+		{
+			return;
+		}
+		const TArray<TSharedPtr<FJsonValue>>* Structures = nullptr;
+		if (Root->TryGetArrayField(TEXT("enemy_structures"), Structures) && Structures)
+		{
+			for (const TSharedPtr<FJsonValue>& Value : *Structures)
+			{
+				const TSharedPtr<FJsonObject> Row = Value.IsValid() ? Value->AsObject() : nullptr;
+				if (!Row.IsValid())
+				{
+					continue;
+				}
+				FString Id;
+				FString Tag;
+				Row->TryGetStringField(TEXT("id"), Id);
+				Row->TryGetStringField(TEXT("tag"), Tag);
+				const TArray<TSharedPtr<FJsonValue>>* Rect = nullptr;
+				Row->TryGetArrayField(TEXT("rect"), Rect);
+				int32 X = 0;
+				int32 Y = 0;
+				int32 W = 1;
+				int32 H = 1;
+				if (Rect && Rect->Num() >= 4)
+				{
+					X = FMath::RoundToInt((*Rect)[0]->AsNumber());
+					Y = FMath::RoundToInt((*Rect)[1]->AsNumber());
+					W = FMath::Max(1, FMath::RoundToInt((*Rect)[2]->AsNumber()));
+					H = FMath::Max(1, FMath::RoundToInt((*Rect)[3]->AsNumber()));
+				}
+				if (!Tag.IsEmpty() && !Id.IsEmpty())
+				{
+					SpawnLayoutStructure(World, Sim, Id, Tag, X, Y, W, H, Buildings);
+				}
+			}
+		}
+		const TArray<TSharedPtr<FJsonValue>>* Triggers = nullptr;
+		if (Root->TryGetArrayField(TEXT("triggers"), Triggers) && Triggers)
+		{
+			for (const TSharedPtr<FJsonValue>& Value : *Triggers)
+			{
+				const TSharedPtr<FJsonObject> Row = Value.IsValid() ? Value->AsObject() : nullptr;
+				if (!Row.IsValid())
+				{
+					continue;
+				}
+				FString Id;
+				Row->TryGetStringField(TEXT("id"), Id);
+				if (ActorHasId(World, Id))
+				{
+					continue;
+				}
+				const TArray<TSharedPtr<FJsonValue>>* Rect = nullptr;
+				Row->TryGetArrayField(TEXT("rect"), Rect);
+				int32 X = 0;
+				int32 Y = 0;
+				int32 W = 1;
+				int32 H = 1;
+				if (Rect && Rect->Num() >= 4)
+				{
+					X = FMath::RoundToInt((*Rect)[0]->AsNumber());
+					Y = FMath::RoundToInt((*Rect)[1]->AsNumber());
+					W = FMath::Max(1, FMath::RoundToInt((*Rect)[2]->AsNumber()));
+					H = FMath::Max(1, FMath::RoundToInt((*Rect)[3]->AsNumber()));
+				}
+				SpawnMarkerActor(World, CellToWorld(X + W / 2, Y + H / 2, 80.f), TEXT("KodObjectiveTrigger"), Id);
+			}
+		}
+		const TSharedPtr<FJsonObject>* Wave = nullptr;
+		if (Root->TryGetObjectField(TEXT("counter_wave"), Wave) && Wave && Wave->IsValid())
+		{
+			const TSharedPtr<FJsonObject>* Spawn = nullptr;
+			if ((*Wave)->TryGetObjectField(TEXT("spawn"), Spawn) && Spawn && Spawn->IsValid())
+			{
+				FString Id;
+				FString Tag;
+				(*Spawn)->TryGetStringField(TEXT("id"), Id);
+				(*Spawn)->TryGetStringField(TEXT("tag"), Tag);
+				if (!ActorHasId(World, Id))
+				{
+					const TArray<TSharedPtr<FJsonValue>>* Uu = nullptr;
+					FVector At(0.f, 0.f, 80.f);
+					if ((*Spawn)->TryGetArrayField(TEXT("uu"), Uu) && Uu && Uu->Num() >= 2)
+					{
+						At.X = static_cast<float>((*Uu)[0]->AsNumber());
+						At.Y = static_cast<float>((*Uu)[1]->AsNumber());
+					}
+					SpawnMarkerActor(World, At, Tag.IsEmpty() ? FString(TEXT("KodSpawnPoint")) : Tag, Id);
+				}
+			}
+			const TSharedPtr<FJsonObject>* Lane = nullptr;
+			if ((*Wave)->TryGetObjectField(TEXT("lane"), Lane) && Lane && Lane->IsValid())
+			{
+				FString LaneId;
+				(*Lane)->TryGetStringField(TEXT("id"), LaneId);
+				const TArray<TSharedPtr<FJsonValue>>* Points = nullptr;
+				if ((*Lane)->TryGetArrayField(TEXT("waypoints_cells"), Points) && Points)
+				{
+				int32 Index = 0;
+				for (const TSharedPtr<FJsonValue>& Point : *Points)
+				{
+					if (!Point.IsValid() || Point->Type != EJson::Array)
+					{
+						++Index;
+						continue;
+					}
+					const TArray<TSharedPtr<FJsonValue>>& Cell = Point->AsArray();
+					if (Cell.Num() < 2)
+					{
+						++Index;
+						continue;
+					}
+					const FString WaypointId = FString::Printf(TEXT("%s_WP%02d"), *LaneId, Index);
+					if (!ActorHasId(World, WaypointId))
+					{
+						const int32 X = FMath::RoundToInt(Cell[0]->AsNumber());
+						const int32 Y = FMath::RoundToInt(Cell[1]->AsNumber());
+						SpawnMarkerActor(World, CellToWorld(X, Y, 80.f), TEXT("KodWaypoint"), WaypointId);
+					}
+					++Index;
+				}
+				}
+				if (!LaneId.IsEmpty() && !ActorHasId(World, LaneId))
+				{
+					SpawnMarkerActor(World, FVector::ZeroVector, TEXT("KodWaypoint"), LaneId);
+				}
+			}
+		}
+	}
+
+	int32 CountRegisteredTag(UWorld* World, UKodSimSubsystem* Sim, const TCHAR* Tag)
+	{
+		if (!World || !Sim)
+		{
+			return 0;
+		}
+		int32 Count = 0;
+		const FName Name(Tag);
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (!It->ActorHasTag(Name))
+			{
+				continue;
+			}
+			const FKodEntityId Id = Sim->FindIdForActor(*It);
+			if (Sim->IsStructure(Id))
+			{
+				++Count;
+			}
+		}
+		return Count;
 	}
 
 	bool MapLeafMatches(const FString& MapName, const FString& Entry)
@@ -756,6 +1045,15 @@ void KodFaultline::Begin(UWorld* World)
 	LoadBalance(Sim, bEasy, Script, Buildings);
 	FVector OutpostAt(1500.f, -300.f, 80.f);
 	const int32 Outposts = SpawnScinder(World, Sim, OutpostAt, Buildings);
+	DiscoverLayoutV2(World, Sim, Buildings);
+	const int32 RegisteredOutposts = CountRegisteredTag(World, Sim, TEXT("KodEnemyOutpost"));
+	const int32 RegisteredBases = CountRegisteredTag(World, Sim, TEXT("KodEnemyBase"));
+	UE_LOG(LogTemp, Log, TEXT("KodFaultline Markers Outposts=%d Bases=%d Triggers=%d Spawns=%d Waypoints=%d"),
+		RegisteredOutposts,
+		RegisteredBases,
+		CountTag(World, TEXT("KodObjectiveTrigger")),
+		CountTag(World, TEXT("KodSpawnPoint")),
+		CountTag(World, TEXT("KodWaypoint")));
 	FVector SpawnAt = OutpostAt;
 	FVector LaneAt = FVector::ZeroVector;
 	const bool bSpawnMarker = FindMarker(World, TEXT("SPAWN_CW_01"), SpawnAt);
@@ -765,7 +1063,7 @@ void KodFaultline::Begin(UWorld* World)
 		SpawnAt = OutpostAt;
 		UE_LOG(LogTemp, Log, TEXT("KodFaultline Spawn marker miss SPAWN_CW_01; using the outpost"));
 	}
-	Script.OutpostCount = Outposts;
+	Script.OutpostCount = RegisteredOutposts > 0 ? RegisteredOutposts : Outposts;
 	Script.OutpostX = FMath::RoundToInt(OutpostAt.X);
 	Script.OutpostY = FMath::RoundToInt(OutpostAt.Y);
 	Script.OutpostZ = FMath::RoundToInt(OutpostAt.Z);
@@ -781,5 +1079,5 @@ void KodFaultline::Begin(UWorld* World)
 	Script.LaneZ = FMath::RoundToInt(LaneAt.Z);
 	Sim->ArmFaultlineScript(Script);
 	UE_LOG(LogTemp, Log, TEXT("KodFaultline Begin Map=%s Outposts=%d Spawn=%.0f,%.0f Lane=%d"),
-		*World->GetMapName(), Outposts, SpawnAt.X, SpawnAt.Y, bLaneMarker ? 1 : 0);
+		*World->GetMapName(), Script.OutpostCount, SpawnAt.X, SpawnAt.Y, bLaneMarker ? 1 : 0);
 }

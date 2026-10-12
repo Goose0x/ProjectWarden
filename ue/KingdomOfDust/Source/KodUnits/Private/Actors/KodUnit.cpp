@@ -1311,9 +1311,9 @@ void AKodUnit::RefreshJadeiteEmissive()
 	}
 	TArray<UMeshComponent*> Meshes;
 	GetComponents<UMeshComponent>(Meshes);
-	for (UMeshComponent* Mesh : Meshes)
+	for (UMeshComponent* TintMesh : Meshes)
 	{
-		KodJadeiteVisual::ApplyTunedEmissive(Mesh);
+		KodJadeiteVisual::ApplyTunedEmissive(TintMesh);
 	}
 }
 

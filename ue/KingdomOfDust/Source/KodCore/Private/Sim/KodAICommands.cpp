@@ -93,6 +93,27 @@ namespace
 		UE_LOG(LogTemp, Log, TEXT("KodAI Difficulty=%d Name=%s"), Sim->GetAiDifficulty(), Labels[LabelIndex]);
 	}
 
+	void KodAutoplay(const TArray<FString>& Args, UWorld* World)
+	{
+		UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+		if (!Sim)
+		{
+			Sim = FindPlaySim(World);
+		}
+		if (!Sim)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("kod.Autoplay: no sim"));
+			return;
+		}
+		const int32 Enabled = (Args.Num() == 0 || FCString::Atoi(*Args[0]) != 0) ? 1 : 0;
+		Sim->SetPlayerAutoplay(Enabled != 0);
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs GKodAutoplay(
+		TEXT("kod.Autoplay"),
+		TEXT("Offline and campaign only. 1 runs the player side with the sim AI. Usage: kod.Autoplay 1"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodAutoplay));
+
 	FAutoConsoleCommandWithWorldAndArgs GKodAI(
 		TEXT("kod.AI"),
 		TEXT("1 runs the team 1 opponent. 0 stops new AI orders. Usage: kod.AI <0|1>"),

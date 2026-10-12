@@ -638,6 +638,14 @@ public:
 	/** Team 1 opponent. Off stops new orders. Units already moving keep those orders. */
 	void SetAiEnabled(bool bEnabled);
 	bool IsAiEnabled() const { return bAiEnabled; }
+	/**
+	 * Offline and campaign only. Team 0 runs the same sim-tick AI as team 1.
+	 * Not hashed and not saved. kod.Autoplay=1
+	 */
+	void SetPlayerAutoplay(bool bEnabled);
+	bool IsPlayerAutoplay() const { return bPlayerAutoplay; }
+	/** Exact sim steps. Wall-clock time is not involved. */
+	void AdvanceSimTicks(int32 Ticks);
 	/** 1 matches the player's 50 Credit start. Each step above 1 adds 100 starting Credits and grows waves faster. */
 	void SetAiDifficulty(int32 Difficulty);
 	int32 GetAiDifficulty() const { return AiDifficulty; }
@@ -869,6 +877,8 @@ protected:
 	void StepProduction();
 	void StepAbilities();
 	void StepAI();
+	void StepPlayerAutoplay();
+	void PollSoak(float DeltaTime);
 	void ChooseAiOpener();
 	void RememberAiMatch();
 	void StepTech();
@@ -965,6 +975,15 @@ protected:
 	int64 SimTickIndex = 0;
 
 	bool bAiEnabled = true;
+	/** Team 0 AI. Not hashed and not saved. */
+	bool bPlayerAutoplay = false;
+	bool bSoakParsed = false;
+	int32 SoakSeconds = 0;
+	float SoakElapsed = 0.f;
+	float SoakMemoryMark = -30.f;
+	int64 SoakHashTick = -1;
+	FString SoakHash;
+	int64 PlayerNextWaveTick = 0;
 	int32 AiDifficulty = 1;
 	bool bAiSeeded = false;
 	bool bAiScoutSent = false;
