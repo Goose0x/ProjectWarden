@@ -119,6 +119,7 @@ public:
 protected:
 	/** Skeletal mesh wins when it loads; else static mesh on UnitMesh; else the Engine cube. */
 	void ApplyBodyMesh(const UKodUnitDefinition* Def);
+	void ApplyAuthorMesh(const UKodUnitDefinition* Def);
 	void MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh);
 	void MountResolvedStaticMesh(UStaticMesh* StaticBody);
 	void MountCubePlaceholder();

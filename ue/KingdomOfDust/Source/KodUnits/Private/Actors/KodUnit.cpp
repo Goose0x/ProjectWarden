@@ -725,6 +725,7 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 				WeaponCooldown,
 				TeamId,
 				bGather);
+			Sim->AccountUnitSupply(EntityId, Def->Cost.Supply, false);
 		}
 	}
 
@@ -747,6 +748,48 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 		// Shorter than the Marine cube so three workers read as a crew, not a second squad.
 		UnitMesh->SetRelativeScale3D(FVector(0.7f, 0.7f, 1.15f));
 		ApplyColorTintFallback(UnitMesh, FLinearColor(FColor(0xC6, 0xA1, 0x5B)));
+	}
+	ApplyAuthorMesh(Def);
+}
+
+void AKodUnit::ApplyAuthorMesh(const UKodUnitDefinition* Def)
+{
+	if (!Def)
+	{
+		return;
+	}
+	UMaterialInterface* AuthorMaterial = nullptr;
+	if (!Def->BodyMaterial.IsNull())
+	{
+		AuthorMaterial = Def->BodyMaterial.LoadSynchronous();
+	}
+	const bool bScale = !Def->MeshScale.Equals(FVector::OneVector, 0.01f);
+	if (bSkeletalBody)
+	{
+		if (USkeletalMeshComponent* SkelBody = GetMesh())
+		{
+			if (AuthorMaterial)
+			{
+				SkelBody->SetMaterial(0, AuthorMaterial);
+			}
+			if (bScale)
+			{
+				SkelBody->SetRelativeScale3D(SkelBody->GetRelativeScale3D() * Def->MeshScale);
+			}
+		}
+		return;
+	}
+	if (!UnitMesh)
+	{
+		return;
+	}
+	if (AuthorMaterial)
+	{
+		UnitMesh->SetMaterial(0, AuthorMaterial);
+	}
+	if (bScale)
+	{
+		UnitMesh->SetRelativeScale3D(UnitMesh->GetRelativeScale3D() * Def->MeshScale);
 	}
 }
 

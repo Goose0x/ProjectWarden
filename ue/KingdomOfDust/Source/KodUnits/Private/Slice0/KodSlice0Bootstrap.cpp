@@ -65,6 +65,7 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	UKodUnitDefinition* Dozer = MakeDozer(Catalog);
 	UKodBuildingDefinition* CC = MakeCommandCenter(Catalog, Dozer);
 	UKodBuildingDefinition* Barracks = MakeBarracks(Catalog, Ranger);
+	UKodBuildingDefinition* Depot = MakeSupplyDepot(Catalog);
 	UKodFactionDefinition* USA = MakeUSA(Catalog, CC, Dozer, Ranger);
 	UKodResourceNodeDefinition* JadeiteNode = MakeJadeiteNode(Catalog);
 	UKodResourceNodeDefinition* LumineneVent = MakeLumineneVent(Catalog);
@@ -74,6 +75,7 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Dozer), Dozer);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_CommandCenter), CC);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Barracks), Barracks);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_SupplyDepot), Depot);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_USA), USA);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_JadeiteNode), JadeiteNode);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_LumineneVent), LumineneVent);
@@ -193,7 +195,10 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeRanger(UObject* Outer, UKodWeaponDe
 	U->Armor = 0.f;
 	U->MoveSpeed = 450.f;
 	U->SightRadius = 1600.f;
-	U->BuildCostCash = 75;
+	U->Cost.Credits = 75;
+	U->Cost.Luminene = 0;
+	U->Cost.Supply = 1;
+	U->Cost.BuildTime = 80;
 	U->BuildTicks = 80; // 5 × 16
 	U->BuildTimeSeconds = KodBuildTicks::BuildTicksToSeconds(80);
 	if (Rifle)
@@ -212,17 +217,22 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeDozer(UObject* Outer)
 {
 	UKodUnitDefinition* U = NewObject<UKodUnitDefinition>(Outer, FName(KodWardenPaths::Id_Dozer), RF_Public | RF_Transient);
 	U->DefinitionId = FName(KodWardenPaths::Id_Dozer);
-	U->DisplayName = NSLOCTEXT("Kod", "Unit_Dozer", "Dozer");
+	U->DisplayName = NSLOCTEXT("Kod", "Unit_Dozer", "AMP");
 	U->UnitTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Unit.Dozer")), false);
 	U->MaxHealth = 200.f;
 	U->Armor = 1.f;
 	U->MoveSpeed = 350.f;
 	U->SightRadius = 1200.f;
-	U->BuildCostCash = 100;
-	U->BuildTicks = 128; // 8 × 16
-	U->BuildTimeSeconds = KodBuildTicks::BuildTicksToSeconds(128);
+	U->Cost.Credits = KodEconomyDefaults::AmpCredits;
+	U->Cost.Luminene = KodEconomyDefaults::AmpLuminene;
+	U->Cost.Supply = KodEconomyDefaults::AmpSupply;
+	U->Cost.BuildTime = KodEconomyDefaults::AmpBuildTicks;
+	U->BuildTicks = KodEconomyDefaults::AmpBuildTicks;
+	U->BuildTimeSeconds = static_cast<float>(KodEconomyDefaults::AmpBuildSeconds);
 	U->bCanGather = true;
 	U->PrimaryWeapon.Reset();
+	// Shipped default is the cube. The truck prototype is KodWardenPaths::ProtoAmpSkeletalMesh
+	// and is assigned on the editable Dozer DataAsset, not here.
 	U->SkeletalMesh.Reset();
 	U->StaticMesh.Reset();
 	return U;
@@ -235,9 +245,15 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeCommandCenter(UObject* Outer, U
 	B->DisplayName = NSLOCTEXT("Kod", "Building_CommandCenter", "Command Center");
 	B->BuildingTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Building.CommandCenter")), false);
 	B->MaxHealth = 2500.f;
-	B->BuildCostCash = 0;
-	B->BuildTicks = 0;
-	B->BuildTimeSeconds = 0.f;
+	B->Cost.Credits = 400;
+	B->Cost.Luminene = 0;
+	B->Cost.Supply = 0;
+	B->Cost.BuildTime = 71 * 16;
+	B->BuildTicks = B->Cost.BuildTime;
+	B->BuildTimeSeconds = 71.f;
+	B->SupplyProvided = KodEconomyDefaults::SupplyPerHq;
+	B->bIsDropOff = true;
+	B->Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(KodWardenPaths::ProtoHqMesh));
 	B->PowerProvided = 10.f;
 	B->PowerConsumed = 0.f;
 	B->SightRadius = 2000.f;
@@ -256,9 +272,12 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeBarracks(UObject* Outer, UKodUn
 	B->DisplayName = NSLOCTEXT("Kod", "Building_Barracks", "Barracks");
 	B->BuildingTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Building.Barracks")), false);
 	B->MaxHealth = 1500.f;
-	B->BuildCostCash = 250;
-	B->BuildTicks = 320; // 20 × 16
-	B->BuildTimeSeconds = KodBuildTicks::BuildTicksToSeconds(320);
+	B->Cost.Credits = 150;
+	B->Cost.Luminene = 0;
+	B->Cost.Supply = 0;
+	B->Cost.BuildTime = 46 * 16;
+	B->BuildTicks = B->Cost.BuildTime;
+	B->BuildTimeSeconds = 46.f;
 	B->PowerConsumed = 2.f;
 	B->PowerProvided = 0.f;
 	B->SightRadius = 1400.f;
@@ -267,6 +286,25 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeBarracks(UObject* Outer, UKodUn
 	{
 		B->TrainableUnits.Add(Ranger);
 	}
+	return B;
+}
+
+UKodBuildingDefinition* UKodSlice0Bootstrap::MakeSupplyDepot(UObject* Outer)
+{
+	UKodBuildingDefinition* B = NewObject<UKodBuildingDefinition>(Outer, FName(KodWardenPaths::Id_SupplyDepot), RF_Public | RF_Transient);
+	B->DefinitionId = FName(KodWardenPaths::Id_SupplyDepot);
+	B->DisplayName = NSLOCTEXT("Kod", "Building_SupplyDepot", "Supply Depot");
+	B->BuildingTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Building.SupplyDepot")), false);
+	B->MaxHealth = 400.f;
+	B->Cost.Credits = 100;
+	B->Cost.Luminene = 0;
+	B->Cost.Supply = 0;
+	B->Cost.BuildTime = 21 * 16;
+	B->BuildTicks = B->Cost.BuildTime;
+	B->BuildTimeSeconds = 21.f;
+	B->SupplyProvided = KodEconomyDefaults::SupplyPerDepot;
+	B->bIsDropOff = false;
+	B->Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(KodWardenPaths::ProtoDepotMesh));
 	return B;
 }
 
@@ -304,7 +342,7 @@ UKodResourceNodeDefinition* UKodSlice0Bootstrap::MakeJadeiteNode(UObject* Outer)
 	Node->HarvestTicks = KodEconomyDefaults::JadeiteHarvestTicks;
 	Node->TricklePerTrip = 0;
 	Node->GatherStandUU = KodEconomyDefaults::JadeiteGatherStandUU;
-	Node->Mesh.Reset();
+	Node->Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(KodWardenPaths::ProtoJadeiteMesh));
 	return Node;
 }
 

@@ -6,6 +6,8 @@
 #include "Engine/StaticMesh.h"
 #include "GameplayTagContainer.h"
 #include "Sim/KodBuildTicks.h"
+#include "Sim/KodResourceTypes.h"
+#include "Materials/MaterialInterface.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/KodUnitAnimInstance.h"
 #include "KodUnitDefinition.generated.h"
@@ -48,9 +50,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Combat")
 	TSoftObjectPtr<UKodWeaponDefinition> PrimaryWeapon;
 
-	/** Cash spent to train. Not a gather-node field. */
+	/** Credits are Jadeite. BuildTime is sim ticks. Replaces BuildCostCash. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
-	int32 BuildCostCash = 50;
+	FKodTrainCost Cost;
 
 	/** Dozer. Copied onto the sim entity. Rangers stay false. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
@@ -155,6 +157,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
 	TSoftObjectPtr<UStaticMesh> StaticMesh;
 
+	/** Optional. Empty keeps the mesh material or the cube tint. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	TSoftObjectPtr<UMaterialInterface> BodyMaterial;
+
+	/** Multiplies the resolved body scale. (1,1,1) leaves the placeholder. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	FVector MeshScale = FVector(1.f, 1.f, 1.f);
+
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override
 	{
 		const FName Id = !DefinitionId.IsNone() ? DefinitionId : GetFName();
@@ -164,6 +174,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
 	int32 GetResolvedBuildTicks() const
 	{
+		if (Cost.BuildTime > 0)
+		{
+			return Cost.BuildTime;
+		}
 		return KodBuildTicks::ResolveBuildTicks(BuildTicks, BuildTimeSeconds);
 	}
 

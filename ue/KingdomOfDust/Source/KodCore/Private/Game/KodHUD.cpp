@@ -33,6 +33,7 @@ void AKodHUD::DrawHUD()
 	}
 
 	RefreshReadout();
+	DrawProductionPanel();
 	DrawUnitHealthBars();
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
@@ -79,20 +80,36 @@ void AKodHUD::RefreshReadout()
 		int32 Jadeite = 0;
 		int32 Luminene = 0;
 		ReadTeamBank(Jadeite, Luminene);
+		int32 SupplyUsed = 0;
+		int32 SupplyCap = 0;
+		if (const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr)
+		{
+			int32 TeamId = 0;
+			if (const APlayerController* PC = GetOwningPlayerController())
+			{
+				if (const AKodPlayerState* KodPS = PC->GetPlayerState<AKodPlayerState>())
+				{
+					TeamId = KodPS->TeamId;
+				}
+			}
+			Sim->TryGetSupply(TeamId, SupplyUsed, SupplyCap);
+		}
 		if (Jadeite != ShownJadeite || Luminene != ShownLuminene)
 		{
 			ShownJadeite = Jadeite;
 			ShownLuminene = Luminene;
 			UE_LOG(LogTemp, Log, TEXT("KodHUD Readout Update J=%d L=%d"), Jadeite, Luminene);
 		}
+		ShownSupplyUsed = SupplyUsed;
+		ShownSupplyCap = SupplyCap;
 	}
 
 	const int32 DrawJadeite = ShownJadeite == MIN_int32 ? 0 : ShownJadeite;
 	const int32 DrawLuminene = ShownLuminene == MIN_int32 ? 0 : ShownLuminene;
-	DrawCanvasReadout(DrawJadeite, DrawLuminene);
+	DrawCanvasReadout(DrawJadeite, DrawLuminene, ShownSupplyUsed, ShownSupplyCap);
 }
 
-void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene)
+void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed, int32 SupplyCap)
 {
 	if (!Canvas)
 	{
@@ -115,7 +132,7 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene)
 
 	const FString Credits = FString::Printf(TEXT("Credits %d"), Jadeite);
 	const FString LumineneText = FString::Printf(TEXT("Luminene %d"), Luminene);
-	const FString Supply = TEXT("0/10");
+	const FString Supply = FString::Printf(TEXT("%d/%d"), SupplyUsed, SupplyCap);
 	float CreditsW = 0.f;
 	float CreditsH = 0.f;
 	float LumineneW = 0.f;
@@ -136,6 +153,73 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene)
 	DrawText(Credits, KodResourceColors::Jadeite(), X, Y, Font, 1.f, false);
 	DrawText(LumineneText, KodResourceColors::LumineneCore(), X + CreditsW + Gap, Y, Font, 1.f, false);
 	DrawText(Supply, FLinearColor(0.72f, 0.72f, 0.72f, 1.f), X + CreditsW + Gap + LumineneW + Gap, Y, Font, 1.f, false);
+}
+
+void AKodHUD::DrawProductionPanel()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	const AKodPlayerController* PC = Cast<AKodPlayerController>(GetOwningPlayerController());
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!PC || !Sim)
+	{
+		return;
+	}
+
+	FKodStructureState Structure;
+	bool bFound = false;
+	for (AActor* Actor : PC->GetLocalSelection())
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+		const FKodEntityId Id = Sim->FindIdForActor(Actor);
+		if (Sim->TryGetStructure(Id, Structure))
+		{
+			bFound = true;
+			break;
+		}
+	}
+	if (!bFound)
+	{
+		return;
+	}
+
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	if (!Font && GEngine)
+	{
+		Font = GEngine->GetSmallFont();
+	}
+	const float X = 24.f;
+	float Y = 80.f;
+	const FString Title = FString::Printf(TEXT("CC   S Train AMP    Esc Cancel"));
+	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.82f), X - 8.f, Y - 8.f, 280.f, 36.f + 22.f * 5.f);
+	DrawText(Title, FLinearColor::White, X, Y, Font, 1.f, false);
+	Y += 22.f;
+	if (Structure.bSupplyBlocked)
+	{
+		DrawText(TEXT("Supply blocked"), FLinearColor(0.9f, 0.25f, 0.2f, 1.f), X, Y, Font, 1.f, false);
+		Y += 18.f;
+	}
+	for (int32 Index = 0; Index < Structure.Slots.Num(); ++Index)
+	{
+		const FKodProductionSlot& Slot = Structure.Slots[Index];
+		const FString Name = Slot.DisplayId.IsNone() ? Slot.UnitId.ToString() : Slot.DisplayId.ToString();
+		DrawText(Name, KodResourceColors::Jadeite(), X, Y, Font, 1.f, false);
+		float Fraction = 0.f;
+		if (Index == 0 && Slot.bStarted && Structure.ActiveBuildTime > 0)
+		{
+			Fraction = 1.f - (static_cast<float>(Structure.ActiveTicksRemaining) / static_cast<float>(Structure.ActiveBuildTime));
+			Fraction = FMath::Clamp(Fraction, 0.f, 1.f);
+		}
+		DrawRect(FLinearColor(0.15f, 0.15f, 0.15f, 1.f), X + 70.f, Y + 2.f, 140.f, 10.f);
+		DrawRect(KodResourceColors::Jadeite(), X + 70.f, Y + 2.f, 140.f * Fraction, 10.f);
+		Y += 20.f;
+	}
 }
 
 void AKodHUD::DrawUnitHealthBars()

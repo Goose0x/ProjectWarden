@@ -1,8 +1,11 @@
 #include "Slice0/KodSlice0PlayerController.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/World.h"
+#include "InputCoreTypes.h"
 #include "KodCommandSubsystem.h"
 #include "KodCommandTypes.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Warden/KodWardenPaths.h"
 
 AKodSlice0PlayerController::AKodSlice0PlayerController()
 {
@@ -139,5 +142,115 @@ void AKodSlice0PlayerController::IssueGatherToSelection_Implementation(AActor* N
 			NonGathererMovePoint.Y,
 			NonGathererMovePoint.Z);
 		Commands->Enqueue(MoveCmd);
+	}
+}
+
+void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
+{
+	Super::PlayerTick(DeltaTime);
+	if (WasInputKeyJustPressed(EKeys::S))
+	{
+		EnqueueTrainOnSelectedStructures();
+	}
+	if (WasInputKeyJustPressed(EKeys::Escape) || WasInputKeyJustPressed(EKeys::BackSpace))
+	{
+		CancelTrainOnSelectedStructures();
+	}
+}
+
+bool AKodSlice0PlayerController::ApplySelectedStructureRally(const FKodCursorCommand& Cmd)
+{
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Commands || !Sim)
+	{
+		return Super::ApplySelectedStructureRally(Cmd);
+	}
+
+	TArray<FKodEntityId> Structures;
+	bool bHasUnits = false;
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		if (Sim->IsStructure(Id))
+		{
+			Structures.Add(Id);
+		}
+		else
+		{
+			FKodSimEntityState State;
+			if (Sim->TryGetState(Id, State))
+			{
+				bHasUnits = true;
+			}
+		}
+	}
+	if (Structures.Num() == 0)
+	{
+		return false;
+	}
+
+	FKodCommand Rally;
+	Rally.Type = EKodCommandType::SetRally;
+	Rally.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	Rally.SourceEntities = Structures;
+	Rally.TargetLocation = Cmd.bHasMovePoint ? Cmd.MovePoint : FVector::ZeroVector;
+	if (Cmd.GatherActor)
+	{
+		Rally.TargetEntity = Cmd.GatherId;
+		Rally.TargetLocation = Cmd.GatherActor->GetActorLocation();
+	}
+	Commands->Enqueue(Rally);
+	return !bHasUnits;
+}
+
+void AKodSlice0PlayerController::EnqueueTrainOnSelectedStructures()
+{
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Commands || !Sim)
+	{
+		return;
+	}
+	FKodCommand Cmd;
+	Cmd.Type = EKodCommandType::Train;
+	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	Cmd.PayloadName = FName(KodWardenPaths::Id_Dozer);
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		if (Sim->IsStructure(Id))
+		{
+			Cmd.SourceEntities.Add(Id);
+		}
+	}
+	if (Cmd.SourceEntities.Num() > 0)
+	{
+		Commands->Enqueue(Cmd);
+	}
+}
+
+void AKodSlice0PlayerController::CancelTrainOnSelectedStructures()
+{
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Commands || !Sim)
+	{
+		return;
+	}
+	FKodCommand Cmd;
+	Cmd.Type = EKodCommandType::CancelTrain;
+	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		if (Sim->IsStructure(Id))
+		{
+			Cmd.SourceEntities.Add(Id);
+		}
+	}
+	if (Cmd.SourceEntities.Num() > 0)
+	{
+		Commands->Enqueue(Cmd);
 	}
 }

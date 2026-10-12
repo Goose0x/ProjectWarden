@@ -52,27 +52,30 @@ Editor recipe (when UE opens): create six assets → set fields → Save. One Bl
 DisplayName Ranger Rifle · Damage 12 · Range 900 · CooldownSeconds 0.35
 
 ### Ranger
-Tag `Kod.Unit.Ranger` · MaxHealth 120 · Armor 0 · MoveSpeed 450 · Sight 1600 · PrimaryWeapon → RangerRifle · BuildCostCash 75 · BuildTicks 80 (5×16)
+Tag `Kod.Unit.Ranger` · MaxHealth 120 · Armor 0 · MoveSpeed 450 · Sight 1600 · PrimaryWeapon → RangerRifle · Cost 75 Credits / 0 Luminene / supply 1 · BuildTicks 80 (5×16)
 
 Presentation only (not a seventh Data id): after local import, set the Ranger DA **Static Mesh** to `/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body.SM_Ranger_Body`. Mount folder is `/Game/Warden/Characters/USA/Ranger/`, not `/Game/Units/Meshes/`. Bootstrap leaves the soft ref null (Engine cube). Skeletal mesh stays empty until anims land. See `docs/04-slice0-warden.md`.
 
 ### Dozer
-Tag `Kod.Unit.Dozer` · MaxHealth 200 · Armor 1 · MoveSpeed 350 · Sight 1200 · no weapon · BuildCostCash 100 · BuildTicks 128 (8×16)
+Tag `Kod.Unit.Dozer` · display AMP · MaxHealth 200 · Armor 1 · MoveSpeed 350 · Sight 1200 · no weapon · Cost 50 Credits / 0 Luminene / supply 1 · BuildTicks 192 (12×16). Shipped body is the tan cube. Skeletal mesh `SK_truck_a` is optional on the DataAsset and is not assigned by bootstrap.
 
 ### CommandCenter
-Tag `Kod.Building.CommandCenter` · MaxHealth 2500 · BuildCostCash 0 preplaced · PowerProvided 10 · Sight 2000 · Trainable: Dozer (Barracks owns Ranger)
+Tag `Kod.Building.CommandCenter` · MaxHealth 2500 · Cost 400 Credits · BuildTime 71 s · SupplyProvided 15 · drop-off · PowerProvided 10 · Sight 2000 · Trainable: AMP (Dozer). Default mesh soft-ref `SM_general`. Barracks owns Ranger and is not trained in M1.
 
 ### Barracks
-Tag `Kod.Building.Barracks` · MaxHealth 1500 · BuildCostCash 250 · BuildTicks 320 (20×16) · PowerConsumed 2 · Sight 1400 · Trainable: Ranger
+Tag `Kod.Building.Barracks` · MaxHealth 1500 · Cost 150 Credits · BuildTime 46 s · PowerConsumed 2 · Sight 1400 · Trainable: Ranger. Not placed or trained in M1.
+
+### SupplyDepot
+Tag `Kod.Building.SupplyDepot` · MaxHealth 400 · Cost 100 Credits · BuildTime 21 s · SupplyProvided 8 · mesh soft-ref `SM_storage`. Catalog only. Not spawned.
 
 ### USA
 StartingBuilding CommandCenter · StartingUnits: 1 Dozer + 2 Ranger (PROXY)
 
 ## Playtest #1 economy (2026-09-29)
 
-Primary spend wallet on the unit definition is still **Cash** (`BuildCostCash`, tag `Kod.Resource.Cash`). `UKodResourceWallet` still stores Cash and Oil and is not the match bank. The sim bank is Jadeite (HUD label **Credits**) and **Luminene** (gas from fissure vents, tag `Kod.Resource.Luminene`). This sheet has no Luminene cost column.
+The match bank is the sim: Jadeite (HUD label **Credits**) and **Luminene** (gas from fissure vents, tag `Kod.Resource.Luminene`). `FKodTrainCost.Credits` spends Jadeite. `UKodResourceWallet` mirrors team 0 and is not a second ledger. This sheet's Luminene column is 0 for the units above.
 
-Supply hard cap is **200** (`KodSupplyHardCap` on `UKodResourceWallet`). The HUD designer preview 48/60 is art and is not that cap.
+Supply used/cap is on the sim. HQ provides 15, a depot provides 8, hard cap **200**. The HUD designer preview 48/60 is art and is not that cap.
 
 **Dust gather collision (do not conflate):** spend fields that were `BuildCostDust` are Cash. World gather nodes are not renamed to Cash. This repo has no Dust-named gather node type; `UKodGatherComponent` stays a generic gather stub. Dust Storm (`Kod.Power.DustStorm`) and the Kingdom of Dust title stay. Purple-black / orange-red Dust node art is not in this lock. Escalate to PM if a design sheet still calls the spend crystal Dust.
 

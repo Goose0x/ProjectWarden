@@ -28,6 +28,7 @@ namespace KodWardenPaths
 	constexpr const TCHAR* Id_Dozer = TEXT("Dozer");
 	constexpr const TCHAR* Id_CommandCenter = TEXT("CommandCenter");
 	constexpr const TCHAR* Id_Barracks = TEXT("Barracks");
+	constexpr const TCHAR* Id_SupplyDepot = TEXT("SupplyDepot");
 	constexpr const TCHAR* Id_USA = TEXT("USA");
 	constexpr const TCHAR* Id_JadeiteNode = TEXT("JadeiteNode");
 	constexpr const TCHAR* Id_LumineneVent = TEXT("LumineneVent");
@@ -43,6 +44,15 @@ namespace KodWardenPaths
 	 */
 	constexpr const TCHAR* RangerCharacterRoot = TEXT("/Game/Warden/Characters/USA/Ranger");
 	constexpr const TCHAR* RangerBodyStaticMesh = TEXT("/Game/Warden/Characters/USA/Ranger/SM_Ranger_Body.SM_Ranger_Body");
+
+	/**
+	 * Prototype visuals already in Content. Soft refs only. A failed load keeps the placeholder.
+	 * AMP stays on the cube unless the editable Dozer DataAsset sets SkeletalMesh to ProtoAmpSkeletalMesh.
+	 */
+	constexpr const TCHAR* ProtoHqMesh = TEXT("/Game/RTS_Pack_B/Meshes/SM_general.SM_general");
+	constexpr const TCHAR* ProtoDepotMesh = TEXT("/Game/RTS_Pack_B/Meshes/SM_storage.SM_storage");
+	constexpr const TCHAR* ProtoJadeiteMesh = TEXT("/Game/ModularSciFi/StaticMeshes/Mineral/SM_Mineral_1.SM_Mineral_1");
+	constexpr const TCHAR* ProtoAmpSkeletalMesh = TEXT("/Game/RTS_Pack_B/SkeletalMeshes/SK_truck_a.SK_truck_a");
 
 	FORCEINLINE FSoftObjectPath MakeSoftPath(const TCHAR* AssetId)
 	{

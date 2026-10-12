@@ -33,7 +33,18 @@ namespace KodEconomyDefaults
 	inline constexpr int32 JadeiteGatherStandUU = 150;
 	inline constexpr int32 LumineneGatherStandUU = 200;
 	inline constexpr int32 DropOffStandUU = 360;
+	/** Sheet start is 12 AMPs (ECO_START_WORKERS_VAN). Slice 0 uses 3. */
 	inline constexpr int32 WorkerSpawnCount = 3;
+	inline constexpr int32 SheetStartingWorkers = 12;
+	inline constexpr int32 SupplyPerHq = 15;
+	inline constexpr int32 SupplyPerDepot = 8;
+	inline constexpr int32 SupplyHardCap = 200;
+	inline constexpr int32 ProductionSlotCap = 5;
+	inline constexpr int32 AmpCredits = 50;
+	inline constexpr int32 AmpLuminene = 0;
+	inline constexpr int32 AmpSupply = 1;
+	inline constexpr int32 AmpBuildSeconds = 12;
+	inline constexpr int32 AmpBuildTicks = AmpBuildSeconds * 16;
 	/** ~3 s at 16 Hz with no pose change before a gather leg retargets, then aborts. */
 	inline constexpr int32 GatherStallTicks = 48;
 }
@@ -87,6 +98,25 @@ struct KODCORE_API FKodResourceCost
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
 	int32 Luminene = 0;
+};
+
+/** Train or build price. Credits spend as Jadeite. BuildTime is sim ticks. */
+USTRUCT(BlueprintType)
+struct KODCORE_API FKodTrainCost
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
+	int32 Credits = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
+	int32 Luminene = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
+	int32 Supply = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
+	int32 BuildTime = 0;
 };
 
 /** Authored numbers copied onto the sim node at register. */

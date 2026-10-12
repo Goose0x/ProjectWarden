@@ -15,7 +15,9 @@ enum class EKodCommandType : uint8
 	Build       UMETA(DisplayName = "Build / Train"),
 	CastPower   UMETA(DisplayName = "Cast Power"),
 	Gather      UMETA(DisplayName = "Gather"),
-	SetRally    UMETA(DisplayName = "Set Rally")
+	SetRally    UMETA(DisplayName = "Set Rally"),
+	Train       UMETA(DisplayName = "Train"),
+	CancelTrain UMETA(DisplayName = "Cancel Train")
 };
 
 /**

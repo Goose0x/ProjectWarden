@@ -32,7 +32,8 @@ public:
 
 protected:
 	void RefreshReadout();
-	void DrawCanvasReadout(int32 Jadeite, int32 Luminene);
+	void DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed, int32 SupplyCap);
+	void DrawProductionPanel();
 	bool ReadTeamBank(int32& OutJadeite, int32& OutLuminene) const;
 	void DrawUnitHealthBars();
 	void DrawSelectedResourceNodes();
@@ -41,6 +42,8 @@ protected:
 	bool bLoggedFirstDraw = false;
 	int32 ShownJadeite = MIN_int32;
 	int32 ShownLuminene = MIN_int32;
+	int32 ShownSupplyUsed = 0;
+	int32 ShownSupplyCap = 0;
 	float LastReadoutPollSeconds = -1.f;
 
 	UPROPERTY(Transient)
