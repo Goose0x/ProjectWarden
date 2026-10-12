@@ -51,27 +51,50 @@ namespace
 		return Label;
 	}
 
-	/** SC2 bar colour. Cuts are multiples of 1/7 of max HP. */
+	/** HP fill. Green at 66% and above, yellow from 33%, red below. */
 	FLinearColor HealthBarInk(float Fraction)
 	{
 		const float Clamped = FMath::Clamp(Fraction, 0.f, 1.f);
-		if (Clamped > 6.f / 7.f)
+		if (Clamped >= 0.66f)
 		{
-			return FLinearColor(0.15f, 0.95f, 0.2f, 0.95f);
+			return FLinearColor(FColor(0x4C, 0xD9, 0x64));
 		}
-		if (Clamped > 5.f / 7.f)
+		if (Clamped >= 0.33f)
 		{
-			return FLinearColor(0.7f, 0.95f, 0.15f, 0.95f);
+			return FLinearColor(FColor(0xF2, 0xC2, 0x30));
 		}
-		if (Clamped > 4.f / 7.f)
+		return FLinearColor(FColor(0xE5, 0x38, 0x3B));
+	}
+
+	struct FKodSpecRow
+	{
+		FString Label;
+		float Fraction = -1.f;
+		FLinearColor Cap = FLinearColor::White;
+	};
+
+	FLinearColor Tok(uint8 R, uint8 G, uint8 B, float A = 1.f)
+	{
+		return FLinearColor(FColor(R, G, B, static_cast<uint8>(FMath::Clamp(A, 0.f, 1.f) * 255.f)));
+	}
+
+	float DpiForShortest(float Shortest)
+	{
+		const float Stops[] = { 720.f, 1080.f, 1440.f, 2160.f };
+		const float Values[] = { 0.667f, 1.f, 1.333f, 2.f };
+		if (Shortest <= Stops[0])
 		{
-			return FLinearColor(0.95f, 0.85f, 0.12f, 0.95f);
+			return Values[0] * (Shortest / Stops[0]);
 		}
-		if (Clamped > 2.f / 7.f)
+		for (int32 Index = 0; Index < 3; ++Index)
 		{
-			return FLinearColor(0.95f, 0.48f, 0.08f, 0.95f);
+			if (Shortest <= Stops[Index + 1])
+			{
+				const float T = (Shortest - Stops[Index]) / (Stops[Index + 1] - Stops[Index]);
+				return FMath::Lerp(Values[Index], Values[Index + 1], T);
+			}
 		}
-		return FLinearColor(0.9f, 0.12f, 0.1f, 0.95f);
+		return Values[3] * (Shortest / Stops[3]);
 	}
 }
 
@@ -80,10 +103,141 @@ AKodHUD::AKodHUD()
 	bShowHUD = true;
 }
 
+void AKodHUD::BuildVanguardFrame()
+{
+	FrameScale = 1.f;
+	FrameOriginX = 0.f;
+	FrameOriginY = 0.f;
+	if (!Canvas)
+	{
+		return;
+	}
+	const float ViewW = Canvas->SizeX;
+	const float ViewH = Canvas->SizeY;
+	const float User = FMath::Clamp(HudUserScale, 0.8f, 1.2f);
+	float Scale = DpiForShortest(FMath::Min(ViewW, ViewH)) * User;
+	float FrameW = 1920.f * Scale;
+	float FrameH = 1080.f * Scale;
+	const float SafeW = ViewW * 0.9f;
+	const float SafeH = ViewH * 0.9f;
+	if (FrameW > SafeW || FrameH > SafeH)
+	{
+		Scale *= FMath::Min(SafeW / FMath::Max(1.f, FrameW), SafeH / FMath::Max(1.f, FrameH));
+		FrameW = 1920.f * Scale;
+		FrameH = 1080.f * Scale;
+	}
+	FrameScale = Scale;
+	FrameOriginX = (ViewW - FrameW) * 0.5f;
+	FrameOriginY = (ViewH - FrameH) * 0.5f;
+	SafeMinX = ViewW * 0.05f;
+	SafeMaxX = ViewW * 0.95f;
+}
+
+AKodHUD::FKodScreenRect AKodHUD::MapSpec(float X, float Y, float W, float H) const
+{
+	FKodScreenRect Out;
+	Out.X = FrameOriginX + X * FrameScale;
+	Out.Y = FrameOriginY + Y * FrameScale;
+	Out.W = W * FrameScale;
+	Out.H = H * FrameScale;
+	return Out;
+}
+
+void AKodHUD::DrawPlate(float X, float Y, float W, float H, const FLinearColor& Fill, const TCHAR* SliceName, float MarginL, float MarginT, float MarginR, float MarginB)
+{
+	UTexture2D* Texture = nullptr;
+	if (SliceName && *SliceName)
+	{
+		const FName Key(SliceName);
+		if (!PlateMiss.Contains(Key))
+		{
+			if (const TObjectPtr<UTexture2D>* Found = PlateHits.Find(Key))
+			{
+				Texture = Found->Get();
+			}
+			else
+			{
+				const FString Path = FString::Printf(TEXT("/Game/UI/Vanguard/%s.%s"), SliceName, SliceName);
+				Texture = Cast<UTexture2D>(FSoftObjectPath(Path).TryLoad());
+				if (Texture)
+				{
+					PlateHits.Add(Key, Texture);
+				}
+				else
+				{
+					PlateMiss.Add(Key);
+				}
+			}
+		}
+	}
+	if (!Texture || W <= 1.f || H <= 1.f)
+	{
+		DrawRect(Fill, X, Y, W, H);
+		return;
+	}
+	const float L = FMath::Min(MarginL * FrameScale, W * 0.5f);
+	const float T = FMath::Min(MarginT * FrameScale, H * 0.5f);
+	const float R = FMath::Min(MarginR * FrameScale, W * 0.5f);
+	const float B = FMath::Min(MarginB * FrameScale, H * 0.5f);
+	const float TW = FMath::Max(1.f, static_cast<float>(Texture->GetSizeX()));
+	const float TH = FMath::Max(1.f, static_cast<float>(Texture->GetSizeY()));
+	const float UL = MarginL / TW;
+	const float UT = MarginT / TH;
+	const float UR = MarginR / TW;
+	const float UB = MarginB / TH;
+	auto Tile = [this, Texture](float DX, float DY, float DW, float DH, float U, float V, float UW, float VH)
+	{
+		if (DW > 0.5f && DH > 0.5f && UW > 0.f && VH > 0.f)
+		{
+			DrawTexture(Texture, DX, DY, DW, DH, U, V, UW, VH);
+		}
+	};
+	Tile(X, Y, L, T, 0.f, 0.f, UL, UT);
+	Tile(X + L, Y, W - L - R, T, UL, 0.f, 1.f - UL - UR, UT);
+	Tile(X + W - R, Y, R, T, 1.f - UR, 0.f, UR, UT);
+	Tile(X, Y + T, L, H - T - B, 0.f, UT, UL, 1.f - UT - UB);
+	Tile(X + L, Y + T, W - L - R, H - T - B, UL, UT, 1.f - UL - UR, 1.f - UT - UB);
+	Tile(X + W - R, Y + T, R, H - T - B, 1.f - UR, UT, UR, 1.f - UT - UB);
+	Tile(X, Y + H - B, L, B, 0.f, 1.f - UB, UL, UB);
+	Tile(X + L, Y + H - B, W - L - R, B, UL, 1.f - UB, 1.f - UL - UR, UB);
+	Tile(X + W - R, Y + H - B, R, B, 1.f - UR, 1.f - UB, UR, UB);
+}
+
+void AKodHUD::DrawVanguardChrome()
+{
+	ChromeHits.Reset();
+	if (!Canvas)
+	{
+		return;
+	}
+	const FKodScreenRect Strip = MapSpec(0.f, 778.f, 1920.f, 302.f);
+	const float BandY = Strip.Y;
+	const float BandH = FMath::Max(Strip.H, Canvas->SizeY - BandY);
+	DrawPlate(0.f, BandY, Canvas->SizeX, BandH, Tok(0x3A, 0x3F, 0x45, 0.96f), TEXT("T_UI_VG_Strip_Plate"), 48.f, 24.f, 48.f, 24.f);
+	const FKodScreenRect MapBay = MapSpec(16.f, 778.f, 346.f, 302.f);
+	DrawPlate(MapBay.X, MapBay.Y, MapBay.W, MapBay.H, Tok(0x1F, 0x23, 0x27, 0.55f), TEXT("T_UI_VG_Bay_Minimap"), 24.f, 24.f, 24.f, 24.f);
+	const FKodScreenRect Sel = MapSpec(378.f, 778.f, 806.f, 302.f);
+	DrawPlate(Sel.X, Sel.Y, Sel.W, Sel.H, Tok(0x4A, 0x55, 0x62, 0.35f), TEXT("T_UI_VG_Panel_Selection"), 24.f, 24.f, 24.f, 24.f);
+	const FKodScreenRect Card = MapSpec(1504.f, 778.f, 384.f, 302.f);
+	DrawPlate(Card.X, Card.Y, Card.W, Card.H, Tok(0x1F, 0x23, 0x27, 0.45f), TEXT("T_UI_VG_Panel_Command"), 24.f, 24.f, 24.f, 24.f);
+
+	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+	const FKodScreenRect Chat = MapSpec(1725.f, 794.f, 44.f, 40.f);
+	const FKodScreenRect Menu = MapSpec(1777.f, 794.f, 96.f, 40.f);
+	DrawPlate(Chat.X, Chat.Y, Chat.W, Chat.H, Tok(0x5C, 0x64, 0x6C), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
+	DrawText(TEXT("Chat"), Tok(0xE6, 0xE6, 0xE0), Chat.X + 6.f * FrameScale, Chat.Y + 10.f * FrameScale, Font, 0.7f * FrameScale, false);
+	RememberChrome(FName(TEXT("ChatBtn")), 0, FName(), Chat.X, Chat.Y, Chat.X + Chat.W, Chat.Y + Chat.H);
+	DrawPlate(Menu.X, Menu.Y, Menu.W, Menu.H, Tok(0x5C, 0x64, 0x6C), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
+	DrawText(TEXT("MENU"), Tok(0xE6, 0xE6, 0xE0), Menu.X + 18.f * FrameScale, Menu.Y + 10.f * FrameScale, Font, 0.75f * FrameScale, false);
+	RememberChrome(FName(TEXT("MenuBtn")), 0, FName(), Menu.X, Menu.Y, Menu.X + Menu.W, Menu.Y + Menu.H);
+}
+
 void AKodHUD::DrawHUD()
 {
 	Super::DrawHUD();
 	bShowHUD = true;
+	BuildVanguardFrame();
+	DrawVanguardChrome();
 
 	if (!bLoggedFirstDraw)
 	{
@@ -124,18 +278,22 @@ void AKodHUD::DrawHUD()
 	if (Canvas && (bChatOpen || ChatLog.Num() > 0))
 	{
 		UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
-		const float RowH = 22.f;
-		float Y = Canvas->SizeY - 36.f - static_cast<float>(ChatLog.Num()) * RowH;
+		const float RowH = 22.f * FrameScale;
+		const FKodScreenRect Feed = MapSpec(16.f, 420.f, 380.f, 28.f);
+		const float X = Feed.X + (SafeMinX - FrameOriginX);
+		const int32 Lines = ChatLog.Num() + (bChatOpen ? 1 : 0);
+		float Y = Feed.Y - 8.f * FrameScale - static_cast<float>(Lines) * RowH;
+		Y = FMath::Max(FrameOriginY + 8.f * FrameScale, Y);
 		for (const FString& Msg : ChatLog)
 		{
-			DrawText(Msg, FLinearColor(0.86f, 0.84f, 0.72f, 1.f), 24.f, Y, Font, 1.f, false);
+			DrawText(Msg, Tok(0xE6, 0xE6, 0xE0), X, Y, Font, FrameScale, false);
 			Y += RowH;
 		}
 		if (bChatOpen)
 		{
 			const FString Line = FString::Printf(TEXT("> %s_"), *ChatLine);
-			DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.9f), 16.f, Canvas->SizeY - 36.f, 640.f, 28.f);
-			DrawText(Line, FLinearColor(0.9f, 0.95f, 0.7f, 1.f), 24.f, Canvas->SizeY - 32.f, Font, 1.f, false);
+			DrawRect(Tok(0x1F, 0x23, 0x27, 0.9f), X, Y, Feed.W, RowH);
+			DrawText(Line, Tok(0xFF, 0xD2, 0x3F), X + 8.f * FrameScale, Y, Font, FrameScale, false);
 		}
 	}
 }
@@ -193,7 +351,7 @@ void AKodHUD::DrawClickMarkers()
 		const float Life = 1.f - (Age / FMath::Max(0.05f, Marker.Life));
 		const float Pulse = 0.65f + 0.35f * FMath::Abs(FMath::Sin(Age * 16.f));
 		const float Radius = 10.f + 34.f * (Age / FMath::Max(0.05f, Marker.Life));
-		FLinearColor Color = FLinearColor(0.25f, 0.95f, 0.35f, Life * Pulse);
+		FLinearColor Color = FLinearColor(FColor(0x3D, 0xFF, 0x6A, static_cast<uint8>(FMath::Clamp(Life * Pulse, 0.f, 1.f) * 255.f)));
 		if (Marker.Kind == 1)
 		{
 			Color = FLinearColor(0.95f, 0.18f, 0.14f, Life * Pulse);
@@ -319,6 +477,13 @@ void AKodHUD::ToggleMinimapLayer(int32 LayerIndex)
 {
 	switch (LayerIndex)
 	{
+	case 10:
+		MapChipCycle = (MapChipCycle + 1) % 4;
+		bMapTerrain = MapChipCycle == 0;
+		bMapUnits = MapChipCycle == 1;
+		bMapResources = MapChipCycle == 2;
+		bMapFog = MapChipCycle == 3;
+		break;
 	case 0:
 		bMapTerrain = !bMapTerrain;
 		break;
@@ -573,8 +738,8 @@ void AKodHUD::DrawWorldFog()
 			continue;
 		}
 		const FLinearColor Ink = SeenTeam[Index] == LocalTeam
-			? FLinearColor(0.3f, 0.9f, 0.38f, 0.55f)
-			: FLinearColor(0.92f, 0.22f, 0.16f, 0.55f);
+			? FLinearColor(FColor(0x59, 0x78, 0x8A, 140))
+			: FLinearColor(FColor(0x8C, 0x5A, 0x5A, 140));
 		DrawRect(Ink, BoxMinX, BoxMinY, BoxMaxX - BoxMinX, BoxMaxY - BoxMinY);
 	}
 }
@@ -600,8 +765,9 @@ void AKodHUD::DrawGameClock()
 	{
 		Font = GEngine->GetSmallFont();
 	}
-	const float Width = 12.f * static_cast<float>(Label.Len());
-	DrawText(Label, FLinearColor(0.92f, 0.9f, 0.82f, 1.f), (Canvas->SizeX - Width) * 0.5f, 16.f, Font, 1.f, false);
+	const FKodScreenRect Clock = MapSpec(24.f, 780.f, 120.f, 34.f);
+	DrawPlate(Clock.X, Clock.Y, Clock.W, Clock.H, Tok(0x1F, 0x23, 0x27, 0.9f), TEXT("T_UI_VG_Chip_Resource"), 12.f, 8.f, 12.f, 8.f);
+	DrawText(Label, Tok(0xB0, 0x8D, 0x57), Clock.X + 8.f * FrameScale, Clock.Y + 6.f * FrameScale, Font, FrameScale, false);
 }
 
 bool AKodHUD::ReadTeamBank(int32& OutJadeite, int32& OutLuminene) const
@@ -695,8 +861,8 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed,
 		}
 	}
 
-	const FString Credits = FString::Printf(TEXT("Credits %d"), Jadeite);
-	const FString LumineneText = FString::Printf(TEXT("Luminene %d"), Luminene);
+	const FString Credits = FString::Printf(TEXT("%d"), Jadeite);
+	const FString LumineneText = FString::Printf(TEXT("%d"), Luminene);
 	bool bSupplyBlocked = SupplyCap > 0 && SupplyUsed >= SupplyCap;
 	if (!bSupplyBlocked)
 	{
@@ -710,116 +876,27 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed,
 			}
 		}
 	}
-	const FString Supply = FString::Printf(TEXT("Supply %d/%d"), SupplyUsed, SupplyCap);
-	float CreditsW = 0.f;
-	float CreditsH = 0.f;
-	float LumineneW = 0.f;
-	float LumineneH = 0.f;
-	float SupplyW = 0.f;
-	float SupplyH = 0.f;
-	Canvas->TextSize(Font, Credits, CreditsW, CreditsH);
-	Canvas->TextSize(Font, LumineneText, LumineneW, LumineneH);
-	Canvas->TextSize(Font, Supply, SupplyW, SupplyH);
-
-	const float Gap = 22.f;
-	const float Pad = 10.f;
-	const float TextH = FMath::Max3(CreditsH, LumineneH, SupplyH);
-	const float TotalW = CreditsW + Gap + LumineneW + Gap + SupplyW;
-	const float X = Canvas->SizeX - TotalW - 24.f;
-	const float Y = 16.f;
-	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.88f), X - Pad, Y - 6.f, TotalW + Pad * 2.f, TextH + 12.f);
-	DrawText(Credits, KodResourceColors::Jadeite(), X, Y, Font, 1.f, false);
-	DrawText(LumineneText, KodResourceColors::LumineneCore(), X + CreditsW + Gap, Y, Font, 1.f, false);
-	const FLinearColor SupplyInk = bSupplyBlocked
-		? FLinearColor(0.95f, 0.22f, 0.18f, 1.f)
-		: FLinearColor(0.78f, 0.78f, 0.78f, 1.f);
-	DrawText(Supply, SupplyInk, X + CreditsW + Gap + LumineneW + Gap, Y, Font, 1.f, false);
+	const FString Supply = FString::Printf(TEXT("%d/%d"), SupplyUsed, SupplyCap);
+	const float EdgeShift = SafeMaxX - (FrameOriginX + 1904.f * FrameScale);
+	const float ChipX[3] = { 1500.f, 1638.f, 1776.f };
+	const FString ChipText[3] = { Credits, LumineneText, Supply };
+	const FLinearColor ChipInk[3] = {
+		Tok(0xB0, 0x8D, 0x57),
+		Tok(0xFF, 0xD2, 0x3F),
+		bSupplyBlocked ? Tok(0xE5, 0x38, 0x3B) : Tok(0xE6, 0xE6, 0xE0)
+	};
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		const FKodScreenRect Chip = MapSpec(ChipX[Index], 16.f, 128.f, 40.f);
+		const float X = Chip.X + EdgeShift;
+		DrawPlate(X, Chip.Y, Chip.W, Chip.H, Tok(0x1F, 0x23, 0x27, 0.92f), TEXT("T_UI_VG_Chip_Resource"), 12.f, 8.f, 12.f, 8.f);
+		DrawText(ChipText[Index], ChipInk[Index], X + 10.f * FrameScale, Chip.Y + 8.f * FrameScale, Font, FrameScale, false);
+	}
 }
 
 void AKodHUD::DrawProductionPanel()
 {
-	if (!Canvas)
-	{
-		return;
-	}
-	const AKodPlayerController* PC = Cast<AKodPlayerController>(GetOwningPlayerController());
-	UWorld* World = GetWorld();
-	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
-	if (!PC || !Sim)
-	{
-		return;
-	}
-
-	FKodStructureState Structure;
-	bool bFound = false;
-	for (AActor* Actor : PC->GetLocalSelection())
-	{
-		if (!Actor)
-		{
-			continue;
-		}
-		const FKodEntityId Id = Sim->FindIdForActor(Actor);
-		if (Sim->TryGetStructure(Id, Structure))
-		{
-			bFound = true;
-			break;
-		}
-	}
-	if (!bFound)
-	{
-		return;
-	}
-
-	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
-	if (!Font && GEngine)
-	{
-		Font = GEngine->GetSmallFont();
-	}
-	const FString StructureName = Structure.DisplayId.IsNone() ? Structure.DefinitionId.ToString() : Structure.DisplayId.ToString();
-	FString Status = StructureName;
-	FKodSimEntityState Combat;
-	if (Sim->TryGetState(Structure.Id, Combat) && Combat.MaxHealth > 0.f)
-	{
-		Status += FString::Printf(TEXT("   HP %d/%d"), FMath::FloorToInt(Combat.Health), FMath::FloorToInt(Combat.MaxHealth));
-	}
-	if (!Structure.bComplete && Structure.BuildTimeTotal > 0)
-	{
-		const int32 Percent = (Structure.BuildTicksDone * 100) / Structure.BuildTimeTotal;
-		Status += FString::Printf(TEXT("   Build %d%%"), Percent);
-	}
-	DrawText(Status, FLinearColor::White, 24.f, 80.f, Font, 1.f, false);
-	if (!Structure.bComplete || Structure.Trains.Num() <= 0)
-	{
-		return;
-	}
-
-	const float X = 24.f;
-	float Y = 108.f;
-	const FString TrainName = PlayerFacingName(Sim, Structure.Trains[0]).ToString();
-	const FString Title = FString::Printf(TEXT("S Train %s  Backspace Cancel"), *TrainName);
-	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.82f), X - 8.f, Y - 8.f, 280.f, 36.f + 22.f * 5.f);
-	DrawText(Title, FLinearColor::White, X, Y, Font, 1.f, false);
-	Y += 22.f;
-	if (Structure.bSupplyBlocked)
-	{
-		DrawText(TEXT("Supply blocked"), FLinearColor(0.9f, 0.25f, 0.2f, 1.f), X, Y, Font, 1.f, false);
-		Y += 18.f;
-	}
-	for (int32 Index = 0; Index < Structure.Slots.Num(); ++Index)
-	{
-		const FKodProductionSlot& Slot = Structure.Slots[Index];
-		const FString Name = PlayerFacingName(Sim, Slot.DisplayId.IsNone() ? Slot.UnitId : Slot.DisplayId).ToString();
-		DrawText(Name, KodResourceColors::Jadeite(), X, Y, Font, 1.f, false);
-		float Fraction = 0.f;
-		if (Index == 0 && Slot.bStarted && Structure.ActiveBuildTime > 0)
-		{
-			Fraction = 1.f - (static_cast<float>(Structure.ActiveTicksRemaining) / static_cast<float>(Structure.ActiveBuildTime));
-			Fraction = FMath::Clamp(Fraction, 0.f, 1.f);
-		}
-		DrawRect(FLinearColor(0.15f, 0.15f, 0.15f, 1.f), X + 70.f, Y + 2.f, 140.f, 10.f);
-		DrawRect(KodResourceColors::Jadeite(), X + 70.f, Y + 2.f, 140.f * Fraction, 10.f);
-		Y += 20.f;
-	}
+	// The five-slot queue is drawn in the selection panel.
 }
 
 void AKodHUD::DrawThreatRings()
@@ -928,7 +1005,7 @@ void AKodHUD::DrawIsrPopup()
 	const float Y = 72.f;
 	DrawRect(FLinearColor(0.02f, 0.03f, 0.02f, 0.92f), X - 6.f, Y - 22.f, W + 12.f, H + 30.f);
 	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
-	DrawText(TEXT("ISR"), FLinearColor(0.55f, 0.85f, 1.f, 1.f), X, Y - 18.f, Font, 1.f, false);
+	DrawText(TEXT("ISR"), Tok(0xB0, 0x8D, 0x57), X, Y - 18.f, Font, 1.f, false);
 	if (UTextureRenderTarget2D* Target = IsrMonitor->GetRenderTarget())
 	{
 		DrawTexture(Target, X, Y, W, H, 0.f, 0.f, 1.f, 1.f);
@@ -961,8 +1038,9 @@ void AKodHUD::DrawBuildHint()
 	{
 		Font = GEngine->GetSmallFont();
 	}
-	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.82f), 16.f, 140.f, 720.f, 28.f);
-	DrawText(Hint, KodResourceColors::Jadeite(), 24.f, 144.f, Font, 1.f, false);
+	const FKodScreenRect HintBox = MapSpec(402.f, 690.f, 480.f, 28.f);
+	DrawRect(Tok(0x1F, 0x23, 0x27, 0.88f), HintBox.X, HintBox.Y, HintBox.W, HintBox.H);
+	DrawText(Hint, Tok(0xB0, 0x8D, 0x57), HintBox.X + 8.f * FrameScale, HintBox.Y + 4.f * FrameScale, Font, FrameScale, false);
 }
 
 int32 AKodHUD::ReadLocalTeamId() const
@@ -1235,7 +1313,7 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 	Line.World = Location;
 	Line.Until = Now + 5.f;
 	AlertLines.Add(Line);
-	while (AlertLines.Num() > 6)
+	while (AlertLines.Num() > 5)
 	{
 		AlertLines.RemoveAt(0);
 	}
@@ -1310,31 +1388,26 @@ void AKodHUD::DrawAlertFeed()
 			AlertLines.RemoveAt(Index);
 		}
 	}
-	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
-	float Y = 72.f * Scale;
-	if (Cast<AKodSpectatorPawn>(GetOwningPawn()))
-	{
-		Y = 250.f * Scale;
-	}
+	const FKodScreenRect Feed = MapSpec(16.f, 420.f, 380.f, 292.f);
+	const float EdgeShift = SafeMinX - FrameOriginX;
 	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
-	for (int32 Index = AlertLines.Num() - 1; Index >= 0; --Index)
+	const int32 MaxRows = 5;
+	int32 Drawn = 0;
+	for (int32 Index = AlertLines.Num() - 1; Index >= 0 && Drawn < MaxRows; --Index)
 	{
 		const FKodAlertLine& Line = AlertLines[Index];
 		const float Alpha = FMath::Clamp((Line.Until - Now) / 1.5f, 0.25f, 1.f);
 		const bool bCheatLine = Line.CueId == FName(TEXT("cheat_enabled"));
 		const FString Glyph = Line.Text.Left(2).ToUpper();
-		const FLinearColor Plate = bCheatLine
-			? FLinearColor(0.28f, 0.22f, 0.05f, 0.9f * Alpha)
-			: FLinearColor(0.05f, 0.06f, 0.07f, 0.86f * Alpha);
-		const FLinearColor Ink = bCheatLine
-			? FLinearColor(0.95f, 0.82f, 0.28f, Alpha)
-			: FLinearColor(0.92f, 0.9f, 0.82f, Alpha);
-		const float PlateW = bCheatLine ? 560.f * Scale : 280.f * Scale;
-		DrawRect(Plate, 16.f * Scale, Y, PlateW, 28.f * Scale);
-		DrawRect(bCheatLine ? FLinearColor(0.72f, 0.58f, 0.12f, Alpha) : FLinearColor(0.25f, 0.45f, 0.32f, Alpha), 20.f * Scale, Y + 4.f * Scale, 22.f * Scale, 20.f * Scale);
-		DrawText(Glyph, FLinearColor(1.f, 1.f, 1.f, Alpha), 22.f * Scale, Y + 6.f * Scale, Font, 0.55f * Scale, false);
-		DrawText(Line.Text, Ink, 48.f * Scale, Y + 6.f * Scale, Font, 0.8f * Scale, false);
-		Y += 32.f * Scale;
+		const float RowY = Feed.Y + static_cast<float>(MaxRows - 1 - Drawn) * (52.f + 8.f) * FrameScale;
+		const float RowX = Feed.X + EdgeShift;
+		const float RowW = Feed.W;
+		const float RowH = 52.f * FrameScale;
+		DrawRect(bCheatLine ? Tok(0x3A, 0x32, 0x14, 0.9f * Alpha) : Tok(0x1F, 0x23, 0x27, 0.88f * Alpha), RowX, RowY, RowW, RowH);
+		DrawRect(bCheatLine ? Tok(0xB0, 0x8D, 0x57, Alpha) : Tok(0xE5, 0x38, 0x3B, Alpha), RowX + 6.f * FrameScale, RowY + 6.f * FrameScale, 40.f * FrameScale, 40.f * FrameScale);
+		DrawText(Glyph, Tok(0xF2, 0xF2, 0xF2, Alpha), RowX + 12.f * FrameScale, RowY + 14.f * FrameScale, Font, 0.7f * FrameScale, false);
+		DrawText(Line.Text, bCheatLine ? Tok(0xFF, 0xD2, 0x3F, Alpha) : Tok(0xE6, 0xE6, 0xE0, Alpha), RowX + 54.f * FrameScale, RowY + 14.f * FrameScale, Font, 0.85f * FrameScale, false);
+		++Drawn;
 	}
 }
 
@@ -1350,14 +1423,12 @@ void AKodHUD::DrawSpectatorPanel()
 	{
 		return;
 	}
-	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
-	const float X = 16.f * Scale;
-	const float Y = 16.f * Scale;
-	const float W = 360.f * Scale;
-	DrawRect(FLinearColor(0.03f, 0.04f, 0.05f, 0.92f), X, Y, W, 220.f * Scale);
-	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
-	DrawText(TEXT("Production"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X + 8.f * Scale, Y + 4.f * Scale, Font, Scale, false);
-	float Row = Y + 24.f * Scale;
+	const FKodScreenRect Tab = MapSpec(16.f, 16.f, 560.f, 36.f);
+	const float Scale = FrameScale;
+	const float X = Tab.X + (SafeMinX - FrameOriginX);
+	const float Y = Tab.Y;
+	const float W = Tab.W;
+	TArray<FKodSpecRow> Rows;
 	for (int32 TeamId = 0; TeamId <= 1; ++TeamId)
 	{
 		FKodResourceCost Bank;
@@ -1365,12 +1436,10 @@ void AKodHUD::DrawSpectatorPanel()
 		int32 Used = 0;
 		int32 Cap = 0;
 		Sim->TryGetSupply(TeamId, Used, Cap);
-		const FLinearColor Ink = TeamId == 0 ? FLinearColor(0.3f, 0.85f, 0.4f, 1.f) : FLinearColor(0.9f, 0.25f, 0.18f, 1.f);
-		const float BarW = (W - 16.f * Scale) * 0.5f;
-		DrawRect(Ink, X + 8.f * Scale + TeamId * BarW, Row, BarW - 4.f * Scale, 8.f * Scale);
-		DrawText(FString::Printf(TEXT("T%d  %dC  %dL  %d/%d"), TeamId, Bank.Jadeite, Bank.Luminene, Used, Cap),
-			FLinearColor::White, X + 8.f * Scale, Row + 10.f * Scale, Font, 0.75f * Scale, false);
-		Row += 28.f * Scale;
+		FKodSpecRow Row;
+		Row.Label = FString::Printf(TEXT("T%d  %d  %d  %d/%d"), TeamId, Bank.Jadeite, Bank.Luminene, Used, Cap);
+		Row.Cap = TeamId == 0 ? FLinearColor(FColor(0x59, 0x78, 0x8A)) : FLinearColor(FColor(0x8C, 0x5A, 0x5A));
+		Rows.Add(Row);
 	}
 	int32 Shown = 0;
 	for (const FKodStructureState& Structure : FrameStructures)
@@ -1386,14 +1455,15 @@ void AKodHUD::DrawSpectatorPanel()
 		{
 			continue;
 		}
-		float Fraction = 0.f;
+		FKodSpecRow Row;
+		Row.Cap = Structure.TeamId == 0 ? FLinearColor(FColor(0x59, 0x78, 0x8A)) : FLinearColor(FColor(0x8C, 0x5A, 0x5A));
 		FString Label = Structure.DisplayId.IsNone() ? Structure.DefinitionId.ToString() : Structure.DisplayId.ToString();
 		if (bTrain)
 		{
 			Label = FString::Printf(TEXT("T%d %s"), Structure.TeamId, *Structure.Slots[0].UnitId.ToString());
 			if (Structure.ActiveBuildTime > 0)
 			{
-				Fraction = 1.f - static_cast<float>(Structure.ActiveTicksRemaining) / static_cast<float>(Structure.ActiveBuildTime);
+				Row.Fraction = 1.f - static_cast<float>(Structure.ActiveTicksRemaining) / static_cast<float>(Structure.ActiveBuildTime);
 			}
 		}
 		else if (bResearch)
@@ -1401,20 +1471,35 @@ void AKodHUD::DrawSpectatorPanel()
 			Label = FString::Printf(TEXT("T%d %s"), Structure.TeamId, *Structure.Research[0].UnitId.ToString());
 			if (Structure.ResearchBuildTime > 0)
 			{
-				Fraction = 1.f - static_cast<float>(Structure.ResearchTicksRemaining) / static_cast<float>(Structure.ResearchBuildTime);
+				Row.Fraction = 1.f - static_cast<float>(Structure.ResearchTicksRemaining) / static_cast<float>(Structure.ResearchBuildTime);
 			}
 		}
 		else
 		{
 			Label = FString::Printf(TEXT("T%d %s"), Structure.TeamId, *Label);
-			Fraction = static_cast<float>(Structure.BuildTicksDone) / static_cast<float>(Structure.BuildTimeTotal);
+			Row.Fraction = static_cast<float>(Structure.BuildTicksDone) / static_cast<float>(Structure.BuildTimeTotal);
 		}
-		Fraction = FMath::Clamp(Fraction, 0.f, 1.f);
-		DrawText(Label, FLinearColor::White, X + 8.f * Scale, Row, Font, 0.7f * Scale, false);
-		DrawRect(FLinearColor(0.1f, 0.1f, 0.1f, 1.f), X + 170.f * Scale, Row + 2.f * Scale, 160.f * Scale, 8.f * Scale);
-		DrawRect(FLinearColor(0.3f, 0.75f, 0.4f, 1.f), X + 170.f * Scale, Row + 2.f * Scale, 160.f * Scale * Fraction, 8.f * Scale);
-		Row += 16.f * Scale;
+		Row.Fraction = FMath::Clamp(Row.Fraction, 0.f, 1.f);
+		Row.Label = Label;
+		Rows.Add(Row);
 		++Shown;
+	}
+	const float PlateH = Tab.H * static_cast<float>(FMath::Max(1, Rows.Num()));
+	DrawPlate(X, Y, W, PlateH, Tok(0x1F, 0x23, 0x27, 0.92f), TEXT("T_UI_VG_Modal_Panel"), 32.f, 32.f, 32.f, 32.f);
+	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+	for (int32 Index = 0; Index < Rows.Num(); ++Index)
+	{
+		const FKodSpecRow& Row = Rows[Index];
+		const float RowY = Y + Tab.H * static_cast<float>(Index);
+		DrawRect(Row.Cap, X, RowY, 6.f * Scale, Tab.H);
+		DrawText(Row.Label, Tok(0xE6, 0xE6, 0xE0), X + 12.f * Scale, RowY + 8.f * Scale, Font, 0.8f * Scale, false);
+		if (Row.Fraction >= 0.f)
+		{
+			const float BarX = X + 220.f * Scale;
+			const float BarW = FMath::Max(40.f, W - 236.f * Scale);
+			DrawRect(Tok(0x3A, 0x3F, 0x45), BarX, RowY + 14.f * Scale, BarW, 8.f * Scale);
+			DrawRect(Tok(0xFF, 0xD2, 0x3F), BarX, RowY + 14.f * Scale, BarW * Row.Fraction, 8.f * Scale);
+		}
 	}
 }
 
@@ -1430,7 +1515,7 @@ void AKodHUD::ShowAlertLine(const FString& Text)
 	Line.CueId = FName();
 	Line.Until = Now + 5.f;
 	AlertLines.Add(Line);
-	while (AlertLines.Num() > 6)
+	while (AlertLines.Num() > 5)
 	{
 		AlertLines.RemoveAt(0);
 	}
@@ -1537,7 +1622,7 @@ void AKodHUD::DrawScaffolds()
 		{
 			continue;
 		}
-		const FLinearColor Frame(0.6f, 0.85f, 0.7f, 0.35f + 0.4f * Alpha);
+		const FLinearColor Frame = Tok(0xB0, 0x8D, 0x57, 0.35f + 0.4f * Alpha);
 		DrawLine(Screen[0].X, Screen[0].Y, Screen[1].X, Screen[1].Y, Frame, 2.f);
 		DrawLine(Screen[1].X, Screen[1].Y, Screen[2].X, Screen[2].Y, Frame, 2.f);
 		DrawLine(Screen[2].X, Screen[2].Y, Screen[3].X, Screen[3].Y, Frame, 2.f);
@@ -1580,10 +1665,12 @@ void AKodHUD::DrawPowersPanel()
 	}
 	const int32 TeamId = ReadLocalTeamId();
 	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
-	const float X = 16.f;
-	const float Y = 180.f;
-	const float W = 260.f;
-	const float H = 132.f;
+	const float EdgeShift = SafeMaxX - (FrameOriginX + 1904.f * FrameScale);
+	const FKodScreenRect Bar = MapSpec(1500.f, 60.f, 404.f, 6.f);
+	const float X = Bar.X + EdgeShift;
+	const float Y = Bar.Y;
+	const float W = Bar.W;
+	const float H = Bar.H;
 	const AKodPlayerController* Player = Cast<AKodPlayerController>(GetOwningPlayerController());
 	const FName ArmedPower = Player ? Player->GetArmedOrderName() : FName();
 	PowerMinX = X;
@@ -1591,8 +1678,11 @@ void AKodHUD::DrawPowersPanel()
 	PowerMaxX = X + W;
 	PowerMaxY = Y + H;
 	bHasPowerPanel = true;
-	DrawRect(FLinearColor(0.03f, 0.04f, 0.05f, 0.88f), X, Y, W, H);
-	DrawText(FString::Printf(TEXT("Powers %d"), Sim->GetPowerPoints(TeamId)), FLinearColor(0.9f, 0.82f, 0.45f, 1.f), X + 8.f, Y + 6.f, Font, 1.f, false);
+	const int32 Points = Sim->GetPowerPoints(TeamId);
+	const float PointFrac = FMath::Clamp(static_cast<float>(Points) / 200.f, 0.f, 1.f);
+	DrawRect(Tok(0x1F, 0x23, 0x27), X, Y, W, H);
+	DrawRect(Tok(0x2F, 0x7B, 0xFF), X, Y, W * PointFrac, H);
+	const float ButtonTop = Y + H + 4.f * FrameScale;
 	const FName Ids[3] = {
 		FName(KodWardenPaths::Id_ArtilleryStrike),
 		FName(KodWardenPaths::Id_ReconSweep),
@@ -1621,11 +1711,11 @@ void AKodHUD::DrawPowersPanel()
 			Fail = FName(TEXT("Points"));
 		}
 		const bool bReady = Fail.IsNone();
-		const float ButtonY = Y + 28.f + Index * 32.f;
+		const float ButtonY = ButtonTop + Index * 28.f * FrameScale;
 		const FLinearColor Fill = bArmed
-			? FLinearColor(0.55f, 0.42f, 0.12f, 1.f)
-			: (bReady ? FLinearColor(0.12f, 0.18f, 0.14f, 1.f) : FLinearColor(0.08f, 0.08f, 0.08f, 1.f));
-		DrawRect(Fill, X + 8.f, ButtonY, W - 16.f, 28.f);
+			? Tok(0xB0, 0x8D, 0x57)
+			: (bReady ? Tok(0x5C, 0x64, 0x6C) : Tok(0x3A, 0x3F, 0x45));
+		DrawRect(Fill, X + 8.f * FrameScale, ButtonY, W - 16.f * FrameScale, 24.f * FrameScale);
 		const FString Line = FString::Printf(TEXT("%s %s  %d  %ds"), Keys[Index], Labels[Index], Cost, FMath::Max(0, Cooldown) / 16);
 		DrawText(Line, bReady ? FLinearColor::White : FLinearColor(0.6f, 0.6f, 0.6f, 1.f), X + 14.f, ButtonY + 6.f, Font, 0.85f, false);
 		FKodHudCommandHit Hit;
@@ -1637,7 +1727,7 @@ void AKodHUD::DrawPowersPanel()
 		Hit.MinX = X + 8.f;
 		Hit.MinY = ButtonY;
 		Hit.MaxX = X + W - 8.f;
-		Hit.MaxY = ButtonY + 28.f;
+		Hit.MaxY = ButtonY + 24.f * FrameScale;
 		if (Fail == FName(TEXT("Cooldown")))
 		{
 			Hit.Tooltip = TEXT("Cooldown");
@@ -1652,6 +1742,7 @@ void AKodHUD::DrawPowersPanel()
 		}
 		CommandHits.Add(Hit);
 	}
+	PowerMaxY = ButtonTop + 3.f * 28.f * FrameScale;
 	TArray<int32> StrikeX;
 	TArray<int32> StrikeY;
 	TArray<int32> StrikeRadius;
@@ -1846,32 +1937,28 @@ void AKodHUD::DrawCommandCard()
 	const bool bBay = bHaveBuilding && SelectedBuilding.DefinitionId == FName(KodWardenPaths::Id_EngineeringBay);
 	const bool bDepot = bHaveBuilding && SelectedBuilding.bCanLower;
 	const bool bBunker = bHaveBuilding && SelectedBuilding.CargoCap > 0;
-	if (!bTrainCard && !bBuildCard && !bMarineCard && !bMedic && !bBay && !bDepot && !bBunker)
-	{
-		return;
-	}
-
 	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
 	if (!Font && GEngine)
 	{
 		Font = GEngine->GetSmallFont();
 	}
 
-	constexpr float Button = 58.f;
-	constexpr float Gap = 6.f;
+	const float Button = 66.f * FrameScale;
+	const float Gap = 6.f * FrameScale;
 	constexpr int32 Cols = 5;
 	constexpr int32 Rows = 3;
-	const float CardW = Cols * Button + (Cols - 1) * Gap;
-	const float CardH = Rows * Button + (Rows - 1) * Gap;
-	const float QueueH = bTrainCard ? 46.f : 0.f;
-	const float OriginX = Canvas->SizeX - CardW - 24.f;
-	const float OriginY = Canvas->SizeY - CardH - QueueH - 28.f;
+	const FKodScreenRect Card = MapSpec(1519.f, 850.f, 354.f, 210.f);
+	const float CardW = Card.W;
+	const float CardH = Card.H;
+	const float QueueH = 0.f;
+	const float OriginX = Card.X;
+	const float OriginY = Card.Y;
 	ChromeMinX = OriginX - 8.f;
 	ChromeMinY = OriginY - 8.f;
 	ChromeMaxX = OriginX + CardW + 8.f;
 	ChromeMaxY = OriginY + CardH + QueueH + 8.f;
 	bCommandChrome = true;
-	DrawRect(FLinearColor(0.03f, 0.04f, 0.03f, 0.9f), ChromeMinX, ChromeMinY, ChromeMaxX - ChromeMinX, ChromeMaxY - ChromeMinY);
+	DrawRect(Tok(0x1F, 0x23, 0x27, 0.9f), ChromeMinX, ChromeMinY, ChromeMaxX - ChromeMinX, ChromeMaxY - ChromeMinY);
 
 	auto AddButton = [this, Font, Button, Gap](int32 Col, int32 Row, float OriginXIn, float OriginYIn, const FString& Label, const FString& Hotkey, FName Action, FName Payload, int32 StructureId, int32 SlotIndex, bool bEnabled, FName Fail, const FString& Tooltip)
 	{
@@ -1879,8 +1966,8 @@ void AKodHUD::DrawCommandCard()
 		const float Y = OriginYIn + Row * (Button + Gap);
 		const bool bRequires = Fail == FName(TEXT("Requires"));
 		const FLinearColor Plate = bEnabled
-			? FLinearColor(0.08f, 0.16f, 0.1f, 1.f)
-			: (bRequires ? FLinearColor(0.14f, 0.14f, 0.14f, 1.f) : FLinearColor(0.06f, 0.09f, 0.07f, 0.85f));
+			? Tok(0x5C, 0x64, 0x6C)
+			: (bRequires ? Tok(0x3A, 0x3F, 0x45) : Tok(0x2A, 0x2E, 0x32, 0.85f));
 		const FLinearColor Ink = bEnabled
 			? FLinearColor::White
 			: (bRequires ? FLinearColor(0.45f, 0.45f, 0.45f, 1.f) : FLinearColor(0.62f, 0.66f, 0.6f, 0.8f));
@@ -1888,11 +1975,11 @@ void AKodHUD::DrawCommandCard()
 		if (!TryDrawIcon(Payload.IsNone() ? FName(*Label) : Payload, X + 4.f, Y + 4.f, 18.f, 18.f))
 		{
 			const FString Glyph = Label.Left(2).ToUpper();
-			DrawRect(FLinearColor(0.2f, 0.35f, 0.28f, 1.f), X + 4.f, Y + 4.f, 18.f, 18.f);
+			DrawRect(Tok(0x5C, 0x64, 0x6C), X + 4.f, Y + 4.f, 18.f, 18.f);
 			DrawText(Glyph, FLinearColor::White, X + 5.f, Y + 5.f, Font, 0.55f, false);
 		}
 		DrawText(Label, Ink, X + 6.f, Y + 24.f, Font, 0.65f, false);
-		DrawText(Hotkey, KodResourceColors::LumineneCore(), X + Button - 16.f, Y + Button - 18.f, Font, 0.75f, false);
+		DrawText(Hotkey, Tok(0xB0, 0x8D, 0x57), X + Button - 16.f * FrameScale, Y + Button - 16.f * FrameScale, Font, 0.7f * FrameScale, false);
 		FKodHudCommandHit Hit;
 		Hit.bInsideChrome = true;
 		Hit.bEnabled = bEnabled;
@@ -1946,52 +2033,15 @@ void AKodHUD::DrawCommandCard()
 			AddButton(Shown, 0, OriginX, OriginY, Label, TEXT("S"), TEXT("Train"), UnitId, Trainer->Id.Value, INDEX_NONE, Fail.IsNone(), Fail, Tooltip);
 			++Shown;
 		}
-
-		const float QueueY = OriginY + CardH + 8.f;
-		for (int32 Slot = 0; Slot < KodEconomyDefaults::ProductionSlotCap; ++Slot)
-		{
-			const float X = OriginX + Slot * (Button + Gap);
-			const bool bFilled = Slot < Trainer->Slots.Num();
-			DrawRect(FLinearColor(0.08f, 0.08f, 0.08f, 1.f), X, QueueY, Button, 36.f);
-			if (bFilled)
-			{
-				const FKodProductionSlot& Job = Trainer->Slots[Slot];
-				const FString Name = PlayerFacingName(Sim, Job.DisplayId.IsNone() ? Job.UnitId : Job.DisplayId).ToString();
-				DrawText(Name, FLinearColor::White, X + 4.f, QueueY + 2.f, Font, 0.7f, false);
-				float Fraction = 0.f;
-				if (Slot == 0 && Job.bStarted && Trainer->ActiveBuildTime > 0)
-				{
-					Fraction = 1.f - (static_cast<float>(Trainer->ActiveTicksRemaining) / static_cast<float>(Trainer->ActiveBuildTime));
-					Fraction = FMath::Clamp(Fraction, 0.f, 1.f);
-				}
-				DrawRect(FLinearColor(0.15f, 0.15f, 0.15f, 1.f), X + 4.f, QueueY + 22.f, Button - 8.f, 8.f);
-				DrawRect(KodResourceColors::Jadeite(), X + 4.f, QueueY + 22.f, (Button - 8.f) * Fraction, 8.f);
-				FKodHudCommandHit Hit;
-				Hit.bInsideChrome = true;
-				Hit.bEnabled = true;
-				Hit.Action = TEXT("CancelSlot");
-				Hit.SlotIndex = Slot;
-				Hit.StructureId = Trainer->Id.Value;
-				Hit.MinX = X;
-				Hit.MinY = QueueY;
-				Hit.MaxX = X + Button;
-				Hit.MaxY = QueueY + 36.f;
-				Hit.Tooltip = TEXT("Cancel");
-				CommandHits.Add(Hit);
-			}
-		}
 	}
 	else
 	{
-		if (bMarineCard || bWorker)
-		{
-			AddButton(0, 1, OriginX, OriginY, TEXT("Move"), TEXT("M"), TEXT("Move"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Move"));
-			AddButton(1, 1, OriginX, OriginY, TEXT("Stop"), TEXT("S"), TEXT("Stop"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Stop"));
-			AddButton(2, 1, OriginX, OriginY, TEXT("Hold"), TEXT("H"), TEXT("Hold"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Hold"));
-			AddButton(3, 1, OriginX, OriginY, TEXT("Patrol"), TEXT("P"), TEXT("Patrol"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Patrol"));
-			AddButton(4, 1, OriginX, OriginY, TEXT("Attack"), TEXT("A"), TEXT("Attack"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Attack"));
-			AddButton(4, 2, OriginX, OriginY, TEXT("Guard"), TEXT("G"), TEXT("Guard"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Guard"));
-		}
+		AddButton(0, 0, OriginX, OriginY, TEXT("Move"), TEXT("Q"), TEXT("Move"), FName(), 0, INDEX_NONE, bMarineCard || bWorker, FName(), TEXT("Move"));
+		AddButton(1, 0, OriginX, OriginY, TEXT("Stop"), TEXT("W"), TEXT("Stop"), FName(), 0, INDEX_NONE, bMarineCard || bWorker, FName(), TEXT("Stop"));
+		AddButton(2, 0, OriginX, OriginY, TEXT("Hold"), TEXT("E"), TEXT("Hold"), FName(), 0, INDEX_NONE, bMarineCard || bWorker, FName(), TEXT("Hold"));
+		AddButton(3, 0, OriginX, OriginY, TEXT("Patrol"), TEXT("R"), TEXT("Patrol"), FName(), 0, INDEX_NONE, bMarineCard || bWorker, FName(), TEXT("Patrol"));
+		AddButton(4, 0, OriginX, OriginY, TEXT("Attack"), TEXT("T"), TEXT("Attack"), FName(), 0, INDEX_NONE, bMarineCard || bWorker, FName(), TEXT("Attack"));
+		AddButton(4, 2, OriginX, OriginY, TEXT("Guard"), TEXT("G"), TEXT("Guard"), FName(), 0, INDEX_NONE, bMarineCard || bWorker, FName(), TEXT("Guard"));
 		if (bMarineCard)
 		{
 			FKodAbilitySpec Ability;
@@ -2001,13 +2051,13 @@ void AKodHUD::DrawCommandCard()
 			const int32 Seconds = (bHave ? Ability.DurationTicks : StimDuration) / 16;
 			const FString Tooltip = FString::Printf(TEXT("%s\n%d HP\n%ds\n+50%% speed"), *Label, bHave ? Ability.HealthCost : 10, Seconds);
 			const FName Fail = bStimReady ? FName() : FName(TEXT("Health"));
-			AddButton(0, 0, OriginX, OriginY, Label, Hotkey, TEXT("Ability"), FName(KodWardenPaths::Id_CombatStim), 0, INDEX_NONE, bStimReady, Fail, Tooltip);
+			AddButton(0, 1, OriginX, OriginY, Label, Hotkey, TEXT("Ability"), FName(KodWardenPaths::Id_CombatStim), 0, INDEX_NONE, bStimReady, Fail, Tooltip);
 			if (StimRemaining > 0)
 			{
 				const float Fraction = FMath::Clamp(static_cast<float>(StimRemaining) / static_cast<float>(StimDuration), 0.f, 1.f);
 				const float X = OriginX;
-				const float Y = OriginY;
-				DrawRect(FLinearColor(1.f, 0.45f, 0.1f, 0.45f), X, Y, Button, Button * Fraction);
+				const float Y = OriginY + Button + Gap;
+				DrawRect(Tok(0xFF, 0x7A, 0x1A, 0.45f), X, Y, Button, Button * Fraction);
 			}
 		}
 		if (bWorker && !bBuildMenu)
@@ -2291,6 +2341,10 @@ void AKodHUD::DrawMatchOutcome()
 	{
 		return;
 	}
+	if (MenuPage == 6)
+	{
+		return;
+	}
 	const bool bVictory = Sim->GetMatchOutcome() == EKodMatchOutcome::Victory;
 	const FString Line = bVictory ? TEXT("VICTORY") : TEXT("DEFEAT");
 	UFont* Font = GEngine ? GEngine->GetLargeFont() : nullptr;
@@ -2298,21 +2352,14 @@ void AKodHUD::DrawMatchOutcome()
 	{
 		Font = GEngine->GetMediumFont();
 	}
-	const float Scale = 2.f;
-	float Width = 0.f;
-	float Height = 0.f;
-	Canvas->TextSize(Font, Line, Width, Height);
-	Width *= Scale;
-	Height *= Scale;
-	const float X = (Canvas->SizeX - Width) * 0.5f;
-	const float Y = Canvas->SizeY * 0.38f;
-	const FLinearColor Ink = bVictory ? FLinearColor(0.55f, 0.9f, 0.45f, 1.f) : FLinearColor(0.95f, 0.28f, 0.22f, 1.f);
-	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.9f), X - 24.f, Y - 12.f, Width + 48.f, Height + 24.f);
-	DrawText(Line, Ink, X, Y, Font, Scale, false);
+	const FKodScreenRect Banner = MapSpec(360.f, 260.f, 1200.f, 160.f);
+	DrawPlate(Banner.X, Banner.Y, Banner.W, Banner.H, Tok(0x1F, 0x23, 0x27, 0.94f), TEXT("T_UI_VG_Modal_Panel"), 32.f, 32.f, 32.f, 32.f);
+	const FLinearColor Ink = bVictory ? Tok(0xD9, 0xB8, 0x78) : Tok(0xE5, 0x38, 0x3B);
+	DrawText(Line, Ink, Banner.X + 48.f * FrameScale, Banner.Y + 48.f * FrameScale, Font, 2.f * FrameScale, false);
 	if (Sim->IsMatchCheated())
 	{
 		UFont* SummaryFont = GEngine ? GEngine->GetMediumFont() : Font;
-		DrawCheatSummary(Sim, 24.f, Y + Height + 16.f, Canvas->SizeX - 48.f, 1.f, SummaryFont);
+		DrawCheatSummary(Sim, Banner.X + 48.f * FrameScale, Banner.Y + 100.f * FrameScale, Banner.W - 96.f * FrameScale, FrameScale, SummaryFont);
 	}
 }
 
@@ -2333,13 +2380,9 @@ void AKodHUD::DrawResourceFlash()
 	{
 		Font = GEngine->GetMediumFont();
 	}
-	float Width = 0.f;
-	float Height = 0.f;
-	Canvas->TextSize(Font, FlashText, Width, Height);
-	const float X = (Canvas->SizeX - Width) * 0.5f;
-	const float Y = Canvas->SizeY * 0.42f;
-	DrawRect(FLinearColor(0.15f, 0.02f, 0.02f, 0.88f), X - 16.f, Y - 8.f, Width + 32.f, Height + 16.f);
-	DrawText(FlashText, FLinearColor(1.f, 0.85f, 0.35f, 1.f), X, Y, Font, 1.f, false);
+	const FKodScreenRect Flash = MapSpec(660.f, 700.f, 600.f, 40.f);
+	DrawRect(Tok(0x1F, 0x23, 0x27, 0.9f), Flash.X, Flash.Y, Flash.W, Flash.H);
+	DrawText(FlashText, Tok(0xFF, 0xD2, 0x3F), Flash.X + 12.f * FrameScale, Flash.Y + 6.f * FrameScale, Font, FrameScale, false);
 }
 
 void AKodHUD::DrawUnitHealthBars()
@@ -2417,65 +2460,73 @@ void AKodHUD::DrawUnitHealthBars()
 		{
 			continue;
 		}
-		float SpanUU = static_cast<float>(FMath::Max(16, HpState.BodyRadiusUU) * 2);
-		if (const FKodStructureState* Structure = FindFrameStructure(HpState.Id.Value))
+		const bool bStructureBar = FindFrameStructure(HpState.Id.Value) != nullptr;
+		float BarWidth = 40.f;
+		float BarHeight = 5.f;
+		if (bStructureBar)
 		{
-			const int32 Cells = FMath::Max(Structure->FootprintX, Structure->FootprintY);
-			SpanUU = static_cast<float>(FMath::Max(1, Cells)) * static_cast<float>(KodBuildGrid::CellUU);
+			BarWidth = 128.f;
+			BarHeight = 8.f;
 		}
-		constexpr float BarHeight = 7.f;
-		constexpr float Outline = 1.f;
-		constexpr float Gap = 1.f;
-		constexpr int32 HpPerSegment = 25;
-		const int32 Segments = FMath::Clamp(FMath::DivideAndRoundUp(MaxHP, HpPerSegment), 1, 16);
-		const float Needed = static_cast<float>(Segments) * 5.f + Gap * static_cast<float>(Segments - 1);
-		const float BarWidth = FMath::Clamp(FMath::Max(32.f + SpanUU * 0.18f, Needed), 40.f, 180.f);
+		else if (HpState.BodyRadiusUU >= 48)
+		{
+			BarWidth = 96.f;
+			BarHeight = 7.f;
+		}
+		else if (HpState.BodyRadiusUU >= 24)
+		{
+			BarWidth = 64.f;
+			BarHeight = 6.f;
+		}
 		const bool bHover = bHaveMouse && FMath::Abs(MouseX - Screen.X) <= BarWidth * 0.5f + 8.f && FMath::Abs(MouseY - Screen.Y) <= 28.f;
 		if (HealthBarMode != 2 && bFull && !bSelected && !bHover && !bShowAll)
 		{
 			continue;
 		}
 
+		int32 Step = 25;
+		if (MaxHP > 1500)
+		{
+			Step = 250;
+		}
+		else if (MaxHP > 600)
+		{
+			Step = 100;
+		}
+		else if (MaxHP > 250)
+		{
+			Step = 50;
+		}
+		int32 Segments = FMath::Max(1, FMath::DivideAndRoundUp(MaxHP, Step));
+		while (Segments > 30)
+		{
+			Step *= 2;
+			Segments = FMath::Max(1, FMath::DivideAndRoundUp(MaxHP, Step));
+		}
+
 		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
 		const FLinearColor Fill = HealthBarInk(Fraction);
-		const FLinearColor Black(0.f, 0.f, 0.f, 0.95f);
 		const float Left = Screen.X - (BarWidth * 0.5f);
 		const float Top = Screen.Y - BarHeight;
-		const float TotalGaps = Gap * static_cast<float>(Segments - 1);
-		const float SegOuter = (BarWidth - TotalGaps) / static_cast<float>(Segments);
-		const float SegInner = FMath::Max(1.f, SegOuter - Outline * 2.f);
-		const float InnerH = FMath::Max(1.f, BarHeight - Outline * 2.f);
-		const float Filled = Fraction * static_cast<float>(Segments);
-
-		// Shield bar slot, one gap above the health bar. Nothing draws it yet.
-		const float ShieldTop = Top - Gap - BarHeight;
-		auto DrawOutlined = [&](float LayerTop, float LayerHeight, float LayerFraction, const FLinearColor& Ink, bool bDraw)
+		DrawRect(Tok(0x1F, 0x23, 0x27), Left, Top, BarWidth, BarHeight);
+		DrawRect(Fill, Left, Top, BarWidth * Fraction, BarHeight);
+		const FLinearColor Tick(0.f, 0.f, 0.f, 0.4f);
+		for (int32 Segment = 1; Segment < Segments; ++Segment)
 		{
-			if (!bDraw)
-			{
-				return;
-			}
-			DrawRect(Black, Left, LayerTop, BarWidth, LayerHeight);
-			const float InnerW = FMath::Max(1.f, BarWidth - Outline * 2.f);
-			DrawRect(Ink, Left + Outline, LayerTop + Outline, InnerW * FMath::Clamp(LayerFraction, 0.f, 1.f), FMath::Max(1.f, LayerHeight - Outline * 2.f));
-		};
-		DrawOutlined(ShieldTop, BarHeight, 0.f, FLinearColor(0.55f, 0.85f, 1.f, 0.95f), false);
-
-		for (int32 Segment = 0; Segment < Segments; ++Segment)
-		{
-			const float X = Left + static_cast<float>(Segment) * (SegOuter + Gap);
-			DrawRect(Black, X, Top, SegOuter, BarHeight);
-			const float SegFill = FMath::Clamp(Filled - static_cast<float>(Segment), 0.f, 1.f);
-			if (SegFill > 0.f)
-			{
-				DrawRect(Fill, X + Outline, Top + Outline, SegInner * SegFill, InnerH);
-			}
+			const float TickX = Left + (BarWidth * static_cast<float>(Segment)) / static_cast<float>(Segments);
+			DrawRect(Tick, TickX, Top, 1.f, BarHeight);
 		}
+		const FLinearColor TeamCap = HpState.TeamId == ReadLocalTeamId()
+			? FLinearColor(FColor(0x59, 0x78, 0x8A))
+			: FLinearColor(FColor(0x8C, 0x5A, 0x5A));
+		DrawRect(TeamCap, Left, Top, 2.f, BarHeight);
 
 		if (HpState.EnergyMax > 0)
 		{
 			const float EnergyFrac = FMath::Clamp(static_cast<float>(HpState.Energy) / static_cast<float>(HpState.EnergyMax), 0.f, 1.f);
-			DrawOutlined(Top + BarHeight + Gap, 4.f, EnergyFrac, FLinearColor(0.58f, 0.22f, 0.95f, 0.95f), true);
+			const float EnergyTop = Top + BarHeight + 1.f;
+			DrawRect(Tok(0x1F, 0x23, 0x27), Left, EnergyTop, BarWidth, 3.f);
+			DrawRect(Tok(0x2F, 0x7B, 0xFF), Left, EnergyTop, BarWidth * EnergyFrac, 3.f);
 		}
 	}
 }
@@ -2555,8 +2606,8 @@ void AKodHUD::DrawSelectedResourceNodes()
 
 		const FString Label = FString::Printf(TEXT("%s  %d"), KodResourceTypeName(Node.Type), Node.Remaining);
 		const FLinearColor Color = (Node.Type == EKodResourceType::Luminene)
-			? KodResourceColors::LumineneHighlight()
-			: KodResourceColors::Jadeite();
+			? Tok(0xFF, 0xD2, 0x3F)
+			: Tok(0xB0, 0x8D, 0x57);
 		const float Width = 8.f * static_cast<float>(Label.Len()) + 10.f;
 		DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.72f), Screen.X - 4.f, Screen.Y - 2.f, Width, 18.f);
 		DrawText(Label, Color, Screen.X, Screen.Y, Font, 1.f, false);
@@ -2756,7 +2807,7 @@ void AKodHUD::HandleMenuChoice(int32 Choice)
 		Sim->LoadSkirmishSlot(Choice - 12);
 		Resume();
 	}
-	else if (Choice >= 20 && Choice <= 23)
+	else if (Choice >= 20 && Choice <= 24)
 	{
 		ScoreTab = Choice - 20;
 	}
@@ -2864,102 +2915,145 @@ void AKodHUD::DrawShellMenus()
 	{
 		return;
 	}
-	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
+	const float Scale = FrameScale;
 	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
-	auto Button = [this, Font, Scale](float X, float Y, float W, const FString& Label, int32 Choice)
+	const bool bResults = MenuPage == 5;
+	DrawRect(FLinearColor(0.f, 0.f, 0.f, bResults ? 0.82f : 0.6f), 0.f, 0.f, Canvas->SizeX, Canvas->SizeY);
+	auto Button = [this, Font, Scale](float X, float Y, float W, float H, const FString& Label, int32 Choice)
 	{
-		DrawRect(FLinearColor(0.08f, 0.12f, 0.09f, 0.96f), X, Y, W, 36.f * Scale);
-		DrawText(Label, FLinearColor::White, X + 12.f * Scale, Y + 8.f * Scale, Font, Scale, false);
-		RememberChrome(FName(TEXT("Menu")), Choice, FName(), X, Y, X + W, Y + 36.f * Scale);
+		DrawPlate(X, Y, W, H, Tok(0x5C, 0x64, 0x6C), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
+		DrawText(Label, Tok(0xE6, 0xE6, 0xE0), X + 12.f * Scale, Y + FMath::Max(4.f, (H - 18.f * Scale) * 0.5f), Font, 0.9f * Scale, false);
+		RememberChrome(FName(TEXT("Menu")), Choice, FName(), X, Y, X + W, Y + H);
 	};
-	const float W = 420.f * Scale;
-	const float X = (Canvas->SizeX - W) * 0.5f;
-	float Y = Canvas->SizeY * 0.22f;
-	const float PanelH = (MenuPage == 2 ? 760.f : 520.f) * Scale;
-	DrawRect(FLinearColor(0.02f, 0.03f, 0.03f, 0.94f), X - 16.f * Scale, Y - 20.f * Scale, W + 32.f * Scale, PanelH);
+	auto StackIn = [&](const FKodScreenRect& Panel, const FString& Title, const TArray<FString>& Labels, const TArray<int32>& Choices)
+	{
+		DrawPlate(Panel.X, Panel.Y, Panel.W, Panel.H, Tok(0x1F, 0x23, 0x27, 0.96f), TEXT("T_UI_VG_Modal_Panel"), 32.f, 32.f, 32.f, 32.f);
+		DrawText(Title, Tok(0xD9, 0xB8, 0x78), Panel.X + 40.f * Scale, Panel.Y + 14.f * Scale, Font, 1.15f * Scale, false);
+		const int32 Count = FMath::Min(Labels.Num(), Choices.Num());
+		const float Top = Panel.Y + 52.f * Scale;
+		const float Bottom = Panel.Y + Panel.H - 16.f * Scale;
+		const float Gap = 8.f * Scale;
+		const float Room = FMath::Max(1.f, Bottom - Top);
+		const float H = FMath::Clamp((Room - Gap * static_cast<float>(FMath::Max(0, Count - 1))) / static_cast<float>(FMath::Max(1, Count)), 28.f * Scale, 56.f * Scale);
+		const float W = FMath::Min(400.f * Scale, Panel.W - 40.f * Scale);
+		const float X = Panel.X + (Panel.W - W) * 0.5f;
+		float Y = Top;
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			Button(X, Y, W, H, Labels[Index], Choices[Index]);
+			Y += H + Gap;
+		}
+	};
+
+	const FKodScreenRect PausePanel = MapSpec(720.f, 330.f, 480.f, 420.f);
 	if (MenuPage == 1)
 	{
-		DrawText(TEXT("Paused"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X, Y, Font, 1.4f * Scale, false);
-		Y += 48.f * Scale;
-		Button(X, Y, W, TEXT("Resume"), 0); Y += 44.f * Scale;
-		Button(X, Y, W, TEXT("Save Game"), 1); Y += 44.f * Scale;
-		Button(X, Y, W, TEXT("Load Game"), 2); Y += 44.f * Scale;
-		Button(X, Y, W, TEXT("Settings"), 3); Y += 44.f * Scale;
-		Button(X, Y, W, TEXT("Restart"), 4); Y += 44.f * Scale;
-		Button(X, Y, W, TEXT("Quit to Main Menu"), 5);
+		TArray<FString> Labels;
+		Labels.Add(TEXT("Resume"));
+		Labels.Add(TEXT("Save"));
+		Labels.Add(TEXT("Load"));
+		Labels.Add(TEXT("Settings"));
+		Labels.Add(TEXT("Restart"));
+		Labels.Add(TEXT("Quit"));
+		TArray<int32> Choices = { 0, 1, 2, 3, 4, 5 };
+		StackIn(PausePanel, TEXT("Paused"), Labels, Choices);
 	}
 	else if (MenuPage == 3 || MenuPage == 4)
 	{
 		const bool bSave = MenuPage == 3;
-		DrawText(bSave ? TEXT("Save Game") : TEXT("Load Game"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X, Y, Font, 1.2f * Scale, false);
-		Y += 48.f * Scale;
+		TArray<FString> Labels;
+		TArray<int32> Choices;
 		for (int32 Slot = 1; Slot <= 3; ++Slot)
 		{
-			Button(X, Y, W, FString::Printf(TEXT("Slot %d"), Slot), (bSave ? 9 : 12) + Slot);
-			Y += 44.f * Scale;
+			Labels.Add(FString::Printf(TEXT("Slot %d"), Slot));
+			Choices.Add((bSave ? 9 : 12) + Slot);
 		}
-		Button(X, Y, W, TEXT("Back"), 30);
+		Labels.Add(TEXT("Back"));
+		Choices.Add(30);
+		StackIn(PausePanel, bSave ? FString(TEXT("Save Game")) : FString(TEXT("Load Game")), Labels, Choices);
 	}
 	else if (MenuPage == 2)
 	{
 		UKodUserSettings* Settings = UKodUserSettings::Get();
-		DrawText(TEXT("Settings"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X, Y, Font, 1.2f * Scale, false);
-		Y += 40.f * Scale;
 		const TCHAR* Bars[] = { TEXT("Selected"), TEXT("Damaged"), TEXT("Always") };
-		Button(X, Y, W, FString::Printf(TEXT("Master %.0f%%"), Settings->MasterVolume * 100.f), 40); Y += 40.f * Scale;
-		Button(X, Y, W, FString::Printf(TEXT("Music %.0f%%"), Settings->MusicVolume * 100.f), 41); Y += 40.f * Scale;
-		Button(X, Y, W, FString::Printf(TEXT("SFX %.0f%%"), Settings->SfxVolume * 100.f), 42); Y += 40.f * Scale;
-		Button(X, Y, W, FString::Printf(TEXT("Voice %.0f%%"), Settings->VoiceVolume * 100.f), 43); Y += 40.f * Scale;
-		Button(X, Y, W, FString::Printf(TEXT("Edge scroll %.0f"), Settings->EdgeScrollSpeed), 44); Y += 40.f * Scale;
-		Button(X, Y, W, FString::Printf(TEXT("Key scroll %.0f"), Settings->KeyboardScrollSpeed), 45); Y += 40.f * Scale;
-		Button(X, Y, W, FString::Printf(TEXT("Mouse %.1f"), Settings->MouseSensitivity), 46); Y += 40.f * Scale;
-		Button(X, Y, W, FString::Printf(TEXT("Health bars %s"), Bars[FMath::Clamp(Settings->HealthBarMode, 0, 2)]), 47); Y += 40.f * Scale;
-		Button(X, Y, W, Settings->bShowHotkeyGrid ? TEXT("Hotkey grid On") : TEXT("Hotkey grid Off"), 48); Y += 40.f * Scale;
-		Button(X, Y, W, FString::Printf(TEXT("Graphics %d"), Settings->GraphicsQuality), 49); Y += 40.f * Scale;
-		Button(X, Y, W, Sim && Sim->IsExposedRuleEnabled() ? TEXT("Exposed rule On") : TEXT("Exposed rule Off"), 50); Y += 40.f * Scale;
-		Button(X, Y, W, Sim && Sim->IsCompetitive() ? TEXT("Competitive On") : TEXT("Competitive Off"), 51); Y += 40.f * Scale;
-		Button(X, Y, W, Settings->bCameraShake ? TEXT("Camera shake On") : TEXT("Camera shake Off"), 52); Y += 40.f * Scale;
-		Button(X, Y, W, Settings->bShowDamageNumbers ? TEXT("Damage numbers On") : TEXT("Damage numbers Off"), 53); Y += 40.f * Scale;
-		Button(X, Y, W, TEXT("Back"), 30);
+		TArray<FString> Labels;
+		TArray<int32> Choices;
+		auto Add = [&](const FString& Label, int32 Choice)
+		{
+			Labels.Add(Label);
+			Choices.Add(Choice);
+		};
+		Add(FString::Printf(TEXT("Master %.0f%%"), Settings ? Settings->MasterVolume * 100.f : 0.f), 40);
+		Add(FString::Printf(TEXT("Music %.0f%%"), Settings ? Settings->MusicVolume * 100.f : 0.f), 41);
+		Add(FString::Printf(TEXT("SFX %.0f%%"), Settings ? Settings->SfxVolume * 100.f : 0.f), 42);
+		Add(FString::Printf(TEXT("Voice %.0f%%"), Settings ? Settings->VoiceVolume * 100.f : 0.f), 43);
+		Add(FString::Printf(TEXT("Edge scroll %.0f"), Settings ? Settings->EdgeScrollSpeed : 0.f), 44);
+		Add(FString::Printf(TEXT("Key scroll %.0f"), Settings ? Settings->KeyboardScrollSpeed : 0.f), 45);
+		Add(FString::Printf(TEXT("Mouse %.1f"), Settings ? Settings->MouseSensitivity : 1.f), 46);
+		const int32 BarMode = Settings ? FMath::Clamp(Settings->HealthBarMode, 0, 2) : 0;
+		Add(FString::Printf(TEXT("Health bars %s"), Bars[BarMode]), 47);
+		Add(Settings && Settings->bShowHotkeyGrid ? TEXT("Hotkey grid On") : TEXT("Hotkey grid Off"), 48);
+		Add(FString::Printf(TEXT("Graphics %d"), Settings ? Settings->GraphicsQuality : 0), 49);
+		Add(Sim && Sim->IsExposedRuleEnabled() ? TEXT("Exposed rule On") : TEXT("Exposed rule Off"), 50);
+		Add(Sim && Sim->IsCompetitive() ? TEXT("Competitive On") : TEXT("Competitive Off"), 51);
+		Add(Settings && Settings->bCameraShake ? TEXT("Camera shake On") : TEXT("Camera shake Off"), 52);
+		Add(Settings && Settings->bShowDamageNumbers ? TEXT("Damage numbers On") : TEXT("Damage numbers Off"), 53);
+		Add(TEXT("Back"), 30);
+		StackIn(MapSpec(720.f, 80.f, 480.f, 920.f), TEXT("Settings"), Labels, Choices);
 	}
 	else if (MenuPage == 6)
 	{
 		const bool bVictory = Sim && Sim->GetMatchOutcome() == EKodMatchOutcome::Victory;
-		DrawText(bVictory ? TEXT("VICTORY") : TEXT("DEFEAT"), bVictory ? FLinearColor(0.55f, 0.9f, 0.45f, 1.f) : FLinearColor(0.95f, 0.28f, 0.22f, 1.f), X, Y, Font, 1.6f * Scale, false);
-		Y += 56.f * Scale;
+		const FKodScreenRect Banner = MapSpec(360.f, 260.f, 1200.f, 160.f);
+		DrawPlate(Banner.X, Banner.Y, Banner.W, Banner.H, Tok(0x1F, 0x23, 0x27, 0.96f), TEXT("T_UI_VG_Modal_Panel"), 32.f, 32.f, 32.f, 32.f);
+		DrawText(bVictory ? TEXT("VICTORY") : TEXT("DEFEAT"), bVictory ? Tok(0xD9, 0xB8, 0x78) : Tok(0xE5, 0x38, 0x3B), Banner.X + 48.f * Scale, Banner.Y + 48.f * Scale, Font, 1.8f * Scale, false);
 		if (Sim && Sim->IsMatchCheated())
 		{
-			Y = DrawCheatSummary(Sim, X, Y, W, Scale, Font);
-			Y += 8.f * Scale;
+			DrawCheatSummary(Sim, Banner.X + 48.f * Scale, Banner.Y + 100.f * Scale, Banner.W - 96.f * Scale, Scale, Font);
 		}
-		Button(X, Y, W, TEXT("Continue Watching"), 6); Y += 44.f * Scale;
-		Button(X, Y, W, TEXT("Score Screen"), 7); Y += 44.f * Scale;
-		Button(X, Y, W, TEXT("Restart Skirmish"), 4); Y += 44.f * Scale;
-		Button(X, Y, W, TEXT("Main Menu"), 5);
+		const float BtnW = 280.f * Scale;
+		const float BtnH = 56.f * Scale;
+		const float Gap = 16.f * Scale;
+		const float RowW = 4.f * BtnW + 3.f * Gap;
+		const FKodScreenRect Row = MapSpec(0.f, 760.f, 1920.f, 56.f);
+		float X = Row.X + (Row.W - RowW) * 0.5f;
+		Button(X, Row.Y, BtnW, BtnH, TEXT("Continue"), 6);
+		X += BtnW + Gap;
+		Button(X, Row.Y, BtnW, BtnH, TEXT("Results"), 7);
+		X += BtnW + Gap;
+		Button(X, Row.Y, BtnW, BtnH, TEXT("Restart"), 4);
+		X += BtnW + Gap;
+		Button(X, Row.Y, BtnW, BtnH, TEXT("Main Menu"), 5);
 	}
 	else if (MenuPage == 8)
 	{
-		DrawText(TEXT("Kingdom of Dust"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X, Y, Font, 1.4f * Scale, false);
-		Y += 56.f * Scale;
-		Button(X, Y, W, TEXT("Skirmish"), 8); Y += 44.f * Scale;
-		Button(X, Y, W, TEXT("Settings"), 3); Y += 44.f * Scale;
-		Button(X, Y, W, TEXT("Quit"), 9);
+		TArray<FString> Labels;
+		Labels.Add(TEXT("Skirmish"));
+		Labels.Add(TEXT("Settings"));
+		Labels.Add(TEXT("Quit"));
+		TArray<int32> Choices = { 8, 3, 9 };
+		StackIn(PausePanel, TEXT("Kingdom of Dust"), Labels, Choices);
 	}
 	else if (MenuPage == 5 && Sim)
 	{
-		const TCHAR* Tabs[] = { TEXT("Overview"), TEXT("Production"), TEXT("Army"), TEXT("Income") };
-		DrawText(TEXT("Results"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X, Y, Font, 1.2f * Scale, false);
-		Y += 40.f * Scale;
+		const TCHAR* Tabs[] = { TEXT("APM"), TEXT("Supply"), TEXT("Production"), TEXT("Army Value"), TEXT("Resources") };
+		for (int32 Tab = 0; Tab < 5; ++Tab)
+		{
+			const FKodScreenRect TabRect = MapSpec(394.f + 228.f * static_cast<float>(Tab), 120.f, 220.f, 48.f);
+			const bool bOn = ScoreTab == Tab;
+			DrawPlate(TabRect.X, TabRect.Y, TabRect.W, TabRect.H, bOn ? Tok(0xB0, 0x8D, 0x57) : Tok(0x5C, 0x64, 0x6C), TEXT("T_UI_VG_Tab_Group"), 8.f, 6.f, 8.f, 6.f);
+			DrawText(Tabs[Tab], Tok(0xE6, 0xE6, 0xE0), TabRect.X + 12.f * Scale, TabRect.Y + 12.f * Scale, Font, 0.9f * Scale, false);
+			RememberChrome(FName(TEXT("Menu")), 20 + Tab, FName(), TabRect.X, TabRect.Y, TabRect.X + TabRect.W, TabRect.Y + TabRect.H);
+		}
+		const FKodScreenRect Content = MapSpec(160.f, 190.f, 1600.f, 760.f);
+		DrawPlate(Content.X, Content.Y, Content.W, Content.H, Tok(0x1F, 0x23, 0x27, 0.9f), TEXT("T_UI_VG_Modal_Panel"), 32.f, 32.f, 32.f, 32.f);
+		float Y = Content.Y + 16.f * Scale;
+		const float X = Content.X + 16.f * Scale;
 		if (Sim->IsMatchCheated())
 		{
-			Y = DrawCheatSummary(Sim, X, Y, W, Scale, Font);
+			Y = DrawCheatSummary(Sim, X, Y, Content.W - 32.f * Scale, Scale, Font);
 			Y += 8.f * Scale;
 		}
-		for (int32 Tab = 0; Tab < 4; ++Tab)
-		{
-			Button(X + Tab * (W / 4.f), Y, W / 4.f - 4.f, Tabs[Tab], 20 + Tab);
-		}
-		Y += 48.f * Scale;
 		const int32 Seconds = static_cast<int32>(Sim->GetSimTickIndex() / 16);
 		int32 Average = 0;
 		int32 Peak = 0;
@@ -2973,41 +3067,52 @@ void AKodHUD::DrawShellMenus()
 		int32 Built = 0;
 		int32 Razed = 0;
 		Sim->GetTeamTotals(0, Collected, Trained, Killed, Built, Razed);
-		TArray<UKodSimSubsystem::FKodStatSample> Samples;
-		Sim->CopyStatSamples(0, Samples);
 		if (ScoreTab == 0)
 		{
-			DrawText(FString::Printf(TEXT("Time %02d:%02d"), Seconds / 60, Seconds % 60), FLinearColor::White, X, Y, Font, Scale, false); Y += 28.f * Scale;
-			DrawText(FString::Printf(TEXT("APM %d  peak %d"), Average, Peak), FLinearColor::White, X, Y, Font, Scale, false); Y += 28.f * Scale;
-			DrawText(FString::Printf(TEXT("Collected %d"), Collected), FLinearColor::White, X, Y, Font, Scale, false); Y += 28.f * Scale;
-			DrawText(FString::Printf(TEXT("Trained %d   Killed %d"), Trained, Killed), FLinearColor::White, X, Y, Font, Scale, false); Y += 28.f * Scale;
-			DrawText(FString::Printf(TEXT("Built %d   Razed %d"), Built, Razed), FLinearColor::White, X, Y, Font, Scale, false);
+			DrawText(FString::Printf(TEXT("Time %02d:%02d"), Seconds / 60, Seconds % 60), Tok(0xE6, 0xE6, 0xE0), X, Y, Font, Scale, false); Y += 28.f * Scale;
+			DrawText(FString::Printf(TEXT("APM %d  peak %d"), Average, Peak), Tok(0xE6, 0xE6, 0xE0), X, Y, Font, Scale, false); Y += 28.f * Scale;
+			DrawText(FString::Printf(TEXT("Collected %d"), Collected), Tok(0xE6, 0xE6, 0xE0), X, Y, Font, Scale, false); Y += 28.f * Scale;
+			DrawText(FString::Printf(TEXT("Trained %d   Killed %d"), Trained, Killed), Tok(0xE6, 0xE6, 0xE0), X, Y, Font, Scale, false); Y += 28.f * Scale;
+			DrawText(FString::Printf(TEXT("Built %d   Razed %d"), Built, Razed), Tok(0xE6, 0xE6, 0xE0), X, Y, Font, Scale, false);
+		}
+		else if (ScoreTab == 1)
+		{
+			for (int32 TeamId = 0; TeamId <= 1; ++TeamId)
+			{
+				int32 Used = 0;
+				int32 Cap = 0;
+				Sim->TryGetSupply(TeamId, Used, Cap);
+				DrawText(FString::Printf(TEXT("Team %d supply %d/%d"), TeamId, Used, Cap), Tok(0xE6, 0xE6, 0xE0), X, Y, Font, Scale, false);
+				Y += 28.f * Scale;
+			}
 		}
 		else
 		{
+			TArray<UKodSimSubsystem::FKodStatSample> Samples;
+			Sim->CopyStatSamples(0, Samples);
 			float MaxValue = 1.f;
 			for (const UKodSimSubsystem::FKodStatSample& Sample : Samples)
 			{
-				const int32 Value = ScoreTab == 1 ? Sample.Trained + Sample.Built : (ScoreTab == 2 ? Sample.ArmyValue : Sample.Income);
+				const int32 Value = ScoreTab == 2 ? Sample.Trained + Sample.Built : (ScoreTab == 3 ? Sample.ArmyValue : Sample.Income);
 				MaxValue = FMath::Max(MaxValue, static_cast<float>(Value));
 			}
-			const float ChartW = W;
-			const float ChartH = 160.f * Scale;
+			const float ChartW = Content.W - 32.f * Scale;
+			const float ChartH = 280.f * Scale;
 			FVector2D Prev(X, Y + ChartH);
 			for (int32 Index = 0; Index < Samples.Num(); ++Index)
 			{
-				const int32 Value = ScoreTab == 1 ? Samples[Index].Trained + Samples[Index].Built : (ScoreTab == 2 ? Samples[Index].ArmyValue : Samples[Index].Income);
+				const int32 Value = ScoreTab == 2 ? Samples[Index].Trained + Samples[Index].Built : (ScoreTab == 3 ? Samples[Index].ArmyValue : Samples[Index].Income);
 				const float Px = X + ChartW * (Samples.Num() <= 1 ? 0.f : static_cast<float>(Index) / static_cast<float>(Samples.Num() - 1));
 				const float Py = Y + ChartH - ChartH * (static_cast<float>(Value) / MaxValue);
 				if (Index > 0)
 				{
-					DrawLine(Prev.X, Prev.Y, Px, Py, FLinearColor(0.4f, 0.85f, 0.45f, 1.f), 2.f);
+					DrawLine(Prev.X, Prev.Y, Px, Py, Tok(0xB0, 0x8D, 0x57), 2.f);
 				}
 				Prev = FVector2D(Px, Py);
 			}
 		}
-		Y += 200.f * Scale;
-		Button(X, Y, W, TEXT("Back"), 30);
+		const FKodScreenRect Back = MapSpec(1584.f, 990.f, 240.f, 56.f);
+		Button(Back.X, Back.Y, Back.W, Back.H, TEXT("Back"), 30);
 	}
 }
 

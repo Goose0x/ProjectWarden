@@ -131,13 +131,15 @@ void UKodResourceReadoutWidget::BuildTree()
 	Row->SetVisibility(ESlateVisibility::HitTestInvisible);
 	Frame->SetContent(Row);
 
-	AddChip(Row, MakeSwatch(WidgetTree, KodResourceColors::Jadeite(), TEXT("CreditsSwatch")), 6.f);
-	JadeiteText = MakeNumber(WidgetTree, TEXT("CreditsValue"), KodResourceColors::Jadeite(), 16);
+	const FLinearColor CreditsInk(FColor(0xB0, 0x8D, 0x57));
+	const FLinearColor OilInk(FColor(0xFF, 0xD2, 0x3F));
+	AddChip(Row, MakeSwatch(WidgetTree, CreditsInk, TEXT("CreditsSwatch")), 6.f);
+	JadeiteText = MakeNumber(WidgetTree, TEXT("CreditsValue"), CreditsInk, 16);
 	JadeiteText->SetText(FText::FromString(TEXT("Credits 0")));
 	AddChip(Row, JadeiteText, 22.f);
 
-	AddChip(Row, MakeSwatch(WidgetTree, KodResourceColors::LumineneCore(), TEXT("LumineneSwatch")), 6.f);
-	LumineneText = MakeNumber(WidgetTree, TEXT("LumineneValue"), KodResourceColors::LumineneHighlight(), 16);
+	AddChip(Row, MakeSwatch(WidgetTree, OilInk, TEXT("LumineneSwatch")), 6.f);
+	LumineneText = MakeNumber(WidgetTree, TEXT("LumineneValue"), OilInk, 16);
 	LumineneText->SetText(FText::FromString(TEXT("Luminene 0")));
 	AddChip(Row, LumineneText, 22.f);
 
