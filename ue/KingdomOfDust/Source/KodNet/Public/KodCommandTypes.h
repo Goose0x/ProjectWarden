@@ -55,6 +55,10 @@ struct KODNET_API FKodCommand
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Command")
 	FName PayloadName;
 
+	/** Train-queue slot for CancelTrain. INDEX_NONE cancels the last slot. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Command")
+	int32 PayloadIndex = INDEX_NONE;
+
 	/** Queue behind existing orders when true (shift-queue). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Command")
 	bool bQueued = false;

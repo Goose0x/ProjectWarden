@@ -13,6 +13,7 @@
 #include "Game/KodPlayerState.h"
 #include "Sim/KodResourceTypes.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Warden/KodWardenPaths.h"
 
 AKodHUD::AKodHUD()
 {
@@ -34,7 +35,9 @@ void AKodHUD::DrawHUD()
 
 	RefreshReadout();
 	DrawProductionPanel();
-	DrawBuildHint();
+	DrawCommandCard();
+	DrawSelectionSummary();
+	DrawResourceFlash();
 	DrawUnitHealthBars();
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
@@ -265,6 +268,414 @@ void AKodHUD::DrawBuildHint()
 	}
 	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.82f), 16.f, 140.f, 720.f, 28.f);
 	DrawText(Hint, KodResourceColors::Jadeite(), 24.f, 144.f, Font, 1.f, false);
+}
+
+int32 AKodHUD::ReadLocalTeamId() const
+{
+	if (const APlayerController* PC = GetOwningPlayerController())
+	{
+		if (const AKodPlayerState* KodPS = PC->GetPlayerState<AKodPlayerState>())
+		{
+			return KodPS->TeamId;
+		}
+	}
+	return 0;
+}
+
+FName AKodHUD::PeekResourceFail(int32 Credits, int32 Luminene, int32 Supply) const
+{
+	const UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return NAME_None;
+	}
+	const int32 TeamId = ReadLocalTeamId();
+	FKodResourceCost Bank;
+	Sim->TryGetBank(TeamId, Bank);
+	if (FMath::Max(0, Credits) > Bank.Jadeite)
+	{
+		return TEXT("Credits");
+	}
+	if (FMath::Max(0, Luminene) > Bank.Luminene)
+	{
+		return TEXT("Luminene");
+	}
+	if (Supply > 0)
+	{
+		int32 Used = 0;
+		int32 Cap = 0;
+		Sim->TryGetSupply(TeamId, Used, Cap);
+		if (Used + Supply > Cap)
+		{
+			return TEXT("Supply");
+		}
+	}
+	return NAME_None;
+}
+
+void AKodHUD::ShowResourceFlash(FName Reason)
+{
+	if (Reason == TEXT("Credits"))
+	{
+		FlashText = TEXT("Not enough Credits");
+	}
+	else if (Reason == TEXT("Luminene"))
+	{
+		FlashText = TEXT("Not enough Luminene");
+	}
+	else if (Reason == TEXT("Supply"))
+	{
+		FlashText = TEXT("Not enough supply");
+	}
+	else
+	{
+		return;
+	}
+	FlashUntilSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() + 1.6f : 0.f;
+}
+
+bool AKodHUD::GetCommandHit(float MouseX, float MouseY, FKodHudCommandHit& Out) const
+{
+	for (const FKodHudCommandHit& Hit : CommandHits)
+	{
+		if (MouseX >= Hit.MinX && MouseX <= Hit.MaxX && MouseY >= Hit.MinY && MouseY <= Hit.MaxY)
+		{
+			Out = Hit;
+			Out.bInsideChrome = true;
+			return true;
+		}
+	}
+	if (bCommandChrome && MouseX >= ChromeMinX && MouseX <= ChromeMaxX && MouseY >= ChromeMinY && MouseY <= ChromeMaxY)
+	{
+		Out = FKodHudCommandHit();
+		Out.bInsideChrome = true;
+		return true;
+	}
+	return false;
+}
+
+void AKodHUD::DrawCommandCard()
+{
+	CommandHits.Reset();
+	bCommandChrome = false;
+	if (!Canvas)
+	{
+		return;
+	}
+	const AKodPlayerController* PC = Cast<AKodPlayerController>(GetOwningPlayerController());
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!PC || !Sim)
+	{
+		return;
+	}
+
+	const FKodStructureState* Trainer = nullptr;
+	FKodStructureState TrainerState;
+	bool bWorker = false;
+	for (AActor* Actor : PC->GetLocalSelection())
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+		const FKodEntityId Id = Sim->FindIdForActor(Actor);
+		FKodStructureState Structure;
+		if (!Trainer && Sim->TryGetStructure(Id, Structure) && Structure.bComplete && Structure.Trains.Num() > 0)
+		{
+			TrainerState = Structure;
+			Trainer = &TrainerState;
+		}
+		FKodSimEntityState State;
+		if (Sim->TryGetState(Id, State) && State.bCanGather && State.Health > 0.f)
+		{
+			bWorker = true;
+		}
+	}
+
+	const bool bBuildMenu = PC->IsWorkerBuildMenuOpen();
+	const bool bTrainCard = Trainer != nullptr;
+	const bool bBuildCard = !bTrainCard && bWorker;
+	if (!bTrainCard && !bBuildCard)
+	{
+		return;
+	}
+
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	if (!Font && GEngine)
+	{
+		Font = GEngine->GetSmallFont();
+	}
+
+	constexpr float Button = 58.f;
+	constexpr float Gap = 6.f;
+	constexpr int32 Cols = 5;
+	constexpr int32 Rows = 3;
+	const float CardW = Cols * Button + (Cols - 1) * Gap;
+	const float CardH = Rows * Button + (Rows - 1) * Gap;
+	const float QueueH = bTrainCard ? 46.f : 0.f;
+	const float OriginX = Canvas->SizeX - CardW - 24.f;
+	const float OriginY = Canvas->SizeY - CardH - QueueH - 28.f;
+	ChromeMinX = OriginX - 8.f;
+	ChromeMinY = OriginY - 8.f;
+	ChromeMaxX = OriginX + CardW + 8.f;
+	ChromeMaxY = OriginY + CardH + QueueH + 8.f;
+	bCommandChrome = true;
+	DrawRect(FLinearColor(0.03f, 0.04f, 0.03f, 0.9f), ChromeMinX, ChromeMinY, ChromeMaxX - ChromeMinX, ChromeMaxY - ChromeMinY);
+
+	auto AddButton = [this, Font, Button, Gap](int32 Col, int32 Row, float OriginXIn, float OriginYIn, const FString& Label, const FString& Hotkey, FName Action, FName Payload, int32 StructureId, int32 SlotIndex, bool bEnabled, FName Fail, const FString& Tooltip)
+	{
+		const float X = OriginXIn + Col * (Button + Gap);
+		const float Y = OriginYIn + Row * (Button + Gap);
+		const FLinearColor Plate = bEnabled
+			? FLinearColor(0.08f, 0.16f, 0.1f, 1.f)
+			: FLinearColor(0.12f, 0.12f, 0.12f, 1.f);
+		const FLinearColor Ink = bEnabled ? FLinearColor::White : FLinearColor(0.45f, 0.45f, 0.45f, 1.f);
+		DrawRect(Plate, X, Y, Button, Button);
+		DrawText(Label, Ink, X + 6.f, Y + 8.f, Font, 0.8f, false);
+		DrawText(Hotkey, KodResourceColors::LumineneCore(), X + Button - 16.f, Y + Button - 18.f, Font, 0.75f, false);
+		FKodHudCommandHit Hit;
+		Hit.bInsideChrome = true;
+		Hit.bEnabled = bEnabled;
+		Hit.Action = Action;
+		Hit.Payload = Payload;
+		Hit.SlotIndex = SlotIndex;
+		Hit.StructureId = StructureId;
+		Hit.FailReason = Fail;
+		Hit.MinX = X;
+		Hit.MinY = Y;
+		Hit.MaxX = X + Button;
+		Hit.MaxY = Y + Button;
+		Hit.Tooltip = Tooltip;
+		CommandHits.Add(Hit);
+	};
+
+	if (bTrainCard)
+	{
+		int32 Shown = 0;
+		for (const FName& UnitId : Trainer->Trains)
+		{
+			if (Shown >= Cols)
+			{
+				break;
+			}
+			FKodTrainSpec Spec;
+			const bool bHaveSpec = Sim->TryGetTrainSpec(UnitId, Spec);
+			const FString Label = (bHaveSpec && !Spec.DisplayId.IsNone()) ? Spec.DisplayId.ToString() : UnitId.ToString();
+			const int32 Credits = bHaveSpec ? Spec.Cost.Credits : 0;
+			const int32 Luminene = bHaveSpec ? Spec.Cost.Luminene : 0;
+			const int32 Supply = bHaveSpec ? Spec.Cost.Supply : 0;
+			const int32 Ticks = bHaveSpec ? Spec.Cost.BuildTime : 0;
+			FName Fail = bHaveSpec ? PeekResourceFail(Credits, Luminene, Supply) : NAME_None;
+			if (Fail.IsNone() && Trainer->bSupplyBlocked)
+			{
+				Fail = TEXT("Supply");
+			}
+			if (Fail.IsNone() && Trainer->Slots.Num() >= KodEconomyDefaults::ProductionSlotCap)
+			{
+				Fail = TEXT("Full");
+			}
+			const int32 Seconds = FMath::Max(0, Ticks) / 16;
+			const FString Tooltip = FString::Printf(TEXT("%s\n%d Credits\n%d Luminene\n%d supply\n%ds"),
+				*Label, Credits, Luminene, Supply, Seconds);
+			AddButton(Shown, 0, OriginX, OriginY, Label, TEXT("S"), TEXT("Train"), UnitId, Trainer->Id.Value, INDEX_NONE, Fail.IsNone(), Fail, Tooltip);
+			++Shown;
+		}
+
+		const float QueueY = OriginY + CardH + 8.f;
+		for (int32 Slot = 0; Slot < KodEconomyDefaults::ProductionSlotCap; ++Slot)
+		{
+			const float X = OriginX + Slot * (Button + Gap);
+			const bool bFilled = Slot < Trainer->Slots.Num();
+			DrawRect(FLinearColor(0.08f, 0.08f, 0.08f, 1.f), X, QueueY, Button, 36.f);
+			if (bFilled)
+			{
+				const FKodProductionSlot& Job = Trainer->Slots[Slot];
+				const FString Name = Job.DisplayId.IsNone() ? Job.UnitId.ToString() : Job.DisplayId.ToString();
+				DrawText(Name, FLinearColor::White, X + 4.f, QueueY + 2.f, Font, 0.7f, false);
+				float Fraction = 0.f;
+				if (Slot == 0 && Job.bStarted && Trainer->ActiveBuildTime > 0)
+				{
+					Fraction = 1.f - (static_cast<float>(Trainer->ActiveTicksRemaining) / static_cast<float>(Trainer->ActiveBuildTime));
+					Fraction = FMath::Clamp(Fraction, 0.f, 1.f);
+				}
+				DrawRect(FLinearColor(0.15f, 0.15f, 0.15f, 1.f), X + 4.f, QueueY + 22.f, Button - 8.f, 8.f);
+				DrawRect(KodResourceColors::Jadeite(), X + 4.f, QueueY + 22.f, (Button - 8.f) * Fraction, 8.f);
+				FKodHudCommandHit Hit;
+				Hit.bInsideChrome = true;
+				Hit.bEnabled = true;
+				Hit.Action = TEXT("CancelSlot");
+				Hit.SlotIndex = Slot;
+				Hit.StructureId = Trainer->Id.Value;
+				Hit.MinX = X;
+				Hit.MinY = QueueY;
+				Hit.MaxX = X + Button;
+				Hit.MaxY = QueueY + 36.f;
+				Hit.Tooltip = TEXT("Cancel");
+				CommandHits.Add(Hit);
+			}
+		}
+	}
+	else
+	{
+		if (!bBuildMenu)
+		{
+			AddButton(0, 2, OriginX, OriginY, TEXT("Build"), TEXT("B"), TEXT("BuildMenu"), NAME_None, 0, INDEX_NONE, true, NAME_None, TEXT("Build"));
+		}
+		else
+		{
+			const FName Types[3] = {
+				FName(KodWardenPaths::Id_SupplyDepot),
+				FName(KodWardenPaths::Id_Barracks),
+				FName(KodWardenPaths::Id_Rig)
+			};
+			const TCHAR* Keys[3] = { TEXT("D"), TEXT("R"), TEXT("E") };
+			const TCHAR* Labels[3] = { TEXT("Depot"), TEXT("Barracks"), TEXT("Rig") };
+			for (int32 Index = 0; Index < 3; ++Index)
+			{
+				FKodBuildSpec Spec;
+				const bool bHave = Sim->TryGetBuildSpec(Types[Index], Spec);
+				const int32 Credits = bHave ? Spec.Cost.Credits : 0;
+				const int32 Luminene = bHave ? Spec.Cost.Luminene : 0;
+				const int32 Ticks = bHave ? Spec.Cost.BuildTime : 0;
+				const FName Fail = bHave ? PeekResourceFail(Credits, Luminene, 0) : NAME_None;
+				const FString Tooltip = FString::Printf(TEXT("%s\n%d Credits\n%d Luminene\n%ds"),
+					Labels[Index], Credits, Luminene, FMath::Max(0, Ticks) / 16);
+				AddButton(Index, 0, OriginX, OriginY, Labels[Index], Keys[Index], TEXT("Place"), Types[Index], 0, INDEX_NONE, Fail.IsNone(), Fail, Tooltip);
+			}
+		}
+	}
+
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (const APlayerController* Owning = GetOwningPlayerController())
+	{
+		if (Owning->GetMousePosition(MouseX, MouseY))
+		{
+			for (const FKodHudCommandHit& Hit : CommandHits)
+			{
+				if (Hit.Tooltip.IsEmpty() || MouseX < Hit.MinX || MouseX > Hit.MaxX || MouseY < Hit.MinY || MouseY > Hit.MaxY)
+				{
+					continue;
+				}
+				TArray<FString> Lines;
+				Hit.Tooltip.ParseIntoArray(Lines, TEXT("\n"), true);
+				const float TipH = FMath::Max(1, Lines.Num()) * 16.f + 10.f;
+				DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.92f), MouseX + 16.f, MouseY - TipH - 8.f, 168.f, TipH);
+				float TipY = MouseY - TipH - 2.f;
+				for (const FString& Line : Lines)
+				{
+					DrawText(Line, FLinearColor::White, MouseX + 22.f, TipY, Font, 0.75f, false);
+					TipY += 16.f;
+				}
+				break;
+			}
+		}
+	}
+}
+
+void AKodHUD::DrawSelectionSummary()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	const AKodPlayerController* PC = Cast<AKodPlayerController>(GetOwningPlayerController());
+	const UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!PC || !Sim)
+	{
+		return;
+	}
+	TMap<FName, int32> Counts;
+	for (AActor* Actor : PC->GetLocalSelection())
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+		const FKodEntityId Id = Sim->FindIdForActor(Actor);
+		FKodStructureState Structure;
+		if (Sim->TryGetStructure(Id, Structure))
+		{
+			const FName Label = Structure.DisplayId.IsNone() ? Structure.DefinitionId : Structure.DisplayId;
+			if (!Label.IsNone())
+			{
+				Counts.FindOrAdd(Label) += 1;
+			}
+			continue;
+		}
+		FKodSimEntityState State;
+		if (!Sim->TryGetState(Id, State))
+		{
+			continue;
+		}
+		FName Label = State.DefinitionId;
+		FKodTrainSpec Spec;
+		if (Sim->TryGetTrainSpec(State.DefinitionId, Spec) && !Spec.DisplayId.IsNone())
+		{
+			Label = Spec.DisplayId;
+		}
+		if (!Label.IsNone())
+		{
+			Counts.FindOrAdd(Label) += 1;
+		}
+	}
+	if (Counts.Num() <= 0)
+	{
+		return;
+	}
+	TArray<FName> Keys;
+	Counts.GetKeys(Keys);
+	Keys.Sort([](const FName& A, const FName& B) { return A.ToString() < B.ToString(); });
+	FString Line;
+	for (const FName& Key : Keys)
+	{
+		if (!Line.IsEmpty())
+		{
+			Line += TEXT("    ");
+		}
+		Line += FString::Printf(TEXT("%d %s"), Counts[Key], *Key.ToString());
+	}
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	if (!Font && GEngine)
+	{
+		Font = GEngine->GetSmallFont();
+	}
+	float Width = 0.f;
+	float Height = 0.f;
+	Canvas->TextSize(Font, Line, Width, Height);
+	const float X = (Canvas->SizeX - Width) * 0.5f;
+	const float Y = Canvas->SizeY - 40.f;
+	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.82f), X - 10.f, Y - 6.f, Width + 20.f, Height + 12.f);
+	DrawText(Line, FLinearColor::White, X, Y, Font, 1.f, false);
+}
+
+void AKodHUD::DrawResourceFlash()
+{
+	if (!Canvas || FlashText.IsEmpty())
+	{
+		return;
+	}
+	const UWorld* World = GetWorld();
+	const float Now = World ? World->GetTimeSeconds() : 0.f;
+	if (Now > FlashUntilSeconds)
+	{
+		return;
+	}
+	UFont* Font = GEngine ? GEngine->GetLargeFont() : nullptr;
+	if (!Font && GEngine)
+	{
+		Font = GEngine->GetMediumFont();
+	}
+	float Width = 0.f;
+	float Height = 0.f;
+	Canvas->TextSize(Font, FlashText, Width, Height);
+	const float X = (Canvas->SizeX - Width) * 0.5f;
+	const float Y = Canvas->SizeY * 0.42f;
+	DrawRect(FLinearColor(0.15f, 0.02f, 0.02f, 0.88f), X - 16.f, Y - 8.f, Width + 32.f, Height + 16.f);
+	DrawText(FlashText, FLinearColor(1.f, 0.85f, 0.35f, 1.f), X, Y, Font, 1.f, false);
 }
 
 void AKodHUD::DrawUnitHealthBars()

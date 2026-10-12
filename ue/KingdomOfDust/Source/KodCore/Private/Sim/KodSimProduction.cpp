@@ -5,6 +5,23 @@
 
 namespace
 {
+	int32 CeilSqrtInt(int32 Value)
+	{
+		if (Value <= 0)
+		{
+			return 0;
+		}
+		int32 Root = 0;
+		while (Root < 46340 && Root * Root < Value)
+		{
+			++Root;
+		}
+		return Root;
+	}
+}
+
+namespace
+{
 	void LogSupply(int32 TeamId, const FKodSupplyState& Supply)
 	{
 		UE_LOG(LogTemp, Log, TEXT("KodEcon Supply Team=%d Used=%d Cap=%d"), TeamId, Supply.Used, Supply.Cap);
@@ -157,7 +174,10 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 		Drop.Id = Id;
 		Drop.TeamId = Spec.TeamId;
 		Drop.Position = Structure.Position;
-		const int32 FootprintClearance = (Structure.FootprintX * KodBuildGrid::CellUU) / 2 + 120;
+		const int32 HalfX = (Structure.FootprintX * KodBuildGrid::CellUU) / 2;
+		const int32 HalfY = (Structure.FootprintY * KodBuildGrid::CellUU) / 2;
+		const int32 HalfDiag = CeilSqrtInt(HalfX * HalfX + HalfY * HalfY);
+		const int32 FootprintClearance = HalfDiag + 120;
 		Drop.StandUU = FMath::Max(Spec.DropOffStandUU, FootprintClearance);
 		DropOffs.Add(Id.Value, Drop);
 		UE_LOG(LogTemp, Log, TEXT("KodEcon DropOff Id=%d Team=%d Loc=%.0f,%.0f,%.0f"),
@@ -271,15 +291,25 @@ bool UKodSimSubsystem::EnqueueTrain(FKodEntityId StructureId, FName UnitId)
 
 bool UKodSimSubsystem::CancelLastTrain(FKodEntityId StructureId)
 {
-	FKodStructureState* Structure = Structures.Find(StructureId.Value);
+	const FKodStructureState* Structure = Structures.Find(StructureId.Value);
 	if (!Structure || Structure->Slots.Num() <= 0)
 	{
 		return false;
 	}
-	const bool bWasActive = Structure->Slots.Num() == 1;
-	const FKodProductionSlot Slot = Structure->Slots.Last();
-	Structure->Slots.Pop();
-	if (bWasActive)
+	return CancelTrainAt(StructureId, Structure->Slots.Num() - 1);
+}
+
+bool UKodSimSubsystem::CancelTrainAt(FKodEntityId StructureId, int32 SlotIndex)
+{
+	FKodStructureState* Structure = Structures.Find(StructureId.Value);
+	if (!Structure || SlotIndex < 0 || SlotIndex >= Structure->Slots.Num())
+	{
+		return false;
+	}
+	const bool bFront = SlotIndex == 0;
+	const FKodProductionSlot Slot = Structure->Slots[SlotIndex];
+	Structure->Slots.RemoveAt(SlotIndex);
+	if (bFront)
 	{
 		Structure->bSupplyBlocked = false;
 		Structure->ActiveTicksRemaining = 0;
@@ -379,6 +409,26 @@ void UKodSimSubsystem::StepProduction()
 			FinishActiveProduction(*Structure);
 		}
 	}
+}
+
+bool UKodSimSubsystem::TryGetTrainSpec(FName UnitId, FKodTrainSpec& OutSpec) const
+{
+	if (const FKodTrainSpec* Found = TrainSpecs.Find(UnitId))
+	{
+		OutSpec = *Found;
+		return true;
+	}
+	return false;
+}
+
+bool UKodSimSubsystem::TryGetBuildSpec(FName TypeId, FKodBuildSpec& OutSpec) const
+{
+	if (const FKodBuildSpec* Found = BuildSpecs.Find(TypeId))
+	{
+		OutSpec = *Found;
+		return true;
+	}
+	return false;
 }
 
 void UKodSimSubsystem::ConsumePendingSpawns(TArray<FKodPendingUnitSpawn>& OutSpawns)

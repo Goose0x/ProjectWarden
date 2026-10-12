@@ -32,9 +32,11 @@ protected:
 	void EnqueueTrainOnSelectedStructures();
 	void CancelTrainOnSelectedStructures();
 	void TryCenterControlGroup();
+	virtual bool ConsumeHudCommandClick() override;
 	virtual bool ConsumePlacementLeftClick() override;
 	virtual bool ConsumePlacementRightClick() override;
 	virtual FString GetBuildMenuHint() const override;
+	virtual bool IsWorkerBuildMenuOpen() const override;
 	virtual void HandleRightClickCommand() override;
 
 	bool HasSelectedWorker() const;
@@ -43,6 +45,10 @@ protected:
 	void CancelPlacement();
 	bool CancelSelectedConstruction();
 	bool TryResumeBuildUnderCursor();
+	bool AllowTrain(FName UnitId);
+	void TryBeginPlace(FName TypeId);
+	void IssueTrain(FName UnitId, int32 StructureId);
+	void IssueCancelSlot(int32 StructureId, int32 SlotIndex);
 
 	TArray<float> LastGroupTapSeconds;
 	bool bBuildMenu = false;
