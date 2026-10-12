@@ -1586,6 +1586,14 @@ bool AKodPlayerController::ConsumeChromeClick()
 	}
 	const bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
 	const bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
+	if (Hit.Kind == FName(TEXT("Faction")))
+	{
+		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))
+		{
+			MutableHUD->SetHudSkin(Hit.IntParam);
+		}
+		return true;
+	}
 	if (Hit.Kind == FName(TEXT("MenuBtn")))
 	{
 		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))

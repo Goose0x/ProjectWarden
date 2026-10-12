@@ -1,0 +1,3557 @@
+{
+ "meta": {
+  "name": "PROXY_FaultlineTraining map features",
+  "version": "1.0",
+  "date": "2026-10-12",
+  "coords": "uu centre origin, x east, y north; cells 0..111 from SW corner, 200 uu",
+  "cell_to_uu": "uu_min = cell*200 - 11200; centre +100",
+  "symmetry": "none (tutorial)",
+  "placeholder": true,
+  "generated_by": "_tools/gen_layout.py",
+  "new_tags_pending_approval": [
+   "KodEnemyOutpost",
+   "KodEnemyBase",
+   "KodObjectiveTrigger"
+  ]
+ },
+ "features": [
+  {
+   "type": "cliff-block",
+   "id": "BORDER_S",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     0,
+     0,
+     112,
+     6
+    ],
+    "min": [
+     0,
+     0
+    ],
+    "max_incl": [
+     111,
+     5
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -11200.0,
+     -11200.0
+    ],
+    "max": [
+     11200.0,
+     -10000.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -11200.0,
+     -11200.0
+    ],
+    [
+     11200.0,
+     -11200.0
+    ],
+    [
+     11200.0,
+     -10000.0
+    ],
+    [
+     -11200.0,
+     -10000.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true
+  },
+  {
+   "type": "cliff-block",
+   "id": "BORDER_N",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     0,
+     106,
+     112,
+     6
+    ],
+    "min": [
+     0,
+     106
+    ],
+    "max_incl": [
+     111,
+     111
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -11200.0,
+     10000.0
+    ],
+    "max": [
+     11200.0,
+     11200.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -11200.0,
+     10000.0
+    ],
+    [
+     11200.0,
+     10000.0
+    ],
+    [
+     11200.0,
+     11200.0
+    ],
+    [
+     -11200.0,
+     11200.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true
+  },
+  {
+   "type": "cliff-block",
+   "id": "BORDER_W",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     0,
+     6,
+     6,
+     100
+    ],
+    "min": [
+     0,
+     6
+    ],
+    "max_incl": [
+     5,
+     105
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -11200.0,
+     -10000.0
+    ],
+    "max": [
+     -10000.0,
+     10000.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -11200.0,
+     -10000.0
+    ],
+    [
+     -10000.0,
+     -10000.0
+    ],
+    [
+     -10000.0,
+     10000.0
+    ],
+    [
+     -11200.0,
+     10000.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true
+  },
+  {
+   "type": "cliff-block",
+   "id": "BORDER_E",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     106,
+     6,
+     6,
+     100
+    ],
+    "min": [
+     106,
+     6
+    ],
+    "max_incl": [
+     111,
+     105
+    ]
+   },
+   "box_uu": {
+    "min": [
+     10000.0,
+     -10000.0
+    ],
+    "max": [
+     11200.0,
+     10000.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     10000.0,
+     -10000.0
+    ],
+    [
+     11200.0,
+     -10000.0
+    ],
+    [
+     11200.0,
+     10000.0
+    ],
+    [
+     10000.0,
+     10000.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true
+  },
+  {
+   "type": "cliff-block",
+   "id": "CLIFF_MAIN_N",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     6,
+     40,
+     36,
+     2
+    ],
+    "min": [
+     6,
+     40
+    ],
+    "max_incl": [
+     41,
+     41
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -10000.0,
+     -3200.0
+    ],
+    "max": [
+     -2800.0,
+     -2800.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -10000.0,
+     -3200.0
+    ],
+    [
+     -2800.0,
+     -3200.0
+    ],
+    [
+     -2800.0,
+     -2800.0
+    ],
+    [
+     -10000.0,
+     -2800.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true,
+   "note": "player main north cliff"
+  },
+  {
+   "type": "cliff-block",
+   "id": "CLIFF_MAIN_E",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     40,
+     6,
+     2,
+     34
+    ],
+    "min": [
+     40,
+     6
+    ],
+    "max_incl": [
+     41,
+     39
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -3200.0,
+     -10000.0
+    ],
+    "max": [
+     -2800.0,
+     -3200.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -3200.0,
+     -10000.0
+    ],
+    [
+     -2800.0,
+     -10000.0
+    ],
+    [
+     -2800.0,
+     -3200.0
+    ],
+    [
+     -3200.0,
+     -3200.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true,
+   "note": "player main east cliff (ramp cut)"
+  },
+  {
+   "type": "cliff-block",
+   "id": "CLIFF_EXP_N",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     42,
+     36,
+     64,
+     3
+    ],
+    "min": [
+     42,
+     36
+    ],
+    "max_incl": [
+     105,
+     38
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -2800.0,
+     -4000.0
+    ],
+    "max": [
+     10000.0,
+     -3400.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -2800.0,
+     -4000.0
+    ],
+    [
+     10000.0,
+     -4000.0
+    ],
+    [
+     10000.0,
+     -3400.0
+    ],
+    [
+     -2800.0,
+     -3400.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true,
+   "note": "expansion north wall (choke cut), 3 thick"
+  },
+  {
+   "type": "cliff-block",
+   "id": "MESA_EXP_E",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     78,
+     6,
+     28,
+     30
+    ],
+    "min": [
+     78,
+     6
+    ],
+    "max_incl": [
+     105,
+     35
+    ]
+   },
+   "box_uu": {
+    "min": [
+     4400.0,
+     -10000.0
+    ],
+    "max": [
+     10000.0,
+     -4000.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     4400.0,
+     -10000.0
+    ],
+    [
+     10000.0,
+     -10000.0
+    ],
+    [
+     10000.0,
+     -4000.0
+    ],
+    [
+     4400.0,
+     -4000.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true,
+   "note": "rock mesa east of the expansion (out of play, dress)"
+  },
+  {
+   "type": "cliff-block",
+   "id": "MESA_W",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     6,
+     42,
+     30,
+     30
+    ],
+    "min": [
+     6,
+     42
+    ],
+    "max_incl": [
+     35,
+     71
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -10000.0,
+     -2800.0
+    ],
+    "max": [
+     -4000.0,
+     3200.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -10000.0,
+     -2800.0
+    ],
+    [
+     -4000.0,
+     -2800.0
+    ],
+    [
+     -4000.0,
+     3200.0
+    ],
+    [
+     -10000.0,
+     3200.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true,
+   "note": "west highlands (out of play, dress)"
+  },
+  {
+   "type": "cliff-block",
+   "id": "MESA_NW",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     6,
+     72,
+     66,
+     34
+    ],
+    "min": [
+     6,
+     72
+    ],
+    "max_incl": [
+     71,
+     105
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -10000.0,
+     3200.0
+    ],
+    "max": [
+     3200.0,
+     10000.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -10000.0,
+     3200.0
+    ],
+    [
+     3200.0,
+     3200.0
+    ],
+    [
+     3200.0,
+     10000.0
+    ],
+    [
+     -10000.0,
+     10000.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true,
+   "note": "north-west highlands (out of play, dress)"
+  },
+  {
+   "type": "cliff-block",
+   "id": "CLIFF_ENEMY_S",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     72,
+     72,
+     34,
+     2
+    ],
+    "min": [
+     72,
+     72
+    ],
+    "max_incl": [
+     105,
+     73
+    ]
+   },
+   "box_uu": {
+    "min": [
+     3200.0,
+     3200.0
+    ],
+    "max": [
+     10000.0,
+     3600.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     3200.0,
+     3200.0
+    ],
+    [
+     10000.0,
+     3200.0
+    ],
+    [
+     10000.0,
+     3600.0
+    ],
+    [
+     3200.0,
+     3600.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true,
+   "note": "enemy plateau south cliff (ramp cut)"
+  },
+  {
+   "type": "cliff-block",
+   "id": "CLIFF_ENEMY_W",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     72,
+     74,
+     2,
+     32
+    ],
+    "min": [
+     72,
+     74
+    ],
+    "max_incl": [
+     73,
+     105
+    ]
+   },
+   "box_uu": {
+    "min": [
+     3200.0,
+     3600.0
+    ],
+    "max": [
+     3600.0,
+     10000.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     3200.0,
+     3600.0
+    ],
+    [
+     3600.0,
+     3600.0
+    ],
+    [
+     3600.0,
+     10000.0
+    ],
+    [
+     3200.0,
+     10000.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true,
+   "note": "enemy plateau west cliff"
+  },
+  {
+   "type": "cliff-block",
+   "id": "MESA_MID",
+   "tag": "KodCliffBlock",
+   "cells": {
+    "rect_xywh": [
+     40,
+     56,
+     10,
+     10
+    ],
+    "min": [
+     40,
+     56
+    ],
+    "max_incl": [
+     49,
+     65
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -3200.0,
+     0.0
+    ],
+    "max": [
+     -1200.0,
+     2000.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -3200.0,
+     0.0
+    ],
+    [
+     -1200.0,
+     0.0
+    ],
+    [
+     -1200.0,
+     2000.0
+    ],
+    [
+     -3200.0,
+     2000.0
+    ]
+   ],
+   "blocks_walk": true,
+   "blocks_build": true,
+   "note": "small mid mesa: screens the outpost from the choke; LOS lesson"
+  },
+  {
+   "type": "high-ground",
+   "id": "PLAYER_MAIN_PLATEAU",
+   "tag": "KodHighGround",
+   "cells": {
+    "rect_xywh": [
+     6,
+     6,
+     34,
+     34
+    ],
+    "min": [
+     6,
+     6
+    ],
+    "max_incl": [
+     39,
+     39
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -10000.0,
+     -10000.0
+    ],
+    "max": [
+     -3200.0,
+     -3200.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -10000.0,
+     -10000.0
+    ],
+    [
+     -3200.0,
+     -10000.0
+    ],
+    [
+     -3200.0,
+     -3200.0
+    ],
+    [
+     -10000.0,
+     -3200.0
+    ]
+   ],
+   "height_uu": 300
+  },
+  {
+   "type": "high-ground",
+   "id": "ENEMY_BASE_PLATEAU_PLATEAU",
+   "tag": "KodHighGround",
+   "cells": {
+    "rect_xywh": [
+     74,
+     74,
+     32,
+     32
+    ],
+    "min": [
+     74,
+     74
+    ],
+    "max_incl": [
+     105,
+     105
+    ]
+   },
+   "box_uu": {
+    "min": [
+     3600.0,
+     3600.0
+    ],
+    "max": [
+     10000.0,
+     10000.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     3600.0,
+     3600.0
+    ],
+    [
+     10000.0,
+     3600.0
+    ],
+    [
+     10000.0,
+     10000.0
+    ],
+    [
+     3600.0,
+     10000.0
+    ]
+   ],
+   "height_uu": 300
+  },
+  {
+   "type": "ramp",
+   "id": "RAMP_PLAYER_MAIN",
+   "tag": "KodRamp",
+   "cells": {
+    "rect_xywh": [
+     40,
+     28,
+     4,
+     4
+    ],
+    "min": [
+     40,
+     28
+    ],
+    "max_incl": [
+     43,
+     31
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -3200.0,
+     -5600.0
+    ],
+    "max": [
+     -2400.0,
+     -4800.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -3200.0,
+     -5600.0
+    ],
+    [
+     -2400.0,
+     -5600.0
+    ],
+    [
+     -2400.0,
+     -4800.0
+    ],
+    [
+     -3200.0,
+     -4800.0
+    ]
+   ],
+   "down_dir": "E",
+   "width_cells": 4,
+   "from_z_uu": 300,
+   "to_z_uu": 0,
+   "walkable": true,
+   "buildable": false,
+   "keep_clear": true
+  },
+  {
+   "type": "ramp",
+   "id": "RAMP_ENEMY_BASE",
+   "tag": "KodRamp",
+   "cells": {
+    "rect_xywh": [
+     78,
+     70,
+     4,
+     4
+    ],
+    "min": [
+     78,
+     70
+    ],
+    "max_incl": [
+     81,
+     73
+    ]
+   },
+   "box_uu": {
+    "min": [
+     4400.0,
+     2800.0
+    ],
+    "max": [
+     5200.0,
+     3600.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     4400.0,
+     2800.0
+    ],
+    [
+     5200.0,
+     2800.0
+    ],
+    [
+     5200.0,
+     3600.0
+    ],
+    [
+     4400.0,
+     3600.0
+    ]
+   ],
+   "down_dir": "S",
+   "width_cells": 4,
+   "from_z_uu": 300,
+   "to_z_uu": 0,
+   "walkable": true,
+   "buildable": false,
+   "keep_clear": true
+  },
+  {
+   "type": "choke",
+   "id": "CHOKE_EXP_N",
+   "tag": "KodChoke",
+   "cells": {
+    "rect_xywh": [
+     64,
+     36,
+     6,
+     3
+    ],
+    "min": [
+     64,
+     36
+    ],
+    "max_incl": [
+     69,
+     38
+    ]
+   },
+   "box_uu": {
+    "min": [
+     1600.0,
+     -4000.0
+    ],
+    "max": [
+     2800.0,
+     -3400.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     1600.0,
+     -4000.0
+    ],
+    [
+     2800.0,
+     -4000.0
+    ],
+    [
+     2800.0,
+     -3400.0
+    ],
+    [
+     1600.0,
+     -3400.0
+    ]
+   ],
+   "width_cells": 6,
+   "length_cells": 3,
+   "walkable": true,
+   "buildable": true,
+   "keep_clear_of_dress": true
+  },
+  {
+   "type": "LOS",
+   "id": "LOS_OUTPOST_APPROACH",
+   "tag": "KodLOS",
+   "cells": {
+    "rect_xywh": [
+     52,
+     44,
+     3,
+     3
+    ],
+    "min": [
+     52,
+     44
+    ],
+    "max_incl": [
+     54,
+     46
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -800.0,
+     -2400.0
+    ],
+    "max": [
+     -200.0,
+     -1800.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -800.0,
+     -2400.0
+    ],
+    [
+     -200.0,
+     -2400.0
+    ],
+    [
+     -200.0,
+     -1800.0
+    ],
+    [
+     -800.0,
+     -1800.0
+    ]
+   ],
+   "walkable": true,
+   "buildable": false,
+   "blocks_vision": true
+  },
+  {
+   "type": "LOS",
+   "id": "LOS_ENEMY_RAMP",
+   "tag": "KodLOS",
+   "cells": {
+    "rect_xywh": [
+     88,
+     62,
+     3,
+     3
+    ],
+    "min": [
+     88,
+     62
+    ],
+    "max_incl": [
+     90,
+     64
+    ]
+   },
+   "box_uu": {
+    "min": [
+     6400.0,
+     1200.0
+    ],
+    "max": [
+     7000.0,
+     1800.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     6400.0,
+     1200.0
+    ],
+    [
+     7000.0,
+     1200.0
+    ],
+    [
+     7000.0,
+     1800.0
+    ],
+    [
+     6400.0,
+     1800.0
+    ]
+   ],
+   "walkable": true,
+   "buildable": false,
+   "blocks_vision": true
+  },
+  {
+   "type": "base-socket",
+   "id": "SOCKET_PLAYER_MAIN",
+   "tag": "KodBaseSocket",
+   "cells": {
+    "rect_xywh": [
+     14,
+     14,
+     9,
+     9
+    ],
+    "min": [
+     14,
+     14
+    ],
+    "max_incl": [
+     22,
+     22
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -8400.0,
+     -8400.0
+    ],
+    "max": [
+     -6600.0,
+     -6600.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -8000.0,
+     -8400.0
+    ],
+    [
+     -7000.0,
+     -8400.0
+    ],
+    [
+     -6600.0,
+     -8000.0
+    ],
+    [
+     -6600.0,
+     -7000.0
+    ],
+    [
+     -7000.0,
+     -6600.0
+    ],
+    [
+     -8000.0,
+     -6600.0
+    ],
+    [
+     -8400.0,
+     -7000.0
+    ],
+    [
+     -8400.0,
+     -8000.0
+    ]
+   ],
+   "cc_rect_xywh": [
+    16,
+    16,
+    5,
+    5
+   ],
+   "shape": "octagon (9x9, 2-cell chamfer)",
+   "raise_uu": 40,
+   "bevel_uu": 100,
+   "walkable": true,
+   "buildable": "CC only",
+   "z_base_uu": 300
+  },
+  {
+   "type": "base-socket",
+   "id": "SOCKET_EXPANSION",
+   "tag": "KodBaseSocket",
+   "cells": {
+    "rect_xywh": [
+     56,
+     12,
+     9,
+     9
+    ],
+    "min": [
+     56,
+     12
+    ],
+    "max_incl": [
+     64,
+     20
+    ]
+   },
+   "box_uu": {
+    "min": [
+     0.0,
+     -8800.0
+    ],
+    "max": [
+     1800.0,
+     -7000.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     400.0,
+     -8800.0
+    ],
+    [
+     1400.0,
+     -8800.0
+    ],
+    [
+     1800.0,
+     -8400.0
+    ],
+    [
+     1800.0,
+     -7400.0
+    ],
+    [
+     1400.0,
+     -7000.0
+    ],
+    [
+     400.0,
+     -7000.0
+    ],
+    [
+     0.0,
+     -7400.0
+    ],
+    [
+     0.0,
+     -8400.0
+    ]
+   ],
+   "cc_rect_xywh": [
+    58,
+    14,
+    5,
+    5
+   ],
+   "shape": "octagon (9x9, 2-cell chamfer)",
+   "raise_uu": 40,
+   "bevel_uu": 100,
+   "walkable": true,
+   "buildable": "CC only",
+   "z_base_uu": 0
+  },
+  {
+   "type": "enemy-structure",
+   "id": "OUTPOST_SPIRE",
+   "tag": "KodEnemyOutpost",
+   "cells": {
+    "rect_xywh": [
+     62,
+     53,
+     3,
+     3
+    ],
+    "min": [
+     62,
+     53
+    ],
+    "max_incl": [
+     64,
+     55
+    ]
+   },
+   "box_uu": {
+    "min": [
+     1200.0,
+     -600.0
+    ],
+    "max": [
+     1800.0,
+     0.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     1200.0,
+     -600.0
+    ],
+    [
+     1800.0,
+     -600.0
+    ],
+    [
+     1800.0,
+     0.0
+    ],
+    [
+     1200.0,
+     0.0
+    ]
+   ],
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true,
+   "note": "Scinder outpost core (3x3)"
+  },
+  {
+   "type": "enemy-structure",
+   "id": "OUTPOST_WARD_A",
+   "tag": "KodEnemyOutpost",
+   "cells": {
+    "rect_xywh": [
+     58,
+     50,
+     2,
+     2
+    ],
+    "min": [
+     58,
+     50
+    ],
+    "max_incl": [
+     59,
+     51
+    ]
+   },
+   "box_uu": {
+    "min": [
+     400.0,
+     -1200.0
+    ],
+    "max": [
+     800.0,
+     -800.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     400.0,
+     -1200.0
+    ],
+    [
+     800.0,
+     -1200.0
+    ],
+    [
+     800.0,
+     -800.0
+    ],
+    [
+     400.0,
+     -800.0
+    ]
+   ],
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true,
+   "note": "defence ward (2x2)"
+  },
+  {
+   "type": "enemy-structure",
+   "id": "OUTPOST_WARD_B",
+   "tag": "KodEnemyOutpost",
+   "cells": {
+    "rect_xywh": [
+     67,
+     57,
+     2,
+     2
+    ],
+    "min": [
+     67,
+     57
+    ],
+    "max_incl": [
+     68,
+     58
+    ]
+   },
+   "box_uu": {
+    "min": [
+     2200.0,
+     200.0
+    ],
+    "max": [
+     2600.0,
+     600.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     2200.0,
+     200.0
+    ],
+    [
+     2600.0,
+     200.0
+    ],
+    [
+     2600.0,
+     600.0
+    ],
+    [
+     2200.0,
+     600.0
+    ]
+   ],
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true,
+   "note": "defence ward (2x2)"
+  },
+  {
+   "type": "enemy-structure",
+   "id": "ENEMY_HQ",
+   "tag": "KodEnemyBase",
+   "cells": {
+    "rect_xywh": [
+     92,
+     92,
+     5,
+     5
+    ],
+    "min": [
+     92,
+     92
+    ],
+    "max_incl": [
+     96,
+     96
+    ]
+   },
+   "box_uu": {
+    "min": [
+     7200.0,
+     7200.0
+    ],
+    "max": [
+     8200.0,
+     8200.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     7200.0,
+     7200.0
+    ],
+    [
+     8200.0,
+     7200.0
+    ],
+    [
+     8200.0,
+     8200.0
+    ],
+    [
+     7200.0,
+     8200.0
+    ]
+   ],
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true,
+   "note": "Scinder HQ (5x5)"
+  },
+  {
+   "type": "enemy-structure",
+   "id": "ENEMY_PROD_A",
+   "tag": "KodEnemyBase",
+   "cells": {
+    "rect_xywh": [
+     85,
+     94,
+     3,
+     3
+    ],
+    "min": [
+     85,
+     94
+    ],
+    "max_incl": [
+     87,
+     96
+    ]
+   },
+   "box_uu": {
+    "min": [
+     5800.0,
+     7600.0
+    ],
+    "max": [
+     6400.0,
+     8200.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     5800.0,
+     7600.0
+    ],
+    [
+     6400.0,
+     7600.0
+    ],
+    [
+     6400.0,
+     8200.0
+    ],
+    [
+     5800.0,
+     8200.0
+    ]
+   ],
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true,
+   "note": "production (3x3)"
+  },
+  {
+   "type": "enemy-structure",
+   "id": "ENEMY_PROD_B",
+   "tag": "KodEnemyBase",
+   "cells": {
+    "rect_xywh": [
+     94,
+     85,
+     3,
+     3
+    ],
+    "min": [
+     94,
+     85
+    ],
+    "max_incl": [
+     96,
+     87
+    ]
+   },
+   "box_uu": {
+    "min": [
+     7600.0,
+     5800.0
+    ],
+    "max": [
+     8200.0,
+     6400.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     7600.0,
+     5800.0
+    ],
+    [
+     8200.0,
+     5800.0
+    ],
+    [
+     8200.0,
+     6400.0
+    ],
+    [
+     7600.0,
+     6400.0
+    ]
+   ],
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true,
+   "note": "production (3x3)"
+  },
+  {
+   "type": "enemy-structure",
+   "id": "ENEMY_TOWER_A",
+   "tag": "KodEnemyBase",
+   "cells": {
+    "rect_xywh": [
+     82,
+     80,
+     2,
+     2
+    ],
+    "min": [
+     82,
+     80
+    ],
+    "max_incl": [
+     83,
+     81
+    ]
+   },
+   "box_uu": {
+    "min": [
+     5200.0,
+     4800.0
+    ],
+    "max": [
+     5600.0,
+     5200.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     5200.0,
+     4800.0
+    ],
+    [
+     5600.0,
+     4800.0
+    ],
+    [
+     5600.0,
+     5200.0
+    ],
+    [
+     5200.0,
+     5200.0
+    ]
+   ],
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true,
+   "note": "ramp-top defence (2x2)"
+  },
+  {
+   "type": "enemy-structure",
+   "id": "ENEMY_TOWER_B",
+   "tag": "KodEnemyBase",
+   "cells": {
+    "rect_xywh": [
+     87,
+     82,
+     2,
+     2
+    ],
+    "min": [
+     87,
+     82
+    ],
+    "max_incl": [
+     88,
+     83
+    ]
+   },
+   "box_uu": {
+    "min": [
+     6200.0,
+     5200.0
+    ],
+    "max": [
+     6600.0,
+     5600.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     6200.0,
+     5200.0
+    ],
+    [
+     6600.0,
+     5200.0
+    ],
+    [
+     6600.0,
+     5600.0
+    ],
+    [
+     6200.0,
+     5600.0
+    ]
+   ],
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true,
+   "note": "defence (2x2)"
+  },
+  {
+   "type": "objective-trigger",
+   "id": "TRIG_01_START",
+   "tag": "KodObjectiveTrigger",
+   "cells": {
+    "rect_xywh": [
+     6,
+     6,
+     34,
+     34
+    ],
+    "min": [
+     6,
+     6
+    ],
+    "max_incl": [
+     39,
+     39
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -10000.0,
+     -10000.0
+    ],
+    "max": [
+     -3200.0,
+     -3200.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -10000.0,
+     -10000.0
+    ],
+    [
+     -3200.0,
+     -10000.0
+    ],
+    [
+     -3200.0,
+     -3200.0
+    ],
+    [
+     -10000.0,
+     -3200.0
+    ]
+   ],
+   "objective": "Intro: select the CC, train an AMP, gather Jadeite",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "type": "objective-trigger",
+   "id": "TRIG_02_RAMP_DOWN",
+   "tag": "KodObjectiveTrigger",
+   "cells": {
+    "rect_xywh": [
+     42,
+     26,
+     6,
+     8
+    ],
+    "min": [
+     42,
+     26
+    ],
+    "max_incl": [
+     47,
+     33
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -2800.0,
+     -6000.0
+    ],
+    "max": [
+     -1600.0,
+     -4400.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -2800.0,
+     -6000.0
+    ],
+    [
+     -1600.0,
+     -6000.0
+    ],
+    [
+     -1600.0,
+     -4400.0
+    ],
+    [
+     -2800.0,
+     -4400.0
+    ]
+   ],
+   "objective": "Move units down the ramp",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "type": "objective-trigger",
+   "id": "TRIG_03_EXPANSION",
+   "tag": "KodObjectiveTrigger",
+   "cells": {
+    "rect_xywh": [
+     54,
+     10,
+     13,
+     13
+    ],
+    "min": [
+     54,
+     10
+    ],
+    "max_incl": [
+     66,
+     22
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -400.0,
+     -9200.0
+    ],
+    "max": [
+     2200.0,
+     -6600.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -400.0,
+     -9200.0
+    ],
+    [
+     2200.0,
+     -9200.0
+    ],
+    [
+     2200.0,
+     -6600.0
+    ],
+    [
+     -400.0,
+     -6600.0
+    ]
+   ],
+   "objective": "Build a second CC on the expansion platform (KodBaseSocket EXPANSION)",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "type": "objective-trigger",
+   "id": "TRIG_04_CHOKE",
+   "tag": "KodObjectiveTrigger",
+   "cells": {
+    "rect_xywh": [
+     62,
+     36,
+     10,
+     6
+    ],
+    "min": [
+     62,
+     36
+    ],
+    "max_incl": [
+     71,
+     41
+    ]
+   },
+   "box_uu": {
+    "min": [
+     1200.0,
+     -4000.0
+    ],
+    "max": [
+     3200.0,
+     -2800.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     1200.0,
+     -4000.0
+    ],
+    [
+     3200.0,
+     -4000.0
+    ],
+    [
+     3200.0,
+     -2800.0
+    ],
+    [
+     1200.0,
+     -2800.0
+    ]
+   ],
+   "objective": "Outpost spotted: reveal + attack objective",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "type": "objective-trigger",
+   "id": "TRIG_05_OUTPOST",
+   "tag": "KodObjectiveTrigger",
+   "cells": {
+    "rect_xywh": [
+     54,
+     46,
+     22,
+     18
+    ],
+    "min": [
+     54,
+     46
+    ],
+    "max_incl": [
+     75,
+     63
+    ]
+   },
+   "box_uu": {
+    "min": [
+     -400.0,
+     -2000.0
+    ],
+    "max": [
+     4000.0,
+     1600.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     -400.0,
+     -2000.0
+    ],
+    [
+     4000.0,
+     -2000.0
+    ],
+    [
+     4000.0,
+     1600.0
+    ],
+    [
+     -400.0,
+     1600.0
+    ]
+   ],
+   "objective": "Destroy the Scinder outpost (all KodEnemyOutpost)",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "type": "objective-trigger",
+   "id": "TRIG_06_ENEMY_RAMP",
+   "tag": "KodObjectiveTrigger",
+   "cells": {
+    "rect_xywh": [
+     74,
+     64,
+     12,
+     8
+    ],
+    "min": [
+     74,
+     64
+    ],
+    "max_incl": [
+     85,
+     71
+    ]
+   },
+   "box_uu": {
+    "min": [
+     3600.0,
+     1600.0
+    ],
+    "max": [
+     6000.0,
+     3200.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     3600.0,
+     1600.0
+    ],
+    [
+     6000.0,
+     1600.0
+    ],
+    [
+     6000.0,
+     3200.0
+    ],
+    [
+     3600.0,
+     3200.0
+    ]
+   ],
+   "objective": "Assault the base: high-ground vision lesson",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "type": "objective-trigger",
+   "id": "TRIG_07_ENEMY_BASE",
+   "tag": "KodObjectiveTrigger",
+   "cells": {
+    "rect_xywh": [
+     74,
+     74,
+     32,
+     32
+    ],
+    "min": [
+     74,
+     74
+    ],
+    "max_incl": [
+     105,
+     105
+    ]
+   },
+   "box_uu": {
+    "min": [
+     3600.0,
+     3600.0
+    ],
+    "max": [
+     10000.0,
+     10000.0
+    ]
+   },
+   "polygon_uu": [
+    [
+     3600.0,
+     3600.0
+    ],
+    [
+     10000.0,
+     3600.0
+    ],
+    [
+     10000.0,
+     10000.0
+    ],
+    [
+     3600.0,
+     10000.0
+    ]
+   ],
+   "objective": "Destroy the Scinder base (all KodEnemyBase) -> victory",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "type": "route",
+   "id": "ROUTE_S1_MAIN_TO_RAMP_BOTTOM",
+   "tag": "KodRoute",
+   "centreline_cells": [
+    [
+     18,
+     18
+    ],
+    [
+     24,
+     21
+    ],
+    [
+     30,
+     21
+    ],
+    [
+     36,
+     25
+    ],
+    [
+     42,
+     28
+    ],
+    [
+     44,
+     29
+    ]
+   ],
+   "centreline_uu": [
+    [
+     -7500.0,
+     -7500.0
+    ],
+    [
+     -6300.0,
+     -6900.0
+    ],
+    [
+     -5100.0,
+     -6900.0
+    ],
+    [
+     -3900.0,
+     -6100.0
+    ],
+    [
+     -2700.0,
+     -5500.0
+    ],
+    [
+     -2300.0,
+     -5300.0
+    ]
+   ],
+   "centreline_cells_full": [
+    [
+     18,
+     18
+    ],
+    [
+     19,
+     18
+    ],
+    [
+     20,
+     18
+    ],
+    [
+     21,
+     18
+    ],
+    [
+     22,
+     19
+    ],
+    [
+     23,
+     20
+    ],
+    [
+     24,
+     21
+    ],
+    [
+     25,
+     21
+    ],
+    [
+     26,
+     21
+    ],
+    [
+     27,
+     21
+    ],
+    [
+     28,
+     21
+    ],
+    [
+     29,
+     21
+    ],
+    [
+     30,
+     21
+    ],
+    [
+     31,
+     21
+    ],
+    [
+     32,
+     21
+    ],
+    [
+     33,
+     22
+    ],
+    [
+     34,
+     23
+    ],
+    [
+     35,
+     24
+    ],
+    [
+     36,
+     25
+    ],
+    [
+     37,
+     26
+    ],
+    [
+     38,
+     27
+    ],
+    [
+     39,
+     28
+    ],
+    [
+     40,
+     28
+    ],
+    [
+     41,
+     28
+    ],
+    [
+     42,
+     28
+    ],
+    [
+     43,
+     28
+    ],
+    [
+     44,
+     29
+    ]
+   ],
+   "clearance_uu_each_side": 400,
+   "length_uu": 5611,
+   "marine_s": 8.9
+  },
+  {
+   "type": "route",
+   "id": "ROUTE_S2_RAMP_TO_EXPANSION",
+   "tag": "KodRoute",
+   "centreline_cells": [
+    [
+     44,
+     29
+    ],
+    [
+     50,
+     26
+    ],
+    [
+     56,
+     20
+    ],
+    [
+     60,
+     16
+    ]
+   ],
+   "centreline_uu": [
+    [
+     -2300.0,
+     -5300.0
+    ],
+    [
+     -1100.0,
+     -5900.0
+    ],
+    [
+     100.0,
+     -7100.0
+    ],
+    [
+     900.0,
+     -7900.0
+    ]
+   ],
+   "centreline_cells_full": [
+    [
+     44,
+     29
+    ],
+    [
+     45,
+     29
+    ],
+    [
+     46,
+     29
+    ],
+    [
+     47,
+     29
+    ],
+    [
+     48,
+     28
+    ],
+    [
+     49,
+     27
+    ],
+    [
+     50,
+     26
+    ],
+    [
+     51,
+     25
+    ],
+    [
+     52,
+     24
+    ],
+    [
+     53,
+     23
+    ],
+    [
+     54,
+     22
+    ],
+    [
+     55,
+     21
+    ],
+    [
+     56,
+     20
+    ],
+    [
+     57,
+     19
+    ],
+    [
+     58,
+     18
+    ],
+    [
+     59,
+     17
+    ],
+    [
+     60,
+     16
+    ]
+   ],
+   "clearance_uu_each_side": 400,
+   "length_uu": 3777,
+   "marine_s": 6.0
+  },
+  {
+   "type": "route",
+   "id": "ROUTE_S3_EXPANSION_TO_CHOKE",
+   "tag": "KodRoute",
+   "centreline_cells": [
+    [
+     60,
+     16
+    ],
+    [
+     60,
+     22
+    ],
+    [
+     62,
+     28
+    ],
+    [
+     63,
+     34
+    ],
+    [
+     66,
+     40
+    ]
+   ],
+   "centreline_uu": [
+    [
+     900.0,
+     -7900.0
+    ],
+    [
+     900.0,
+     -6700.0
+    ],
+    [
+     1300.0,
+     -5500.0
+    ],
+    [
+     1500.0,
+     -4300.0
+    ],
+    [
+     2100.0,
+     -3100.0
+    ]
+   ],
+   "centreline_cells_full": [
+    [
+     60,
+     16
+    ],
+    [
+     60,
+     17
+    ],
+    [
+     60,
+     18
+    ],
+    [
+     60,
+     19
+    ],
+    [
+     60,
+     20
+    ],
+    [
+     60,
+     21
+    ],
+    [
+     60,
+     22
+    ],
+    [
+     61,
+     23
+    ],
+    [
+     62,
+     24
+    ],
+    [
+     62,
+     25
+    ],
+    [
+     62,
+     26
+    ],
+    [
+     62,
+     27
+    ],
+    [
+     62,
+     28
+    ],
+    [
+     62,
+     29
+    ],
+    [
+     62,
+     30
+    ],
+    [
+     62,
+     31
+    ],
+    [
+     63,
+     32
+    ],
+    [
+     63,
+     33
+    ],
+    [
+     63,
+     34
+    ],
+    [
+     64,
+     35
+    ],
+    [
+     64,
+     36
+    ],
+    [
+     64,
+     37
+    ],
+    [
+     64,
+     38
+    ],
+    [
+     65,
+     39
+    ],
+    [
+     66,
+     40
+    ]
+   ],
+   "clearance_uu_each_side": 400,
+   "length_uu": 4797,
+   "marine_s": 7.6
+  },
+  {
+   "type": "route",
+   "id": "ROUTE_S4_CHOKE_TO_OUTPOST",
+   "tag": "KodRoute",
+   "centreline_cells": [
+    [
+     66,
+     40
+    ],
+    [
+     63,
+     46
+    ],
+    [
+     63,
+     52
+    ],
+    [
+     63,
+     54
+    ]
+   ],
+   "centreline_uu": [
+    [
+     2100.0,
+     -3100.0
+    ],
+    [
+     1500.0,
+     -1900.0
+    ],
+    [
+     1500.0,
+     -700.0
+    ],
+    [
+     1500.0,
+     -300.0
+    ]
+   ],
+   "centreline_cells_full": [
+    [
+     66,
+     40
+    ],
+    [
+     66,
+     41
+    ],
+    [
+     66,
+     42
+    ],
+    [
+     66,
+     43
+    ],
+    [
+     65,
+     44
+    ],
+    [
+     64,
+     45
+    ],
+    [
+     63,
+     46
+    ],
+    [
+     63,
+     47
+    ],
+    [
+     63,
+     48
+    ],
+    [
+     63,
+     49
+    ],
+    [
+     63,
+     50
+    ],
+    [
+     63,
+     51
+    ],
+    [
+     63,
+     52
+    ],
+    [
+     63,
+     53
+    ],
+    [
+     63,
+     54
+    ]
+   ],
+   "clearance_uu_each_side": 400,
+   "length_uu": 2749,
+   "marine_s": 4.4
+  },
+  {
+   "type": "route",
+   "id": "ROUTE_S5_OUTPOST_TO_ENEMY_RAMP",
+   "tag": "KodRoute",
+   "centreline_cells": [
+    [
+     63,
+     54
+    ],
+    [
+     69,
+     58
+    ],
+    [
+     75,
+     64
+    ],
+    [
+     80,
+     69
+    ]
+   ],
+   "centreline_uu": [
+    [
+     1500.0,
+     -300.0
+    ],
+    [
+     2700.0,
+     500.0
+    ],
+    [
+     3900.0,
+     1700.0
+    ],
+    [
+     4900.0,
+     2700.0
+    ]
+   ],
+   "centreline_cells_full": [
+    [
+     63,
+     54
+    ],
+    [
+     64,
+     54
+    ],
+    [
+     65,
+     54
+    ],
+    [
+     66,
+     55
+    ],
+    [
+     67,
+     56
+    ],
+    [
+     68,
+     57
+    ],
+    [
+     69,
+     58
+    ],
+    [
+     70,
+     59
+    ],
+    [
+     71,
+     60
+    ],
+    [
+     72,
+     61
+    ],
+    [
+     73,
+     62
+    ],
+    [
+     74,
+     63
+    ],
+    [
+     75,
+     64
+    ],
+    [
+     76,
+     65
+    ],
+    [
+     77,
+     66
+    ],
+    [
+     78,
+     67
+    ],
+    [
+     79,
+     68
+    ],
+    [
+     80,
+     69
+    ]
+   ],
+   "clearance_uu_each_side": 400,
+   "length_uu": 4343,
+   "marine_s": 6.9
+  },
+  {
+   "type": "route",
+   "id": "ROUTE_S6_ENEMY_RAMP_TO_HQ",
+   "tag": "KodRoute",
+   "centreline_cells": [
+    [
+     80,
+     69
+    ],
+    [
+     80,
+     75
+    ],
+    [
+     82,
+     81
+    ],
+    [
+     87,
+     87
+    ],
+    [
+     93,
+     93
+    ],
+    [
+     94,
+     94
+    ]
+   ],
+   "centreline_uu": [
+    [
+     4900.0,
+     2700.0
+    ],
+    [
+     4900.0,
+     3900.0
+    ],
+    [
+     5300.0,
+     5100.0
+    ],
+    [
+     6300.0,
+     6300.0
+    ],
+    [
+     7500.0,
+     7500.0
+    ],
+    [
+     7700.0,
+     7700.0
+    ]
+   ],
+   "centreline_cells_full": [
+    [
+     80,
+     69
+    ],
+    [
+     80,
+     70
+    ],
+    [
+     80,
+     71
+    ],
+    [
+     80,
+     72
+    ],
+    [
+     80,
+     73
+    ],
+    [
+     80,
+     74
+    ],
+    [
+     80,
+     75
+    ],
+    [
+     81,
+     76
+    ],
+    [
+     82,
+     77
+    ],
+    [
+     82,
+     78
+    ],
+    [
+     82,
+     79
+    ],
+    [
+     82,
+     80
+    ],
+    [
+     82,
+     81
+    ],
+    [
+     82,
+     82
+    ],
+    [
+     83,
+     83
+    ],
+    [
+     84,
+     84
+    ],
+    [
+     85,
+     85
+    ],
+    [
+     86,
+     86
+    ],
+    [
+     87,
+     87
+    ],
+    [
+     88,
+     88
+    ],
+    [
+     89,
+     89
+    ],
+    [
+     90,
+     90
+    ],
+    [
+     91,
+     91
+    ],
+    [
+     92,
+     92
+    ],
+    [
+     93,
+     93
+    ],
+    [
+     94,
+     94
+    ]
+   ],
+   "clearance_uu_each_side": 400,
+   "length_uu": 5660,
+   "marine_s": 9.0
+  },
+  {
+   "type": "route",
+   "id": "ROUTE_TOTAL_GUIDED",
+   "tag": "KodRoute",
+   "centreline_cells": [
+    [
+     18,
+     18
+    ],
+    [
+     24,
+     21
+    ],
+    [
+     30,
+     21
+    ],
+    [
+     36,
+     25
+    ],
+    [
+     42,
+     28
+    ],
+    [
+     48,
+     28
+    ],
+    [
+     54,
+     22
+    ],
+    [
+     60,
+     16
+    ],
+    [
+     60,
+     22
+    ],
+    [
+     62,
+     28
+    ],
+    [
+     63,
+     34
+    ],
+    [
+     66,
+     40
+    ],
+    [
+     63,
+     46
+    ],
+    [
+     63,
+     52
+    ],
+    [
+     67,
+     56
+    ],
+    [
+     73,
+     62
+    ],
+    [
+     79,
+     68
+    ],
+    [
+     80,
+     74
+    ],
+    [
+     82,
+     80
+    ],
+    [
+     86,
+     86
+    ],
+    [
+     92,
+     92
+    ],
+    [
+     94,
+     94
+    ]
+   ],
+   "centreline_uu": [
+    [
+     -7500.0,
+     -7500.0
+    ],
+    [
+     -6300.0,
+     -6900.0
+    ],
+    [
+     -5100.0,
+     -6900.0
+    ],
+    [
+     -3900.0,
+     -6100.0
+    ],
+    [
+     -2700.0,
+     -5500.0
+    ],
+    [
+     -1500.0,
+     -5500.0
+    ],
+    [
+     -300.0,
+     -6700.0
+    ],
+    [
+     900.0,
+     -7900.0
+    ],
+    [
+     900.0,
+     -6700.0
+    ],
+    [
+     1300.0,
+     -5500.0
+    ],
+    [
+     1500.0,
+     -4300.0
+    ],
+    [
+     2100.0,
+     -3100.0
+    ],
+    [
+     1500.0,
+     -1900.0
+    ],
+    [
+     1500.0,
+     -700.0
+    ],
+    [
+     2300.0,
+     100.0
+    ],
+    [
+     3500.0,
+     1300.0
+    ],
+    [
+     4700.0,
+     2500.0
+    ],
+    [
+     4900.0,
+     3700.0
+    ],
+    [
+     5300.0,
+     4900.0
+    ],
+    [
+     6100.0,
+     6100.0
+    ],
+    [
+     7300.0,
+     7300.0
+    ],
+    [
+     7700.0,
+     7700.0
+    ]
+   ],
+   "centreline_cells_full": [
+    [
+     18,
+     18
+    ],
+    [
+     19,
+     18
+    ],
+    [
+     20,
+     18
+    ],
+    [
+     21,
+     18
+    ],
+    [
+     22,
+     19
+    ],
+    [
+     23,
+     20
+    ],
+    [
+     24,
+     21
+    ],
+    [
+     25,
+     21
+    ],
+    [
+     26,
+     21
+    ],
+    [
+     27,
+     21
+    ],
+    [
+     28,
+     21
+    ],
+    [
+     29,
+     21
+    ],
+    [
+     30,
+     21
+    ],
+    [
+     31,
+     21
+    ],
+    [
+     32,
+     21
+    ],
+    [
+     33,
+     22
+    ],
+    [
+     34,
+     23
+    ],
+    [
+     35,
+     24
+    ],
+    [
+     36,
+     25
+    ],
+    [
+     37,
+     26
+    ],
+    [
+     38,
+     27
+    ],
+    [
+     39,
+     28
+    ],
+    [
+     40,
+     28
+    ],
+    [
+     41,
+     28
+    ],
+    [
+     42,
+     28
+    ],
+    [
+     43,
+     28
+    ],
+    [
+     44,
+     29
+    ],
+    [
+     45,
+     29
+    ],
+    [
+     46,
+     29
+    ],
+    [
+     47,
+     29
+    ],
+    [
+     48,
+     28
+    ],
+    [
+     49,
+     27
+    ],
+    [
+     50,
+     26
+    ],
+    [
+     51,
+     25
+    ],
+    [
+     52,
+     24
+    ],
+    [
+     53,
+     23
+    ],
+    [
+     54,
+     22
+    ],
+    [
+     55,
+     21
+    ],
+    [
+     56,
+     20
+    ],
+    [
+     57,
+     19
+    ],
+    [
+     58,
+     18
+    ],
+    [
+     59,
+     17
+    ],
+    [
+     60,
+     16
+    ],
+    [
+     60,
+     17
+    ],
+    [
+     60,
+     18
+    ],
+    [
+     60,
+     19
+    ],
+    [
+     60,
+     20
+    ],
+    [
+     60,
+     21
+    ],
+    [
+     60,
+     22
+    ],
+    [
+     61,
+     23
+    ],
+    [
+     62,
+     24
+    ],
+    [
+     62,
+     25
+    ],
+    [
+     62,
+     26
+    ],
+    [
+     62,
+     27
+    ],
+    [
+     62,
+     28
+    ],
+    [
+     62,
+     29
+    ],
+    [
+     62,
+     30
+    ],
+    [
+     62,
+     31
+    ],
+    [
+     63,
+     32
+    ],
+    [
+     63,
+     33
+    ],
+    [
+     63,
+     34
+    ],
+    [
+     64,
+     35
+    ],
+    [
+     64,
+     36
+    ],
+    [
+     64,
+     37
+    ],
+    [
+     64,
+     38
+    ],
+    [
+     65,
+     39
+    ],
+    [
+     66,
+     40
+    ],
+    [
+     66,
+     41
+    ],
+    [
+     66,
+     42
+    ],
+    [
+     66,
+     43
+    ],
+    [
+     65,
+     44
+    ],
+    [
+     64,
+     45
+    ],
+    [
+     63,
+     46
+    ],
+    [
+     63,
+     47
+    ],
+    [
+     63,
+     48
+    ],
+    [
+     63,
+     49
+    ],
+    [
+     63,
+     50
+    ],
+    [
+     63,
+     51
+    ],
+    [
+     63,
+     52
+    ],
+    [
+     63,
+     53
+    ],
+    [
+     63,
+     54
+    ],
+    [
+     64,
+     54
+    ],
+    [
+     65,
+     54
+    ],
+    [
+     66,
+     55
+    ],
+    [
+     67,
+     56
+    ],
+    [
+     68,
+     57
+    ],
+    [
+     69,
+     58
+    ],
+    [
+     70,
+     59
+    ],
+    [
+     71,
+     60
+    ],
+    [
+     72,
+     61
+    ],
+    [
+     73,
+     62
+    ],
+    [
+     74,
+     63
+    ],
+    [
+     75,
+     64
+    ],
+    [
+     76,
+     65
+    ],
+    [
+     77,
+     66
+    ],
+    [
+     78,
+     67
+    ],
+    [
+     79,
+     68
+    ],
+    [
+     80,
+     69
+    ],
+    [
+     80,
+     70
+    ],
+    [
+     80,
+     71
+    ],
+    [
+     80,
+     72
+    ],
+    [
+     80,
+     73
+    ],
+    [
+     80,
+     74
+    ],
+    [
+     80,
+     75
+    ],
+    [
+     81,
+     76
+    ],
+    [
+     82,
+     77
+    ],
+    [
+     82,
+     78
+    ],
+    [
+     82,
+     79
+    ],
+    [
+     82,
+     80
+    ],
+    [
+     82,
+     81
+    ],
+    [
+     82,
+     82
+    ],
+    [
+     83,
+     83
+    ],
+    [
+     84,
+     84
+    ],
+    [
+     85,
+     85
+    ],
+    [
+     86,
+     86
+    ],
+    [
+     87,
+     87
+    ],
+    [
+     88,
+     88
+    ],
+    [
+     89,
+     89
+    ],
+    [
+     90,
+     90
+    ],
+    [
+     91,
+     91
+    ],
+    [
+     92,
+     92
+    ],
+    [
+     93,
+     93
+    ],
+    [
+     94,
+     94
+    ]
+   ],
+   "clearance_uu_each_side": 400,
+   "length_uu": 26940,
+   "marine_s": 42.8
+  },
+  {
+   "type": "base-keepclear",
+   "id": "PLAYER_MAIN_KEEPCLEAR",
+   "tag": "KodStartSpot_0",
+   "centre_uu": [
+    -7500.0,
+    -7500.0
+   ],
+   "radius_uu": 2000,
+   "note": "dress keep-clear; the jade arc and vents inside it are the resources themselves"
+  },
+  {
+   "type": "base-keepclear",
+   "id": "EXPANSION_KEEPCLEAR",
+   "tag": "KodBaseSocket",
+   "centre_uu": [
+    900.0,
+    -7900.0
+   ],
+   "radius_uu": 2000,
+   "note": "dress keep-clear; the jade arc and vents inside it are the resources themselves"
+  }
+ ]
+}

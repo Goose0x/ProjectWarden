@@ -59,6 +59,10 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 	Unit->Definition = Def;
 	Unit->TeamId = Request.TeamId;
 	Unit->bSupplyPrepaid = true;
+	if (!Request.ActorTag.IsNone())
+	{
+		Unit->Tags.AddUnique(Request.ActorTag);
+	}
 	if (Def->bCanGather)
 	{
 		Unit->Tags.AddUnique(FName(TEXT("KodUnitDozer")));
@@ -85,6 +89,10 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 		return;
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodProd Complete Spawned=%s"), *Unit->GetName());
+	if (Request.ScriptRole != 0)
+	{
+		Sim->AdoptScriptedSpawn(Unit->EntityId, Request);
+	}
 
 	if (Request.RallyUnit.IsValid())
 	{
@@ -94,6 +102,10 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 	else if (Request.bRallyNode && Request.RallyNode.IsValid())
 	{
 		Sim->IssueGather(Unit->EntityId, Request.RallyNode);
+	}
+	else if (Request.bAttackMove)
+	{
+		Sim->IssueAttackMove(Unit->EntityId, Request.RallyPoint);
 	}
 	else if (!Request.RallyPoint.IsNearlyZero())
 	{

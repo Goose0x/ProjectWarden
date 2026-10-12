@@ -25,6 +25,11 @@ namespace KodWardenPaths
 	/** Bare FName / Primary Asset Name law strings. */
 	constexpr const TCHAR* Id_RangerRifle = TEXT("RangerRifle");
 	constexpr const TCHAR* Id_Ranger = TEXT("Ranger");
+	/** Cube proxy. Used when the enemy faction is Scinder. */
+	constexpr const TCHAR* Id_ScinderInfantry = TEXT("ScinderInfantry");
+	constexpr const TCHAR* Id_ScnFighter = TEXT("SCN_FIGHTER");
+	constexpr const TCHAR* Id_ScnTwinblade = TEXT("SCN_TWINBLADE");
+	constexpr const TCHAR* Id_ScnWorker = TEXT("SCN_WORKER");
 	constexpr const TCHAR* Id_CombatStim = TEXT("CombatStim");
 	constexpr const TCHAR* Id_Dozer = TEXT("Dozer");
 	constexpr const TCHAR* Id_DozerMelee = TEXT("DozerMelee");

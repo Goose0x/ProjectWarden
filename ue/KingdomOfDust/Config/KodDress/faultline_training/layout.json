@@ -1,0 +1,1759 @@
+{
+ "meta": {
+  "name": "PROXY_FaultlineTraining_Tutorial",
+  "status": "PROXY / TEST \u2014 tutorial greybox, not ladder, not pool-legal",
+  "version": "1.0",
+  "date": "2026-10-12",
+  "generated_by": "_tools/gen_layout.py",
+  "cell_uu": 200,
+  "full_cells": [
+   112,
+   112
+  ],
+  "border_cells": 6,
+  "playable_cells": [
+   100,
+   100
+  ],
+  "playable_min_cell": [
+   6,
+   6
+  ],
+  "playable_max_cell": [
+   105,
+   105
+  ],
+  "origin_uu": [
+   -11200.0,
+   -11200.0
+  ],
+  "coords": "cell (x,y): x east, y north, origin SW corner; world uu = cell*200 - 11200 (+100 for centres); world (0,0) = map centre",
+  "symmetry": "NONE (tutorial, guided linear flow SW -> NE)",
+  "ue_level": "/Game/Maps/Sandbox/L_FaultlineTraining (PROPOSED \u2014 Soft Dev to confirm)",
+  "ue_gamemode": "/Script/KingdomOfDust.KodSlice0GameMode (PLACEHOLDER \u2014 tutorial GameMode TBD)",
+  "high_ground": {
+   "tiers": 1,
+   "height_uu": 300,
+   "vision_rule": "SC2: low ground can't see high ground without a friendly unit up there"
+  },
+  "factions": {
+   "player": "Vanguard (USA)",
+   "enemy": "Scinder (AI, scripted)"
+  },
+  "facing": "fixed \u2014 addon socket on EAST side"
+ },
+ "economy_placeholder": {
+  "jad_pool_std": 1200,
+  "jad_yield_std": 5,
+  "lum_pool_std": 2250,
+  "lum_yield_std": 4,
+  "placeholder": true
+ },
+ "unit_speed_uu_s": {
+  "VAN_MARINE": 630.0
+ },
+ "legend": {
+  "~": "border",
+  "#": "cliff / mesa (blocks all)",
+  "m": "player main high ground",
+  "e": "enemy plateau high ground",
+  "n": "expansion ground",
+  "f": "middle ground",
+  ".": "neutral low ground",
+  "/": "ramp",
+  "p": "socket platform apron (walk, no build)",
+  "H": "player start CC",
+  "h": "expansion CC socket (empty)",
+  "J": "Jadeite",
+  "V": "Luminene vent",
+  "o": "vent ring",
+  "w": "worker lane no-build",
+  "L": "LOS blocker",
+  "X": "Scinder outpost structure (PROXY)",
+  "E": "Scinder base structure (PROXY)",
+  "b": "suggested build slot"
+ },
+ "colors_linear_rgb": {
+  "main": [
+   0.1,
+   0.3,
+   0.9
+  ],
+  "natural": [
+   0.15,
+   0.65,
+   0.2
+  ],
+  "mid": [
+   0.55,
+   0.42,
+   0.28
+  ],
+  "enemy": [
+   0.55,
+   0.12,
+   0.1
+  ],
+  "cliff": [
+   0.35,
+   0.35,
+   0.35
+  ],
+  "neutral": [
+   0.45,
+   0.38,
+   0.28
+  ],
+  "border": [
+   0.08,
+   0.08,
+   0.08
+  ],
+  "ramp": [
+   0.55,
+   0.55,
+   0.75
+  ],
+  "jadeite": [
+   0.0,
+   1.0,
+   0.45
+  ],
+  "jadeite_rich": [
+   0.6,
+   1.0,
+   0.75
+  ],
+  "vent": [
+   0.776,
+   1.0,
+   0.102
+  ],
+  "vent_rich": [
+   0.914,
+   1.0,
+   0.478
+  ],
+  "vent_ring": [
+   0.43,
+   0.56,
+   0.1
+  ],
+  "worker_lane": [
+   0.75,
+   0.75,
+   0.7
+  ],
+  "los": [
+   0.2,
+   0.3,
+   0.15
+  ],
+  "destructible": [
+   0.45,
+   0.25,
+   0.1
+  ],
+  "cc_socket": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "platform": [
+   0.55,
+   0.58,
+   0.62
+  ],
+  "build_slot": [
+   0.3,
+   0.9,
+   0.9
+  ],
+  "spawn": [
+   1.0,
+   0.0,
+   1.0
+  ],
+  "enemy_outpost": [
+   0.85,
+   0.3,
+   0.1
+  ],
+  "enemy_base": [
+   0.6,
+   0.05,
+   0.05
+  ],
+  "trigger": [
+   1.0,
+   0.85,
+   0.0
+  ]
+ },
+ "cells": {
+  "rows_north_to_south": [
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeEEEeeeeEEEEEeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeEEEeeeeEEEEEeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeEEEeeeeEEEEEeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeEEEEEeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeEEEEEeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeEEEeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeEEEeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeEEEeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeEEeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeEEeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeEEeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeEEeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~####################################################################eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee~~~~~~",
+   "~~~~~~########################################################################////########################~~~~~~",
+   "~~~~~~########################################################################////########################~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffffffffffffffffff////ffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffffffffffffffffff////ffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffff##########ffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffff##########ffffffffffffffffffffffffffffffffffffffLLLfffffffffffffff~~~~~~",
+   "~~~~~~##############################ffff##########ffffffffffffffffffffffffffffffffffffffLLLfffffffffffffff~~~~~~",
+   "~~~~~~##############################ffff##########ffffffffffffffffffffffffffffffffffffffLLLfffffffffffffff~~~~~~",
+   "~~~~~~##############################ffff##########ffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffff##########ffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffff##########ffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffff##########fffffffffffffffffXXfffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffff##########fffffffffffffffffXXfffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffff##########ffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffXXXfffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffXXXfffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffXXXfffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffXXffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffXXffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffLLLfffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffLLLfffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffLLLfffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~##############################ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~####################################ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~####################################ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm##ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm########################ffffff####################################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm########################ffffff####################################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmbbbbbmmbbbmmmm########################ffffff####################################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmbbbbbmmbbbmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmbbbbbmmbbbmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmbbbbbmmmmmmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmbbbbbmmmmmmmmm////nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmbbbbbmmmmmmmmm////nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm////nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm////nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmbbmmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmooooommmmmmmmmmmmmmmmmmbbmmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmoVVVommmmmmmmmmmmbbmbbmmmmmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmoVVVommmmmmmmmmmmbbmbbmmmmmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmoVVVowmmmmmmmmmmmmmmmmmmmmmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmooooowpppppmmmmmmmmmmmmbbbmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmJwwwpppppppmmmmmmmmmmmbbbmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmJwwppHHHHHppmmmmmmmmmmbbbmmmm##nnnnnnnnooooonnnpppppnnnooooonnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmJwwppHHHHHppmmmmmmmmmmmmmmmmm##nnnnnnnnoVVVowwpppppppwwoVVVonnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmJwwppHHHHHppmmmmmmmmmmmmmmmmm##nnnnnnnnoVVVowpphhhhhppwoVVVonnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmwwwppHHHHHppmmmmmmmmmmmmmmmmm##nnnnnnnnoVVVowpphhhhhppwoVVVonnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmJwwppHHHHHppmmmmmmmmmmmmmmmmm##nnnnnnnnooooowpphhhhhppwooooonnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmJwwwpppppppwwmmmmmmmmmmmmbbmm##nnnnnnnnnnwwwwpphhhhhppwwwwnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmJwwwpppppwooooommmmmmmmmbbmm##nnnnnnnnnnnJwwpphhhhhppwwJnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmJwwwwwwwwwoVVVommmmmmmmmmmmm##nnnnnnnnnnnJwwwpppppppwwwJnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmJJwwwwwwwoVVVommmmmmmmmmmmm##nnnnnnnnnnnnwJwwpppppwwJwnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmJJwJJJJoVVVommmmmmmmmmmmm##nnnnnnnnnnnnnJwwwwwwwwwJnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmooooommmmmmmmmmmmm##nnnnnnnnnnnnnnJJwwwwwJJnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm##nnnnnnnnnnnnnnnnJJwJJnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm##nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn############################~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  ],
+  "note": "rows[0] is y=111 (north). Index rows[111-y][x]."
+ },
+ "zones": [
+  {
+   "id": "MIDDLE",
+   "kind": "mid",
+   "rect": [
+    36,
+    42,
+    70,
+    30
+   ],
+   "elev": 0,
+   "ground_zone": "DIRT_BASE"
+  },
+  {
+   "id": "MIDDLE_S",
+   "kind": "mid",
+   "rect": [
+    42,
+    39,
+    64,
+    3
+   ],
+   "elev": 0,
+   "ground_zone": "DIRT_BASE"
+  },
+  {
+   "id": "PLAYER_MAIN",
+   "kind": "main",
+   "rect": [
+    6,
+    6,
+    34,
+    34
+   ],
+   "elev": 1,
+   "ground_zone": "GRASS_HOME"
+  },
+  {
+   "id": "EXPANSION",
+   "kind": "natural",
+   "rect": [
+    42,
+    6,
+    36,
+    30
+   ],
+   "elev": 0,
+   "ground_zone": "GRASS_EDGE"
+  },
+  {
+   "id": "ENEMY_BASE_PLATEAU",
+   "kind": "main",
+   "rect": [
+    74,
+    74,
+    32,
+    32
+   ],
+   "elev": 1,
+   "ground_zone": "SCORCHED_ROCK",
+   "color": "enemy"
+  }
+ ],
+ "cliffs": [
+  {
+   "id": "CLIFF_MAIN_N",
+   "rect": [
+    6,
+    40,
+    36,
+    2
+   ],
+   "note": "player main north cliff"
+  },
+  {
+   "id": "CLIFF_MAIN_E",
+   "rect": [
+    40,
+    6,
+    2,
+    34
+   ],
+   "note": "player main east cliff (ramp cut)"
+  },
+  {
+   "id": "CLIFF_EXP_N",
+   "rect": [
+    42,
+    36,
+    64,
+    3
+   ],
+   "note": "expansion north wall (choke cut), 3 thick"
+  },
+  {
+   "id": "MESA_EXP_E",
+   "rect": [
+    78,
+    6,
+    28,
+    30
+   ],
+   "note": "rock mesa east of the expansion (out of play, dress)"
+  },
+  {
+   "id": "MESA_W",
+   "rect": [
+    6,
+    42,
+    30,
+    30
+   ],
+   "note": "west highlands (out of play, dress)"
+  },
+  {
+   "id": "MESA_NW",
+   "rect": [
+    6,
+    72,
+    66,
+    34
+   ],
+   "note": "north-west highlands (out of play, dress)"
+  },
+  {
+   "id": "CLIFF_ENEMY_S",
+   "rect": [
+    72,
+    72,
+    34,
+    2
+   ],
+   "note": "enemy plateau south cliff (ramp cut)"
+  },
+  {
+   "id": "CLIFF_ENEMY_W",
+   "rect": [
+    72,
+    74,
+    2,
+    32
+   ],
+   "note": "enemy plateau west cliff"
+  },
+  {
+   "id": "MESA_MID",
+   "rect": [
+    40,
+    56,
+    10,
+    10
+   ],
+   "note": "small mid mesa: screens the outpost from the choke; LOS lesson"
+  }
+ ],
+ "ramps": [
+  {
+   "id": "RAMP_PLAYER_MAIN",
+   "rect": [
+    40,
+    28,
+    4,
+    4
+   ],
+   "down_dir": "E",
+   "up_dir": "W",
+   "from_elev": 1,
+   "to_elev": 0,
+   "note": "player main -> expansion (x40-41 cliff cut, x42-43 low)"
+  },
+  {
+   "id": "RAMP_ENEMY_BASE",
+   "rect": [
+    78,
+    70,
+    4,
+    4
+   ],
+   "down_dir": "S",
+   "up_dir": "N",
+   "from_elev": 1,
+   "to_elev": 0,
+   "note": "middle -> Scinder plateau (y70-71 low, y72-73 cliff cut); up = north"
+  }
+ ],
+ "chokes": [
+  {
+   "id": "CHOKE_EXP_N",
+   "rect": [
+    64,
+    36,
+    6,
+    3
+   ],
+   "width_cells": 6,
+   "length_cells": 3,
+   "note": "expansion -> middle"
+  }
+ ],
+ "bases": [
+  {
+   "id": "PLAYER_MAIN",
+   "zone": "player_main",
+   "elev": 1,
+   "cc_rect": [
+    16,
+    16,
+    5,
+    5
+   ],
+   "cc_center_cell": [
+    18,
+    18
+   ],
+   "is_spawn": true,
+   "rich": false,
+   "platform_rect": [
+    14,
+    14,
+    9,
+    9
+   ],
+   "jadeite": [
+    "PLAYER_MAIN_J01",
+    "PLAYER_MAIN_J02",
+    "PLAYER_MAIN_J03",
+    "PLAYER_MAIN_J04",
+    "PLAYER_MAIN_J05",
+    "PLAYER_MAIN_J06",
+    "PLAYER_MAIN_J07",
+    "PLAYER_MAIN_J08"
+   ],
+   "vents": [
+    "PLAYER_MAIN_V1",
+    "PLAYER_MAIN_V2"
+   ]
+  },
+  {
+   "id": "EXPANSION",
+   "zone": "expansion",
+   "elev": 0,
+   "cc_rect": [
+    58,
+    14,
+    5,
+    5
+   ],
+   "cc_center_cell": [
+    60,
+    16
+   ],
+   "is_spawn": false,
+   "rich": false,
+   "platform_rect": [
+    56,
+    12,
+    9,
+    9
+   ],
+   "jadeite": [
+    "EXPANSION_J01",
+    "EXPANSION_J02",
+    "EXPANSION_J03",
+    "EXPANSION_J04",
+    "EXPANSION_J05",
+    "EXPANSION_J06",
+    "EXPANSION_J07",
+    "EXPANSION_J08"
+   ],
+   "vents": [
+    "EXPANSION_V1",
+    "EXPANSION_V2"
+   ]
+  }
+ ],
+ "resources": [
+  {
+   "id": "PLAYER_MAIN_J01",
+   "base": "PLAYER_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    11,
+    20,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 7.43,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "PLAYER_MAIN_J02",
+   "base": "PLAYER_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    11,
+    18,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 7.02,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "PLAYER_MAIN_J03",
+   "base": "PLAYER_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    11,
+    15,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 7.43,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "PLAYER_MAIN_J04",
+   "base": "PLAYER_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    12,
+    13,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 7.5,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "PLAYER_MAIN_J05",
+   "base": "PLAYER_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    13,
+    12,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 7.5,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "PLAYER_MAIN_J06",
+   "base": "PLAYER_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    15,
+    11,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 7.43,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "PLAYER_MAIN_J07",
+   "base": "PLAYER_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    18,
+    11,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 7.02,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "PLAYER_MAIN_J08",
+   "base": "PLAYER_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    20,
+    11,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 7.43,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "PLAYER_MAIN_V1",
+   "base": "PLAYER_MAIN",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    11,
+    23,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "no_build_ring_cells": 1,
+   "dist_from_hall_centre_cells": 8.49,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "PLAYER_MAIN_V2",
+   "base": "PLAYER_MAIN",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    23,
+    11,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "no_build_ring_cells": 1,
+   "dist_from_hall_centre_cells": 8.49,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "EXPANSION_J01",
+   "base": "EXPANSION",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    53,
+    13,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 7.43,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "EXPANSION_J02",
+   "base": "EXPANSION",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    55,
+    11,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 6.73,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "EXPANSION_J03",
+   "base": "EXPANSION",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    56,
+    10,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 6.95,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "EXPANSION_J04",
+   "base": "EXPANSION",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    58,
+    9,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 7.16,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "EXPANSION_J05",
+   "base": "EXPANSION",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    61,
+    9,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 7.16,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "EXPANSION_J06",
+   "base": "EXPANSION",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    63,
+    10,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 6.95,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "EXPANSION_J07",
+   "base": "EXPANSION",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    65,
+    11,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 6.73,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "EXPANSION_J08",
+   "base": "EXPANSION",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    67,
+    13,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "dist_from_hall_centre_cells": 7.43,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "EXPANSION_V1",
+   "base": "EXPANSION",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    51,
+    17,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "no_build_ring_cells": 1,
+   "dist_from_hall_centre_cells": 8.25,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "EXPANSION_V2",
+   "base": "EXPANSION",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    67,
+    17,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "no_build_ring_cells": 1,
+   "dist_from_hall_centre_cells": 8.25,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true
+  }
+ ],
+ "platforms": [
+  {
+   "id": "SOCKET_PLAYER_MAIN",
+   "rect": [
+    14,
+    14,
+    9,
+    9
+   ],
+   "chamfer_cells": 2,
+   "cc_rect": [
+    16,
+    16,
+    5,
+    5
+   ],
+   "raise_uu": 40,
+   "bevel_uu": 100,
+   "elev": 1,
+   "tag": "KodBaseSocket"
+  },
+  {
+   "id": "SOCKET_EXPANSION",
+   "rect": [
+    56,
+    12,
+    9,
+    9
+   ],
+   "chamfer_cells": 2,
+   "cc_rect": [
+    58,
+    14,
+    5,
+    5
+   ],
+   "raise_uu": 40,
+   "bevel_uu": 100,
+   "elev": 0,
+   "tag": "KodBaseSocket"
+  }
+ ],
+ "los_blockers": [
+  {
+   "id": "LOS_OUTPOST_APPROACH",
+   "rect": [
+    52,
+    44,
+    3,
+    3
+   ],
+   "walkable": true,
+   "blocks_vision": true
+  },
+  {
+   "id": "LOS_ENEMY_RAMP",
+   "rect": [
+    88,
+    62,
+    3,
+    3
+   ],
+   "walkable": true,
+   "blocks_vision": true
+  }
+ ],
+ "destructibles": [],
+ "enemy_structures": [
+  {
+   "id": "OUTPOST_SPIRE",
+   "tag": "KodEnemyOutpost",
+   "rect": [
+    62,
+    53,
+    3,
+    3
+   ],
+   "note": "Scinder outpost core (3x3)",
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true
+  },
+  {
+   "id": "OUTPOST_WARD_A",
+   "tag": "KodEnemyOutpost",
+   "rect": [
+    58,
+    50,
+    2,
+    2
+   ],
+   "note": "defence ward (2x2)",
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true
+  },
+  {
+   "id": "OUTPOST_WARD_B",
+   "tag": "KodEnemyOutpost",
+   "rect": [
+    67,
+    57,
+    2,
+    2
+   ],
+   "note": "defence ward (2x2)",
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true
+  },
+  {
+   "id": "ENEMY_HQ",
+   "tag": "KodEnemyBase",
+   "rect": [
+    92,
+    92,
+    5,
+    5
+   ],
+   "note": "Scinder HQ (5x5)",
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true
+  },
+  {
+   "id": "ENEMY_PROD_A",
+   "tag": "KodEnemyBase",
+   "rect": [
+    85,
+    94,
+    3,
+    3
+   ],
+   "note": "production (3x3)",
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true
+  },
+  {
+   "id": "ENEMY_PROD_B",
+   "tag": "KodEnemyBase",
+   "rect": [
+    94,
+    85,
+    3,
+    3
+   ],
+   "note": "production (3x3)",
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true
+  },
+  {
+   "id": "ENEMY_TOWER_A",
+   "tag": "KodEnemyBase",
+   "rect": [
+    82,
+    80,
+    2,
+    2
+   ],
+   "note": "ramp-top defence (2x2)",
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true
+  },
+  {
+   "id": "ENEMY_TOWER_B",
+   "tag": "KodEnemyBase",
+   "rect": [
+    87,
+    82,
+    2,
+    2
+   ],
+   "note": "defence (2x2)",
+   "faction": "Scinder",
+   "proxy_only": true,
+   "hp": "TBD (Strategy)",
+   "blocks_walk_until_destroyed": true
+  }
+ ],
+ "triggers": [
+  {
+   "id": "TRIG_01_START",
+   "rect": [
+    6,
+    6,
+    34,
+    34
+   ],
+   "objective": "Intro: select the CC, train an AMP, gather Jadeite",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "id": "TRIG_02_RAMP_DOWN",
+   "rect": [
+    42,
+    26,
+    6,
+    8
+   ],
+   "objective": "Move units down the ramp",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "id": "TRIG_03_EXPANSION",
+   "rect": [
+    54,
+    10,
+    13,
+    13
+   ],
+   "objective": "Build a second CC on the expansion platform (KodBaseSocket EXPANSION)",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "id": "TRIG_04_CHOKE",
+   "rect": [
+    62,
+    36,
+    10,
+    6
+   ],
+   "objective": "Outpost spotted: reveal + attack objective",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "id": "TRIG_05_OUTPOST",
+   "rect": [
+    54,
+    46,
+    22,
+    18
+   ],
+   "objective": "Destroy the Scinder outpost (all KodEnemyOutpost)",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "id": "TRIG_06_ENEMY_RAMP",
+   "rect": [
+    74,
+    64,
+    12,
+    8
+   ],
+   "objective": "Assault the base: high-ground vision lesson",
+   "z_uu": [
+    -100,
+    800
+   ]
+  },
+  {
+   "id": "TRIG_07_ENEMY_BASE",
+   "rect": [
+    74,
+    74,
+    32,
+    32
+   ],
+   "objective": "Destroy the Scinder base (all KodEnemyBase) -> victory",
+   "z_uu": [
+    -100,
+    800
+   ]
+  }
+ ],
+ "build_slots": [
+  {
+   "id": "P1_SLOT_BARRACKS_ADDON",
+   "player": 1,
+   "rect": [
+    26,
+    30,
+    5,
+    3
+   ],
+   "kind": "production+addon 3x5",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_FACTORY_ADDON",
+   "player": 1,
+   "rect": [
+    26,
+    34,
+    5,
+    3
+   ],
+   "kind": "production+addon 3x5",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_ENG_BAY",
+   "player": 1,
+   "rect": [
+    33,
+    34,
+    3,
+    3
+   ],
+   "kind": "Eng Bay 3x3",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_ORDNANCE_DEPOT",
+   "player": 1,
+   "rect": [
+    33,
+    20,
+    3,
+    3
+   ],
+   "kind": "Ordnance Depot 3x3",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_PAD_1",
+   "player": 1,
+   "rect": [
+    27,
+    24,
+    2,
+    2
+   ],
+   "kind": "Supply/depot pad 2x2",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_PAD_2",
+   "player": 1,
+   "rect": [
+    30,
+    24,
+    2,
+    2
+   ],
+   "kind": "Supply/depot pad 2x2",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_PAD_3",
+   "player": 1,
+   "rect": [
+    33,
+    26,
+    2,
+    2
+   ],
+   "kind": "Supply/depot pad 2x2",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_PAD_4",
+   "player": 1,
+   "rect": [
+    36,
+    14,
+    2,
+    2
+   ],
+   "kind": "Supply/depot pad 2x2",
+   "valid": true
+  }
+ ],
+ "spawns": [
+  {
+   "id": "P1_SPAWN",
+   "player": 1,
+   "team": 0,
+   "faction": "Vanguard (USA)",
+   "base": "PLAYER_MAIN",
+   "cc_rect": [
+    16,
+    16,
+    5,
+    5
+   ],
+   "rally_cell": [
+    28,
+    28
+   ],
+   "ue_tags": [
+    "KodStartSpot_0"
+   ],
+   "start_units": {
+    "HQ": 1,
+    "workers": 12,
+    "credits": 50,
+    "placeholder": true
+   }
+  },
+  {
+   "id": "AI_SPAWN",
+   "player": 2,
+   "team": 1,
+   "faction": "Scinder (AI)",
+   "base": null,
+   "cc_rect": [
+    92,
+    92,
+    5,
+    5
+   ],
+   "rally_cell": [
+    88,
+    88
+   ],
+   "ue_tags": [
+    "KodStartSpot_1"
+   ],
+   "note": "AI start = the Scinder HQ proxy; no economy socket"
+  }
+ ],
+ "routes": {
+  "S1_MAIN_TO_RAMP_BOTTOM": {
+   "from": "PLAYER_CC",
+   "to": "RAMP_BOTTOM",
+   "cells": 28.1,
+   "uu": 5611,
+   "marine_s": 8.9,
+   "waypoints": [
+    [
+     18,
+     18
+    ],
+    [
+     26,
+     21
+    ],
+    [
+     34,
+     23
+    ],
+    [
+     42,
+     28
+    ],
+    [
+     44,
+     29
+    ]
+   ]
+  },
+  "S2_RAMP_TO_EXPANSION": {
+   "from": "RAMP_BOTTOM",
+   "to": "EXPANSION_CC",
+   "cells": 18.9,
+   "uu": 3777,
+   "marine_s": 6.0,
+   "waypoints": [
+    [
+     44,
+     29
+    ],
+    [
+     52,
+     24
+    ],
+    [
+     60,
+     16
+    ]
+   ]
+  },
+  "S3_EXPANSION_TO_CHOKE": {
+   "from": "EXPANSION_CC",
+   "to": "CHOKE_N_EXIT",
+   "cells": 24.0,
+   "uu": 4797,
+   "marine_s": 7.6,
+   "waypoints": [
+    [
+     60,
+     16
+    ],
+    [
+     62,
+     24
+    ],
+    [
+     63,
+     32
+    ],
+    [
+     66,
+     40
+    ]
+   ]
+  },
+  "S4_CHOKE_TO_OUTPOST": {
+   "from": "CHOKE_N_EXIT",
+   "to": "OUTPOST_SPIRE",
+   "cells": 13.7,
+   "uu": 2749,
+   "marine_s": 4.4,
+   "waypoints": [
+    [
+     66,
+     40
+    ],
+    [
+     63,
+     48
+    ],
+    [
+     63,
+     54
+    ]
+   ]
+  },
+  "S5_OUTPOST_TO_ENEMY_RAMP": {
+   "from": "OUTPOST_SPIRE",
+   "to": "ENEMY_RAMP_BOTTOM",
+   "cells": 21.7,
+   "uu": 4343,
+   "marine_s": 6.9,
+   "waypoints": [
+    [
+     63,
+     54
+    ],
+    [
+     71,
+     60
+    ],
+    [
+     79,
+     68
+    ],
+    [
+     80,
+     69
+    ]
+   ]
+  },
+  "S6_ENEMY_RAMP_TO_HQ": {
+   "from": "ENEMY_RAMP_BOTTOM",
+   "to": "ENEMY_HQ",
+   "cells": 28.3,
+   "uu": 5660,
+   "marine_s": 9.0,
+   "waypoints": [
+    [
+     80,
+     69
+    ],
+    [
+     82,
+     77
+    ],
+    [
+     85,
+     85
+    ],
+    [
+     93,
+     93
+    ],
+    [
+     94,
+     94
+    ]
+   ]
+  },
+  "TOTAL_GUIDED": {
+   "from": "PLAYER_CC",
+   "to": "ENEMY_HQ",
+   "cells": 134.7,
+   "uu": 26940,
+   "marine_s": 42.8,
+   "waypoints": [
+    [
+     18,
+     18
+    ],
+    [
+     26,
+     21
+    ],
+    [
+     34,
+     23
+    ],
+    [
+     42,
+     28
+    ],
+    [
+     50,
+     26
+    ],
+    [
+     58,
+     18
+    ],
+    [
+     60,
+     22
+    ],
+    [
+     62,
+     30
+    ],
+    [
+     64,
+     38
+    ],
+    [
+     63,
+     46
+    ],
+    [
+     63,
+     54
+    ],
+    [
+     71,
+     60
+    ],
+    [
+     79,
+     68
+    ],
+    [
+     81,
+     76
+    ],
+    [
+     84,
+     84
+    ],
+    [
+     92,
+     92
+    ],
+    [
+     94,
+     94
+    ]
+   ]
+  },
+  "DIRECT_SHORTEST": {
+   "from": "PLAYER_CC",
+   "to": "ENEMY_HQ",
+   "cells": 119.5,
+   "uu": 23894,
+   "marine_s": 37.9,
+   "waypoints": [
+    [
+     18,
+     18
+    ],
+    [
+     26,
+     21
+    ],
+    [
+     34,
+     23
+    ],
+    [
+     42,
+     28
+    ],
+    [
+     50,
+     28
+    ],
+    [
+     58,
+     29
+    ],
+    [
+     64,
+     37
+    ],
+    [
+     64,
+     45
+    ],
+    [
+     64,
+     53
+    ],
+    [
+     68,
+     61
+    ],
+    [
+     76,
+     69
+    ],
+    [
+     78,
+     77
+    ],
+    [
+     85,
+     85
+    ],
+    [
+     93,
+     93
+    ],
+    [
+     94,
+     94
+    ]
+   ]
+  }
+ },
+ "waypoints_cells": {
+  "PLAYER_CC": [
+   18,
+   18
+  ],
+  "RAMP_BOTTOM": [
+   44,
+   29
+  ],
+  "EXPANSION_CC": [
+   60,
+   16
+  ],
+  "CHOKE_N_EXIT": [
+   66,
+   40
+  ],
+  "OUTPOST_SPIRE": [
+   63,
+   54
+  ],
+  "ENEMY_RAMP_BOTTOM": [
+   80,
+   69
+  ],
+  "ENEMY_RAMP_TOP": [
+   80,
+   75
+  ],
+  "ENEMY_HQ": [
+   94,
+   94
+  ]
+ },
+ "arc_checks": {
+  "PLAYER_MAIN": {
+   "jadeite_dist_min": 7.02,
+   "jadeite_dist_max": 7.5,
+   "vent_dist": [
+    8.49,
+    8.49
+   ],
+   "in_6_8_band": true
+  },
+  "EXPANSION": {
+   "jadeite_dist_min": 6.73,
+   "jadeite_dist_max": 7.43,
+   "vent_dist": [
+    8.25,
+    8.25
+   ],
+   "in_6_8_band": true
+  }
+ }
+}

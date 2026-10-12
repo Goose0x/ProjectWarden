@@ -1,4 +1,5 @@
 #include "Slice0/KodSlice0GameMode.h"
+#include "Slice0/KodFaultline.h"
 #include "Slice0/KodMapLayout.h"
 #include "Slice0/KodMapLife.h"
 #include "Slice0/KodSlice0PlayerController.h"
@@ -29,7 +30,15 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Game/KodSpectatorPawn.h"
 #include "UObject/SoftObjectPath.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "Components/SkyLightComponent.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/ExponentialHeightFog.h"
+#include "Engine/PostProcessVolume.h"
+#include "Engine/SkyLight.h"
 #include "Engine/World.h"
+#include "HAL/IConsoleManager.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 #include "Misc/CommandLine.h"
@@ -215,6 +224,8 @@ AKodSlice0GameMode::AKodSlice0GameMode()
 	HUDClass = AKodHUD::StaticClass();
 	WorkerSpawnCount = KodEconomyDefaults::WorkerSpawnCount;
 	PlayableCells = KodEconomyDefaults::PlayableCells;
+	PrimaryActorTick.bCanEverTick = false;
+	FaultlineMaps.Add(TEXT("L_FaultlineTraining"));
 }
 
 void AKodSlice0GameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
@@ -293,6 +304,132 @@ void AKodSlice0GameMode::MuteGreyboxProxyCollision()
 	}
 }
 
+static void ApplySc2Look(UWorld* World)
+{
+	if (!World)
+	{
+		return;
+	}
+	auto SetCVar = [](const TCHAR* Name, int32 Value)
+	{
+		if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(Name))
+		{
+			CVar->Set(Value, ECVF_SetByCode);
+		}
+	};
+	SetCVar(TEXT("r.DynamicGlobalIlluminationMethod"), 0);
+	SetCVar(TEXT("r.ReflectionMethod"), 0);
+	SetCVar(TEXT("r.DefaultFeature.MotionBlur"), 0);
+	bool bHavePost = false;
+	for (TActorIterator<APostProcessVolume> It(World); It; ++It)
+	{
+		bHavePost = true;
+		break;
+	}
+	if (!bHavePost)
+	{
+		APostProcessVolume* Volume = World->SpawnActor<APostProcessVolume>();
+		if (Volume)
+		{
+			Volume->bUnbound = true;
+			FPostProcessSettings& Settings = Volume->Settings;
+			Settings.bOverride_AutoExposureMethod = true;
+			Settings.AutoExposureMethod = AEM_Manual;
+			Settings.bOverride_AutoExposureBias = true;
+			Settings.AutoExposureBias = 1.f;
+			Settings.bOverride_AutoExposureMinBrightness = true;
+			Settings.bOverride_AutoExposureMaxBrightness = true;
+			Settings.AutoExposureMinBrightness = 1.f;
+			Settings.AutoExposureMaxBrightness = 1.f;
+			Settings.bOverride_BloomIntensity = true;
+			Settings.BloomIntensity = 0.6f;
+			Settings.bOverride_BloomThreshold = true;
+			Settings.BloomThreshold = 1.f;
+			Settings.bOverride_VignetteIntensity = true;
+			Settings.VignetteIntensity = 0.3f;
+			Settings.bOverride_ColorContrast = true;
+			Settings.ColorContrast = FVector4(1.05f, 1.05f, 1.05f, 1.f);
+			Settings.bOverride_ColorSaturation = true;
+			Settings.ColorSaturation = FVector4(0.9f, 0.9f, 0.9f, 1.f);
+			Settings.bOverride_MotionBlurAmount = true;
+			Settings.MotionBlurAmount = 0.f;
+			Settings.bOverride_FilmGrainIntensity = true;
+			Settings.FilmGrainIntensity = 0.f;
+		}
+	}
+	bool bHaveSun = false;
+	for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+	{
+		bHaveSun = true;
+		if (UDirectionalLightComponent* Light = Cast<UDirectionalLightComponent>(It->GetLightComponent()))
+		{
+			Light->SetMobility(EComponentMobility::Movable);
+			Light->SetIntensity(4.f);
+			Light->SetTemperature(6500.f);
+			Light->SetUseTemperature(true);
+		}
+		break;
+	}
+	if (!bHaveSun)
+	{
+		ADirectionalLight* Sun = World->SpawnActor<ADirectionalLight>(ADirectionalLight::StaticClass(), FTransform(FRotator(-45.f, 35.f, 0.f)));
+		if (Sun)
+		{
+			if (UDirectionalLightComponent* Light = Cast<UDirectionalLightComponent>(Sun->GetLightComponent()))
+			{
+				Light->SetMobility(EComponentMobility::Movable);
+				Light->SetIntensity(4.f);
+				Light->SetTemperature(6500.f);
+				Light->SetUseTemperature(true);
+				Light->SetAtmosphereSunLight(true);
+			}
+		}
+	}
+	bool bHaveSky = false;
+	for (TActorIterator<ASkyLight> It(World); It; ++It)
+	{
+		bHaveSky = true;
+		if (USkyLightComponent* Sky = It->GetLightComponent())
+		{
+			Sky->SetMobility(EComponentMobility::Movable);
+			Sky->SetIntensity(0.4f);
+			Sky->SetLightColor(FLinearColor(0.55f, 0.62f, 0.72f));
+		}
+		break;
+	}
+	if (!bHaveSky)
+	{
+		ASkyLight* SkyActor = World->SpawnActor<ASkyLight>();
+		if (SkyActor)
+		{
+			if (USkyLightComponent* Sky = SkyActor->GetLightComponent())
+			{
+				Sky->SetMobility(EComponentMobility::Movable);
+				Sky->SetIntensity(0.4f);
+				Sky->SetLightColor(FLinearColor(0.55f, 0.62f, 0.72f));
+			}
+		}
+	}
+	bool bHaveFog = false;
+	for (TActorIterator<AExponentialHeightFog> It(World); It; ++It)
+	{
+		bHaveFog = true;
+		break;
+	}
+	if (!bHaveFog)
+	{
+		AExponentialHeightFog* Fog = World->SpawnActor<AExponentialHeightFog>();
+		if (Fog && Fog->GetComponent())
+		{
+			UExponentialHeightFogComponent* FogComp = Fog->GetComponent();
+			FogComp->SetFogDensity(0.015f);
+			FogComp->SetFogHeightFalloff(0.2f);
+			FogComp->SetFogInscatteringColor(FLinearColor(0.45f, 0.5f, 0.58f));
+			FogComp->SetVolumetricFog(false);
+		}
+	}
+}
+
 void AKodSlice0GameMode::StartPlay()
 {
 	Super::StartPlay();
@@ -306,6 +443,7 @@ void AKodSlice0GameMode::StartPlay()
 
 	// Placed greybox has already run BeginPlay. Mute before the smoke Ranger spawn.
 	MuteGreyboxProxyCollision();
+	ApplySc2Look(GetWorld());
 	ApplyStartingResources();
 
 	UKodSlice0Bootstrap::EnsureCatalog(this);
@@ -364,6 +502,22 @@ void AKodSlice0GameMode::StartPlay()
 				{
 					Sim->RegisterUnitAbility(Spec.UnitId, Stim->ToSpec());
 				}
+			}
+			if (const UKodUnitDefinition* Scinder = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_ScinderInfantry), this))
+			{
+				RegisterUnit(Scinder, FName(KodWardenPaths::Id_ScinderInfantry), FName(TEXT("Scinder Infantry")));
+			}
+			if (const UKodUnitDefinition* Fighter = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_ScnFighter), this))
+			{
+				RegisterUnit(Fighter, FName(KodWardenPaths::Id_ScnFighter), FName(TEXT("Fighter")));
+			}
+			if (const UKodUnitDefinition* Blade = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_ScnTwinblade), this))
+			{
+				RegisterUnit(Blade, FName(KodWardenPaths::Id_ScnTwinblade), FName(TEXT("Twin-blade")));
+			}
+			if (const UKodUnitDefinition* ScnWorker = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_ScnWorker), this))
+			{
+				RegisterUnit(ScnWorker, FName(KodWardenPaths::Id_ScnWorker), FName(TEXT("Worker")));
 			}
 			auto RegisterBuild = [Sim, this](const TCHAR* TypeId, const TArray<FName>& Trains)
 			{
@@ -524,12 +678,25 @@ void AKodSlice0GameMode::StartPlay()
 	}
 
 	// Nodes and workers seat off the command center after it has moved.
+	const bool bFaultline = KodFaultline::IsTrainingMap(GetWorld());
+	if (bFaultline)
+	{
+		PlayableCells = 112;
+	}
 	PublishPlayableBounds();
-	SeatPlayerBase();
-	SpawnResourceField();
-	SpawnWorkersIfNeeded();
-	SpawnAiOpponent();
-	PlaceExpansionFields();
+	if (bFaultline)
+	{
+		KodFaultline::Begin(GetWorld());
+		SpawnWorkersIfNeeded();
+	}
+	else
+	{
+		SeatPlayerBase();
+		SpawnResourceField();
+		SpawnWorkersIfNeeded();
+		SpawnAiOpponent();
+		PlaceExpansionFields();
+	}
 	if (UWorld* InsetWorld = GetWorld())
 	{
 		if (UKodSimSubsystem* InsetSim = InsetWorld->GetSubsystem<UKodSimSubsystem>())
