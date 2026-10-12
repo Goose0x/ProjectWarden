@@ -91,6 +91,10 @@ void UKodSimSubsystem::StepAbilities()
 		{
 			continue;
 		}
+		if (bCheatNoCooldown && State->TeamId == 0)
+		{
+			State->AbilityCooldownTicks = 0;
+		}
 		if (State->AbilityCooldownTicks > 0)
 		{
 			--State->AbilityCooldownTicks;

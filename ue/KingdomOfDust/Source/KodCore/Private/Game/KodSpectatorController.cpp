@@ -30,9 +30,9 @@ void AKodSpectatorController::BeginPlay()
 	bShowMouseCursor = true;
 }
 
-void AKodSpectatorController::BuildHiddenComponentList(const FVector& ViewLocation, TSet<FPrimitiveComponentId>& HiddenComponents)
+void AKodSpectatorController::UpdateHiddenComponents(const FVector& ViewLocation, TSet<FPrimitiveComponentId>& HiddenComponents)
 {
-	Super::BuildHiddenComponentList(ViewLocation, HiddenComponents);
+	Super::UpdateHiddenComponents(ViewLocation, HiddenComponents);
 	if (const AKodHUD* HUD = Cast<AKodHUD>(GetHUD()))
 	{
 		if (const AKodPortraitStage* Stage = HUD->GetPortraitStage())

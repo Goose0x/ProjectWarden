@@ -164,7 +164,7 @@ void AKodPortraitStage::AppendHiddenPrimitives(TSet<FPrimitiveComponentId>& Out)
 	{
 		if (Prim)
 		{
-			Out.Add(Prim->ComponentId);
+			Out.Add(Prim->GetPrimitiveSceneId());
 		}
 	}
 }

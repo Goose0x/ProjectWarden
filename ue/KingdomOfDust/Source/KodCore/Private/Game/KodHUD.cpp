@@ -86,6 +86,13 @@ void AKodHUD::DrawHUD()
 	DrawSelectionMarquee();
 	DrawHotkeyLegend();
 	DrawShellMenus();
+	if (bChatOpen && Canvas)
+	{
+		UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+		const FString Line = FString::Printf(TEXT("> %s_"), *ChatLine);
+		DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.9f), 16.f, Canvas->SizeY - 36.f, 640.f, 28.f);
+		DrawText(Line, FLinearColor(0.9f, 0.95f, 0.7f, 1.f), 24.f, Canvas->SizeY - 32.f, Font, 1.f, false);
+	}
 }
 
 void AKodHUD::AddMinimapPing(const FVector& WorldPoint)
@@ -1535,6 +1542,10 @@ void AKodHUD::DrawMatchOutcome()
 	const FLinearColor Ink = bVictory ? FLinearColor(0.55f, 0.9f, 0.45f, 1.f) : FLinearColor(0.95f, 0.28f, 0.22f, 1.f);
 	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.9f), X - 24.f, Y - 12.f, Width + 48.f, Height + 24.f);
 	DrawText(Line, Ink, X, Y, Font, Scale, false);
+	if (Sim->IsMatchCheated())
+	{
+		DrawText(TEXT("CHEATED"), FLinearColor(0.95f, 0.75f, 0.2f, 1.f), X, Y + Height + 8.f, Font, 1.f, false);
+	}
 }
 
 void AKodHUD::DrawResourceFlash()
@@ -1812,6 +1823,52 @@ void AKodHUD::SetMenuPage(int32 Page)
 	MenuPage = Page;
 }
 
+void AKodHUD::OpenChat()
+{
+	bChatOpen = true;
+	ChatLine.Reset();
+}
+
+void AKodHUD::CloseChat()
+{
+	bChatOpen = false;
+	ChatLine.Reset();
+}
+
+void AKodHUD::AppendChatText(const FString& Text)
+{
+	if (ChatLine.Len() < 80)
+	{
+		ChatLine += Text;
+	}
+}
+
+void AKodHUD::BackspaceChat()
+{
+	if (ChatLine.Len() > 0)
+	{
+		ChatLine.LeftChopInline(1);
+	}
+}
+
+void AKodHUD::SubmitChat()
+{
+	const FString Line = ChatLine;
+	bChatOpen = false;
+	ChatLine.Reset();
+	if (Line.IsEmpty())
+	{
+		return;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			Sim->ApplyCheatLine(Line);
+		}
+	}
+}
+
 void AKodHUD::HandleMenuChoice(int32 Choice)
 {
 	UWorld* World = GetWorld();
@@ -1843,11 +1900,11 @@ void AKodHUD::HandleMenuChoice(int32 Choice)
 	}
 	else if (Choice == 4 && World)
 	{
-		UGameplayStatics::OpenLevel(World, FName(*World->GetName()));
+		UGameplayStatics::OpenLevel(World, FName(*UGameplayStatics::GetCurrentLevelName(World, true)));
 	}
 	else if (Choice == 5 && World)
 	{
-		UGameplayStatics::OpenLevel(World, FName(*World->GetName()), true, TEXT("Menu=1"));
+		UGameplayStatics::OpenLevel(World, FName(*UGameplayStatics::GetCurrentLevelName(World, true)), true, TEXT("Menu=1"));
 	}
 	else if (Choice == 6)
 	{
@@ -1860,11 +1917,14 @@ void AKodHUD::HandleMenuChoice(int32 Choice)
 	}
 	else if (Choice == 8 && World)
 	{
-		UGameplayStatics::OpenLevel(World, FName(*World->GetName()));
+		UGameplayStatics::OpenLevel(World, FName(*UGameplayStatics::GetCurrentLevelName(World, true)));
 	}
 	else if (Choice == 9)
 	{
-		UKismetSystemLibrary::QuitGame(World, GetOwningPlayerController(), EQuitPreference::Quit, false);
+		if (APlayerController* PC = GetOwningPlayerController())
+		{
+			PC->ConsoleCommand(TEXT("Quit"));
+		}
 	}
 	else if (Choice >= 10 && Choice <= 12 && Sim)
 	{
@@ -1948,6 +2008,10 @@ void AKodHUD::HandleMenuChoice(int32 Choice)
 	{
 		Sim->SetExposedRule(!Sim->IsExposedRuleEnabled());
 	}
+	else if (Choice == 51 && Sim)
+	{
+		Sim->SetCompetitive(!Sim->IsCompetitive());
+	}
 }
 
 void AKodHUD::DrawShellMenus()
@@ -2022,6 +2086,7 @@ void AKodHUD::DrawShellMenus()
 		Button(X, Y, W, Settings->bShowHotkeyGrid ? TEXT("Hotkey grid On") : TEXT("Hotkey grid Off"), 48); Y += 40.f * Scale;
 		Button(X, Y, W, FString::Printf(TEXT("Graphics %d"), Settings->GraphicsQuality), 49); Y += 40.f * Scale;
 		Button(X, Y, W, Sim && Sim->IsExposedRuleEnabled() ? TEXT("Exposed rule On") : TEXT("Exposed rule Off"), 50); Y += 40.f * Scale;
+		Button(X, Y, W, Sim && Sim->IsCompetitive() ? TEXT("Competitive On") : TEXT("Competitive Off"), 51); Y += 40.f * Scale;
 		Button(X, Y, W, TEXT("Back"), 30);
 	}
 	else if (MenuPage == 6)
@@ -2029,6 +2094,11 @@ void AKodHUD::DrawShellMenus()
 		const bool bVictory = Sim && Sim->GetMatchOutcome() == EKodMatchOutcome::Victory;
 		DrawText(bVictory ? TEXT("VICTORY") : TEXT("DEFEAT"), bVictory ? FLinearColor(0.55f, 0.9f, 0.45f, 1.f) : FLinearColor(0.95f, 0.28f, 0.22f, 1.f), X, Y, Font, 1.6f * Scale, false);
 		Y += 56.f * Scale;
+		if (Sim && Sim->IsMatchCheated())
+		{
+			DrawText(TEXT("CHEATED"), FLinearColor(0.95f, 0.75f, 0.2f, 1.f), X, Y, Font, Scale, false);
+			Y += 36.f * Scale;
+		}
 		Button(X, Y, W, TEXT("Continue Watching"), 6); Y += 44.f * Scale;
 		Button(X, Y, W, TEXT("Score Screen"), 7); Y += 44.f * Scale;
 		Button(X, Y, W, TEXT("Restart Skirmish"), 4); Y += 44.f * Scale;
@@ -2047,6 +2117,11 @@ void AKodHUD::DrawShellMenus()
 		const TCHAR* Tabs[] = { TEXT("Overview"), TEXT("Production"), TEXT("Army"), TEXT("Income") };
 		DrawText(TEXT("Results"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X, Y, Font, 1.2f * Scale, false);
 		Y += 40.f * Scale;
+		if (Sim->IsMatchCheated())
+		{
+			DrawText(TEXT("CHEATED"), FLinearColor(0.95f, 0.75f, 0.2f, 1.f), X, Y, Font, Scale, false);
+			Y += 32.f * Scale;
+		}
 		for (int32 Tab = 0; Tab < 4; ++Tab)
 		{
 			Button(X + Tab * (W / 4.f), Y, W / 4.f - 4.f, Tabs[Tab], 20 + Tab);

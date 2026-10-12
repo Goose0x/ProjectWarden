@@ -69,4 +69,6 @@ struct KODCORE_API FKodPendingBuildingSpawn
 	int32 FootprintX = 1;
 	int32 FootprintY = 1;
 	int32 YawDegrees = 0;
+	/** Nonzero when a save load is respawning this structure id. */
+	int32 RestoreId = 0;
 };

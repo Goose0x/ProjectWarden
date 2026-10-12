@@ -243,6 +243,10 @@ void UKodSimSubsystem::CompleteCurrentOrder(FKodSimEntityState& State, float Fix
 
 bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntityState& Target)
 {
+	if (bCheatInvincible && Target.TeamId == 0)
+	{
+		return false;
+	}
 	if (State.CooldownTicksRemaining > 0 || State.WeaponDamage <= 0.f)
 	{
 		return false;
@@ -294,6 +298,23 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 		}
 	}
 	const float Dealt = FMath::Max(0.5f, State.WeaponDamage + static_cast<float>(WeaponBonus) - static_cast<float>(Armor));
+	const int32 DealtInt = FMath::Max(1, FMath::RoundToInt(Dealt));
+	if (AttackerTeam == 0)
+	{
+		DamageDealt0 += DealtInt;
+	}
+	else
+	{
+		DamageDealt1 += DealtInt;
+	}
+	if (Target.TeamId == 0)
+	{
+		DamageTaken0 += DealtInt;
+	}
+	else
+	{
+		DamageTaken1 += DealtInt;
+	}
 	Target.Health = FMath::Max(0.f, Target.Health - Dealt);
 	if (State.DefinitionId == FName(TEXT("Ranger")))
 	{
@@ -308,7 +329,9 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 		RaiseCue(FName(TEXT("units_under_attack")), Target.Position, false);
 	}
 	const int32 AttackPermille = FMath::Clamp(State.AbilityAttackPermille, 1, 10000);
-	const int32 ScaledTicks = FMath::Max(1, (FMath::Max(1, State.WeaponCooldownTicks) * 1000) / AttackPermille);
+	const int32 ScaledTicks = (bCheatNoCooldown && AttackerTeam == 0)
+		? 0
+		: FMath::Max(1, (FMath::Max(1, State.WeaponCooldownTicks) * 1000) / AttackPermille);
 	State.CooldownTicksRemaining = ScaledTicks;
 	State.CooldownRemaining = static_cast<float>(ScaledTicks) * KodBuildTicks::SimDt;
 	const float HealthLeft = Target.Health;

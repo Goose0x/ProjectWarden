@@ -239,7 +239,8 @@ void UKodSimSubsystem::TryStartProduction(FKodStructureState& Structure)
 	}
 	FKodProductionSlot& Slot = Structure.Slots[0];
 	const FKodSupplyState& Row = Supply.FindOrAdd(Structure.TeamId);
-	if (Row.Used + FMath::Max(0, Slot.Supply) > Row.Cap)
+	const bool bIgnoreSupply = bCheatNoSupply && Structure.TeamId == 0;
+	if (!bIgnoreSupply && Row.Used + FMath::Max(0, Slot.Supply) > Row.Cap)
 	{
 		if (!Structure.bSupplyBlocked)
 		{
@@ -443,6 +444,10 @@ void UKodSimSubsystem::StepProduction()
 		{
 			TryStartProduction(*Structure);
 			continue;
+		}
+		if (bCheatInstantBuild && Structure->TeamId == 0 && Structure->ActiveTicksRemaining > 1)
+		{
+			Structure->ActiveTicksRemaining = 1;
 		}
 		if (Structure->ActiveTicksRemaining > 0)
 		{

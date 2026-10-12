@@ -659,6 +659,28 @@ KodExposed Warn Team=0
 KodExposed Start Team=0
 ```
 
+## B12 — cheats, balance, tests, AI
+
+UE 5.8 hides the portrait stage with `UpdateHiddenComponents` and `GetPrimitiveSceneId`. Load rebuilds the entity set from the save (destroy extras, respawn missing, then import) and logs the same hash. The AI places a second command center before the exposed timer. The margin shrinks from Easy to Elite. Stat samples keep the last 30 minutes at full resolution and downsample older ones. Restart and Quit use the map name with the PIE prefix stripped. Quit sends the `Quit` console command so PIE returns to the editor.
+
+Enter opens the chat line. `kod.Cheat` accepts `invincible`, `add credits`, `add luminene`, `instant build`, `no supply cap`, `reveal map`, and `no cooldown`. Any accepted cheat flags the match. The results screen draws `CHEATED`. `kod.Competitive 1` (and the settings toggle) refuses cheats.
+
+Abilities, units, weapons, structures, and upgrades are runtime `UDataTable` rows. Defaults are the bootstrap integers. `kod.Balance Unit Ranger MaxHealth 200` retunes without a recompile. Those integers are hashed.
+
+`kod.Test marines|stim|bunker [runs] [seed]` runs a seeded headless fight and writes CSV and JSON under `Saved/KodTests`. `kod.TestSummary` prints them. The live match is restored afterward.
+
+AI difficulties are Easy, Medium, Hard, and Elite. It reacts to scouts, compares army value before a wave, retreats when behind, expands, and on Medium and above trains Medics and researches infantry weapons. Opener results are stored in `SaveGames/KodAIMemory` and weight the next match. The choice is seeded.
+
+```
+KodLoad Slot=1 HashBefore=... HashAfter=...
+KodCheat Credits=500
+KodBalance Table=Unit Row=Ranger Field=MaxHealth Value=200
+KodTest Scenario=marines Run=0 Seed=1 Winner=0 Time=... Hash=...
+KodAI Opener=SafeExpand
+KodAI Expand Tick=...
+KodAI Memory Opener=SafeExpand Wins=1 Losses=0
+```
+
 ## Camera — SC2 player view
 
 `AKodRTSCameraPawn` is the player camera. Pitch **-56°**, yaw **0** (looks north), vertical FOV **42** (horizontal FOV follows the window). The pawn is the ground look-at point. Default arm length **3600** (about 20 SC2 cells of ground at 200 uu, zoom clamped **2400–5200**). All of those are `Config` on the class.
@@ -697,6 +719,7 @@ KodCam Spectate=1
 - [ ] M6 canvas. The bottom-left minimap shows the playable box, jade and yellow-green nodes, team dots, structure rectangles, and a white camera trapezoid. Left-drag jumps the camera. Right-click logs `Minimap Order` (attack-move for Marines, move for AMPs). An idle-worker button and F1 cycle idle AMPs. One selected unit shows name, HP, Stim, and order; several show up to 24 tiles (click, Shift-click, Ctrl-click). The portrait is a letter. Ctrl+1 sets a group, 1 selects it, double-tap centres, and the tab shows the count. Supply turns red when it is blocked. Tab swaps the command card when Marines and AMPs are both selected.
 - [ ] B10 wireframe and portrait. One Marine shows a zoned wireframe that turns yellow then red as it takes damage, always in the same zone order. Two control groups selected list every member, and page tabs appear after 24. The portrait is a lit 3D bust. Double-click it centres the camera. A left-side line says `Base under attack` and pings the minimap. Space jumps there. A second hit within 4 seconds does not add another attack line. **T** with the advanced menu open logs a Turret placement and does not log Stim. `kod.Spectate 1` shows a top-left production list and a two-team resource bar. A missing cue logs `KodCue Missing` once.
 - [ ] B9 structures and tech. **B** opens CC, Depot, Barracks, Rig, Engineering Bay, and Bunker. **V** opens Turret and two grey slots. Barracks stays grey with `Requires SupplyDepot` until a Depot finishes. A CC ghost within 3 cells of a mineral or vent is red and the centre flash says `Can't build here, location is blocked`. **R** on a Depot logs `KodBuild Depot` and units can walk that footprint. A Barracks with an Engineering Bay trains a Medic. The selection panel shows an energy bar. Engineering Bay **Weapons** / **Armor** log `KodResearch Complete`. A bunker loads a Marine, the Marine fires from inside, and killing the bunker pops the Marine out. A loaded worker shows a jade cube or a yellow-green cylinder. Missing `/Game/Audio/TEMP/CoreLoop/` cues stay silent.
+- [ ] B12. Save slot 1, kill a Marine, load slot 1. `KodLoad` HashBefore equals HashAfter. The dead Marine is back and anything trained after the save is gone. The AI on Easy through Elite starts a second command center before 6:00. `kod.ExposedTime 120` makes that sooner. After a long match the score samples stay bounded. F10 Restart reloads `L_Slice0` from PIE. Quit returns to the editor. Enter, then `add credits 500`, adds credits and the results screen says `CHEATED`. `kod.Competitive 1` then `kod.Cheat invincible` logs `KodCheat Refused`. `kod.Balance Unit Ranger MaxHealth 200` changes Marine HP. `kod.Test marines 2 1` writes two files under `Saved/KodTests` with the same hash. `kod.TestSummary` prints them. `kod.AIDifficulty Elite` logs `Name=Elite`. A finished match writes `SaveGames/KodAIMemory`.
 - [ ] B7.1 and B8. **S** with a CC and Marines selected logs a train and `KodOrder Stop` on the Marines. A unit pushed into a footprint leaves it in one tick. A long fight can log `KodPath Replan`. Stim on your own Marine flashes the body and does not ping the minimap alert. Unexplored ground is dark on the world and the minimap; walking a Marine turns those cells clear and leaves a dim explored trail. An enemy Marine outside that trail is hidden and is not auto-acquired. An explicit attack on a unit that walks into fog logs `KodOrder FogChase` and keeps moving to the last-seen point. A seen enemy structure stays as a faded minimap mark after you look away. PIE logs `KodAI Scout` once, toward the player start. A wave with no visible enemy base logs `KodAI Wave` with a destination at the last-seen structure or the player start, and those Marines attack-move there. The six buttons beside the minimap log `KodMap Layer=`. Alt+click on the minimap logs `KodMap Ping` and draws a cross. Health bars are green, yellow, or red with segment ticks, and holding Alt shows every visible bar. The top-centre clock reads mm:ss from the sim tick.
 
 ## Blockers

@@ -1,4 +1,5 @@
 #include "Game/KodPlayerController.h"
+#include "Misc/Char.h"
 #include "Components/PrimitiveComponent.h"
 #include "Game/KodHUD.h"
 #include "Game/KodPortraitStage.h"
@@ -110,9 +111,9 @@ void AKodPlayerController::SetupInputComponent()
 	// Fallback: PlayerTick polls mouse buttons for Slice 0 greybox PIE.
 }
 
-void AKodPlayerController::BuildHiddenComponentList(const FVector& ViewLocation, TSet<FPrimitiveComponentId>& HiddenComponents)
+void AKodPlayerController::UpdateHiddenComponents(const FVector& ViewLocation, TSet<FPrimitiveComponentId>& HiddenComponents)
 {
-	Super::BuildHiddenComponentList(ViewLocation, HiddenComponents);
+	Super::UpdateHiddenComponents(ViewLocation, HiddenComponents);
 	if (const AKodHUD* HUD = Cast<AKodHUD>(GetHUD()))
 	{
 		if (const AKodPortraitStage* Stage = HUD->GetPortraitStage())
@@ -125,6 +126,67 @@ void AKodPlayerController::BuildHiddenComponentList(const FVector& ViewLocation,
 void AKodPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
+	if (AKodHUD* ChatHUD = Cast<AKodHUD>(GetHUD()))
+	{
+		if (ChatHUD->IsChatOpen())
+		{
+			if (WasInputKeyJustPressed(EKeys::Escape))
+			{
+				ChatHUD->CloseChat();
+				return;
+			}
+			if (WasInputKeyJustPressed(EKeys::Enter))
+			{
+				ChatHUD->SubmitChat();
+				return;
+			}
+			if (WasInputKeyJustPressed(EKeys::BackSpace))
+			{
+				ChatHUD->BackspaceChat();
+				return;
+			}
+			if (WasInputKeyJustPressed(EKeys::SpaceBar))
+			{
+				ChatHUD->AppendChatText(TEXT(" "));
+				return;
+			}
+			const FKey Keys[] = {
+				EKeys::A, EKeys::B, EKeys::C, EKeys::D, EKeys::E, EKeys::F, EKeys::G, EKeys::H, EKeys::I, EKeys::J,
+				EKeys::K, EKeys::L, EKeys::M, EKeys::N, EKeys::O, EKeys::P, EKeys::Q, EKeys::R, EKeys::S, EKeys::T,
+				EKeys::U, EKeys::V, EKeys::W, EKeys::X, EKeys::Y, EKeys::Z
+			};
+			const TCHAR* Letters = TEXT("abcdefghijklmnopqrstuvwxyz");
+			for (int32 Index = 0; Index < UE_ARRAY_COUNT(Keys); ++Index)
+			{
+				if (WasInputKeyJustPressed(Keys[Index]))
+				{
+					const bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
+					FString Glyph;
+					Glyph.AppendChar(bShift ? FChar::ToUpper(Letters[Index]) : Letters[Index]);
+					ChatHUD->AppendChatText(Glyph);
+					return;
+				}
+			}
+			const FKey Digits[] = {
+				EKeys::Zero, EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four,
+				EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine
+			};
+			for (int32 Index = 0; Index < UE_ARRAY_COUNT(Digits); ++Index)
+			{
+				if (WasInputKeyJustPressed(Digits[Index]))
+				{
+					ChatHUD->AppendChatText(FString::FromInt(Index));
+					return;
+				}
+			}
+			return;
+		}
+		if (WasInputKeyJustPressed(EKeys::Enter) && !ChatHUD->IsMenuOpen())
+		{
+			ChatHUD->OpenChat();
+			return;
+		}
+	}
 	if (WasInputKeyJustPressed(EKeys::F10) || WasInputKeyJustPressed(EKeys::Escape))
 	{
 		if (AKodHUD* MenuHUD = Cast<AKodHUD>(GetHUD()))

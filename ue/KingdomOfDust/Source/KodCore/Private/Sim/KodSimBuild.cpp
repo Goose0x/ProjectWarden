@@ -762,7 +762,16 @@ void UKodSimSubsystem::StepConstruction()
 		const bool bPresent = Builder && Builder->Health > 0.f && Builder->BuildSite.Value == Structure->Id.Value;
 		const float Dist = bPresent ? FVector::Dist2D(Builder->Position, Structure->StandPoint) : MAX_flt;
 		const bool bAtSite = bPresent && Dist <= 180.f;
-		if (!bAtSite)
+		const bool bInstant = bCheatInstantBuild && Structure->TeamId == 0;
+		if (bInstant)
+		{
+			Structure->BuildTicksDone = Structure->BuildTimeTotal;
+			if (FKodSimEntityState* Combat = States.Find(Structure->Id.Value))
+			{
+				Combat->Health = FMath::Max(Combat->Health, Combat->MaxHealth);
+			}
+		}
+		if (!bAtSite && !bInstant)
 		{
 			Structure->bActivelyBuilding = false;
 			continue;

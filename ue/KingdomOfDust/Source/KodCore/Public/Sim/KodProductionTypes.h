@@ -133,4 +133,6 @@ struct KODCORE_API FKodPendingUnitSpawn
 	FKodEntityId RallyNode;
 	bool bRallyNode = false;
 	FKodEntityId RallyUnit;
+	/** Nonzero when a save load is respawning this id. 0 is a normal train. */
+	int32 RestoreId = 0;
 };

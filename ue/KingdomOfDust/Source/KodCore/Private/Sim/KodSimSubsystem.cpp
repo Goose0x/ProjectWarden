@@ -55,6 +55,30 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	VisionWidth = 0;
 	VisionHeight = 0;
 	NextPathId = 1;
+	Samples0.Reset();
+	Samples1.Reset();
+	OlderSamples0.Reset();
+	OlderSamples1.Reset();
+	Totals0 = FKodTeamTotals();
+	Totals1 = FKodTeamTotals();
+	bMatchCheated = false;
+	bCompetitive = false;
+	bCheatInvincible = false;
+	bCheatInstantBuild = false;
+	bCheatNoSupply = false;
+	bCheatReveal = false;
+	bCheatNoCooldown = false;
+	DamageDealt0 = 0;
+	DamageDealt1 = 0;
+	DamageTaken0 = 0;
+	DamageTaken1 = 0;
+	AiOpener = 0;
+	bAiOpenerChosen = false;
+	bScoutSawEnemy = false;
+	bAiRetreating = false;
+	bAiMemoryWritten = false;
+	bTestIsolation = false;
+	EnsureBalanceTables();
 	SimHz = KodBuildTicks::SimHz;
 	MaxCatchUpSteps = KodBuildTicks::MaxCatchUpSteps;
 	SetTeamBank(0, StartingJadeite, StartingLuminene);
@@ -171,6 +195,11 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 		if (!State)
 		{
 			continue;
+		}
+		if (bCheatNoCooldown && State->TeamId == 0)
+		{
+			State->CooldownTicksRemaining = 0;
+			State->AbilityCooldownTicks = 0;
 		}
 		if (State->CooldownTicksRemaining > 0)
 		{
@@ -2283,6 +2312,34 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	};
 	AppendSamples(Samples0);
 	AppendSamples(Samples1);
+	AppendSamples(OlderSamples0);
+	AppendSamples(OlderSamples1);
+	const uint8 Cheated = bMatchCheated ? 1 : 0;
+	const uint8 Competitive = bCompetitive ? 1 : 0;
+	const uint8 Invincible = bCheatInvincible ? 1 : 0;
+	const uint8 Instant = bCheatInstantBuild ? 1 : 0;
+	const uint8 NoSupply = bCheatNoSupply ? 1 : 0;
+	const uint8 Reveal = bCheatReveal ? 1 : 0;
+	const uint8 NoCooldown = bCheatNoCooldown ? 1 : 0;
+	Append(&Cheated, sizeof(Cheated));
+	Append(&Competitive, sizeof(Competitive));
+	Append(&Invincible, sizeof(Invincible));
+	Append(&Instant, sizeof(Instant));
+	Append(&NoSupply, sizeof(NoSupply));
+	Append(&Reveal, sizeof(Reveal));
+	Append(&NoCooldown, sizeof(NoCooldown));
+	Append(&DamageDealt0, sizeof(DamageDealt0));
+	Append(&DamageDealt1, sizeof(DamageDealt1));
+	Append(&DamageTaken0, sizeof(DamageTaken0));
+	Append(&DamageTaken1, sizeof(DamageTaken1));
+	Append(&AiOpener, sizeof(AiOpener));
+	const uint8 OpenerChosen = bAiOpenerChosen ? 1 : 0;
+	const uint8 ScoutSaw = bScoutSawEnemy ? 1 : 0;
+	const uint8 Retreating = bAiRetreating ? 1 : 0;
+	Append(&OpenerChosen, sizeof(OpenerChosen));
+	Append(&ScoutSaw, sizeof(ScoutSaw));
+	Append(&Retreating, sizeof(Retreating));
+	AppendBalanceHash(Bytes);
 
 	const uint64 Hash = Bytes.Num() > 0
 		? CityHash64(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num())

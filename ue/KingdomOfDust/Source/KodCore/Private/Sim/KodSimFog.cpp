@@ -76,6 +76,10 @@ bool UKodSimSubsystem::CanTeamSeeWorld(int32 TeamId, float WorldX, float WorldY)
 	{
 		return true;
 	}
+	if (bCheatReveal && TeamId == 0)
+	{
+		return true;
+	}
 	return GetTeamVision(TeamId, WorldX, WorldY) == VisionVisible;
 }
 

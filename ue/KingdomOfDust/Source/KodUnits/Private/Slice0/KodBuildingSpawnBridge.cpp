@@ -4,6 +4,7 @@
 #include "Data/KodBuildingDefinition.h"
 #include "Engine/World.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Sim/KodEntityId.h"
 #include "Slice0/KodSlice0Bootstrap.h"
 
 void UKodBuildingSpawnBridge::Tick(float DeltaTime)
@@ -43,7 +44,21 @@ void UKodBuildingSpawnBridge::Tick(float DeltaTime)
 		{
 			Building->Definition = Def;
 		}
+		FKodSimEntityState Kept;
+		const bool bRestore = Request.RestoreId > 0;
+		if (bRestore)
+		{
+			FKodEntityId Existing;
+			Existing.Value = Request.StructureId;
+			Sim->TryGetState(Existing, Kept);
+		}
 		Building->FinishSpawning(Xform);
+		if (bRestore)
+		{
+			Sim->RestoreImportedState(Building->EntityId, Kept);
+			Sim->AttachRestoredActor(Building->EntityId, Building);
+			UE_LOG(LogTemp, Log, TEXT("KodLoad Spawned=%s Id=%d"), *Building->GetName(), Building->EntityId.Value);
+		}
 	}
 }
 
