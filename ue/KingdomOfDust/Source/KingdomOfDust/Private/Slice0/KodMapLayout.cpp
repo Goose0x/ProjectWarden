@@ -214,9 +214,9 @@ void KodMapLayout::Load(UWorld* World)
 			if (Actor)
 			{
 				TagActor(Actor, Tag.IsEmpty() ? FString(TEXT("KodDestructible")) : Tag);
-				USceneComponent* Root = NewObject<USceneComponent>(Actor, TEXT("Root"));
-				Actor->SetRootComponent(Root);
-				Root->RegisterComponent();
+				USceneComponent* DestructRoot = NewObject<USceneComponent>(Actor, TEXT("Root"));
+				Actor->SetRootComponent(DestructRoot);
+				DestructRoot->RegisterComponent();
 				Actor->SetActorLocation(Center);
 				Sim->RegisterMapDestructible(Actor, CellX, CellY, CellX + CellW, CellY + CellH, static_cast<float>(HP), FMath::RoundToInt(Armor));
 				++Destructibles;

@@ -12,13 +12,6 @@
 #include "UObject/SoftObjectPath.h"
 #include "Warden/KodWardenPaths.h"
 
-#if WITH_EDITOR
-#include "Materials/Material.h"
-#include "Materials/Material.h"
-#include "Materials/MaterialExpressionScalarParameter.h"
-#include "Materials/MaterialExpressionVectorParameter.h"
-#endif
-
 namespace
 {
 	constexpr const TCHAR* BasicShapeMaterialPath = TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial");
@@ -84,77 +77,6 @@ namespace
 			bApplied ? 1 : 0,
 			Param.IsNone() ? TEXT("None") : *Param.ToString());
 	}
-
-#if WITH_EDITOR
-	UMaterial* BuildPlaceholderMaterial(FName Name, const FLinearColor& Tint, float Roughness, float Metallic, bool bUnlit)
-	{
-		UMaterial* Material = NewObject<UMaterial>(GetTransientPackage(), Name, RF_Transient);
-		if (!Material)
-		{
-			return nullptr;
-		}
-		if (!Material->GetUsageByFlag(MATUSAGE_Nanite))
-		{
-			UMaterialInterface* UsageMaterial = Material;
-			UsageMaterial->SetMaterialUsage(MATUSAGE_Nanite);
-		}
-		Material->SetShadingModel(bUnlit ? MSM_Unlit : MSM_DefaultLit);
-		Material->BlendMode = BLEND_Opaque;
-		Material->TwoSided = false;
-
-		UMaterialEditorOnlyData* EditorData = Material->GetEditorOnlyData();
-		if (!EditorData)
-		{
-			return nullptr;
-		}
-
-		UMaterialExpressionVectorParameter* ColorExpr = NewObject<UMaterialExpressionVectorParameter>(Material);
-		ColorExpr->ParameterName = ColorParamName;
-		ColorExpr->DefaultValue = Tint;
-		ColorExpr->Material = Material;
-		EditorData->ExpressionCollection.AddExpression(ColorExpr);
-		EditorData->BaseColor.Connect(0, ColorExpr);
-		if (bUnlit)
-		{
-			// Unlit reads emissive. A saturated color reads as a glow without a scene light.
-			EditorData->EmissiveColor.Connect(0, ColorExpr);
-		}
-
-		UMaterialExpressionScalarParameter* RoughExpr = NewObject<UMaterialExpressionScalarParameter>(Material);
-		RoughExpr->ParameterName = TEXT("Roughness");
-		RoughExpr->DefaultValue = Roughness;
-		RoughExpr->Material = Material;
-		EditorData->ExpressionCollection.AddExpression(RoughExpr);
-		EditorData->Roughness.Connect(0, RoughExpr);
-
-		UMaterialExpressionScalarParameter* MetalExpr = NewObject<UMaterialExpressionScalarParameter>(Material);
-		MetalExpr->ParameterName = TEXT("Metallic");
-		MetalExpr->DefaultValue = Metallic;
-		MetalExpr->Material = Material;
-		EditorData->ExpressionCollection.AddExpression(MetalExpr);
-		EditorData->Metallic.Connect(0, MetalExpr);
-
-		Material->PreEditChange(nullptr);
-		Material->PostEditChange();
-		return Material;
-	}
-
-	UMaterialInterface* GetEditorPlaceholderParent(bool bJadeite)
-	{
-		static TWeakObjectPtr<UMaterial> JadeiteParent;
-		static TWeakObjectPtr<UMaterial> LumineneParent;
-		TWeakObjectPtr<UMaterial>& Slot = bJadeite ? JadeiteParent : LumineneParent;
-		if (UMaterial* Existing = Slot.Get())
-		{
-			return Existing;
-		}
-		UMaterial* Built = bJadeite
-			? BuildPlaceholderMaterial(NAME_None, JadeiteTint, 0.35f, 0.05f, true)
-			: BuildPlaceholderMaterial(NAME_None, LumineneTint, 0.25f, 0.05f, true);
-		Slot = Built;
-		return Built;
-	}
-#endif
 
 	UMaterialInterface* LoadBasicShapeParent()
 	{
@@ -430,7 +352,11 @@ void AKodResourceNode::ApplyJadeiteStandIn()
 	NodeMesh->SetRelativeScale3D(FVector(Scale));
 	NodeMesh->SetRelativeRotation(FRotator(0.f, Yaw, 0.f));
 	NodeMesh->SetRelativeLocation(FVector(0.f, 0.f, Monolith->GetBounds().BoxExtent.Z * Scale));
-	UMaterialInterface* Parent = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Monoliths/MI_T_Monolith_Obsidian.MI_T_Monolith_Obsidian"));
+	UMaterialInterface* Parent = Monolith->GetMaterial(0);
+	if (!Parent)
+	{
+		Parent = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Monoliths/MI_T_Monolith_Obsidian.MI_T_Monolith_Obsidian"));
+	}
 	if (!Parent)
 	{
 		return;
@@ -450,26 +376,12 @@ FName AKodResourceNode::ApplyTint(UStaticMeshComponent* Mesh, const FLinearColor
 		return NAME_None;
 	}
 
-	UMaterialInterface* Parent = nullptr;
-	FName Param = NAME_None;
-
-#if WITH_EDITOR
-	Parent = GetEditorPlaceholderParent(bEmissive);
-	if (Parent)
+	UMaterialInterface* Parent = LoadBasicShapeParent();
+	FName Param = FindColorParam(Parent);
+	if (Param.IsNone() && Mesh->GetMaterial(0))
 	{
-		Param = ColorParamName;
-	}
-#endif
-
-	if (!Parent)
-	{
-		Parent = LoadBasicShapeParent();
+		Parent = Mesh->GetMaterial(0);
 		Param = FindColorParam(Parent);
-		if (Param.IsNone() && Mesh->GetMaterial(0))
-		{
-			Parent = Mesh->GetMaterial(0);
-			Param = FindColorParam(Parent);
-		}
 	}
 
 	if (!Parent || Param.IsNone())
@@ -503,15 +415,6 @@ FName AKodResourceNode::ApplyTint(UStaticMeshComponent* Mesh, const FLinearColor
 			Mesh->MarkRenderStateDirty();
 			bApplied = true;
 		}
-#if WITH_EDITOR
-		else if (Parent->IsA<UMaterial>())
-		{
-			// Color is the material default. Assign the parent if the MID readback is not ready yet.
-			Mesh->SetMaterial(Slot, Parent);
-			Mesh->MarkRenderStateDirty();
-			bApplied = true;
-		}
-#endif
 	}
 
 	return bApplied ? Param : FName();

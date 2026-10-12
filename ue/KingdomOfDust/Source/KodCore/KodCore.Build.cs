@@ -20,7 +20,9 @@ public class KodCore : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Slate",
-			"SlateCore"
+			"SlateCore",
+			"MeshDescription",
+			"StaticMeshDescription"
 		});
 	}
 }

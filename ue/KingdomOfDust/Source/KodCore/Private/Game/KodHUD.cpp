@@ -6,7 +6,15 @@
 #include "Engine/Canvas.h"
 #include "CanvasItem.h"
 #include "Engine/Texture.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/Texture2D.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
+#include "MeshDescription.h"
+#include "Sim/KodBuildTypes.h"
+#include "StaticMeshAttributes.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -422,6 +430,415 @@ void AKodHUD::DrawClickMarkers()
 	}
 }
 
+namespace
+{
+	UTexture2D* MakeTintedRing(const FColor& Color)
+	{
+		constexpr int32 RingTexels = 64;
+		UTexture2D* Tex = UTexture2D::CreateTransient(RingTexels, RingTexels, PF_B8G8R8A8);
+		if (!Tex)
+		{
+			return nullptr;
+		}
+		Tex->SRGB = true;
+		Tex->Filter = TF_Bilinear;
+		Tex->AddressX = TA_Clamp;
+		Tex->AddressY = TA_Clamp;
+		Tex->NeverStream = true;
+		FTexturePlatformData* Platform = Tex->GetPlatformData();
+		if (!Platform || Platform->Mips.Num() == 0)
+		{
+			return nullptr;
+		}
+		uint8* Bits = static_cast<uint8*>(Platform->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+		for (int32 PixelY = 0; PixelY < RingTexels; ++PixelY)
+		{
+			for (int32 PixelX = 0; PixelX < RingTexels; ++PixelX)
+			{
+				const float Dx = ((static_cast<float>(PixelX) + 0.5f) / static_cast<float>(RingTexels)) * 2.f - 1.f;
+				const float Dy = ((static_cast<float>(PixelY) + 0.5f) / static_cast<float>(RingTexels)) * 2.f - 1.f;
+				const float Dist = FMath::Sqrt(Dx * Dx + Dy * Dy);
+				float Band = 0.f;
+				if (Dist >= 0.62f && Dist <= 0.96f)
+				{
+					const float Inner = FMath::Clamp((Dist - 0.62f) / 0.08f, 0.f, 1.f);
+					const float Outer = FMath::Clamp((0.96f - Dist) / 0.08f, 0.f, 1.f);
+					Band = FMath::Min(Inner, Outer);
+				}
+				const int32 Offset = (PixelY * RingTexels + PixelX) * 4;
+				Bits[Offset + 0] = Color.B;
+				Bits[Offset + 1] = Color.G;
+				Bits[Offset + 2] = Color.R;
+				Bits[Offset + 3] = static_cast<uint8>(FMath::RoundToInt(Band * 255.f));
+			}
+		}
+		Platform->Mips[0].BulkData.Unlock();
+		Tex->UpdateResource();
+		return Tex;
+	}
+}
+
+UStaticMesh* AKodHUD::GetPresentationQuad()
+{
+	if (PresentationQuad)
+	{
+		return PresentationQuad;
+	}
+	UStaticMesh* Mesh = NewObject<UStaticMesh>(this, NAME_None, RF_Transient);
+	if (!Mesh)
+	{
+		return nullptr;
+	}
+	FMeshDescription Desc;
+	FStaticMeshAttributes Attributes(Desc);
+	Attributes.Register();
+	const FVector3f Positions[4] = {
+		FVector3f(-50.f, -50.f, 0.f),
+		FVector3f(50.f, -50.f, 0.f),
+		FVector3f(50.f, 50.f, 0.f),
+		FVector3f(-50.f, 50.f, 0.f)
+	};
+	const FVector2f UVs[4] = {
+		FVector2f(0.f, 0.f),
+		FVector2f(1.f, 0.f),
+		FVector2f(1.f, 1.f),
+		FVector2f(0.f, 1.f)
+	};
+	TArray<FVertexInstanceID> Corners;
+	Corners.SetNum(4);
+	for (int32 Corner = 0; Corner < 4; ++Corner)
+	{
+		const FVertexID Vertex = Desc.CreateVertex();
+		Attributes.GetVertexPositions()[Vertex] = Positions[Corner];
+		const FVertexInstanceID Instance = Desc.CreateVertexInstance(Vertex);
+		Attributes.GetVertexInstanceUVs().Set(Instance, 0, UVs[Corner]);
+		Attributes.GetVertexInstanceNormals().Set(Instance, FVector3f(0.f, 0.f, 1.f));
+		Corners[Corner] = Instance;
+	}
+	const FPolygonGroupID Group = Desc.CreatePolygonGroup();
+	Attributes.GetPolygonGroupMaterialSlotNames()[Group] = FName(TEXT("Main"));
+	TArray<FVertexInstanceID> FirstTri;
+	FirstTri.Add(Corners[0]);
+	FirstTri.Add(Corners[1]);
+	FirstTri.Add(Corners[2]);
+	TArray<FVertexInstanceID> SecondTri;
+	SecondTri.Add(Corners[0]);
+	SecondTri.Add(Corners[2]);
+	SecondTri.Add(Corners[3]);
+	Desc.CreatePolygon(Group, FirstTri);
+	Desc.CreatePolygon(Group, SecondTri);
+	UStaticMesh::FBuildMeshDescriptionsParams BuildParams;
+	BuildParams.bBuildSimpleCollision = false;
+	BuildParams.bFastBuild = true;
+	TArray<const FMeshDescription*> Descs;
+	Descs.Add(&Desc);
+	Mesh->BuildFromMeshDescriptions(Descs, BuildParams);
+	PresentationQuad = Mesh;
+	return PresentationQuad;
+}
+
+UMaterialInterface* AKodHUD::GetPassThroughMaterial()
+{
+	if (PassThroughMaterial)
+	{
+		return PassThroughMaterial;
+	}
+	const TCHAR* Paths[] = {
+		TEXT("/Engine/EngineMaterials/Widget3DPassThrough_Translucent_OneSided.Widget3DPassThrough_Translucent_OneSided"),
+		TEXT("/Engine/EngineMaterials/Widget3DPassThrough_Translucent.Widget3DPassThrough_Translucent")
+	};
+	for (const TCHAR* Path : Paths)
+	{
+		if (UMaterialInterface* Loaded = LoadObject<UMaterialInterface>(nullptr, Path))
+		{
+			PassThroughMaterial = Loaded;
+			return PassThroughMaterial;
+		}
+	}
+	static bool bLoggedPass = false;
+	if (!bLoggedPass)
+	{
+		bLoggedPass = true;
+		UE_LOG(LogTemp, Warning, TEXT("KodFog Material Miss"));
+	}
+	return nullptr;
+}
+
+UMaterialInstanceDynamic* AKodHUD::RingMaterialFor(int32 Kind)
+{
+	UMaterialInstanceDynamic* Existing = Kind == 0 ? RingMaterialOwn.Get() : (Kind == 1 ? RingMaterialAlly.Get() : RingMaterialEnemy.Get());
+	if (Existing)
+	{
+		return Existing;
+	}
+	UMaterialInterface* Parent = GetPassThroughMaterial();
+	if (!Parent)
+	{
+		return nullptr;
+	}
+	const FColor Ink = Kind == 0
+		? FColor(0x4C, 0xD9, 0x64)
+		: (Kind == 1 ? FColor(0xFF, 0xD2, 0x3F) : FColor(0xE5, 0x38, 0x3B));
+	UTexture2D* RingTex = MakeTintedRing(Ink);
+	if (!RingTex)
+	{
+		return nullptr;
+	}
+	UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(Parent, this);
+	if (!Mid)
+	{
+		return nullptr;
+	}
+	Mid->SetTextureParameterValue(TEXT("SlateUI"), RingTex);
+	if (Kind == 0)
+	{
+		RingMaterialOwn = Mid;
+	}
+	else if (Kind == 1)
+	{
+		RingMaterialAlly = Mid;
+	}
+	else
+	{
+		RingMaterialEnemy = Mid;
+	}
+	return Mid;
+}
+
+void AKodHUD::SyncGroundRings(const TMap<AActor*, int32>& Rings, const UKodSimSubsystem* Sim)
+{
+	UWorld* World = GetWorld();
+	UStaticMesh* Quad = GetPresentationQuad();
+	if (!World || !Sim || !Quad || !GetPassThroughMaterial())
+	{
+		return;
+	}
+	TSet<AActor*> Live;
+	for (const TPair<AActor*, int32>& Ring : Rings)
+	{
+		AActor* Actor = Ring.Key;
+		if (!Actor || !Actor->GetRootComponent())
+		{
+			continue;
+		}
+		Live.Add(Actor);
+		UStaticMeshComponent* Comp = nullptr;
+		for (FKodRingSlot& Slot : GroundRings)
+		{
+			if (Slot.Actor.Get() == Actor)
+			{
+				Comp = Slot.Mesh.Get();
+				break;
+			}
+		}
+		if (!Comp)
+		{
+			Comp = NewObject<UStaticMeshComponent>(Actor);
+			if (!Comp)
+			{
+				continue;
+			}
+			Comp->ComponentTags.Add(FName(TEXT("KodSelectRing")));
+			Comp->SetMobility(EComponentMobility::Movable);
+			Comp->SetStaticMesh(Quad);
+			Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Comp->SetCastShadow(false);
+			Comp->SetCanEverAffectNavigation(false);
+			Comp->SetupAttachment(Actor->GetRootComponent());
+			Comp->SetUsingAbsoluteLocation(true);
+			Comp->SetUsingAbsoluteRotation(true);
+			Comp->SetUsingAbsoluteScale(true);
+			Comp->RegisterComponent();
+			FKodRingSlot Added;
+			Added.Actor = Actor;
+			Added.Mesh = Comp;
+			GroundRings.Add(Added);
+		}
+		const FVector RootPoint = Actor->GetActorLocation();
+		float FloorZ = RootPoint.Z;
+		FHitResult Hit;
+		FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(KodSelectRing), false, Actor);
+		const bool bHit = World->LineTraceSingleByChannel(
+			Hit,
+			RootPoint + FVector(0.f, 0.f, 800.f),
+			RootPoint - FVector(0.f, 0.f, 4000.f),
+			ECC_Visibility,
+			QueryParams);
+		if (bHit)
+		{
+			FloorZ = Hit.ImpactPoint.Z + 6.f;
+		}
+		float Radius = 40.f;
+		const FKodEntityId Id = Sim->FindIdForActor(Actor);
+		if (const FKodStructureState* Structure = FindFrameStructure(Id.Value))
+		{
+			const float Cells = static_cast<float>(FMath::Max(Structure->FootprintX, Structure->FootprintY));
+			Radius = 0.5f * Cells * static_cast<float>(KodBuildGrid::CellUU);
+		}
+		else if (const FKodSimEntityState* State = FindFrameState(Id.Value))
+		{
+			Radius = static_cast<float>(FMath::Max(16, State->BodyRadiusUU));
+		}
+		const float RingScale = FMath::Max(0.05f, (Radius * 2.f) / 100.f);
+		Comp->SetWorldLocation(FVector(RootPoint.X, RootPoint.Y, FloorZ));
+		Comp->SetWorldRotation(FRotator::ZeroRotator);
+		Comp->SetWorldScale3D(FVector(RingScale, RingScale, 1.f));
+		if (UMaterialInstanceDynamic* InkMat = RingMaterialFor(Ring.Value))
+		{
+			Comp->SetMaterial(0, InkMat);
+		}
+		Comp->SetHiddenInGame(false);
+		Comp->SetVisibility(true);
+	}
+	for (FKodRingSlot& Slot : GroundRings)
+	{
+		AActor* Actor = Slot.Actor.Get();
+		UStaticMeshComponent* Mesh = Slot.Mesh.Get();
+		if (!Mesh)
+		{
+			continue;
+		}
+		if (!Actor || !Live.Contains(Actor))
+		{
+			Mesh->SetHiddenInGame(true);
+			Mesh->SetVisibility(false);
+		}
+	}
+}
+
+void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
+{
+	UWorld* World = GetWorld();
+	if (!World || !Sim || !bMapFog)
+	{
+		if (AStaticMeshActor* Sheet = FogSheetActor.Get())
+		{
+			Sheet->SetActorHiddenInGame(true);
+		}
+		return;
+	}
+	int32 MinX = 0;
+	int32 MinY = 0;
+	int32 MaxX = 0;
+	int32 MaxY = 0;
+	if (!Sim->TryGetPlayableCellBounds(MinX, MinY, MaxX, MaxY))
+	{
+		return;
+	}
+	const int32 GridW = MaxX - MinX + 1;
+	const int32 GridH = MaxY - MinY + 1;
+	if (GridW <= 0 || GridH <= 0 || GridW > 512 || GridH > 512)
+	{
+		return;
+	}
+	const bool bResize = !FogSheetTexture || FogCellsX != GridW || FogCellsY != GridH || FogOriginX != MinX || FogOriginY != MinY;
+	if (bResize)
+	{
+		FogSheetTexture = UTexture2D::CreateTransient(GridW, GridH, PF_B8G8R8A8);
+		if (!FogSheetTexture)
+		{
+			return;
+		}
+		FogSheetTexture->SRGB = false;
+		FogSheetTexture->Filter = TF_Bilinear;
+		FogSheetTexture->AddressX = TA_Clamp;
+		FogSheetTexture->AddressY = TA_Clamp;
+		FogSheetTexture->NeverStream = true;
+		FogSheetTexture->MipGenSettings = TMGS_NoMipmaps;
+		FogCellsX = GridW;
+		FogCellsY = GridH;
+		FogOriginX = MinX;
+		FogOriginY = MinY;
+		FogSheetTick = MIN_int64;
+		FogSheetMaterial = nullptr;
+	}
+	if (FogSheetTexture && FogSheetTick != Sim->GetSimTickIndex())
+	{
+		FTexturePlatformData* Platform = FogSheetTexture->GetPlatformData();
+		if (Platform && Platform->Mips.Num() > 0)
+		{
+			uint8* Bits = static_cast<uint8*>(Platform->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+			for (int32 PixelY = 0; PixelY < GridH; ++PixelY)
+			{
+				for (int32 PixelX = 0; PixelX < GridW; ++PixelX)
+				{
+					const int32 CellX = MinX + PixelX;
+					const int32 CellY = MinY + PixelY;
+					const uint8 Vision = Sim->GetTeamVision(LocalTeam, KodBuildGrid::CellCenter(CellX), KodBuildGrid::CellCenter(CellY));
+					uint8 Alpha = 0;
+					if (Vision == 0)
+					{
+						Alpha = 153;
+					}
+					else if (Vision != 2)
+					{
+						Alpha = 89;
+					}
+					const int32 Offset = (PixelY * GridW + PixelX) * 4;
+					Bits[Offset + 0] = 0;
+					Bits[Offset + 1] = 0;
+					Bits[Offset + 2] = 0;
+					Bits[Offset + 3] = Alpha;
+				}
+			}
+			Platform->Mips[0].BulkData.Unlock();
+			FogSheetTexture->UpdateResource();
+		}
+		FogSheetTick = Sim->GetSimTickIndex();
+	}
+	UMaterialInterface* Parent = GetPassThroughMaterial();
+	UStaticMesh* Quad = GetPresentationQuad();
+	if (!Parent || !Quad || !FogSheetTexture)
+	{
+		return;
+	}
+	if (!FogSheetMaterial)
+	{
+		FogSheetMaterial = UMaterialInstanceDynamic::Create(Parent, this);
+		if (FogSheetMaterial)
+		{
+			FogSheetMaterial->SetTextureParameterValue(TEXT("SlateUI"), FogSheetTexture);
+		}
+	}
+	AStaticMeshActor* Sheet = FogSheetActor.Get();
+	if (!Sheet)
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		Sheet = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), FTransform::Identity, Params);
+		if (!Sheet)
+		{
+			return;
+		}
+		Sheet->Tags.Add(FName(TEXT("KodFogSheet")));
+		Sheet->SetActorEnableCollision(false);
+		if (UStaticMeshComponent* Born = Sheet->GetStaticMeshComponent())
+		{
+			Born->SetMobility(EComponentMobility::Movable);
+			Born->SetStaticMesh(Quad);
+			Born->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Born->SetCastShadow(false);
+			Born->SetCanEverAffectNavigation(false);
+		}
+		FogSheetActor = Sheet;
+	}
+	const float WorldW = static_cast<float>(GridW * KodBuildGrid::CellUU);
+	const float WorldH = static_cast<float>(GridH * KodBuildGrid::CellUU);
+	const float OriginWorldX = static_cast<float>(MinX * KodBuildGrid::CellUU);
+	const float OriginWorldY = static_cast<float>(MinY * KodBuildGrid::CellUU);
+	Sheet->SetActorHiddenInGame(false);
+	Sheet->SetActorLocation(FVector(OriginWorldX + WorldW * 0.5f, OriginWorldY + WorldH * 0.5f, 2.f));
+	Sheet->SetActorScale3D(FVector(FMath::Max(0.01f, WorldW / 100.f), FMath::Max(0.01f, WorldH / 100.f), 1.f));
+	if (UStaticMeshComponent* SheetMesh = Sheet->GetStaticMeshComponent())
+	{
+		SheetMesh->SetMobility(EComponentMobility::Movable);
+		if (FogSheetMaterial)
+		{
+			SheetMesh->SetMaterial(0, FogSheetMaterial);
+		}
+	}
+}
+
 void AKodHUD::DrawSelectionPulse()
 {
 	AKodPlayerController* PC = Cast<AKodPlayerController>(GetOwningPlayerController());
@@ -498,64 +915,7 @@ void AKodHUD::DrawSelectionPulse()
 			}
 		}
 	}
-	auto DrawGroundCircle = [this, PC](const FVector& Center, float Radius, const FLinearColor& Ink)
-	{
-		constexpr int32 Steps = 28;
-		FVector2D Prev = FVector2D::ZeroVector;
-		bool bHave = false;
-		for (int32 Step = 0; Step <= Steps; ++Step)
-		{
-			const float Angle = (2.f * PI * static_cast<float>(Step)) / static_cast<float>(Steps);
-			const FVector WorldPoint = Center + FVector(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius, 0.f);
-			FVector2D Screen = FVector2D::ZeroVector;
-			if (!PC->ProjectWorldLocationToScreen(WorldPoint, Screen, true))
-			{
-				bHave = false;
-				continue;
-			}
-			if (bHave)
-			{
-				DrawLine(Prev.X, Prev.Y, Screen.X, Screen.Y, Ink, 2.f);
-			}
-			Prev = Screen;
-			bHave = true;
-		}
-	};
-	for (const TPair<AActor*, int32>& Ring : Rings)
-	{
-		AActor* Actor = Ring.Key;
-		if (!Actor)
-		{
-			continue;
-		}
-		const FBox Bounds = Actor->GetComponentsBoundingBox(true);
-		FVector Center = Actor->GetActorLocation();
-		if (Bounds.IsValid)
-		{
-			Center.X = Bounds.GetCenter().X;
-			Center.Y = Bounds.GetCenter().Y;
-			Center.Z = Bounds.Min.Z + 6.f;
-		}
-		float Radius = 40.f;
-		const FKodEntityId Id = Sim->FindIdForActor(Actor);
-		if (const FKodStructureState* Structure = FindFrameStructure(Id.Value))
-		{
-			const float Cells = static_cast<float>(FMath::Max(Structure->FootprintX, Structure->FootprintY));
-			Radius = 0.5f * Cells * static_cast<float>(KodBuildGrid::CellUU);
-		}
-		else if (const FKodSimEntityState* State = FindFrameState(Id.Value))
-		{
-			Radius = static_cast<float>(FMath::Max(16, State->BodyRadiusUU));
-		}
-		else if (Bounds.IsValid)
-		{
-			Radius = 0.5f * FMath::Max(Bounds.GetExtent().X, Bounds.GetExtent().Y);
-		}
-		const FLinearColor Ink = Ring.Value == 0
-			? Tok(0x4C, 0xD9, 0x64)
-			: (Ring.Value == 1 ? Tok(0xFF, 0xD2, 0x3F) : Tok(0xE5, 0x38, 0x3B));
-		DrawGroundCircle(Center, Radius, Ink);
-	}
+	SyncGroundRings(Rings, Sim);
 }
 
 void AKodHUD::DrawJuiceFloaters()
@@ -637,15 +997,25 @@ void AKodHUD::ToggleMinimapLayer(int32 LayerIndex)
 
 void AKodHUD::DrawWorldFog()
 {
-	if (!Canvas || !bMapFog)
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	const int32 LocalTeam = ReadLocalTeamId();
+	if (!bMapFog || !Sim)
+	{
+		if (AStaticMeshActor* Sheet = FogSheetActor.Get())
+		{
+			Sheet->SetActorHiddenInGame(true);
+		}
+		return;
+	}
+	SyncFogSheet(Sim, LocalTeam);
+	if (!Canvas)
 	{
 		return;
 	}
-	UWorld* World = GetWorld();
-	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
 	APlayerController* PC = GetOwningPlayerController();
 	const AKodRTSCameraPawn* Camera = Cast<AKodRTSCameraPawn>(GetOwningPawn());
-	if (!Sim || !PC || !Camera)
+	if (!PC || !Camera)
 	{
 		return;
 	}
@@ -657,170 +1027,9 @@ void AKodHUD::DrawWorldFog()
 	{
 		return;
 	}
-	const int32 LocalTeam = ReadLocalTeamId();
 	const float GroundZ = (NearLeft.Z + NearRight.Z + FarRight.Z + FarLeft.Z) * 0.25f;
-	const float MinX = FMath::Min(FMath::Min(NearLeft.X, NearRight.X), FMath::Min(FarRight.X, FarLeft.X));
-	const float MaxX = FMath::Max(FMath::Max(NearLeft.X, NearRight.X), FMath::Max(FarRight.X, FarLeft.X));
-	const float MinY = FMath::Min(FMath::Min(NearLeft.Y, NearRight.Y), FMath::Min(FarRight.Y, FarLeft.Y));
-	const float MaxY = FMath::Max(FMath::Max(NearLeft.Y, NearRight.Y), FMath::Max(FarRight.Y, FarLeft.Y));
 	const int32 Cell = KodBuildGrid::CellUU;
-	const int32 X0 = KodBuildGrid::CellOf(MinX);
-	const int32 X1 = KodBuildGrid::CellOf(MaxX);
-	const int32 Y0 = KodBuildGrid::CellOf(MinY);
-	const int32 Y1 = KodBuildGrid::CellOf(MaxY);
-	const float Dt = World->GetDeltaSeconds();
-	const float FadeRate = 0.8f / 0.3f;
-	auto PackCell = [](int32 X, int32 Y) -> int64
-	{
-		return (static_cast<int64>(X) << 32) | static_cast<uint32>(Y);
-	};
-	auto TargetAlpha = [Sim, LocalTeam](int32 X, int32 Y) -> float
-	{
-		const uint8 Vision = Sim->GetTeamVision(LocalTeam, KodBuildGrid::CellCenter(X), KodBuildGrid::CellCenter(Y));
-		if (Vision == 2)
-		{
-			return 0.f;
-		}
-		return Vision == 0 ? 0.8f : 0.45f;
-	};
-	for (int32 CellY = Y0 - 1; CellY <= Y1 + 1; ++CellY)
-	{
-		for (int32 CellX = X0 - 1; CellX <= X1 + 1; ++CellX)
-		{
-			const int64 Key = PackCell(CellX, CellY);
-			const float Target = TargetAlpha(CellX, CellY);
-			if (float* Shown = FogShownAlpha.Find(Key))
-			{
-				*Shown += FMath::Clamp(Target - *Shown, -FadeRate * Dt, FadeRate * Dt);
-			}
-			else
-			{
-				FogShownAlpha.Add(Key, Target);
-			}
-		}
-	}
-	TArray<int64> DropKeys;
-	for (const TPair<int64, float>& Pair : FogShownAlpha)
-	{
-		const int32 CellX = static_cast<int32>(Pair.Key >> 32);
-		const int32 CellY = static_cast<int32>(static_cast<uint32>(Pair.Key));
-		if (CellX < X0 - 2 || CellX > X1 + 2 || CellY < Y0 - 2 || CellY > Y1 + 2)
-		{
-			DropKeys.Add(Pair.Key);
-		}
-	}
-	for (int64 Key : DropKeys)
-	{
-		FogShownAlpha.Remove(Key);
-	}
-	auto ShownAlpha = [this, &TargetAlpha](int32 X, int32 Y) -> float
-	{
-		if (const float* Shown = FogShownAlpha.Find((static_cast<int64>(X) << 32) | static_cast<uint32>(Y)))
-		{
-			return *Shown;
-		}
-		return TargetAlpha(X, Y);
-	};
-	auto CornerAlpha = [&ShownAlpha](int32 X, int32 Y) -> float
-	{
-		return (ShownAlpha(X - 1, Y - 1) + ShownAlpha(X, Y - 1) + ShownAlpha(X - 1, Y) + ShownAlpha(X, Y)) * 0.25f;
-	};
-	TArray<FCanvasUVTri> Tris;
-	Tris.Reserve((X1 - X0 + 1) * (Y1 - Y0 + 1) * 2);
-	for (int32 CellY = Y0; CellY <= Y1; ++CellY)
-	{
-		for (int32 CellX = X0; CellX <= X1; ++CellX)
-		{
-			const float Alphas[4] = {
-				CornerAlpha(CellX, CellY),
-				CornerAlpha(CellX + 1, CellY),
-				CornerAlpha(CellX + 1, CellY + 1),
-				CornerAlpha(CellX, CellY + 1)
-			};
-			if (Alphas[0] < 0.01f && Alphas[1] < 0.01f && Alphas[2] < 0.01f && Alphas[3] < 0.01f)
-			{
-				continue;
-			}
-			const FVector WorldCorners[4] = {
-				FVector(static_cast<float>(CellX * Cell), static_cast<float>(CellY * Cell), GroundZ),
-				FVector(static_cast<float>((CellX + 1) * Cell), static_cast<float>(CellY * Cell), GroundZ),
-				FVector(static_cast<float>((CellX + 1) * Cell), static_cast<float>((CellY + 1) * Cell), GroundZ),
-				FVector(static_cast<float>(CellX * Cell), static_cast<float>((CellY + 1) * Cell), GroundZ)
-			};
-			FVector2D Screen[4];
-			bool bProjected = true;
-			for (int32 Corner = 0; Corner < 4; ++Corner)
-			{
-				if (!PC->ProjectWorldLocationToScreen(WorldCorners[Corner], Screen[Corner], true))
-				{
-					bProjected = false;
-					break;
-				}
-			}
-			if (!bProjected)
-			{
-				continue;
-			}
-			auto Push = [&Tris, &Screen, &Alphas](int32 A, int32 B, int32 C)
-			{
-				FCanvasUVTri Tri;
-				Tri.V0_Pos = Screen[A];
-				Tri.V1_Pos = Screen[B];
-				Tri.V2_Pos = Screen[C];
-				Tri.V0_UV = FVector2D(0.f, 0.f);
-				Tri.V1_UV = FVector2D(1.f, 0.f);
-				Tri.V2_UV = FVector2D(1.f, 1.f);
-				Tri.V0_Color = FLinearColor(0.f, 0.f, 0.02f, Alphas[A]);
-				Tri.V1_Color = FLinearColor(0.f, 0.f, 0.02f, Alphas[B]);
-				Tri.V2_Color = FLinearColor(0.f, 0.f, 0.02f, Alphas[C]);
-				Tris.Add(Tri);
-			};
-			Push(0, 1, 2);
-			Push(0, 2, 3);
-		}
-	}
-	const FTexture* White = (Canvas && Canvas->DefaultTexture) ? Canvas->DefaultTexture->GetResource() : nullptr;
-	if (!White)
-	{
-		static bool bLoggedFogTextureMiss = false;
-		if (!bLoggedFogTextureMiss)
-		{
-			bLoggedFogTextureMiss = true;
-			UE_LOG(LogTemp, Warning, TEXT("KodFog Texture Miss"));
-		}
-		for (int32 Index = 0; Index + 1 < Tris.Num(); Index += 2)
-		{
-			const FCanvasUVTri& First = Tris[Index];
-			const FCanvasUVTri& Second = Tris[Index + 1];
-			const float Xs[] = { First.V0_Pos.X, First.V1_Pos.X, First.V2_Pos.X, Second.V0_Pos.X, Second.V1_Pos.X, Second.V2_Pos.X };
-			const float Ys[] = { First.V0_Pos.Y, First.V1_Pos.Y, First.V2_Pos.Y, Second.V0_Pos.Y, Second.V1_Pos.Y, Second.V2_Pos.Y };
-			float QuadMinX = Xs[0];
-			float QuadMaxX = Xs[0];
-			float QuadMinY = Ys[0];
-			float QuadMaxY = Ys[0];
-			for (int32 Corner = 1; Corner < 6; ++Corner)
-			{
-				QuadMinX = FMath::Min(QuadMinX, Xs[Corner]);
-				QuadMaxX = FMath::Max(QuadMaxX, Xs[Corner]);
-				QuadMinY = FMath::Min(QuadMinY, Ys[Corner]);
-				QuadMaxY = FMath::Max(QuadMaxY, Ys[Corner]);
-			}
-			const float Alpha = FMath::Max(
-				FMath::Max3(First.V0_Color.A, First.V1_Color.A, First.V2_Color.A),
-				FMath::Max3(Second.V0_Color.A, Second.V1_Color.A, Second.V2_Color.A));
-			if (QuadMaxX > QuadMinX && QuadMaxY > QuadMinY && Alpha > 0.01f)
-			{
-				DrawRect(FLinearColor(0.f, 0.f, 0.02f, Alpha), QuadMinX, QuadMinY, QuadMaxX - QuadMinX, QuadMaxY - QuadMinY);
-			}
-		}
-	}
-	else if (Tris.Num() > 0)
-	{
-		FCanvasTriangleItem Item(Tris[0].V0_Pos, Tris[0].V1_Pos, Tris[0].V2_Pos, White);
-		Item.TriangleList = Tris;
-		Item.BlendMode = SE_BLEND_Translucent;
-		Canvas->DrawItem(Item);
-	}
+
 
 	TArray<int32> SeenTeam;
 	TArray<int32> SeenX;

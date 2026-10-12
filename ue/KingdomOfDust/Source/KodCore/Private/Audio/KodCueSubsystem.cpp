@@ -48,6 +48,7 @@ namespace
 		TEXT("expand_or_be_exposed"),
 		TEXT("exposed"),
 		TEXT("artillery_strike"),
+		TEXT("recon_sweep"),
 		TEXT("resource_drop"),
 		TEXT("command_move"),
 		TEXT("command_attack"),

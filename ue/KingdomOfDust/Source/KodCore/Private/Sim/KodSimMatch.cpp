@@ -1455,11 +1455,11 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		}
 		DressBlockCells.Sort();
 	}
-	int32 VisionCount = 0;
-	if (Blob.RInt(VisionCount) && VisionCount >= 0 && VisionCount <= 4096)
+	int32 VisionBlockCount = 0;
+	if (Blob.RInt(VisionBlockCount) && VisionBlockCount >= 0 && VisionBlockCount <= 4096)
 	{
 		VisionBlockCells.Reset();
-		for (int32 Index = 0; Index < VisionCount; ++Index)
+		for (int32 Index = 0; Index < VisionBlockCount; ++Index)
 		{
 			int64 VisionCell = 0;
 			if (!Blob.R(&VisionCell, sizeof(VisionCell)))
