@@ -195,17 +195,128 @@ bool UKodSimSubsystem::ToggleDepot(FKodEntityId StructureId)
 	}
 	if (Structure->bLowered)
 	{
-		for (int32 X = Structure->CellX; X < Structure->CellX + Structure->FootprintX; ++X)
+		const int32 FootMinX = Structure->CellX;
+		const int32 FootMinY = Structure->CellY;
+		const int32 FootMaxX = Structure->CellX + FMath::Max(1, Structure->FootprintX);
+		const int32 FootMaxY = Structure->CellY + FMath::Max(1, Structure->FootprintY);
+		TArray<int32> Keys;
+		States.GetKeys(Keys);
+		Keys.Sort();
+		TArray<int32> Occupants;
+		TArray<FIntPoint> Standing;
+		for (int32 Key : Keys)
 		{
-			for (int32 Y = Structure->CellY; Y < Structure->CellY + Structure->FootprintY; ++Y)
+			const FKodSimEntityState* State = States.Find(Key);
+			if (!State || !State->bMobile || State->Health <= 0.f || State->InsideBunker.IsValid())
 			{
-				if (CellHasUnit(X, Y))
+				continue;
+			}
+			const int32 CellX = KodBuildGrid::CellOf(State->Position.X);
+			const int32 CellY = KodBuildGrid::CellOf(State->Position.Y);
+			const bool bOnDepot = CellX >= FootMinX && CellX < FootMaxX && CellY >= FootMinY && CellY < FootMaxY;
+			if (bOnDepot)
+			{
+				Occupants.Add(Key);
+			}
+			else
+			{
+				Standing.Add(FIntPoint(CellX, CellY));
+			}
+		}
+		int32 BoundMinX = 0;
+		int32 BoundMinY = 0;
+		int32 BoundMaxX = 0;
+		int32 BoundMaxY = 0;
+		const bool bPlayable = TryGetPlayableCellBounds(BoundMinX, BoundMinY, BoundMaxX, BoundMaxY);
+		TArray<int32> PushIds;
+		TArray<FIntPoint> PushCells;
+		TArray<FIntPoint> Reserved = Standing;
+		bool bCanPush = true;
+		for (int32 OccupantId : Occupants)
+		{
+			const FKodSimEntityState* State = States.Find(OccupantId);
+			if (!State)
+			{
+				bCanPush = false;
+				break;
+			}
+			const int32 FromX = KodBuildGrid::CellOf(State->Position.X);
+			const int32 FromY = KodBuildGrid::CellOf(State->Position.Y);
+			bool bFound = false;
+			int32 BestX = 0;
+			int32 BestY = 0;
+			int64 BestDist = MAX_int64;
+			constexpr int32 Search = 8;
+			for (int32 X = FromX - Search; X <= FromX + Search; ++X)
+			{
+				for (int32 Y = FromY - Search; Y <= FromY + Search; ++Y)
 				{
-					RaiseCue(FName(TEXT("cant_build")), Structure->Position, false);
-					UE_LOG(LogTemp, Log, TEXT("KodBuild Depot Id=%d RaiseBlocked=1"), StructureId.Value);
-					return false;
+					if (X >= FootMinX && X < FootMaxX && Y >= FootMinY && Y < FootMaxY)
+					{
+						continue;
+					}
+					if (bPlayable && (X < BoundMinX || Y < BoundMinY || X > BoundMaxX || Y > BoundMaxY))
+					{
+						continue;
+					}
+					if (IsCellBlocked(X, Y, State->TeamId, true) || IsCellTerrainBlocked(X, Y))
+					{
+						continue;
+					}
+					bool bTaken = false;
+					for (const FIntPoint& Cell : Reserved)
+					{
+						if (Cell.X == X && Cell.Y == Y)
+						{
+							bTaken = true;
+							break;
+						}
+					}
+					if (bTaken)
+					{
+						continue;
+					}
+					const int64 DX = static_cast<int64>(X - FromX);
+					const int64 DY = static_cast<int64>(Y - FromY);
+					const int64 Dist = DX * DX + DY * DY;
+					if (!bFound || Dist < BestDist || (Dist == BestDist && (X < BestX || (X == BestX && Y < BestY))))
+					{
+						bFound = true;
+						BestDist = Dist;
+						BestX = X;
+						BestY = Y;
+					}
 				}
 			}
+			if (!bFound)
+			{
+				bCanPush = false;
+				break;
+			}
+			Reserved.Add(FIntPoint(BestX, BestY));
+			PushIds.Add(OccupantId);
+			PushCells.Add(FIntPoint(BestX, BestY));
+		}
+		if (!bCanPush)
+		{
+			RaiseCue(FName(TEXT("depot_raise_blocked")), Structure->Position, false);
+			UE_LOG(LogTemp, Log, TEXT("KodBuild Depot Id=%d RaiseBlocked=1"), StructureId.Value);
+			return false;
+		}
+		for (int32 Index = 0; Index < PushIds.Num(); ++Index)
+		{
+			FKodSimEntityState* State = States.Find(PushIds[Index]);
+			if (!State)
+			{
+				continue;
+			}
+			State->Position.X = KodBuildGrid::CellCenter(PushCells[Index].X);
+			State->Position.Y = KodBuildGrid::CellCenter(PushCells[Index].Y);
+			QuantizePose(*State);
+		}
+		if (PushIds.Num() > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodBuild Depot Id=%d Pushed=%d"), StructureId.Value, PushIds.Num());
 		}
 		Structure->bLowered = false;
 		InvalidatePathsOverFootprint(Structure->CellX, Structure->CellY, Structure->FootprintX, Structure->FootprintY);
@@ -288,7 +399,7 @@ bool UKodSimSubsystem::UnloadUnit(FKodEntityId BunkerId, int32 UnitId)
 			{
 				const bool bInside = X >= Bunker->CellX && X < Bunker->CellX + Bunker->FootprintX
 					&& Y >= Bunker->CellY && Y < Bunker->CellY + Bunker->FootprintY;
-				if (bInside || IsCellBlocked(X, Y, Bunker->TeamId) || CellHasUnit(X, Y))
+				if (bInside || IsCellBlocked(X, Y, Bunker->TeamId, true) || CellHasUnit(X, Y))
 				{
 					continue;
 				}

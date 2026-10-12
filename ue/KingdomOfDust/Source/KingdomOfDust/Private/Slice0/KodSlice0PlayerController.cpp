@@ -1556,7 +1556,7 @@ void AKodSlice0PlayerController::ToggleSelectedDepots()
 			{
 				if (AKodHUD* HUD = Cast<AKodHUD>(GetHUD()))
 				{
-					HUD->ShowCenterMessage(TEXT("Can't build here, location is blocked"));
+					HUD->ShowCenterMessage(TEXT("Can't raise, units blocking"));
 				}
 			}
 		}

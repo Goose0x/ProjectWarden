@@ -98,8 +98,9 @@ bool UKodSimSubsystem::AreResourcePointsInset(int32 InsetCells) const
 	return true;
 }
 
-bool UKodSimSubsystem::IsCellBlocked(int32 CellX, int32 CellY, int32 TeamId) const
+bool UKodSimSubsystem::IsCellBlocked(int32 CellX, int32 CellY, int32 TeamId, bool bIgnoreLowered) const
 {
+	(void)TeamId;
 	TArray<int32> Keys;
 	Structures.GetKeys(Keys);
 	Keys.Sort();
@@ -116,7 +117,7 @@ bool UKodSimSubsystem::IsCellBlocked(int32 CellX, int32 CellY, int32 TeamId) con
 		{
 			continue;
 		}
-		if (Structure->bLowered && Structure->bCanLower)
+		if (bIgnoreLowered && Structure->bLowered && Structure->bCanLower)
 		{
 			continue;
 		}
@@ -180,14 +181,14 @@ FVector UKodSimSubsystem::SteerAroundBuildings(const FKodSimEntityState& State, 
 		return DesiredDelta;
 	}
 	const FVector Proposed = State.Position + DesiredDelta;
-	if (!IsCellBlocked(KodBuildGrid::CellOf(State.Position.X), KodBuildGrid::CellOf(State.Position.Y), State.TeamId)
-		&& !IsCellBlocked(KodBuildGrid::CellOf(Proposed.X), KodBuildGrid::CellOf(Proposed.Y), State.TeamId))
+	if (!IsCellBlocked(KodBuildGrid::CellOf(State.Position.X), KodBuildGrid::CellOf(State.Position.Y), State.TeamId, true)
+		&& !IsCellBlocked(KodBuildGrid::CellOf(Proposed.X), KodBuildGrid::CellOf(Proposed.Y), State.TeamId, true))
 	{
 		return DesiredDelta;
 	}
 
 	const float Step = DesiredDelta.Size2D();
-	if (IsCellBlocked(KodBuildGrid::CellOf(State.Position.X), KodBuildGrid::CellOf(State.Position.Y), State.TeamId))
+	if (IsCellBlocked(KodBuildGrid::CellOf(State.Position.X), KodBuildGrid::CellOf(State.Position.Y), State.TeamId, true))
 	{
 		const int32 CellX = KodBuildGrid::CellOf(State.Position.X);
 		const int32 CellY = KodBuildGrid::CellOf(State.Position.Y);
@@ -199,7 +200,7 @@ FVector UKodSimSubsystem::SteerAroundBuildings(const FKodSimEntityState& State, 
 		{
 			const int32 NextX = CellX + Offsets[Index][0];
 			const int32 NextY = CellY + Offsets[Index][1];
-			if (IsCellBlocked(NextX, NextY, State.TeamId))
+			if (IsCellBlocked(NextX, NextY, State.TeamId, true))
 			{
 				continue;
 			}
@@ -254,11 +255,11 @@ FVector UKodSimSubsystem::SteerAroundBuildings(const FKodSimEntityState& State, 
 		return FVector::ZeroVector;
 	}
 	const FVector Right(-Dir.Y, Dir.X, 0.f);
-	if (!IsCellBlocked(KodBuildGrid::CellOf((State.Position + Right * Step).X), KodBuildGrid::CellOf((State.Position + Right * Step).Y), State.TeamId))
+	if (!IsCellBlocked(KodBuildGrid::CellOf((State.Position + Right * Step).X), KodBuildGrid::CellOf((State.Position + Right * Step).Y), State.TeamId, true))
 	{
 		return Right * Step;
 	}
-	if (!IsCellBlocked(KodBuildGrid::CellOf((State.Position - Right * Step).X), KodBuildGrid::CellOf((State.Position - Right * Step).Y), State.TeamId))
+	if (!IsCellBlocked(KodBuildGrid::CellOf((State.Position - Right * Step).X), KodBuildGrid::CellOf((State.Position - Right * Step).Y), State.TeamId, true))
 	{
 		return -Right * Step;
 	}
@@ -564,7 +565,7 @@ bool UKodSimSubsystem::TryPlaceStructure(int32 TeamId, FName TypeId, FVector Cur
 		{
 			const bool bInside = X >= Placement.CellX && X < Placement.CellX + SizeX
 				&& Y >= Placement.CellY && Y < Placement.CellY + SizeY;
-			if (bInside || IsCellBlocked(X, Y))
+			if (bInside || IsCellBlocked(X, Y, -1, true))
 			{
 				continue;
 			}

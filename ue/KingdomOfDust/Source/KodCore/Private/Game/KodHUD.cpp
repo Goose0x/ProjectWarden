@@ -1386,6 +1386,10 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 	{
 		Text = TEXT("Can't build here");
 	}
+	else if (CueId == FName(TEXT("depot_raise_blocked")))
+	{
+		Text = TEXT("Can't raise, units blocking");
+	}
 	else if (CueId == FName(TEXT("expand_or_be_exposed")))
 	{
 		Text = TEXT("Expand or be exposed");

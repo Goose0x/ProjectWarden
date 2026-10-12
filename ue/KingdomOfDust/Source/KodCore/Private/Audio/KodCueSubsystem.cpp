@@ -44,6 +44,7 @@ namespace
 		TEXT("defeat"),
 		TEXT("ui_click"),
 		TEXT("cant_build"),
+		TEXT("depot_raise_blocked"),
 		TEXT("expand_or_be_exposed"),
 		TEXT("exposed"),
 		TEXT("artillery_strike"),
