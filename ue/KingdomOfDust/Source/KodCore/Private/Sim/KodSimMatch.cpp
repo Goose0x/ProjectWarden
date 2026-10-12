@@ -335,7 +335,7 @@ void UKodSimSubsystem::ResyncActors() const
 TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 {
 	FBlob Blob;
-	const int32 Version = 7;
+	const int32 Version = 8;
 	Blob.WInt(Version);
 	Blob.W(&SimTickIndex, sizeof(SimTickIndex));
 	TArray<int32> Keys;
@@ -729,7 +729,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || (Version != 6 && Version != 7))
+	if (!Blob.RInt(Version) || (Version != 6 && Version != 7 && Version != 8))
 	{
 		return;
 	}
@@ -1440,48 +1440,78 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		Blob.R(&Ramp, sizeof(Ramp));
 		RampCells.Add(Ramp);
 	}
-	int32 DressCount = 0;
-	if (Blob.RInt(DressCount) && DressCount >= 0 && DressCount <= 16384)
+	if (Version >= 8)
 	{
-		DressBlockCells.Reset();
-		for (int32 Index = 0; Index < DressCount; ++Index)
+		constexpr int32 CliffCap = 16384;
+		constexpr int32 LosCap = 4096;
+		constexpr int32 DestructCap = 64;
+		int32 DressCount = 0;
+		if (Blob.RInt(DressCount) && DressCount >= 0)
 		{
-			int64 DressCell = 0;
-			if (!Blob.R(&DressCell, sizeof(DressCell)))
+			if (DressCount > CliffCap)
 			{
-				break;
+				UE_LOG(LogTemp, Warning, TEXT("KodSave Cliff cap truncate Count=%d Cap=%d"), DressCount, CliffCap);
 			}
-			DressBlockCells.Add(DressCell);
+			DressBlockCells.Reset();
+			const int32 DressKeep = FMath::Min(DressCount, CliffCap);
+			for (int32 Index = 0; Index < DressCount; ++Index)
+			{
+				int64 DressCell = 0;
+				if (!Blob.R(&DressCell, sizeof(DressCell)))
+				{
+					break;
+				}
+				if (Index < DressKeep)
+				{
+					DressBlockCells.Add(DressCell);
+				}
+			}
+			DressBlockCells.Sort();
 		}
-		DressBlockCells.Sort();
-	}
-	int32 VisionCount = 0;
-	if (Blob.RInt(VisionCount) && VisionCount >= 0 && VisionCount <= 4096)
-	{
-		VisionBlockCells.Reset();
-		for (int32 Index = 0; Index < VisionCount; ++Index)
+		int32 VisionBlockCount = 0;
+		if (Blob.RInt(VisionBlockCount) && VisionBlockCount >= 0)
 		{
-			int64 VisionCell = 0;
-			if (!Blob.R(&VisionCell, sizeof(VisionCell)))
+			if (VisionBlockCount > LosCap)
 			{
-				break;
+				UE_LOG(LogTemp, Warning, TEXT("KodSave LOS cap truncate Count=%d Cap=%d"), VisionBlockCount, LosCap);
 			}
-			VisionBlockCells.Add(VisionCell);
+			VisionBlockCells.Reset();
+			const int32 VisionKeep = FMath::Min(VisionBlockCount, LosCap);
+			for (int32 Index = 0; Index < VisionBlockCount; ++Index)
+			{
+				int64 VisionCell = 0;
+				if (!Blob.R(&VisionCell, sizeof(VisionCell)))
+				{
+					break;
+				}
+				if (Index < VisionKeep)
+				{
+					VisionBlockCells.Add(VisionCell);
+				}
+			}
+			VisionBlockCells.Sort();
 		}
-		VisionBlockCells.Sort();
-	}
-	int32 DestructCount = 0;
-	if (Blob.RInt(DestructCount) && DestructCount >= 0 && DestructCount <= 64)
-	{
-		DestructFoots.Reset();
-		for (int32 Index = 0; Index < DestructCount; ++Index)
+		int32 DestructCount = 0;
+		if (Blob.RInt(DestructCount) && DestructCount >= 0)
 		{
-			FKodDestructFoot Foot;
-			if (!Blob.RInt(Foot.Id) || !Blob.RInt(Foot.MinX) || !Blob.RInt(Foot.MinY) || !Blob.RInt(Foot.MaxX) || !Blob.RInt(Foot.MaxY))
+			if (DestructCount > DestructCap)
 			{
-				break;
+				UE_LOG(LogTemp, Warning, TEXT("KodSave Destructible cap truncate Count=%d Cap=%d"), DestructCount, DestructCap);
 			}
-			DestructFoots.Add(Foot);
+			DestructFoots.Reset();
+			const int32 DestructKeep = FMath::Min(DestructCount, DestructCap);
+			for (int32 Index = 0; Index < DestructCount; ++Index)
+			{
+				FKodDestructFoot Foot;
+				if (!Blob.RInt(Foot.Id) || !Blob.RInt(Foot.MinX) || !Blob.RInt(Foot.MinY) || !Blob.RInt(Foot.MaxX) || !Blob.RInt(Foot.MaxY))
+				{
+					break;
+				}
+				if (Index < DestructKeep)
+				{
+					DestructFoots.Add(Foot);
+				}
+			}
 		}
 	}
 	uint8 ModeByte = static_cast<uint8>(EKodMatchMode::OfflineSkirmish);
@@ -1548,7 +1578,7 @@ bool UKodSimSubsystem::CollectSavedEntityIds(const TArray<uint8>& Bytes, TSet<in
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || (Version != 6 && Version != 7))
+	if (!Blob.RInt(Version) || (Version != 6 && Version != 7 && Version != 8))
 	{
 		return false;
 	}

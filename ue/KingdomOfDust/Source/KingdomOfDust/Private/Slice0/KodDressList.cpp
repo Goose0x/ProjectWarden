@@ -105,28 +105,28 @@ void KodDress::Apply(AActor* Owner, TArray<TObjectPtr<USceneComponent>>& OutDres
 		Row->TryGetArrayField(TEXT("instances"), Instances);
 		float ScaleMin = 1.f;
 		float ScaleMax = 1.f;
-		const TArray<TSharedPtr<FJsonValue>>* Scale = nullptr;
-		if (Row->TryGetArrayField(TEXT("scale"), Scale) && Scale && Scale->Num() >= 2)
+		const TArray<TSharedPtr<FJsonValue>>* ScaleField = nullptr;
+		if (Row->TryGetArrayField(TEXT("scale"), ScaleField) && ScaleField && ScaleField->Num() >= 2)
 		{
-			ScaleMin = static_cast<float>((*Scale)[0]->AsNumber());
-			ScaleMax = static_cast<float>((*Scale)[1]->AsNumber());
+			ScaleMin = static_cast<float>((*ScaleField)[0]->AsNumber());
+			ScaleMax = static_cast<float>((*ScaleField)[1]->AsNumber());
 		}
 		bool bRandomYaw = false;
 		int32 YawStep = 15;
 		int32 YawA = 0;
 		int32 YawB = 0;
 		bool bFixedPair = false;
-		const TSharedPtr<FJsonObject>* Yaw = nullptr;
-		if (Row->TryGetObjectField(TEXT("random_yaw"), Yaw) && Yaw && Yaw->IsValid())
+		const TSharedPtr<FJsonObject>* YawField = nullptr;
+		if (Row->TryGetObjectField(TEXT("random_yaw"), YawField) && YawField && YawField->IsValid())
 		{
-			(*Yaw)->TryGetBoolField(TEXT("random"), bRandomYaw);
+			(*YawField)->TryGetBoolField(TEXT("random"), bRandomYaw);
 			double Step = 15.0;
-			if ((*Yaw)->TryGetNumberField(TEXT("step_deg"), Step))
+			if ((*YawField)->TryGetNumberField(TEXT("step_deg"), Step))
 			{
 				YawStep = FMath::Max(1, FMath::RoundToInt(Step));
 			}
 			const TArray<TSharedPtr<FJsonValue>>* YawDeg = nullptr;
-			if ((*Yaw)->TryGetArrayField(TEXT("yaw_deg"), YawDeg) && YawDeg && YawDeg->Num() >= 2)
+			if ((*YawField)->TryGetArrayField(TEXT("yaw_deg"), YawDeg) && YawDeg && YawDeg->Num() >= 2)
 			{
 				bFixedPair = true;
 				YawA = FMath::RoundToInt((*YawDeg)[0]->AsNumber());
@@ -251,7 +251,6 @@ void KodDress::Apply(AActor* Owner, TArray<TObjectPtr<USceneComponent>>& OutDres
 					Decal->SetupAttachment(Owner->GetRootComponent());
 					Decal->RegisterComponent();
 					Decal->SetWorldLocationAndRotation(Point + FVector(0.f, 0.f, 20.f), FRotator(-90.f, Yaw, 0.f));
-					DisableCollision(Decal);
 					Added = Decal;
 				}
 			}

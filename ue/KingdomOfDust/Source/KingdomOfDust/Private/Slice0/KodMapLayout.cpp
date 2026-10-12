@@ -139,6 +139,7 @@ void KodMapLayout::Load(UWorld* World)
 
 	TArray<int64> Cliffs;
 	TArray<int64> Vision;
+	TArray<int64> HighGround;
 	TArray<FVector2D> Sockets;
 	UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 	int32 Destructibles = 0;
@@ -214,9 +215,9 @@ void KodMapLayout::Load(UWorld* World)
 			if (Actor)
 			{
 				TagActor(Actor, Tag.IsEmpty() ? FString(TEXT("KodDestructible")) : Tag);
-				USceneComponent* Root = NewObject<USceneComponent>(Actor, TEXT("Root"));
-				Actor->SetRootComponent(Root);
-				Root->RegisterComponent();
+				USceneComponent* DestructRoot = NewObject<USceneComponent>(Actor, TEXT("Root"));
+				Actor->SetRootComponent(DestructRoot);
+				DestructRoot->RegisterComponent();
 				Actor->SetActorLocation(Center);
 				Sim->RegisterMapDestructible(Actor, CellX, CellY, CellX + CellW, CellY + CellH, static_cast<float>(HP), FMath::RoundToInt(Armor));
 				++Destructibles;
@@ -224,7 +225,13 @@ void KodMapLayout::Load(UWorld* World)
 		}
 		else if (Type == TEXT("high-ground"))
 		{
-			// Visual height is 500 uu. Sim vision for the plateau is not applied yet.
+			for (int32 Y = CellY; Y < CellY + CellH; ++Y)
+			{
+				for (int32 X = CellX; X < CellX + CellW; ++X)
+				{
+					HighGround.Add(PackCell(X, Y));
+				}
+			}
 			SpawnMarker(World, BoxCenter(Feature, 500.f), FVector::OneVector, Tag.IsEmpty() ? FString(TEXT("KodHighGround")) : Tag, nullptr);
 		}
 		else if (Type == TEXT("ramp") || Type == TEXT("choke") || Type == TEXT("route"))
@@ -263,12 +270,15 @@ void KodMapLayout::Load(UWorld* World)
 
 	const int32 CliffCount = Cliffs.Num();
 	const int32 VisionCount = Vision.Num();
+	const int32 HighCount = HighGround.Num();
 	Sim->SetCliffBlockCells(MoveTemp(Cliffs));
 	Sim->SetVisionBlockCells(MoveTemp(Vision));
+	Sim->SetHighGroundCells(MoveTemp(HighGround));
 	Sim->SetLayoutSockets(Sockets);
-	UE_LOG(LogTemp, Log, TEXT("KodMap Features Cliffs=%d Vision=%d Destructibles=%d Sockets=%d Match=%d"),
+	UE_LOG(LogTemp, Log, TEXT("KodMap Features Cliffs=%d Vision=%d High=%d Destructibles=%d Sockets=%d Match=%d"),
 		CliffCount,
 		VisionCount,
+		HighCount,
 		Destructibles,
 		Sockets.Num(),
 		Sim->LayoutSocketsMatch() ? 1 : 0);
