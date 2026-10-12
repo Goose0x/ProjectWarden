@@ -213,6 +213,7 @@ bool UKodSimSubsystem::ToggleDepot(FKodEntityId StructureId)
 	else
 	{
 		Structure->bLowered = true;
+		InvalidatePathsOverFootprint(Structure->CellX, Structure->CellY, Structure->FootprintX, Structure->FootprintY);
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodBuild Depot Id=%d Lowered=%d"), StructureId.Value, Structure->bLowered ? 1 : 0);
 	return true;

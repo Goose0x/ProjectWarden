@@ -208,7 +208,7 @@ void AKodHUD::DrawMinimap()
 		return;
 	}
 
-	const FKodScreenRect MapRect = MapSpec(24.f, 820.f, 250.f, 250.f);
+	const FKodScreenRect MapRect = MapSpec(18.f, 780.f, 250.f, 250.f);
 	const float Scale = FrameScale;
 	const float MapSize = MapRect.W;
 	MapMinX = MapRect.X;
@@ -507,14 +507,14 @@ void AKodHUD::DrawMinimap()
 		}
 	}
 
-	const TCHAR* ChipLabels[] = { TEXT("Map"), TEXT("Army"), TEXT("Ping") };
-	const int32 ChipLayers[] = { 10, 5, 4 };
-	const bool ChipOn[] = { true, bMapOwnOnly, bMapAlerts };
-	const float ChipYSpec[] = { 820.f, 872.f, 924.f };
+	const TCHAR* ChipLabels[] = { TEXT("Ping"), TEXT("Ter"), TEXT("Ally") };
+	const int32 ChipLayers[] = { 4, 0, 5 };
+	const bool ChipOn[] = { bMapAlerts, bMapTerrain, bMapOwnOnly };
+	const float ChipYSpec[] = { 780.f, 824.f, 868.f };
 	UFont* LayerFont = HudFont();
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
-		const FKodScreenRect Chip = MapSpec(282.f, ChipYSpec[Index], 44.f, 44.f);
+		const FKodScreenRect Chip = MapSpec(276.f, ChipYSpec[Index], 36.f, 36.f);
 		DrawPlate(Chip.X, Chip.Y, Chip.W, Chip.H, ChipOn[Index] ? Tok(0x5C, 0x64, 0x6C) : Tok(0x3A, 0x3F, 0x45), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
 		DrawText(ChipLabels[Index], Tok(0xE6, 0xE6, 0xE0), Chip.X + 4.f * Scale, Chip.Y + 12.f * Scale, LayerFont, 0.65f * Scale, false);
 		RememberChrome(FName(TEXT("Layer")), ChipLayers[Index], FName(), Chip.X, Chip.Y, Chip.X + Chip.W, Chip.Y + Chip.H);
@@ -550,7 +550,7 @@ void AKodHUD::DrawIdleWorkerButton()
 		}
 	}
 
-	const FKodScreenRect Slot = MapSpec(24.f, 724.f, 48.f, 48.f);
+	const FKodScreenRect Slot = MapSpec(136.f, 748.f, 40.f, 28.f);
 	if (Idle <= 0)
 	{
 		return;
@@ -579,7 +579,7 @@ void AKodHUD::DrawControlGroupTabs()
 	{
 		const int32 Index = Order[Visual];
 		const int32 Count = PC->GetControlGroupCount(Index);
-		const FKodScreenRect Tab = MapSpec(394.f + 78.f * static_cast<float>(Visual), 786.f, 72.f, 28.f);
+		const FKodScreenRect Tab = MapSpec(332.f + 70.f * static_cast<float>(Visual), 786.f, 66.f, 26.f);
 		const float X = Tab.X;
 		const float TabY = Tab.Y;
 		const float TabW = Tab.W;
@@ -609,7 +609,7 @@ void AKodHUD::DrawPortrait()
 		return;
 	}
 	const float Scale = FrameScale;
-	const FKodScreenRect Art = MapSpec(1226.f, 788.f, 236.f, 236.f);
+	const FKodScreenRect Art = MapSpec(1068.f, 792.f, 220.f, 220.f);
 	const float Width = Art.W;
 	const float PanelH = Art.H;
 	const float X = Art.X;
@@ -687,8 +687,8 @@ void AKodHUD::DrawPortrait()
 		}
 	}
 	const float HpFraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
-	const FKodScreenRect HP = MapSpec(1226.f, 1024.f, 236.f, 16.f);
-	const FKodScreenRect EN = MapSpec(1226.f, 1044.f, 236.f, 12.f);
+	const FKodScreenRect HP = MapSpec(1068.f, 1012.f, 220.f, 14.f);
+	const FKodScreenRect EN = MapSpec(1068.f, 1028.f, 220.f, 10.f);
 	DrawRect(Tok(0x1F, 0x23, 0x27), HP.X, HP.Y, HP.W, HP.H);
 	DrawRect(PanelHealthInk(HpFraction), HP.X, HP.Y, HP.W * HpFraction, HP.H);
 	DrawText(FString::Printf(TEXT("%d/%d"), ShownHP, MaxHP), Tok(0xE6, 0xE6, 0xE0), HP.X + 4.f * Scale, HP.Y, HudFont(), 0.65f * Scale, false);
@@ -873,13 +873,13 @@ void AKodHUD::DrawSelectionPanel()
 	});
 
 	const float Scale = FrameScale;
-	const FKodScreenRect Grid = MapSpec(402.f, 826.f, 714.f, 234.f);
-	const FKodScreenRect Rail = MapSpec(1136.f, 826.f, 32.f, 234.f);
+	const FKodScreenRect Grid = MapSpec(368.f, 820.f, 682.f, 222.f);
+	const FKodScreenRect Rail = MapSpec(332.f, 820.f, 28.f, 222.f);
 	UFont* Font = HudFont();
 	bHasSelectionPanel = true;
-	PanelMinX = Grid.X;
+	PanelMinX = Rail.X;
 	PanelMinY = Grid.Y;
-	PanelMaxX = Rail.X + Rail.W;
+	PanelMaxX = Grid.X + Grid.W;
 	PanelMaxY = Grid.Y + Grid.H;
 	RememberChrome(FName(TEXT("Panel")), 0, FName(), PanelMinX, PanelMinY, PanelMaxX, PanelMaxY);
 
@@ -890,10 +890,10 @@ void AKodHUD::DrawSelectionPanel()
 		{
 			return;
 		}
-		const float SlotX[5] = { 638.f, 734.f, 806.f, 878.f, 950.f };
-		const float SlotW[5] = { 80.f, 64.f, 64.f, 64.f, 64.f };
-		const float SlotY[5] = { 962.f, 978.f, 978.f, 978.f, 978.f };
-		const float SlotH[5] = { 80.f, 64.f, 64.f, 64.f, 64.f };
+		const float SlotX[5] = { 584.f, 668.f, 740.f, 812.f, 884.f };
+		const float SlotW[5] = { 72.f, 64.f, 64.f, 64.f, 64.f };
+		const float SlotY[5] = { 948.f, 956.f, 956.f, 956.f, 956.f };
+		const float SlotH[5] = { 72.f, 64.f, 64.f, 64.f, 64.f };
 		for (int32 Slot = 0; Slot < 5; ++Slot)
 		{
 			const FKodScreenRect Cell = MapSpec(SlotX[Slot], SlotY[Slot], SlotW[Slot], SlotH[Slot]);
@@ -914,7 +914,7 @@ void AKodHUD::DrawSelectionPanel()
 					Fraction = 1.f - (static_cast<float>(Structure->ActiveTicksRemaining) / static_cast<float>(Structure->ActiveBuildTime));
 					Fraction = FMath::Clamp(Fraction, 0.f, 1.f);
 				}
-				const FKodScreenRect Prog = MapSpec(638.f, 1036.f, 80.f, 6.f);
+				const FKodScreenRect Prog = MapSpec(584.f, 1014.f, 72.f, 6.f);
 				DrawRect(Tok(0x1F, 0x23, 0x27), Prog.X, Prog.Y, Prog.W, Prog.H);
 				DrawRect(Tok(0xFF, 0xD2, 0x3F), Prog.X, Prog.Y, Prog.W * Fraction, Prog.H);
 			}
@@ -936,8 +936,8 @@ void AKodHUD::DrawSelectionPanel()
 	if (Tiles.Num() == 1)
 	{
 		const FTile& Tile = Tiles[0];
-		const FKodScreenRect Wire = MapSpec(402.f, 826.f, 220.f, 234.f);
-		const FKodScreenRect Info = MapSpec(638.f, 826.f, 490.f, 120.f);
+		const FKodScreenRect Wire = MapSpec(368.f, 820.f, 200.f, 222.f);
+		const FKodScreenRect Info = MapSpec(584.f, 820.f, 466.f, 112.f);
 		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(Tile.Health));
 		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(Tile.MaxHealth));
 		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
@@ -991,7 +991,7 @@ void AKodHUD::DrawSelectionPanel()
 
 	constexpr int32 PageSize = 24;
 	const int32 Pages = FMath::Max(1, FMath::DivideAndRoundUp(Tiles.Num(), PageSize));
-	if (SelectionPage >= Pages || SelectionPage >= 4)
+	if (SelectionPage >= Pages || SelectionPage >= 6)
 	{
 		SelectionPage = 0;
 	}
@@ -999,10 +999,10 @@ void AKodHUD::DrawSelectionPanel()
 	const int32 Shown = FMath::Min(PageSize, Tiles.Num() - PageStart);
 	if (Pages > 1)
 	{
-		const int32 ShownPages = FMath::Min(Pages, 4);
+		const int32 ShownPages = FMath::Min(Pages, 6);
 		for (int32 Page = 0; Page < ShownPages; ++Page)
 		{
-			const FKodScreenRect Tab = MapSpec(1136.f, 826.f + 58.f * static_cast<float>(Page), 32.f, 52.f);
+			const FKodScreenRect Tab = MapSpec(332.f, 820.f + 37.f * static_cast<float>(Page), 28.f, 32.f);
 			const bool bOn = Page == SelectionPage;
 			DrawPlate(Tab.X, Tab.Y, Tab.W, Tab.H, bOn ? Tok(0xB0, 0x8D, 0x57) : Tok(0x3A, 0x3F, 0x45), TEXT("T_UI_VG_Tab_Group"), 8.f, 6.f, 8.f, 6.f);
 			DrawText(FString::FromInt(Page + 1), Tok(0xE6, 0xE6, 0xE0), Tab.X + 8.f * Scale, Tab.Y + 14.f * Scale, Font, 0.7f * Scale, false);
@@ -1017,7 +1017,7 @@ void AKodHUD::DrawSelectionPanel()
 		const bool bFlash = HitUntil && *HitUntil > Now;
 		const int32 Col = Index % 8;
 		const int32 Row = Index / 8;
-		const FKodScreenRect Cell = MapSpec(402.f + 90.f * static_cast<float>(Col), 826.f + 80.f * static_cast<float>(Row), 84.f, 74.f);
+		const FKodScreenRect Cell = MapSpec(368.f + 86.f * static_cast<float>(Col), 820.f + 76.f * static_cast<float>(Row), 80.f, 70.f);
 		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(Tile.Health));
 		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(Tile.MaxHealth));
 		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);

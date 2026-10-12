@@ -116,7 +116,7 @@ bool UKodSimSubsystem::IsCellBlocked(int32 CellX, int32 CellY, int32 TeamId) con
 		{
 			continue;
 		}
-		if (TeamId >= 0 && Structure->bLowered && Structure->bCanLower && Structure->TeamId == TeamId)
+		if (Structure->bLowered && Structure->bCanLower)
 		{
 			continue;
 		}
