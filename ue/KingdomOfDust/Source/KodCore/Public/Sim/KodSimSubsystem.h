@@ -436,6 +436,17 @@ public:
 	int32 GetMapCellHeight(int32 CellX, int32 CellY) const;
 	void RegisterRampCell(int32 CellX, int32 CellY);
 	bool IsRampCell(int32 CellX, int32 CellY) const;
+	/** Sorted unique cliff cells from map_features. Hashed. */
+	void SetCliffBlockCells(TArray<int64> Cells);
+	bool IsDressBlockCell(int32 CellX, int32 CellY) const;
+	/** LOS scrub. Blocks fog vision through the cell. Hashed. */
+	void SetVisionBlockCells(TArray<int64> Cells);
+	bool IsVisionBlockCell(int32 CellX, int32 CellY) const;
+	bool VisionRayHitsBlock(int32 X0, int32 Y0, int32 X1, int32 Y1) const;
+	/** Immobile rock. Footprint blocks walk while Health > 0. HP and armour are hashed with the entity. */
+	FKodEntityId RegisterMapDestructible(AActor* Actor, int32 MinX, int32 MinY, int32 MaxX, int32 MaxY, float HP, int32 Armor);
+	void SetLayoutSockets(const TArray<FVector2D>& Sockets);
+	bool LayoutSocketsMatch() const;
 	/** True when a Depot or Barracks closes this ramp for ForTeam. */
 	bool IsRampWalled(int32 CellX, int32 CellY, int32 ForTeam) const;
 
@@ -985,6 +996,20 @@ protected:
 	int32 RepairCd1 = 0;
 	TArray<FKodScheduledPower> ScheduledPowers;
 	TArray<int64> RampCells;
+	/** Sorted unique cliff cells. Hashed. */
+	TArray<int64> DressBlockCells;
+	/** Sorted unique LOS cells. Hashed. Fog only. */
+	TArray<int64> VisionBlockCells;
+	struct FKodDestructFoot
+	{
+		int32 Id = 0;
+		int32 MinX = 0;
+		int32 MinY = 0;
+		int32 MaxX = 0;
+		int32 MaxY = 0;
+	};
+	TArray<FKodDestructFoot> DestructFoots;
+	TArray<FVector2D> LayoutSockets;
 	TMap<FName, FKodPowerSpec> PowerSpecs;
 	bool bCheatInvincible = false;
 	bool bCheatInstantBuild = false;

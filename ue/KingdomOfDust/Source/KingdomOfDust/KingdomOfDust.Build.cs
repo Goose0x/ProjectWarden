@@ -24,7 +24,8 @@ public class KingdomOfDust : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Niagara",
-			"AssetRegistry"
+			"AssetRegistry",
+			"Json"
 		});
 	}
 }

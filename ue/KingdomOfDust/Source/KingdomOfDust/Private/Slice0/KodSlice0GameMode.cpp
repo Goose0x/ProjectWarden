@@ -1,4 +1,5 @@
 #include "Slice0/KodSlice0GameMode.h"
+#include "Slice0/KodMapLayout.h"
 #include "Slice0/KodMapLife.h"
 #include "Slice0/KodSlice0PlayerController.h"
 #include "Game/KodHUD.h"
@@ -541,6 +542,10 @@ void AKodSlice0GameMode::StartPlay()
 		}
 	}
 	FocusOpeningCamera();
+	if (UWorld* LayoutWorld = GetWorld())
+	{
+		KodMapLayout::Load(LayoutWorld);
+	}
 	if (UWorld* DressWorld = GetWorld())
 	{
 		FActorSpawnParameters DressParams;
@@ -616,6 +621,7 @@ void AKodSlice0GameMode::PublishPlayableBounds()
 			IAssetRegistry& Registry = Assets.Get();
 			Registry.WaitForCompletion();
 			const TCHAR* Paths[] = {
+				TEXT("/Game/FancyDev/Materials/MI_fancy_grid.MI_fancy_grid"),
 				TEXT("/Game/FancyDev/Materials/MI_fancy_grid_dark.MI_fancy_grid_dark"),
 				TEXT("/Game/Advanced_Auto_Material/Landscape_Material_Instances/MI_Adv_MM_Landscape_28_Desert_Tutorial.MI_Adv_MM_Landscape_28_Desert_Tutorial")
 			};
@@ -696,7 +702,7 @@ void AKodSlice0GameMode::SeatPlayerBase()
 	{
 		return;
 	}
-	constexpr float Base = 8400.f;
+	constexpr float Base = 8300.f;
 	TArray<AActor*> Ignored;
 	Ignored.Add(Anchor);
 	const float FloorZ = ResolveResourceFloorZ(World, Sim, -Base, -Base, Anchor->GetActorLocation().Z, Ignored);
@@ -712,7 +718,7 @@ void AKodSlice0GameMode::PlaceExpansionFields()
 	{
 		return;
 	}
-	const FVector Sites[2] = { FVector(-8400.f, -3000.f, 0.f), FVector(8400.f, 3000.f, 0.f) };
+	const FVector Sites[2] = { FVector(-8300.f, -2900.f, 0.f), FVector(8300.f, 2900.f, 0.f) };
 	const FVector Facing[2] = { FVector(-1.f, 0.f, 0.f), FVector(1.f, 0.f, 0.f) };
 	TArray<AActor*> Ignored;
 	for (int32 Index = 0; Index < 2; ++Index)
@@ -1543,7 +1549,7 @@ void AKodSlice0GameMode::SpawnAiOpponent()
 	}
 	if (!bHave)
 	{
-		Seed = FVector(8400.f, 8400.f, PlayerLoc.Z);
+		Seed = FVector(8300.f, 8300.f, PlayerLoc.Z);
 		bHave = true;
 		How = TEXT("Script");
 	}

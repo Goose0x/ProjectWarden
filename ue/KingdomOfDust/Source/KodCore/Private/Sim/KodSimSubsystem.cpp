@@ -80,6 +80,10 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	RepairCd1 = 0;
 	ScheduledPowers.Reset();
 	RampCells.Reset();
+	DressBlockCells.Reset();
+	VisionBlockCells.Reset();
+	DestructFoots.Reset();
+	LayoutSockets.Reset();
 	bCheatInvincible = false;
 	bCheatInstantBuild = false;
 	bCheatNoSupply = false;
@@ -744,6 +748,38 @@ void UKodSimSubsystem::SyncActorPresentation(float Alpha) const
 			Actor->SetActorHiddenInGame(GetTeamVision(LocalTeam, Pair.Value.Position.X, Pair.Value.Position.Y) != 2);
 		}
 	}
+}
+
+FKodEntityId UKodSimSubsystem::RegisterMapDestructible(AActor* Actor, int32 MinX, int32 MinY, int32 MaxX, int32 MaxY, float HP, int32 Armor)
+{
+	FKodEntityId Id = RegisterEntity(Actor);
+	if (!Id.IsValid() || !Actor)
+	{
+		return Id;
+	}
+	ConfigureEntity(Id, FName(TEXT("KodDestructible")), HP, 0.f, 0.f, false, 0.f, 0.f, 0.f, 2, false, 80, 0);
+	if (FKodSimEntityState* State = States.Find(Id.Value))
+	{
+		State->ArmorPoints = Armor;
+		State->Health = HP;
+		State->MaxHealth = HP;
+		State->Position = Actor->GetActorLocation();
+		QuantizePose(*State);
+	}
+	FKodDestructFoot Foot;
+	Foot.Id = Id.Value;
+	Foot.MinX = MinX;
+	Foot.MinY = MinY;
+	Foot.MaxX = MaxX;
+	Foot.MaxY = MaxY;
+	DestructFoots.Add(Foot);
+	DestructFoots.Sort([](const FKodDestructFoot& A, const FKodDestructFoot& B)
+	{
+		return A.Id < B.Id;
+	});
+	UE_LOG(LogTemp, Log, TEXT("KodDestructible Id=%d HP=%.0f Armor=%d Cells=%d,%d-%d,%d"),
+		Id.Value, HP, Armor, MinX, MinY, MaxX, MaxY);
+	return Id;
 }
 
 FKodEntityId UKodSimSubsystem::RegisterEntity(AActor* Actor)
@@ -2600,6 +2636,28 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	for (int64 Ramp : RampCells)
 	{
 		Append(&Ramp, sizeof(Ramp));
+	}
+	const int32 DressCount = DressBlockCells.Num();
+	Append(&DressCount, sizeof(DressCount));
+	for (int64 DressCell : DressBlockCells)
+	{
+		Append(&DressCell, sizeof(DressCell));
+	}
+	const int32 VisionCount = VisionBlockCells.Num();
+	Append(&VisionCount, sizeof(VisionCount));
+	for (int64 VisionCell : VisionBlockCells)
+	{
+		Append(&VisionCell, sizeof(VisionCell));
+	}
+	const int32 DestructCount = DestructFoots.Num();
+	Append(&DestructCount, sizeof(DestructCount));
+	for (const FKodDestructFoot& Foot : DestructFoots)
+	{
+		Append(&Foot.Id, sizeof(Foot.Id));
+		Append(&Foot.MinX, sizeof(Foot.MinX));
+		Append(&Foot.MinY, sizeof(Foot.MinY));
+		Append(&Foot.MaxX, sizeof(Foot.MaxX));
+		Append(&Foot.MaxY, sizeof(Foot.MaxY));
 	}
 	const uint8 ModeByte = static_cast<uint8>(MatchMode);
 	Append(&ModeByte, sizeof(ModeByte));

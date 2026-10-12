@@ -693,6 +693,25 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 	{
 		Blob.W(&Ramp, sizeof(Ramp));
 	}
+	Blob.WInt(DressBlockCells.Num());
+	for (int64 DressCell : DressBlockCells)
+	{
+		Blob.W(&DressCell, sizeof(DressCell));
+	}
+	Blob.WInt(VisionBlockCells.Num());
+	for (int64 VisionCell : VisionBlockCells)
+	{
+		Blob.W(&VisionCell, sizeof(VisionCell));
+	}
+	Blob.WInt(DestructFoots.Num());
+	for (const FKodDestructFoot& Foot : DestructFoots)
+	{
+		Blob.WInt(Foot.Id);
+		Blob.WInt(Foot.MinX);
+		Blob.WInt(Foot.MinY);
+		Blob.WInt(Foot.MaxX);
+		Blob.WInt(Foot.MaxY);
+	}
 	Blob.WU8(static_cast<uint8>(MatchMode));
 	Blob.WInt(CheatUses.Num());
 	for (const FKodCheatUse& Use : CheatUses)
@@ -1420,6 +1439,50 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		int64 Ramp = 0;
 		Blob.R(&Ramp, sizeof(Ramp));
 		RampCells.Add(Ramp);
+	}
+	int32 DressCount = 0;
+	if (Blob.RInt(DressCount) && DressCount >= 0 && DressCount <= 16384)
+	{
+		DressBlockCells.Reset();
+		for (int32 Index = 0; Index < DressCount; ++Index)
+		{
+			int64 DressCell = 0;
+			if (!Blob.R(&DressCell, sizeof(DressCell)))
+			{
+				break;
+			}
+			DressBlockCells.Add(DressCell);
+		}
+		DressBlockCells.Sort();
+	}
+	int32 VisionCount = 0;
+	if (Blob.RInt(VisionCount) && VisionCount >= 0 && VisionCount <= 4096)
+	{
+		VisionBlockCells.Reset();
+		for (int32 Index = 0; Index < VisionCount; ++Index)
+		{
+			int64 VisionCell = 0;
+			if (!Blob.R(&VisionCell, sizeof(VisionCell)))
+			{
+				break;
+			}
+			VisionBlockCells.Add(VisionCell);
+		}
+		VisionBlockCells.Sort();
+	}
+	int32 DestructCount = 0;
+	if (Blob.RInt(DestructCount) && DestructCount >= 0 && DestructCount <= 64)
+	{
+		DestructFoots.Reset();
+		for (int32 Index = 0; Index < DestructCount; ++Index)
+		{
+			FKodDestructFoot Foot;
+			if (!Blob.RInt(Foot.Id) || !Blob.RInt(Foot.MinX) || !Blob.RInt(Foot.MinY) || !Blob.RInt(Foot.MaxX) || !Blob.RInt(Foot.MaxY))
+			{
+				break;
+			}
+			DestructFoots.Add(Foot);
+		}
 	}
 	uint8 ModeByte = static_cast<uint8>(EKodMatchMode::OfflineSkirmish);
 	Blob.RU8(ModeByte);

@@ -54,8 +54,9 @@ namespace
 		}
 		if (Args[0].Equals(TEXT("bounds"), ESearchCase::IgnoreCase))
 		{
-			const bool bOk = Sim->AreResourcePointsInset(2);
-			UE_LOG(LogTemp, Log, TEXT("KodTest Bounds Inset=2 OK=%d"), bOk ? 1 : 0);
+			const bool bInset = Sim->AreResourcePointsInset(2);
+			const bool bSockets = Sim->LayoutSocketsMatch();
+			UE_LOG(LogTemp, Log, TEXT("KodTest Bounds Inset=2 OK=%d Sockets OK=%d"), bInset ? 1 : 0, bSockets ? 1 : 0);
 			return;
 		}
 		const int32 Runs = Args.Num() > 1 ? FMath::Max(1, FCString::Atoi(*Args[1])) : 1;
