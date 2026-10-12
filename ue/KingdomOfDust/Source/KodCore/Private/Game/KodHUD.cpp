@@ -487,8 +487,42 @@ void AKodHUD::DrawWorldFog()
 			Push(0, 2, 3);
 		}
 	}
-	const FTexture* White = (GWhiteTexture && GWhiteTexture->GetResource()) ? GWhiteTexture->GetResource() : nullptr;
-	if (White && Tris.Num() > 0)
+	const FTexture* White = (Canvas && Canvas->DefaultTexture) ? Canvas->DefaultTexture->GetResource() : nullptr;
+	if (!White)
+	{
+		static bool bLoggedFogTextureMiss = false;
+		if (!bLoggedFogTextureMiss)
+		{
+			bLoggedFogTextureMiss = true;
+			UE_LOG(LogTemp, Warning, TEXT("KodFog Texture Miss"));
+		}
+		for (int32 Index = 0; Index + 1 < Tris.Num(); Index += 2)
+		{
+			const FCanvasUVTri& First = Tris[Index];
+			const FCanvasUVTri& Second = Tris[Index + 1];
+			const float Xs[] = { First.V0_Pos.X, First.V1_Pos.X, First.V2_Pos.X, Second.V0_Pos.X, Second.V1_Pos.X, Second.V2_Pos.X };
+			const float Ys[] = { First.V0_Pos.Y, First.V1_Pos.Y, First.V2_Pos.Y, Second.V0_Pos.Y, Second.V1_Pos.Y, Second.V2_Pos.Y };
+			float MinX = Xs[0];
+			float MaxX = Xs[0];
+			float MinY = Ys[0];
+			float MaxY = Ys[0];
+			for (int32 Corner = 1; Corner < 6; ++Corner)
+			{
+				MinX = FMath::Min(MinX, Xs[Corner]);
+				MaxX = FMath::Max(MaxX, Xs[Corner]);
+				MinY = FMath::Min(MinY, Ys[Corner]);
+				MaxY = FMath::Max(MaxY, Ys[Corner]);
+			}
+			const float Alpha = FMath::Max(
+				FMath::Max3(First.V0_Color.A, First.V1_Color.A, First.V2_Color.A),
+				FMath::Max3(Second.V0_Color.A, Second.V1_Color.A, Second.V2_Color.A));
+			if (MaxX > MinX && MaxY > MinY && Alpha > 0.01f)
+			{
+				DrawRect(FLinearColor(0.f, 0.f, 0.02f, Alpha), MinX, MinY, MaxX - MinX, MaxY - MinY);
+			}
+		}
+	}
+	else if (Tris.Num() > 0)
 	{
 		FCanvasTriangleItem Item(Tris[0].V0_Pos, Tris[0].V1_Pos, Tris[0].V2_Pos, White);
 		Item.TriangleList = Tris;

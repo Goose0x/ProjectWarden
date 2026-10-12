@@ -93,7 +93,12 @@ namespace
 		{
 			return nullptr;
 		}
-		Material->bUsedWithNanite = true;
+		if (!Material->GetUsageByFlag(MATUSAGE_Nanite))
+		{
+			bool bNeedsRecompile = false;
+			Material->SetMaterialUsage(bNeedsRecompile, MATUSAGE_Nanite);
+			(void)bNeedsRecompile;
+		}
 		Material->SetShadingModel(bUnlit ? MSM_Unlit : MSM_DefaultLit);
 		Material->BlendMode = BLEND_Opaque;
 		Material->TwoSided = false;

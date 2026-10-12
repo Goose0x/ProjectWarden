@@ -217,6 +217,23 @@ void UKodSimSubsystem::CopyReconPulses(int32 TeamId, TArray<int32>& OutX, TArray
 	}
 }
 
+void UKodSimSubsystem::GrantStartingPowerIncome()
+{
+	if (bPowerStartGranted || bTestIsolation || !bGeneralPowers)
+	{
+		return;
+	}
+	FKodPowerSpec Income;
+	if (!TryGetPowerSpec(FName(KodWardenPaths::Id_PowerIncome), Income) || Income.Amount <= 0)
+	{
+		return;
+	}
+	AwardPowerPoints(0, Income.Amount);
+	AwardPowerPoints(1, Income.Amount);
+	bPowerStartGranted = true;
+	UE_LOG(LogTemp, Log, TEXT("KodPowers Income Start=%d"), Income.Amount);
+}
+
 void UKodSimSubsystem::StepPowers()
 {
 	if (bGeneralPowers && !bTestIsolation)
@@ -224,13 +241,7 @@ void UKodSimSubsystem::StepPowers()
 		FKodPowerSpec Income;
 		if (TryGetPowerSpec(FName(KodWardenPaths::Id_PowerIncome), Income))
 		{
-			if (SimTickIndex == 0 && Income.Amount > 0)
-			{
-				AwardPowerPoints(0, Income.Amount);
-				AwardPowerPoints(1, Income.Amount);
-				UE_LOG(LogTemp, Log, TEXT("KodPowers Income Start=%d"), Income.Amount);
-			}
-			else if (Income.CooldownTicks > 0 && SimTickIndex > 0 && (SimTickIndex % Income.CooldownTicks) == 0)
+			if (Income.CooldownTicks > 0 && SimTickIndex > 0 && (SimTickIndex % Income.CooldownTicks) == 0)
 			{
 				AwardPowerPoints(0, 1);
 				AwardPowerPoints(1, 1);

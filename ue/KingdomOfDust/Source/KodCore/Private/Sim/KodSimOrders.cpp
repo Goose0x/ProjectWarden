@@ -235,7 +235,7 @@ void UKodSimSubsystem::CompleteCurrentOrder(FKodSimEntityState& State, float Fix
 	State.bExplicitAttack = false;
 	State.AttackTarget = FKodEntityId();
 	State.FollowTarget = FKodEntityId();
-	if (State.WeaponDamage > 0.f && State.bMobile && State.Health > 0.f)
+	if (!State.bCanGather && State.WeaponDamage > 0.f && State.bMobile && State.Health > 0.f)
 	{
 		TryAutoAcquire(State, FixedDt);
 		return;
@@ -350,6 +350,7 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 	const bool bIdle = Target.Order == EKodSimOrderType::None;
 	const bool bAttackMoving = Target.Order == EKodSimOrderType::AttackMove;
 	if (HealthLeft > 0.f
+		&& !Target.bCanGather
 		&& !bGathering
 		&& Target.WeaponDamage > 0.f
 		&& Target.TeamId != AttackerTeam
@@ -452,6 +453,13 @@ void UKodSimSubsystem::FinishEntityDeath(FKodSimEntityState& Target, int32 Kille
 void UKodSimSubsystem::StepHold(FKodSimEntityState& State, float FixedDt)
 {
 	(void)FixedDt;
+	if (State.bCanGather)
+	{
+		State.RetaliateTarget = FKodEntityId();
+		State.AttackTarget = FKodEntityId();
+		QuantizePose(State);
+		return;
+	}
 	FKodEntityId Threat = FindNearestEnemyInRange(State);
 	if (!Threat.IsValid())
 	{
@@ -494,6 +502,16 @@ void UKodSimSubsystem::StepPatrol(FKodSimEntityState& State, float FixedDt)
 {
 	const FVector Dest = State.MoveTarget;
 	const int32 SelfId = State.Id.Value;
+	if (State.bCanGather)
+	{
+		State.RetaliateTarget = FKodEntityId();
+		State.AttackTarget = FKodEntityId();
+		State.bExplicitAttack = false;
+		State.Order = EKodSimOrderType::Patrol;
+		State.MoveTarget = Dest;
+		StepEntityMove(State, FixedDt);
+		return;
+	}
 	FKodEntityId Threat = FindNearestEnemyInRange(State);
 	if (!Threat.IsValid())
 	{
@@ -548,6 +566,16 @@ void UKodSimSubsystem::StepFollow(FKodSimEntityState& State, float FixedDt, bool
 	if (!bGuard)
 	{
 		QuantizePose(State);
+		return;
+	}
+	if (State.bCanGather)
+	{
+		if (FKodSimEntityState* IdleWorker = States.Find(SelfId))
+		{
+			IdleWorker->RetaliateTarget = FKodEntityId();
+			IdleWorker->AttackTarget = FKodEntityId();
+			QuantizePose(*IdleWorker);
+		}
 		return;
 	}
 	if (FKodSimEntityState* Live = States.Find(SelfId))

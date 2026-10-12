@@ -110,7 +110,7 @@ struct KODCORE_API FKodSimEntityState
 	 * Attacker to retaliate against after a hit taken while Idle or AttackMove.
 	 * Not an order. Idle consumes it. Attack-move keeps it while the attacker is visible.
 	 * Not part of ComputeIdleHash. An explicit Move / Attack / Stop clears it.
-	 * Gathering workers never receive one.
+	 * Workers never receive one. They attack only on an explicit attack order.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	FKodEntityId RetaliateTarget;
@@ -777,8 +777,8 @@ protected:
 	void StepSim(float FixedDt);
 	void StepEntityMove(FKodSimEntityState& State, float FixedDt);
 	void StepEntityAttack(FKodSimEntityState& State, float FixedDt);
-	/** Melee ring slot for this attacker. Derived from sorted ids. Not stored. */
-	FVector MeleeSlotPoint(const FKodSimEntityState& State, const FKodSimEntityState& Target) const;
+	/** Melee ring slot for this attacker. Derived from the acquire grid. Not stored. */
+	FVector MeleeSlotPoint(const FKodSimEntityState& State, const FKodSimEntityState& Target);
 	void StepAttackMove(FKodSimEntityState& State, float FixedDt);
 	void StepHold(FKodSimEntityState& State, float FixedDt);
 	void StepPatrol(FKodSimEntityState& State, float FixedDt);
@@ -840,6 +840,8 @@ protected:
 	void ApplyReconVision();
 	void StepLiftoff();
 	void AwardPowerPoints(int32 TeamId, int32 Amount);
+	/** One-shot starting pool from the PowerIncome row. Hashed via the granted flag and the point totals. */
+	void GrantStartingPowerIncome();
 	void CollectTaggedRamps();
 	void StepExposed();
 	void ApplyExposedReveal();
@@ -965,6 +967,8 @@ protected:
 	/** Alert text for the cheat just applied. Not hashed and not saved. */
 	FString LastCheatLine;
 	bool bGeneralPowers = true;
+	/** Starting PowerIncome has been added. Hashed and saved so load does not grant twice. */
+	bool bPowerStartGranted = false;
 	int32 PowerPoints0 = 0;
 	int32 PowerPoints1 = 0;
 	int32 ArtilleryCd0 = 0;
@@ -1051,6 +1055,8 @@ protected:
 
 	/** Cell -> sorted entity ids. Rebuilt at the start of each sim tick. */
 	TMap<int64, TArray<int32>> AcquireGrid;
+	/** Melee attackers by target id. Rebuilt from the acquire grid. Not hashed. */
+	TMap<int32, TArray<int32>> MeleeAttackersByTarget;
 
 	struct FKodStoredPath
 	{

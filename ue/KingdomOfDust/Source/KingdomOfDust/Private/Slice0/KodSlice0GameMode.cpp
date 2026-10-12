@@ -194,45 +194,6 @@ namespace
 		}
 		return false;
 	}
-
-	void AutoGatherSplit(UKodSimSubsystem* Sim, const TArray<FKodEntityId>& Workers, const FVector& Anchor, const FVector& FieldDir)
-	{
-		if (!Sim || Workers.Num() == 0)
-		{
-			return;
-		}
-		TArray<FKodResourceNodeState> Nodes;
-		Sim->CopyResourceNodes(Nodes);
-		TArray<FKodEntityId> Near;
-		for (const FKodResourceNodeState& Node : Nodes)
-		{
-			FVector To = Node.Position - Anchor;
-			To.Z = 0.f;
-			if (FVector::DistSquared2D(Node.Position, Anchor) > FMath::Square(2200.f))
-			{
-				continue;
-			}
-			if (FVector::DotProduct(To, FieldDir) <= 0.f)
-			{
-				continue;
-			}
-			Near.Add(Node.Id);
-		}
-		if (Near.Num() == 0)
-		{
-			return;
-		}
-		TArray<FKodEntityId> Ordered = Workers;
-		Ordered.Sort([](const FKodEntityId& A, const FKodEntityId& B)
-		{
-			return A.Value < B.Value;
-		});
-		for (int32 Index = 0; Index < Ordered.Num(); ++Index)
-		{
-			Sim->IssueGather(Ordered[Index], Near[Index % Near.Num()]);
-		}
-		UE_LOG(LogTemp, Log, TEXT("KodEcon AutoGather Workers=%d Nodes=%d"), Ordered.Num(), Near.Num());
-	}
 }
 
 AKodSlice0GameMode::AKodSlice0GameMode()
@@ -855,7 +816,6 @@ int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FV
 	}
 	int32 Spawned = 0;
 	TArray<AActor*> Ignored;
-	TArray<FKodEntityId> Workers;
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
 		const float Angle = (static_cast<float>(Index) - (static_cast<float>(Count) - 1.f) * 0.5f) * 18.f;
@@ -881,7 +841,6 @@ int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FV
 			continue;
 		}
 		Ignored.Add(Worker);
-		Workers.Add(Worker->EntityId);
 		++Spawned;
 		const FVector At = Worker->GetActorLocation();
 		UE_LOG(LogTemp, Log, TEXT("KodEcon Worker Spawn Id=%d Team=%d Loc=%.0f,%.0f,%.0f"),
@@ -891,7 +850,6 @@ int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FV
 			At.Y,
 			At.Z);
 	}
-	AutoGatherSplit(Sim, Workers, AnchorLocation, FieldDir);
 	return Spawned;
 }
 
@@ -1306,7 +1264,7 @@ void AKodSlice0GameMode::SpawnWorkersIfNeeded()
 		}
 	}
 
-	const int32 Count = FMath::Clamp(WorkerSpawnCount, 1, 8);
+	const int32 Count = FMath::Clamp(WorkerSpawnCount, 1, 12);
 	const int32 Spawned = SpawnWorkerFan(AnchorLocation, FieldDir, /*TeamId*/ 0, Count);
 
 	UE_LOG(LogTemp, Log, TEXT("KodEcon Workers Spawned=%d Anchor=%s"),
@@ -1498,7 +1456,7 @@ void AKodSlice0GameMode::SpawnAiOpponent()
 		FieldDir = FieldDir.GetSafeNormal2D();
 	}
 	PlaceFieldAt(Seed, FieldDir);
-	const int32 Spawned = SpawnWorkerFan(Seed, FieldDir, /*TeamId*/ 1, 6);
+	const int32 Spawned = SpawnWorkerFan(Seed, FieldDir, /*TeamId*/ 1, FMath::Clamp(WorkerSpawnCount, 1, 12));
 
 	auto SnapYaw = [](const FVector& From, const FVector& To)
 	{

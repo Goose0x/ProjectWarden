@@ -691,7 +691,15 @@ void AKodRTSCameraPawn::PollZoom()
 	}
 	if (PC->WasInputKeyJustPressed(EKeys::End))
 	{
-		TargetArmLength = FMath::Clamp(TargetArmLength - ZoomStep, MinArmLength, Ceiling);
+		const bool bAtClose = FMath::Abs(TargetArmLength - MinArmLength) <= 1.f;
+		const float Next = bAtClose ? DefaultArmLength : MinArmLength;
+		TargetArmLength = FMath::Clamp(Next, MinArmLength, Ceiling);
+		CurrentArmLength = TargetArmLength;
+		if (CameraBoom)
+		{
+			CameraBoom->TargetArmLength = CurrentArmLength;
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodCam Zoom End Arm=%.0f"), CurrentArmLength);
 	}
 	if (Ceiling > DefaultArmLength + 1.f && PC->WasInputKeyJustPressed(EKeys::Z) && !HasLiftableSelection())
 	{

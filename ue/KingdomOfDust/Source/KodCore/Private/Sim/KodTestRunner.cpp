@@ -159,6 +159,7 @@ bool UKodSimSubsystem::RunScriptedTest(FName Scenario, int32 Runs, int32 Seed)
 		OlderSamples1.Reset();
 		StoredPaths.Reset();
 		AcquireGrid.Reset();
+		MeleeAttackersByTarget.Reset();
 		MatchOutcome = EKodMatchOutcome::None;
 		bAiEnabled = false;
 		bAiSeeded = false;
@@ -184,6 +185,7 @@ bool UKodSimSubsystem::RunScriptedTest(FName Scenario, int32 Runs, int32 Seed)
 		bCheatNoCooldown = false;
 		bCompetitive = false;
 		bGeneralPowers = false;
+		bPowerStartGranted = false;
 		PowerPoints0 = 0;
 		PowerPoints1 = 0;
 		ArtilleryCd0 = 0;
