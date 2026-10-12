@@ -4,8 +4,10 @@
 #include "Engine/World.h"
 #include "Game/KodJadeitePalette.h"
 #include "GameFramework/Actor.h"
+#include "Materials/MaterialInstance.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Sim/KodResourceTypes.h"
 
 namespace
 {
@@ -137,6 +139,26 @@ namespace
 	}
 }
 
+bool MaterialIsJadeiteNode(const UMaterialInterface* Material)
+{
+	const UMaterialInterface* Cursor = Material;
+	while (Cursor)
+	{
+		const FString Path = Cursor->GetPathName();
+		if (Path.Contains(TEXT("MI_Jadeite_Node")))
+		{
+			return true;
+		}
+		const UMaterialInstance* Instance = Cast<UMaterialInstance>(Cursor);
+		if (!Instance)
+		{
+			break;
+		}
+		Cursor = Instance->Parent;
+	}
+	return false;
+}
+
 bool KodJadeiteVisual::IsScinderId(FName DefinitionId)
 {
 	const FString Id = DefinitionId.ToString();
@@ -160,9 +182,40 @@ bool KodJadeiteVisual::IsScinderActor(const AActor* Actor)
 	return false;
 }
 
-void KodJadeiteVisual::ApplyJadeiteNode(UMeshComponent* Mesh)
+FLinearColor KodJadeiteVisual::TunedJadeBase(const UWorld* World)
+{
+	if (const UKodJadeitePaletteSubsystem* Palette = World ? World->GetSubsystem<UKodJadeitePaletteSubsystem>() : nullptr)
+	{
+		return Palette->TunedBase();
+	}
+	return KodResourceColors::Jadeite();
+}
+
+bool KodJadeiteVisual::UsesJadeiteNodeMaterial(const UMaterialInterface* Material)
+{
+	return MaterialIsJadeiteNode(Material);
+}
+
+bool KodJadeiteVisual::UsesJadeiteNodeMaterial(const UMeshComponent* Mesh)
 {
 	if (!Mesh)
+	{
+		return false;
+	}
+	const int32 Slots = FMath::Max(1, Mesh->GetNumMaterials());
+	for (int32 Slot = 0; Slot < Slots; ++Slot)
+	{
+		if (MaterialIsJadeiteNode(Mesh->GetMaterial(Slot)))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void KodJadeiteVisual::ApplyJadeiteNode(UMeshComponent* Mesh)
+{
+	if (!Mesh || UsesJadeiteNodeMaterial(Mesh))
 	{
 		return;
 	}

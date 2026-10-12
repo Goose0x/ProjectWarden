@@ -615,7 +615,7 @@ void AKodUnit::UpdateCargoPresentation()
 	}
 	const FLinearColor Tint = bGas
 		? KodResourceColors::LumineneCore()
-		: KodResourceColors::Jadeite();
+		: KodJadeiteVisual::TunedJadeBase(GetWorld());
 	if (!CargoMID)
 	{
 		if (UMaterialInterface* Parent = LoadObject<UMaterialInterface>(nullptr, BasicShapeMaterialPath))
@@ -1294,6 +1294,12 @@ void AKodUnit::UnbindJadeitePalette()
 
 void AKodUnit::RefreshJadeiteEmissive()
 {
+	if (CargoMID && CargoMesh && ShownCargoJadeite > 0 && ShownCargoLuminene <= 0)
+	{
+		const FLinearColor Tint = KodJadeiteVisual::TunedJadeBase(GetWorld());
+		CargoMID->SetVectorParameterValue(TEXT("Color"), Tint);
+		CargoMID->SetVectorParameterValue(TEXT("BaseColor"), Tint);
+	}
 	FName DefId = NAME_None;
 	if (const UKodUnitDefinition* Def = GetDefinition())
 	{

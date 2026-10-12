@@ -30,7 +30,8 @@ public:
 	void ApplyDefinition(const UKodResourceNodeDefinition* Def);
 
 	/**
-	 * Jadeite: three engine cones, about 135 cm tall, deep jade #00A86B.
+	 * Jadeite: three engine cones, about 135 cm tall, JadeBase #11928F unless
+	 * the mesh already uses MI_Jadeite_Node (that material reads the collection).
 	 * Luminene: a low fissure disc (#9EE60B) with a highlight plume (#C6FF1A).
 	 */
 	void ApplyPlaceholder(EKodResourceType Type);

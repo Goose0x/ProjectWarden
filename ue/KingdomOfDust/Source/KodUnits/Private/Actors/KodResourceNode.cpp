@@ -22,7 +22,6 @@ namespace
 	const FName ClusterTag(TEXT("KodResourceCluster"));
 	const FName ColorParamName(TEXT("Color"));
 
-	const FLinearColor JadeiteTint = KodResourceColors::Jadeite();
 	const FLinearColor LumineneTint = KodResourceColors::LumineneCore();
 	const FLinearColor LumineneHighlightTint = KodResourceColors::LumineneHighlight();
 
@@ -314,9 +313,13 @@ void AKodResourceNode::ApplyPlaceholder(EKodResourceType Type)
 	}
 
 	FName UsedParam = NAME_None;
-	const FLinearColor CoreTint = bLuminene ? LumineneTint : JadeiteTint;
+	const FLinearColor CoreTint = bLuminene ? LumineneTint : KodJadeiteVisual::TunedJadeBase(GetWorld());
 	for (UStaticMeshComponent* Mesh : CoreMeshes)
 	{
+		if (!bLuminene && KodJadeiteVisual::UsesJadeiteNodeMaterial(Mesh))
+		{
+			continue;
+		}
 		const FName Param = ApplyTint(Mesh, CoreTint, true);
 		if (!Param.IsNone())
 		{

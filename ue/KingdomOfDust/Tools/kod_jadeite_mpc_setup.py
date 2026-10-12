@@ -16,6 +16,11 @@
 #   Shadow, Lit, Rim, Core are the other tuned roles if a graph needs them.
 # The in-game F9 panel writes the four scalars into the collection, so a hooked
 # material updates in PIE without a rebuild. F10 is the pause menu.
+# Default JadeBase is #11928F. Code tints (node stand-in, carried crystal) read
+# that tuned colour. If a node mesh already uses
+# /Game/Warden/Environment/Materials/MI_Jadeite_Node (parent M_Crystal), C++
+# does not put a dynamic tint on top. Hook Base on M_Crystal so the slider
+# drives that material through the collection.
 # If a Scinder material still exposes a vector named with Jade, or EyeEmissive,
 # EyeGlow, EyeColor, RegenGlow, or RegenEmissive, the tuner also writes the
 # tuned colour into that parameter. Remove the parameter once the function
