@@ -277,7 +277,36 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 	const int32 AttackerTeam = State.TeamId;
 	const int32 AttackerId = State.Id.Value;
 
-	Target.Health = FMath::Max(0.f, Target.Health - FMath::Max(0.f, State.WeaponDamage));
+	int32 WeaponBonus = 0;
+	if (State.bInfantry)
+	{
+		if (const FKodTeamTech* Tech = TeamTech.Find(AttackerTeam))
+		{
+			WeaponBonus = Tech->InfantryWeapons;
+		}
+	}
+	int32 Armor = Target.ArmorPoints;
+	if (Target.bInfantry)
+	{
+		if (const FKodTeamTech* Tech = TeamTech.Find(Target.TeamId))
+		{
+			Armor += Tech->InfantryArmor;
+		}
+	}
+	const float Dealt = FMath::Max(0.5f, State.WeaponDamage + static_cast<float>(WeaponBonus) - static_cast<float>(Armor));
+	Target.Health = FMath::Max(0.f, Target.Health - Dealt);
+	if (State.DefinitionId == FName(TEXT("Ranger")))
+	{
+		RaiseCue(FName(TEXT("marine_fire")), State.Position, true);
+	}
+	if (bStructureTarget)
+	{
+		RaiseCue(FName(TEXT("base_under_attack")), Target.Position, false);
+	}
+	else
+	{
+		RaiseCue(FName(TEXT("units_under_attack")), Target.Position, false);
+	}
 	const int32 AttackPermille = FMath::Clamp(State.AbilityAttackPermille, 1, 10000);
 	const int32 ScaledTicks = FMath::Max(1, (FMath::Max(1, State.WeaponCooldownTicks) * 1000) / AttackPermille);
 	State.CooldownTicksRemaining = ScaledTicks;
@@ -306,8 +335,10 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 		State.Order = EKodSimOrderType::None;
 		State.AttackTarget = FKodEntityId();
 		QuantizePose(State);
+		const FVector DeathAt = Target.Position;
 		UnregisterEntity(DeadId);
 		OnUnitKilled.Broadcast(TargetActor, TargetIdValue);
+		RaiseCue(FName(TEXT("unit_death")), DeathAt, true);
 		if (bStructureTarget && TargetActor && !TargetActor->IsActorBeingDestroyed())
 		{
 			TargetActor->Destroy();

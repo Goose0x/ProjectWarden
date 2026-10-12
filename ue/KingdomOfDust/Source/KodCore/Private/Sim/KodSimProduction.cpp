@@ -275,6 +275,11 @@ bool UKodSimSubsystem::EnqueueTrain(FKodEntityId StructureId, FName UnitId)
 		UE_LOG(LogTemp, Warning, TEXT("KodProd Enqueue Miss Struct=%d Unit=%s"), StructureId.Value, *UnitId.ToString());
 		return false;
 	}
+	if (!Spec->RequiresId.IsNone() && !HasCompletedStructure(Structure->TeamId, Spec->RequiresId))
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodProd Enqueue Reject Struct=%d Unit=%s Reason=Requires"), StructureId.Value, *UnitId.ToString());
+		return false;
+	}
 	if (Structure->Slots.Num() >= KodEconomyDefaults::ProductionSlotCap)
 	{
 		UE_LOG(LogTemp, Log, TEXT("KodProd Enqueue Reject Struct=%d Reason=Full"), StructureId.Value);
@@ -397,6 +402,20 @@ void UKodSimSubsystem::FinishActiveProduction(FKodStructureState& Structure)
 	Spawn.RallyUnit = Structure.RallyUnit;
 	PendingSpawns.Add(Spawn);
 	OnTrainCompleted.Broadcast(Spawn.Location, Spawn.TeamId);
+	FName ReadyId;
+	if (Slot.UnitId == FName(TEXT("Dozer")))
+	{
+		ReadyId = FName(TEXT("unit_ready_amp"));
+	}
+	else if (Slot.UnitId == FName(TEXT("Ranger")))
+	{
+		ReadyId = FName(TEXT("unit_ready_marine"));
+	}
+	else if (Slot.UnitId == FName(TEXT("Medic")))
+	{
+		ReadyId = FName(TEXT("unit_ready_medic"));
+	}
+	RaiseCue(ReadyId, Spawn.Location, false);
 
 	// Count supply and start the next slot in this step. Catch-up steps must not
 	// wait for the actor, or a later slot can start early and pass the cap.

@@ -65,6 +65,7 @@ bool UKodSimSubsystem::UseAbility(FKodEntityId UnitId, FName AbilityId)
 	{
 		State->Health = FMath::Max(1.f, State->Health - static_cast<float>(HealthCost));
 		State->RetaliateTarget = FKodEntityId();
+		RaiseCue(FName(TEXT("combat_stim")), State->Position, true);
 		AActor* Self = ResolveEntity(UnitId);
 		UE_LOG(LogTemp, Log, TEXT("KodAbility Damage Unit=%d HP=%.0f"), State->Id.Value, State->Health);
 		OnUnitHit.Broadcast(Self, Self, State->Health, State->Id.Value);

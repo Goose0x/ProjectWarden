@@ -68,7 +68,6 @@ void AKodBuilding::BeginPlay()
 void AKodBuilding::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	(void)DeltaSeconds;
 	UWorld* World = GetWorld();
 	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
 	if (!Sim || !BuildingMesh)
@@ -87,8 +86,43 @@ void AKodBuilding::Tick(float DeltaSeconds)
 		Alpha = 0.1f + 0.9f * (static_cast<float>(Structure.BuildTicksDone) / static_cast<float>(Structure.BuildTimeTotal));
 	}
 	FVector Scale = BaseScale;
-	Scale.Z *= FMath::Clamp(Alpha, 0.1f, 1.f);
+	float Rise = 0.f;
+	if (Sim->TryGetStructure(EntityId, Structure))
+	{
+		if (Structure.bLowered)
+		{
+			Scale.Z *= 0.25f;
+			Rise = -80.f;
+		}
+		else if (!Structure.bComplete && Structure.BuildTimeTotal > 0)
+		{
+			Alpha = 0.1f + 0.9f * (static_cast<float>(Structure.BuildTicksDone) / static_cast<float>(Structure.BuildTimeTotal));
+			Scale.Z *= FMath::Clamp(Alpha, 0.15f, 1.f);
+			const float Height = BaseScale.Z * 100.f;
+			Rise = -Height * (1.f - Alpha);
+			bSawIncomplete = true;
+		}
+		else if (!bSawComplete)
+		{
+			bSawComplete = true;
+			if (bSawIncomplete)
+			{
+				bCompletionFlash = true;
+				FlashLeft = 0.35f;
+			}
+		}
+	}
+	if (bCompletionFlash)
+	{
+		FlashLeft -= DeltaSeconds;
+		Scale *= 1.f + 0.08f * FMath::Max(0.f, FlashLeft / 0.35f);
+		if (FlashLeft <= 0.f)
+		{
+			bCompletionFlash = false;
+		}
+	}
 	BuildingMesh->SetRelativeScale3D(Scale);
+	BuildingMesh->SetRelativeLocation(FVector(0.f, 0.f, Rise));
 }
 
 void AKodBuilding::EndPlay(const EEndPlayReason::Type EndPlayReason)

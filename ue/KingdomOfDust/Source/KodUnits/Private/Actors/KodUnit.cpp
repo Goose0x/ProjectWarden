@@ -1,5 +1,6 @@
 #include "Actors/KodUnit.h"
 #include "Animation/KodUnitAnimInstance.h"
+#include "Data/KodFactionDefinition.h"
 #include "Data/KodUnitDefinition.h"
 #include "Data/KodWeaponDefinition.h"
 #include "Components/KodAbilitySystemComponent.h"
@@ -557,19 +558,47 @@ void AKodUnit::UpdateCargoPresentation()
 		CargoMesh->SetMobility(EComponentMobility::Movable);
 		USceneComponent* AttachParent = GetCapsuleComponent() ? static_cast<USceneComponent*>(GetCapsuleComponent()) : GetRootComponent();
 		CargoMesh->SetupAttachment(AttachParent);
-		if (UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr, EngineSpherePath))
-		{
-			CargoMesh->SetStaticMesh(Sphere);
-		}
-		CargoMesh->SetRelativeLocation(FVector(28.f, 0.f, 70.f));
-		CargoMesh->SetRelativeScale3D(FVector(0.22f));
+		CargoMesh->SetRelativeLocation(FVector(-20.f, 0.f, 80.f));
+		CargoMesh->SetRelativeScale3D(FVector(0.18f));
 		CargoMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		CargoMesh->SetGenerateOverlapEvents(false);
 		CargoMesh->SetCanEverAffectNavigation(false);
 		CargoMesh->RegisterComponent();
 	}
 
-	const FLinearColor Tint = (Luminene > 0 && Jadeite <= 0)
+	const bool bGas = Luminene > 0 && Jadeite <= 0;
+	UStaticMesh* Payload = nullptr;
+	if (const UKodFactionDefinition* Faction = UKodSlice0Bootstrap::ResolveFaction(FName(KodWardenPaths::Id_USA), const_cast<AKodUnit*>(this)))
+	{
+		const TSoftObjectPtr<UStaticMesh>& Soft = bGas ? Faction->CarryMeshGas : Faction->CarryMeshCrystal;
+		if (!Soft.IsNull())
+		{
+			Payload = Soft.LoadSynchronous();
+		}
+	}
+	if (!Payload)
+	{
+		Payload = LoadObject<UStaticMesh>(nullptr, bGas
+			? TEXT("/Engine/BasicShapes/Cylinder.Cylinder")
+			: TEXT("/Engine/BasicShapes/Cube.Cube"));
+	}
+	if (Payload && CargoMesh)
+	{
+		CargoMesh->SetStaticMesh(Payload);
+		CargoMesh->SetRelativeScale3D(bGas ? FVector(0.12f, 0.12f, 0.28f) : FVector(0.18f));
+		if (USkeletalMeshComponent* Body = GetMesh())
+		{
+			if (Body->DoesSocketExist(FName(TEXT("hand_r"))))
+			{
+				CargoMesh->AttachToComponent(Body, FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName(TEXT("hand_r")));
+			}
+			else if (Body->DoesSocketExist(FName(TEXT("back"))))
+			{
+				CargoMesh->AttachToComponent(Body, FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName(TEXT("back")));
+			}
+		}
+	}
+	const FLinearColor Tint = bGas
 		? KodResourceColors::LumineneCore()
 		: KodResourceColors::Jadeite();
 	if (!CargoMID)

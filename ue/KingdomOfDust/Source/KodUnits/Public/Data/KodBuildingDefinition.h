@@ -57,6 +57,33 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
 	bool bExtractor = false;
 
+	/** Completed building required before placement. Barracks requires a Depot. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	FName RequiresId;
+
+	/** 0 basic (B), 1 advanced (V). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	int32 MenuTier = 0;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	bool bTownHall = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	bool bCanLower = false;
+
+	/** Bunker cargo. 0 means the building holds no units. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	int32 CargoCap = 0;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Combat")
+	int32 AttackDamage = 0;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Combat")
+	int32 AttackRangeUU = 0;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Combat")
+	bool bAttacksAir = false;
+
 	/** Optional presentation. Empty keeps the placed greybox mesh. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
 	TSoftObjectPtr<UStaticMesh> Mesh;

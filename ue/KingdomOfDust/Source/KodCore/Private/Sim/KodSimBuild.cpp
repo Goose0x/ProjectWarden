@@ -58,7 +58,7 @@ bool UKodSimSubsystem::IsCellBlocked(int32 CellX, int32 CellY) const
 	for (int32 Key : Keys)
 	{
 		const FKodStructureState* Structure = Structures.Find(Key);
-		if (!Structure)
+		if (!Structure || Structure->bLowered)
 		{
 			continue;
 		}
@@ -276,23 +276,59 @@ FKodPlacementResult UKodSimSubsystem::QueryPlacement(int32 TeamId, FName TypeId,
 	Result.CellX = OriginX;
 	Result.CellY = OriginY;
 	Result.WorldCenter = FootprintCenter(OriginX, OriginY, SizeX, SizeY, CursorWorld.Z);
+	Result.CellOk.SetNum(SizeX * SizeY);
 
-	if (bHasPlayable && !FootprintInside(OriginX, OriginY, SizeX, SizeY, PlayMinX, PlayMinY, PlayMaxX, PlayMaxY))
+	if (!Spec->RequiresId.IsNone() && !HasCompletedStructure(TeamId, Spec->RequiresId))
 	{
-		Result.Reason = TEXT("OffMap");
+		Result.Reason = TEXT("Requires");
+		Result.RequiredId = Spec->RequiresId;
 		return Result;
 	}
 
-	for (int32 X = OriginX; X < OriginX + SizeX; ++X)
+	bool bCellBlocked = false;
+	if (bHasPlayable && !FootprintInside(OriginX, OriginY, SizeX, SizeY, PlayMinX, PlayMinY, PlayMaxX, PlayMaxY))
 	{
-		for (int32 Y = OriginY; Y < OriginY + SizeY; ++Y)
+		Result.Reason = TEXT("OffMap");
+		bCellBlocked = true;
+	}
+
+	for (int32 Y = OriginY; Y < OriginY + SizeY; ++Y)
+	{
+		for (int32 X = OriginX; X < OriginX + SizeX; ++X)
 		{
-			if (IsCellBlocked(X, Y))
+			const int32 Index = (Y - OriginY) * SizeX + (X - OriginX);
+			const bool bOpen = !bCellBlocked && !IsCellBlocked(X, Y) && !IsCellTerrainBlocked(X, Y);
+			Result.CellOk[Index] = bOpen ? 1 : 0;
+			if (!bOpen)
 			{
 				Result.Reason = TEXT("Blocked");
-				return Result;
 			}
 		}
+	}
+
+	TArray<int32> UnitKeys;
+	States.GetKeys(UnitKeys);
+	UnitKeys.Sort();
+	for (int32 Key : UnitKeys)
+	{
+		const FKodSimEntityState* State = States.Find(Key);
+		if (!State || !State->bMobile || State->Health <= 0.f || State->InsideBunker.IsValid() || State->TeamId == TeamId)
+		{
+			continue;
+		}
+		const int32 UnitX = KodBuildGrid::CellOf(State->Position.X);
+		const int32 UnitY = KodBuildGrid::CellOf(State->Position.Y);
+		if (UnitX < OriginX || UnitX >= OriginX + SizeX || UnitY < OriginY || UnitY >= OriginY + SizeY)
+		{
+			continue;
+		}
+		Result.CellOk[(UnitY - OriginY) * SizeX + (UnitX - OriginX)] = 0;
+		Result.Reason = TEXT("Blocked");
+	}
+
+	if (Result.Reason == TEXT("Blocked") || Result.Reason == TEXT("OffMap"))
+	{
+		return Result;
 	}
 
 	TArray<int32> OverlapNodes;
@@ -318,6 +354,40 @@ FKodPlacementResult UKodSimSubsystem::QueryPlacement(int32 TeamId, FName TypeId,
 		}
 		Result.Reason = TEXT("Node");
 		return Result;
+	}
+
+	if (Spec->bTownHall)
+	{
+		TArray<int32> NearKeys;
+		ResourceNodes.GetKeys(NearKeys);
+		NearKeys.Sort();
+		for (int32 Key : NearKeys)
+		{
+			const FKodResourceNodeState* Node = ResourceNodes.Find(Key);
+			if (!Node)
+			{
+				continue;
+			}
+			const int32 NodeX = KodBuildGrid::CellOf(Node->Position.X);
+			const int32 NodeY = KodBuildGrid::CellOf(Node->Position.Y);
+			int32 Gap = MAX_int32;
+			for (int32 X = OriginX; X < OriginX + SizeX; ++X)
+			{
+				for (int32 Y = OriginY; Y < OriginY + SizeY; ++Y)
+				{
+					Gap = FMath::Min(Gap, FMath::Max(FMath::Abs(NodeX - X), FMath::Abs(NodeY - Y)));
+				}
+			}
+			if (Gap <= 3)
+			{
+				for (uint8& Cell : Result.CellOk)
+				{
+					Cell = 0;
+				}
+				Result.Reason = TEXT("Blocked");
+				return Result;
+			}
+		}
 	}
 
 	if (Spec->bExtractor)
@@ -399,6 +469,7 @@ bool UKodSimSubsystem::TryPlaceStructure(int32 TeamId, FName TypeId, FVector Cur
 	{
 		LogPlace(TypeText, Placement.CellX, Placement.CellY, false);
 		UE_LOG(LogTemp, Log, TEXT("KodBuild Invalid Reason=%s"), *Placement.Reason.ToString());
+		RaiseCue(FName(TEXT("cant_build")), CursorWorld, false);
 		return false;
 	}
 
@@ -484,6 +555,30 @@ bool UKodSimSubsystem::TryPlaceStructure(int32 TeamId, FName TypeId, FVector Cur
 	Structure.StandPoint = Stand;
 	Structure.RallyPoint = Stand;
 	Structure.BuilderId = WorkerId;
+	Structure.bCanLower = Spec->bCanLower;
+	Structure.CargoCap = FMath::Max(0, Spec->CargoCap);
+	Structure.AttackDamage = FMath::Max(0, Spec->AttackDamage);
+	Structure.AttackRangeUU = FMath::Max(0, Spec->AttackRangeUU);
+	Structure.bAttacksAir = Spec->bAttacksAir;
+
+	TArray<int32> PushKeys;
+	States.GetKeys(PushKeys);
+	PushKeys.Sort();
+	for (int32 Key : PushKeys)
+	{
+		FKodSimEntityState* Occupant = States.Find(Key);
+		if (!Occupant || !Occupant->bMobile || Occupant->Health <= 0.f || Occupant->TeamId != TeamId)
+		{
+			continue;
+		}
+		const int32 OccX = KodBuildGrid::CellOf(Occupant->Position.X);
+		const int32 OccY = KodBuildGrid::CellOf(Occupant->Position.Y);
+		if (OccX < Structure.CellX || OccX >= Structure.CellX + SizeX || OccY < Structure.CellY || OccY >= Structure.CellY + SizeY)
+		{
+			continue;
+		}
+		SnapOutOfFootprint(*Occupant);
+	}
 
 	IssueMove(WorkerId, Stand);
 	if (FKodSimEntityState* Ordered = States.Find(WorkerId.Value))
@@ -498,8 +593,10 @@ bool UKodSimSubsystem::TryPlaceStructure(int32 TeamId, FName TypeId, FVector Cur
 	Spawn.Location = Structure.Position;
 	Spawn.FootprintX = SizeX;
 	Spawn.FootprintY = SizeY;
+	Spawn.YawDegrees = GetTeamFacing(TeamId);
 	PendingBuildingSpawns.Add(Spawn);
 
+	RaiseCue(FName(TEXT("building_placed")), Structure.Position, true);
 	LogPlace(TypeText, Placement.CellX, Placement.CellY, true);
 	return true;
 }
@@ -629,6 +726,8 @@ void UKodSimSubsystem::ReleaseStructureRecord(FKodEntityId Id)
 	}
 	const int32 TeamId = Structure->TeamId;
 	const bool bWasComplete = Structure->bComplete;
+	const FVector DeathAt = Structure->Position;
+	EjectBunker(Id);
 	const FKodEntityId BuilderId = Structure->BuilderId;
 	if (FKodSimEntityState* Worker = States.Find(BuilderId.Value))
 	{
@@ -642,6 +741,7 @@ void UKodSimSubsystem::ReleaseStructureRecord(FKodEntityId Id)
 	if (bWasComplete)
 	{
 		RecalcSupplyCap(TeamId);
+		RaiseCue(FName(TEXT("building_destroyed")), DeathAt, true);
 	}
 }
 
@@ -666,6 +766,14 @@ void UKodSimSubsystem::StepConstruction()
 		{
 			Structure->bActivelyBuilding = false;
 			continue;
+		}
+		if (Builder)
+		{
+			const FVector ToSite = Structure->Position - Builder->Position;
+			if (ToSite.SizeSquared2D() > KINDA_SMALL_NUMBER)
+			{
+				Builder->YawDegrees = FMath::RadiansToDegrees(FMath::Atan2(ToSite.Y, ToSite.X));
+			}
 		}
 
 		if (!Structure->bActivelyBuilding)
@@ -722,6 +830,7 @@ void UKodSimSubsystem::StepConstruction()
 			UE_LOG(LogTemp, Log, TEXT("KodBuild Complete Id=%d Type=%s"),
 				Structure->Id.Value,
 				*Structure->DisplayId.ToString());
+			RaiseCue(FName(TEXT("structure_complete")), Structure->Position, true);
 		}
 	}
 }

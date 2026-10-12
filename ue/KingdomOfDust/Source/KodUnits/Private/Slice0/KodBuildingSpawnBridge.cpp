@@ -26,7 +26,7 @@ void UKodBuildingSpawnBridge::Tick(float DeltaTime)
 			continue;
 		}
 		UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(Request.TypeId, this);
-		const FTransform Xform(FRotator::ZeroRotator, Request.Location);
+		const FTransform Xform(FRotator(0.f, static_cast<float>(Request.YawDegrees), 0.f), Request.Location);
 		AKodBuilding* Building = World->SpawnActorDeferred<AKodBuilding>(
 			AKodBuilding::StaticClass(),
 			Xform,

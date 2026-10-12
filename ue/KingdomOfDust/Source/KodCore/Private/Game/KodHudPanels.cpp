@@ -676,6 +676,9 @@ void AKodHUD::DrawSelectionPanel()
 		FString Order;
 		FString Stim;
 		bool bStructure = false;
+		int32 Energy = 0;
+		int32 EnergyMax = 0;
+		TArray<int32> Cargo;
 	};
 
 	TArray<FTile> Tiles;
@@ -720,6 +723,8 @@ void AKodHUD::DrawSelectionPanel()
 			{
 				Tile.Stim = TEXT("Stim off");
 			}
+			Tile.Energy = State->Energy;
+			Tile.EnergyMax = State->EnergyMax;
 		}
 		else
 		{
@@ -801,6 +806,30 @@ void AKodHUD::DrawSelectionPanel()
 			TextY += 22.f * Scale;
 		}
 		DrawText(Tile.Order, FLinearColor(0.85f, 0.85f, 0.8f, 1.f), BarX, TextY, Font, 0.9f * Scale, false);
+		TextY += 22.f * Scale;
+		if (Tile.EnergyMax > 0)
+		{
+			const float EnergyFrac = FMath::Clamp(static_cast<float>(Tile.Energy) / static_cast<float>(Tile.EnergyMax), 0.f, 1.f);
+			DrawRect(FLinearColor(0.08f, 0.1f, 0.16f, 1.f), BarX, TextY, BarW, 8.f * Scale);
+			DrawRect(FLinearColor(0.25f, 0.55f, 0.95f, 1.f), BarX, TextY, BarW * EnergyFrac, 8.f * Scale);
+			DrawText(FString::Printf(TEXT("Energy %d/%d"), Tile.Energy, Tile.EnergyMax), FLinearColor(0.7f, 0.85f, 1.f, 1.f), BarX, TextY + 10.f * Scale, Font, 0.8f * Scale, false);
+			TextY += 28.f * Scale;
+		}
+		if (const FKodStructureState* CargoStructure = FindFrameStructure(Tile.EntityId))
+		{
+			if (CargoStructure->Cargo.Num() > 0)
+			{
+				DrawText(TEXT("Unload all"), FLinearColor::White, BarX, TextY, Font, 0.8f * Scale, false);
+				RememberChrome(FName(TEXT("UnloadAll")), CargoStructure->Id.Value, FName(), BarX, TextY, BarX + 120.f * Scale, TextY + 18.f * Scale);
+				TextY += 20.f * Scale;
+				for (int32 Rider : CargoStructure->Cargo)
+				{
+					DrawText(FString::Printf(TEXT("Unload %d"), Rider), FLinearColor(0.8f, 0.85f, 0.8f, 1.f), BarX, TextY, Font, 0.75f * Scale, false);
+					RememberChrome(FName(TEXT("Unload")), Rider, FName(), BarX, TextY, BarX + 120.f * Scale, TextY + 16.f * Scale);
+					TextY += 16.f * Scale;
+				}
+			}
+		}
 		RememberChrome(FName(TEXT("Tile")), Tile.EntityId, Tile.TypeId, X, Y, X + PanelW, Y + PanelH);
 		return;
 	}

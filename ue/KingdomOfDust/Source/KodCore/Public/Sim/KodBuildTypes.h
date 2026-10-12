@@ -33,12 +33,26 @@ struct KODCORE_API FKodBuildSpec
 	bool bIsDropOff = false;
 	bool bExtractor = false;
 	TArray<FName> Trains;
+	/** Completed structure required before this can be placed. Empty means none. */
+	FName RequiresId;
+	/** 0 basic build menu, 1 advanced. */
+	int32 MenuTier = 0;
+	bool bTownHall = false;
+	bool bCanLower = false;
+	int32 CargoCap = 0;
+	int32 AttackDamage = 0;
+	int32 AttackRangeUU = 0;
+	bool bAttacksAir = false;
 };
 
 struct KODCORE_API FKodPlacementResult
 {
 	bool bValid = false;
 	FName Reason;
+	/** Set when Reason is Requires. The HUD prints this name. */
+	FName RequiredId;
+	/** One byte per footprint cell, row-major. 1 is open, 0 is blocked. */
+	TArray<uint8> CellOk;
 	int32 CellX = 0;
 	int32 CellY = 0;
 	FKodEntityId VentId;
@@ -54,4 +68,5 @@ struct KODCORE_API FKodPendingBuildingSpawn
 	FVector Location = FVector::ZeroVector;
 	int32 FootprintX = 1;
 	int32 FootprintY = 1;
+	int32 YawDegrees = 0;
 };

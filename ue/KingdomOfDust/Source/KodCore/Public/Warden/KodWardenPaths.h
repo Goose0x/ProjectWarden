@@ -31,6 +31,12 @@ namespace KodWardenPaths
 	constexpr const TCHAR* Id_Barracks = TEXT("Barracks");
 	constexpr const TCHAR* Id_SupplyDepot = TEXT("SupplyDepot");
 	constexpr const TCHAR* Id_Rig = TEXT("Rig");
+	constexpr const TCHAR* Id_EngineeringBay = TEXT("EngineeringBay");
+	constexpr const TCHAR* Id_Bunker = TEXT("Bunker");
+	constexpr const TCHAR* Id_Turret = TEXT("Turret");
+	constexpr const TCHAR* Id_Medic = TEXT("Medic");
+	constexpr const TCHAR* Id_InfantryWeapons = TEXT("InfantryWeapons");
+	constexpr const TCHAR* Id_InfantryArmor = TEXT("InfantryArmor");
 	constexpr const TCHAR* Id_USA = TEXT("USA");
 	constexpr const TCHAR* Id_JadeiteNode = TEXT("JadeiteNode");
 	constexpr const TCHAR* Id_LumineneVent = TEXT("LumineneVent");
