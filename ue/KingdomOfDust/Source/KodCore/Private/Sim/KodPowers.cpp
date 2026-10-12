@@ -1,5 +1,6 @@
 #include "Sim/KodSimSubsystem.h"
 
+#include "Algo/BinarySearch.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Warden/KodWardenPaths.h"
@@ -418,6 +419,113 @@ void UKodSimSubsystem::RegisterRampCell(int32 CellX, int32 CellY)
 	RampCells.AddUnique(Key);
 	RampCells.Sort();
 	UE_LOG(LogTemp, Log, TEXT("KodRamp Cell=%d,%d"), CellX, CellY);
+}
+
+void UKodSimSubsystem::SetCliffBlockCells(TArray<int64> Cells)
+{
+	Cells.Sort();
+	DressBlockCells.Reset();
+	for (int64 Cell : Cells)
+	{
+		if (DressBlockCells.Num() == 0 || DressBlockCells.Last() != Cell)
+		{
+			DressBlockCells.Add(Cell);
+		}
+	}
+}
+
+bool UKodSimSubsystem::IsDressBlockCell(int32 CellX, int32 CellY) const
+{
+	return Algo::BinarySearch(DressBlockCells, PackRamp(CellX, CellY)) != INDEX_NONE;
+}
+
+void UKodSimSubsystem::SetVisionBlockCells(TArray<int64> Cells)
+{
+	Cells.Sort();
+	VisionBlockCells.Reset();
+	for (int64 Cell : Cells)
+	{
+		if (VisionBlockCells.Num() == 0 || VisionBlockCells.Last() != Cell)
+		{
+			VisionBlockCells.Add(Cell);
+		}
+	}
+}
+
+bool UKodSimSubsystem::IsVisionBlockCell(int32 CellX, int32 CellY) const
+{
+	return Algo::BinarySearch(VisionBlockCells, PackRamp(CellX, CellY)) != INDEX_NONE;
+}
+
+bool UKodSimSubsystem::VisionRayHitsBlock(int32 X0, int32 Y0, int32 X1, int32 Y1) const
+{
+	int32 X = X0;
+	int32 Y = Y0;
+	const int32 DX = FMath::Abs(X1 - X0);
+	const int32 DY = FMath::Abs(Y1 - Y0);
+	const int32 StepX = X0 < X1 ? 1 : -1;
+	const int32 StepY = Y0 < Y1 ? 1 : -1;
+	int32 Err = DX - DY;
+	while (X != X1 || Y != Y1)
+	{
+		const int32 Err2 = Err * 2;
+		if (Err2 > -DY)
+		{
+			Err -= DY;
+			X += StepX;
+		}
+		if (Err2 < DX)
+		{
+			Err += DX;
+			Y += StepY;
+		}
+		if (X == X1 && Y == Y1)
+		{
+			break;
+		}
+		if (IsVisionBlockCell(X, Y))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void UKodSimSubsystem::SetLayoutSockets(const TArray<FVector2D>& Sockets)
+{
+	LayoutSockets = Sockets;
+}
+
+bool UKodSimSubsystem::LayoutSocketsMatch() const
+{
+	const FVector2D Wanted[] = {
+		FVector2D(-8300.f, -8300.f),
+		FVector2D(8300.f, 8300.f),
+		FVector2D(-8300.f, -2900.f),
+		FVector2D(8300.f, 2900.f),
+		FVector2D(100.f, 100.f)
+	};
+	if (LayoutSockets.Num() < UE_ARRAY_COUNT(Wanted))
+	{
+		return false;
+	}
+	for (const FVector2D& Point : Wanted)
+	{
+		bool bFound = false;
+		for (const FVector2D& Socket : LayoutSockets)
+		{
+			if (FVector2D::Distance(Socket, Point) <= 1.f)
+			{
+				bFound = true;
+				break;
+			}
+		}
+		if (!bFound)
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 bool UKodSimSubsystem::IsRampCell(int32 CellX, int32 CellY) const

@@ -34,6 +34,7 @@ public:
 	 * Luminene: a low fissure disc (#9EE60B) with a highlight plume (#C6FF1A).
 	 */
 	void ApplyPlaceholder(EKodResourceType Type);
+	void ApplyJadeiteStandIn();
 
 	void SetEntityId(FKodEntityId Id) { EntityId = Id; }
 

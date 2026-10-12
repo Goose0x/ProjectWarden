@@ -204,6 +204,12 @@ void UKodSimSubsystem::StepVision()
 				{
 					continue;
 				}
+				// TODO: SC2 high-ground vision. KodHighGround is a 500 uu visual lift only.
+				// Low ground should not see that plateau unless a friendly unit is up there.
+				if (VisionRayHitsBlock(OriginX, OriginY, CellX, CellY))
+				{
+					continue;
+				}
 				const int32 Index = VisionCellIndex(CellX, CellY);
 				if (Cells->IsValidIndex(Index))
 				{

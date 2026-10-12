@@ -1,0 +1,2926 @@
+{
+ "meta": {
+  "name": "PROXY_CoreLoopTest_1v1",
+  "status": "PROXY / TEST \u2014 not ladder, not pool-legal (bPoolLegal never set)",
+  "generated_by": "_tools/gen_layout.py",
+  "date": "2026-10-12",
+  "live_map": "#62",
+  "cell_uu": 200,
+  "full_cells": [
+   128,
+   128
+  ],
+  "border_cells": 6,
+  "playable_cells": [
+   116,
+   116
+  ],
+  "playable_min_cell": [
+   6,
+   6
+  ],
+  "playable_max_cell": [
+   121,
+   121
+  ],
+  "full_uu": [
+   25600,
+   25600
+  ],
+  "playable_uu": [
+   23200,
+   23200
+  ],
+  "symmetry": "180-degree rotational about grid point (64,64) = world (0,0): cell (x,y)->(127-x,127-y); rect [x,y,w,h]->[128-x-w,128-y-h,w,h]",
+  "origin_uu": [
+   -12800.0,
+   -12800.0
+  ],
+  "anchors_uu": {
+   "P1_MAIN": [
+    -8400,
+    -8400
+   ],
+   "P1_NAT": [
+    -8400,
+    -3000
+   ],
+   "FAULTLINE": [
+    0,
+    0
+   ]
+  },
+  "coords": "cell (x,y): x east, y north, origin SW corner of full canvas; world_uu = cell*200 - 12800 (+100 for cell centres); world origin (0,0) = map centre",
+  "elevation_levels": {
+   "0": "low ground",
+   "1": "main high ground (+HIGH_Z uu, TBD; script default 300)"
+  },
+  "facing": "fixed \u2014 no building rotation; addon socket on EAST side for both players",
+  "version": "2.0",
+  "ue_level": "/Game/Maps/Sandbox/L_CoreLoop_Test",
+  "ue_gamemode": "/Script/KingdomOfDust.KodSlice0GameMode",
+  "high_ground": {
+   "tiers": 1,
+   "height_uu": 300,
+   "vision_rule": "SC2: low ground cannot see high ground without a friendly unit up there; low-ground shots at unseen high-ground targets miss"
+  }
+ },
+ "economy_placeholder": {
+  "jad_pool_std": 1200,
+  "jad_pool_rich": 900,
+  "jad_yield_std": 5,
+  "jad_yield_rich": 7,
+  "lum_pool_std": 2250,
+  "lum_pool_rich": 1500,
+  "lum_yield_std": 4,
+  "lum_yield_rich": 6,
+  "lum_trickle_per_trip": 1,
+  "lum_depleted_pool": -1,
+  "workers_per_node": 2,
+  "workers_per_vent": 3,
+  "workers_per_depleted_vent": 1,
+  "sat_std_base": 22,
+  "sat_rich_base": 18
+ },
+ "unit_speed_cells_s": {
+  "VAN_AMP": 3.94,
+  "VAN_MARINE": 3.15,
+  "VAN_MARINE_STIM": 4.725
+ },
+ "legend": {
+  "~": "border (out of bounds, unbuildable)",
+  "#": "cliff / mesa (blocks all; no cliff-jump)",
+  "m": "main high ground (buildable)",
+  "n": "natural ground (buildable)",
+  "t": "third zone ground",
+  "f": "Faultline mid zone ground",
+  ".": "neutral low ground",
+  "/": "ramp (walk, no build)",
+  "H": "start CC (spawn, preplaced)",
+  "h": "expansion CC socket (empty, walkable until built)",
+  "J": "Jadeite node",
+  "R": "rich Jadeite node",
+  "V": "Luminene vent",
+  "W": "rich Luminene vent",
+  "o": "vent no-build ring (walk)",
+  "w": "worker lane no-build (walk)",
+  "L": "LOS blocker (walk, blocks vision)",
+  "D": "destructible rocks (blocks until destroyed)",
+  "b": "suggested TEST build slot"
+ },
+ "colors_linear_rgb": {
+  "main": [
+   0.1,
+   0.3,
+   0.9
+  ],
+  "natural": [
+   0.15,
+   0.65,
+   0.2
+  ],
+  "third": [
+   0.95,
+   0.85,
+   0.1
+  ],
+  "mid": [
+   1.0,
+   0.5,
+   0.05
+  ],
+  "cliff": [
+   0.35,
+   0.35,
+   0.35
+  ],
+  "neutral": [
+   0.62,
+   0.58,
+   0.5
+  ],
+  "border": [
+   0.08,
+   0.08,
+   0.08
+  ],
+  "ramp": [
+   0.55,
+   0.55,
+   0.75
+  ],
+  "jadeite": [
+   0.0,
+   1.0,
+   0.45
+  ],
+  "jadeite_rich": [
+   0.6,
+   1.0,
+   0.75
+  ],
+  "vent": [
+   0.776,
+   1.0,
+   0.102
+  ],
+  "vent_rich": [
+   0.914,
+   1.0,
+   0.478
+  ],
+  "vent_ring": [
+   0.43,
+   0.56,
+   0.1
+  ],
+  "worker_lane": [
+   0.75,
+   0.75,
+   0.7
+  ],
+  "los": [
+   0.2,
+   0.3,
+   0.15
+  ],
+  "destructible": [
+   0.45,
+   0.25,
+   0.1
+  ],
+  "cc_socket": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "build_slot": [
+   0.3,
+   0.9,
+   0.9
+  ],
+  "spawn": [
+   1.0,
+   0.0,
+   1.0
+  ]
+ },
+ "cells": {
+  "rows_north_to_south": [
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~....................................................................................##mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~....................................................................................##mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~....................................................................................##mbbbmmmmmmmmmmmmmmmmmmmbbmbbmm~~~~~~",
+   "~~~~~~....................................................................................##mbbbmmmmmmmmmmmmmmmmmmmbbmbbmm~~~~~~",
+   "~~~~~~....................................................................................##mbbbmmmmmmmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~....................................................................................##mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~...............................LLL..................................................##mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~...............................LLL..................................................##mbbmmmmmmmmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~...............................LLL..................................................##mbbmmmmmmmmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~....................................................................................##mmmmmmmmmmJJwwJJmmooooommmmmmm~~~~~~",
+   "~~~~~~....................................................................................##mbbmmmmmJJwwJJwwJJoVVVommmmmmm~~~~~~",
+   "~~~~~~....................................................................................##mbbmmmmJwwwwwwwwwwoVVVommmmmmm~~~~~~",
+   "~~~~~~....................................................................................##mmmmmmmJwwwwwwwwwwoVVVommmmmmm~~~~~~",
+   "~~~~~~....................................................................................##mmmmmmJwwwwwwwwwwwooooommmmmmm~~~~~~",
+   "~~~~~~..........................................##################################........##mmmmmmJwwwwHHHHHwwwwmmmmmmmmmm~~~~~~",
+   "~~~~~~..........................................##################################........##mmmmmmwJwwwHHHHHwwwmmmmmmmmmmm~~~~~~",
+   "~~~~~~..........................................##################################........##mmmmmmwJwwwHHHHHwwmmmmmmmmmmmm~~~~~~",
+   "~~~~~~..........................................##################################........##mmmmooooowwHHHHHwmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~..........................................##################################........##mmmmoVVVowwHHHHHmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~..........................................##################################........##mmmmoVVVowwwmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~..........................................##################################........##mmmmoVVVommmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~..........................................##################################........##mmmmooooommmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~....................................................................................##mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~....................................................................................##mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~....................................................................................##mbbbmbbbbbmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~....................................................................................##mbbbmbbbbbmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~tttttttttttttttttttttttttttt........................................................##mbbbmbbbbbmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~tttttttttttttttttttttttttttt........................................................##mmmmmbbbbbmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~tttttttttttttttttttttttttttt........................................................##mmmmmbbbbbmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~tttttttttttttttttttttttttttt........................................................##mmmmmbbbbbmmmmmmmmmmmmmmmmmmmm~~~~~~",
+   "~~~~~~tttttttttttttttttttttttttttt......................................############......###########################////#~~~~~~",
+   "~~~~~~tttttttttttttttttttttttttttt......................................############......###########################////#~~~~~~",
+   "~~~~~~ttttttttttttJJtttttttttttttt......................................############...###nnnnnnnnnnnnnnnnnnnnnnnnnnn////n~~~~~~",
+   "~~~~~~ttttttttttJJwwJJtttttttttttt......................................############...###nnnnnnnnnnnnnnnnnnnnnnnnnnn////n~~~~~~",
+   "~~~~~~ttttttttJwwwwwwwtttttttttttt##########............................############...###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~ttttttttJwwwwwwwtttttttttttt##########............................############...###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttJwwwwwwwwwttttttttttt##########............................############...###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttJwwwwhhhhhttttttttttt##########............................############...###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttwJwwwhhhhhwtttttttttt##########.......................LLL..############...###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttwJwwwhhhhhwtttttttttt##########.......................LLL..############...###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttJwwwwhhhhhwtttttttttt##########.......................LLL..############...###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttJwwwwhhhhhwwttttttttt##########............................############...###nnnnnnnnnnnnnhhhhhwwwJnnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttwJwwwwwwwwwwttttttttt##########...........................................###nnnnnnnnnnnnwhhhhhwwwJnnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttwJwwwwwwwwwwwtttttttt##########...........................................###nnnnnnnnnnnwwhhhhhwwwwJnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttwwwwwwwwwwoooootttttt##########...........................................bbbnnnnnnnnnnwwwhhhhhwwwwJnnnnnnnnn~~~~~~",
+   "~~~~~~tttttooooowwwwwwwoVVVotttttt##########...........................................bbbnnnnnnooooowwhhhhhwwwJwnnnnnnnnn~~~~~~",
+   "~~~~~~tttttoVVVowwwwwwwoVVVotttttt##########........ffffffffffffffffffffffff...........bbbnnnnnnoVVVowwwwwwwwwoJooonnnnnnn~~~~~~",
+   "~~~~~~tttttoVVVowwwwwwwoVVVotttttt##########........ffffffffffffffffffffffff...........nnnnnnnnnoVVVowwwwwwwwwoVVVonnnnnnn~~~~~~",
+   "~~~~~~tttttoVVVotttttttoooootttttt##########........fffffffffffffffffoooooff...........nbbnnnnnnoVVVowwwwwwwwwoVVVonnnnnnn~~~~~~",
+   "~~~~~~tttttoooootttttttttttttttttt##########........fffffffffffffffffoVVVoff...........nbbnnnnnnoooooJJwwJJwwJJVVVonnnnnnn~~~~~~",
+   "~~~~~~tttttttttttttttttttttttttttt..................fffffffffffffwwwwoVVVoff...........###nnnnnnnnnnnnnJJwwJJnooooonnnnnnn~~~~~~",
+   "~~~~~~tttttttttttttttttttttttttttt..................fffffffRRRRwwwwwwoVVVoff...........###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttttttttttttttttttttttt..............####fffffffwwwwwwwwwwoooooff...........###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttttttttttttttttttttttt..............####fffffffwwwwwwwwwwwwwffff...........###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttttttttttttttttttttttt..................ffffffwwwwwwwwwwwwwwffff...........###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~tttttttttttttttttttttttttttt..................ffffffwwwhhhhhhwwwwfffff...........###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~######DDDD#########################...........ffffffwwwhhhhhhwwwwfffff...........###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~######DDDD#########################...........fffffRwwwhhhhhhwwwRfffff...........###nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...........fffffRwwwhhhhhhwwwRfffff...........#########################DDDD######~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...........fffffwwwwhhhhhhwwwffffff...........#########################DDDD######~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...........fffffwwwwhhhhhhwwwffffff..................tttttttttttttttttttttttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...........ffffwwwwwwwwwwwwwwffffff..................tttttttttttttttttttttttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...........ffffwwwwwwwwwwwwwfffffff####..............tttttttttttttttttttttttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...........ffooooowwwwwwwwwwfffffff####..............tttttttttttttttttttttttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...........ffoWWWowwwwwwRRRRfffffff..................tttttttttttttttttttttttttttt~~~~~~",
+   "~~~~~~nnnnnnnooooonJJwwJJnnnnnnnnnnnnn###...........ffoWWWowwwwfffffffffffff..................tttttttttttttttttttttttttttt~~~~~~",
+   "~~~~~~nnnnnnnoVVVJJwwJJwwJJooooonnnnnnbbn...........ffoWWWofffffffffffffffff........##########ttttttttttttttttttooooottttt~~~~~~",
+   "~~~~~~nnnnnnnoVVVowwwwwwwwwoVVVonnnnnnbbn...........ffooooofffffffffffffffff........##########ttttttoooootttttttoVVVottttt~~~~~~",
+   "~~~~~~nnnnnnnoVVVowwwwwwwwwoVVVonnnnnnnnn...........ffffffffffffffffffffffff........##########ttttttoVVVowwwwwwwoVVVottttt~~~~~~",
+   "~~~~~~nnnnnnnoooJowwwwwwwwwoVVVonnnnnnbbb...........ffffffffffffffffffffffff........##########ttttttoVVVowwwwwwwoVVVottttt~~~~~~",
+   "~~~~~~nnnnnnnnnwJwwwhhhhhwwooooonnnnnnbbb...........................................##########ttttttoVVVowwwwwwwooooottttt~~~~~~",
+   "~~~~~~nnnnnnnnnJwwwwhhhhhwwwnnnnnnnnnnbbb...........................................##########ttttttooooowwwwwwwwwwttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnJwwwwhhhhhwwnnnnnnnnnnn###...........................................##########ttttttttwwwwwwwwwwwJwttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnJwwwhhhhhwnnnnnnnnnnnn###...........................................##########tttttttttwwwwwwwwwwJwttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnJwwwhhhhhnnnnnnnnnnnnn###...############............................##########tttttttttwwhhhhhwwwwJttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...############..LLL.......................##########ttttttttttwhhhhhwwwwJttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...############..LLL.......................##########ttttttttttwhhhhhwwwJwttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...############..LLL.......................##########ttttttttttwhhhhhwwwJwttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...############............................##########ttttttttttthhhhhwwwwJttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...############............................##########tttttttttttwwwwwwwwwJttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...############............................##########ttttttttttttwwwwwwwJtttttttt~~~~~~",
+   "~~~~~~nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn###...############............................##########ttttttttttttwwwwwwwJtttttttt~~~~~~",
+   "~~~~~~n////nnnnnnnnnnnnnnnnnnnnnnnnnnn###...############......................................ttttttttttttJJwwJJtttttttttt~~~~~~",
+   "~~~~~~n////nnnnnnnnnnnnnnnnnnnnnnnnnnn###...############......................................ttttttttttttttJJtttttttttttt~~~~~~",
+   "~~~~~~#////###########################......############......................................tttttttttttttttttttttttttttt~~~~~~",
+   "~~~~~~#////###########################......############......................................tttttttttttttttttttttttttttt~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmbbbbbmmmmm##........................................................tttttttttttttttttttttttttttt~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmbbbbbmmmmm##........................................................tttttttttttttttttttttttttttt~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmbbbbbmmmmm##........................................................tttttttttttttttttttttttttttt~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmbbbbbmbbbm##........................................................tttttttttttttttttttttttttttt~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmbbbbbmbbbm##....................................................................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmbbbbbmbbbm##....................................................................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm##....................................................................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm##....................................................................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmooooommmm##........##################################..........................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmoVVVommmm##........##################################..........................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmwwwoVVVommmm##........##################################..........................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmHHHHHwwoVVVommmm##........##################################..........................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmwHHHHHwwooooommmm##........##################################..........................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmwwHHHHHwwwJwmmmmmm##........##################################..........................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmwwwHHHHHwwwJwmmmmmm##........##################################..........................................~~~~~~",
+   "~~~~~~mmmmmmmmmmwwwwHHHHHwwwwJmmmmmm##........##################################..........................................~~~~~~",
+   "~~~~~~mmmmmmmooooowwwwwwwwwwwJmmmmmm##....................................................................................~~~~~~",
+   "~~~~~~mmmmmmmoVVVowwwwwwwwwwJmmmmmmm##....................................................................................~~~~~~",
+   "~~~~~~mmmmmmmoVVVowwwwwwwwwwJmmmmbbm##....................................................................................~~~~~~",
+   "~~~~~~mmmmmmmoVVVoJJwwJJwwJJmmmmmbbm##....................................................................................~~~~~~",
+   "~~~~~~mmmmmmmooooommJJwwJJmmmmmmmmmm##....................................................................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmbbm##..................................................LLL...............................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmbbm##..................................................LLL...............................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm##..................................................LLL...............................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm##....................................................................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmbbbm##....................................................................................~~~~~~",
+   "~~~~~~mmbbmbbmmmmmmmmmmmmmmmmmmmbbbm##....................................................................................~~~~~~",
+   "~~~~~~mmbbmbbmmmmmmmmmmmmmmmmmmmbbbm##....................................................................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm##....................................................................................~~~~~~",
+   "~~~~~~mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm##....................................................................................~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+   "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+  ],
+  "note": "rows[0] is y=127 (north). Index: rows[127-y][x]. walk/build derive from legend."
+ },
+ "zones": [
+  {
+   "id": "P1_MAIN",
+   "kind": "main",
+   "rect": [
+    6,
+    6,
+    30,
+    30
+   ],
+   "elev": 1
+  },
+  {
+   "id": "P2_MAIN",
+   "kind": "main",
+   "rect": [
+    92,
+    92,
+    30,
+    30
+   ],
+   "elev": 1
+  },
+  {
+   "id": "P1_NAT",
+   "kind": "natural",
+   "rect": [
+    6,
+    38,
+    32,
+    26
+   ],
+   "elev": 0
+  },
+  {
+   "id": "P2_NAT",
+   "kind": "natural",
+   "rect": [
+    90,
+    64,
+    32,
+    26
+   ],
+   "elev": 0
+  },
+  {
+   "id": "P1_THIRD",
+   "kind": "third",
+   "rect": [
+    6,
+    66,
+    28,
+    30
+   ],
+   "elev": 0
+  },
+  {
+   "id": "P2_THIRD",
+   "kind": "third",
+   "rect": [
+    94,
+    32,
+    28,
+    30
+   ],
+   "elev": 0
+  },
+  {
+   "id": "MID_FAULTLINE",
+   "kind": "mid",
+   "rect": [
+    52,
+    52,
+    24,
+    24
+   ],
+   "elev": 0
+  }
+ ],
+ "cliffs": [
+  {
+   "id": "CLIFF_01",
+   "rect": [
+    6,
+    36,
+    32,
+    2
+   ]
+  },
+  {
+   "id": "CLIFF_02",
+   "rect": [
+    90,
+    90,
+    32,
+    2
+   ]
+  },
+  {
+   "id": "CLIFF_03",
+   "rect": [
+    36,
+    6,
+    2,
+    30
+   ]
+  },
+  {
+   "id": "CLIFF_04",
+   "rect": [
+    90,
+    92,
+    2,
+    30
+   ]
+  },
+  {
+   "id": "CLIFF_05",
+   "rect": [
+    38,
+    38,
+    3,
+    28
+   ]
+  },
+  {
+   "id": "CLIFF_06",
+   "rect": [
+    87,
+    62,
+    3,
+    28
+   ]
+  },
+  {
+   "id": "CLIFF_07",
+   "rect": [
+    6,
+    64,
+    32,
+    2
+   ]
+  },
+  {
+   "id": "CLIFF_08",
+   "rect": [
+    90,
+    62,
+    32,
+    2
+   ]
+  },
+  {
+   "id": "CLIFF_09",
+   "rect": [
+    46,
+    20,
+    34,
+    8
+   ]
+  },
+  {
+   "id": "CLIFF_10",
+   "rect": [
+    48,
+    100,
+    34,
+    8
+   ]
+  },
+  {
+   "id": "CLIFF_11",
+   "rect": [
+    44,
+    36,
+    12,
+    12
+   ]
+  },
+  {
+   "id": "CLIFF_12",
+   "rect": [
+    72,
+    80,
+    12,
+    12
+   ]
+  },
+  {
+   "id": "CLIFF_13",
+   "rect": [
+    34,
+    72,
+    10,
+    16
+   ]
+  },
+  {
+   "id": "CLIFF_14",
+   "rect": [
+    84,
+    40,
+    10,
+    16
+   ]
+  },
+  {
+   "id": "CLIFF_15",
+   "rect": [
+    48,
+    68,
+    4,
+    2
+   ]
+  },
+  {
+   "id": "CLIFF_16",
+   "rect": [
+    76,
+    58,
+    4,
+    2
+   ]
+  }
+ ],
+ "ramps": [
+  {
+   "id": "P1_RAMP_MAIN",
+   "player": 1,
+   "rect": [
+    7,
+    36,
+    4,
+    4
+   ],
+   "down_dir": "N",
+   "from_elev": 1,
+   "to_elev": 0
+  },
+  {
+   "id": "P2_RAMP_MAIN",
+   "player": 2,
+   "rect": [
+    117,
+    88,
+    4,
+    4
+   ],
+   "down_dir": "S",
+   "from_elev": 1,
+   "to_elev": 0
+  }
+ ],
+ "chokes": [
+  {
+   "id": "P1_CHOKE_NAT",
+   "player": 1,
+   "rect": [
+    38,
+    50,
+    3,
+    6
+   ],
+   "width_cells": 6,
+   "length_cells": 3
+  },
+  {
+   "id": "P2_CHOKE_NAT",
+   "player": 2,
+   "rect": [
+    87,
+    72,
+    3,
+    6
+   ],
+   "width_cells": 6,
+   "length_cells": 3
+  }
+ ],
+ "bases": [
+  {
+   "id": "P1_MAIN",
+   "player_side": 1,
+   "zone": "main",
+   "elev": 1,
+   "cc_rect": [
+    20,
+    20,
+    5,
+    5
+   ],
+   "cc_center_cell": [
+    22,
+    22
+   ],
+   "is_spawn": true,
+   "rich": false,
+   "jadeite": [
+    "P1_MAIN_J01",
+    "P1_MAIN_J02",
+    "P1_MAIN_J03",
+    "P1_MAIN_J04",
+    "P1_MAIN_J05",
+    "P1_MAIN_J06",
+    "P1_MAIN_J07",
+    "P1_MAIN_J08"
+   ],
+   "vents": [
+    "P1_MAIN_V1",
+    "P1_MAIN_V2"
+   ]
+  },
+  {
+   "id": "P1_NAT",
+   "player_side": 1,
+   "zone": "natural",
+   "elev": 0,
+   "cc_rect": [
+    20,
+    47,
+    5,
+    5
+   ],
+   "cc_center_cell": [
+    22,
+    49
+   ],
+   "is_spawn": false,
+   "rich": false,
+   "jadeite": [
+    "P1_NAT_J01",
+    "P1_NAT_J02",
+    "P1_NAT_J03",
+    "P1_NAT_J04",
+    "P1_NAT_J05",
+    "P1_NAT_J06",
+    "P1_NAT_J07",
+    "P1_NAT_J08"
+   ],
+   "vents": [
+    "P1_NAT_V1",
+    "P1_NAT_V2"
+   ]
+  },
+  {
+   "id": "P1_THIRD",
+   "player_side": 1,
+   "zone": "third",
+   "elev": 0,
+   "cc_rect": [
+    18,
+    80,
+    5,
+    5
+   ],
+   "cc_center_cell": [
+    20,
+    82
+   ],
+   "is_spawn": false,
+   "rich": false,
+   "jadeite": [
+    "P1_THIRD_J01",
+    "P1_THIRD_J02",
+    "P1_THIRD_J03",
+    "P1_THIRD_J04",
+    "P1_THIRD_J05",
+    "P1_THIRD_J06",
+    "P1_THIRD_J07",
+    "P1_THIRD_J08"
+   ],
+   "vents": [
+    "P1_THIRD_V1",
+    "P1_THIRD_V2"
+   ]
+  },
+  {
+   "id": "P2_MAIN",
+   "player_side": 2,
+   "zone": "main",
+   "elev": 1,
+   "cc_rect": [
+    103,
+    103,
+    5,
+    5
+   ],
+   "cc_center_cell": [
+    105,
+    105
+   ],
+   "is_spawn": true,
+   "rich": false,
+   "jadeite": [
+    "P2_MAIN_J01",
+    "P2_MAIN_J02",
+    "P2_MAIN_J03",
+    "P2_MAIN_J04",
+    "P2_MAIN_J05",
+    "P2_MAIN_J06",
+    "P2_MAIN_J07",
+    "P2_MAIN_J08"
+   ],
+   "vents": [
+    "P2_MAIN_V1",
+    "P2_MAIN_V2"
+   ]
+  },
+  {
+   "id": "P2_NAT",
+   "player_side": 2,
+   "zone": "natural",
+   "elev": 0,
+   "cc_rect": [
+    103,
+    76,
+    5,
+    5
+   ],
+   "cc_center_cell": [
+    105,
+    78
+   ],
+   "is_spawn": false,
+   "rich": false,
+   "jadeite": [
+    "P2_NAT_J01",
+    "P2_NAT_J02",
+    "P2_NAT_J03",
+    "P2_NAT_J04",
+    "P2_NAT_J05",
+    "P2_NAT_J06",
+    "P2_NAT_J07",
+    "P2_NAT_J08"
+   ],
+   "vents": [
+    "P2_NAT_V1",
+    "P2_NAT_V2"
+   ]
+  },
+  {
+   "id": "P2_THIRD",
+   "player_side": 2,
+   "zone": "third",
+   "elev": 0,
+   "cc_rect": [
+    105,
+    43,
+    5,
+    5
+   ],
+   "cc_center_cell": [
+    107,
+    45
+   ],
+   "is_spawn": false,
+   "rich": false,
+   "jadeite": [
+    "P2_THIRD_J01",
+    "P2_THIRD_J02",
+    "P2_THIRD_J03",
+    "P2_THIRD_J04",
+    "P2_THIRD_J05",
+    "P2_THIRD_J06",
+    "P2_THIRD_J07",
+    "P2_THIRD_J08"
+   ],
+   "vents": [
+    "P2_THIRD_V1",
+    "P2_THIRD_V2"
+   ]
+  },
+  {
+   "id": "MID_FAULTLINE",
+   "player_side": 0,
+   "zone": "mid",
+   "elev": 0,
+   "cc_rect": [
+    62,
+    62,
+    5,
+    5
+   ],
+   "cc_center_cell": [
+    64,
+    64
+   ],
+   "is_spawn": false,
+   "rich": true,
+   "jadeite": [
+    "MID_FAULTLINE_JR01",
+    "MID_FAULTLINE_JR02",
+    "MID_FAULTLINE_JR03",
+    "MID_FAULTLINE_JR04",
+    "MID_FAULTLINE_JR05",
+    "MID_FAULTLINE_JR06"
+   ],
+   "vents": [
+    "MID_FAULTLINE_V1",
+    "MID_FAULTLINE_V2"
+   ]
+  }
+ ],
+ "resources": [
+  {
+   "id": "P1_MAIN_J01",
+   "base": "P1_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    18,
+    16,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_MAIN_J02",
+   "base": "P1_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    20,
+    15,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_MAIN_J03",
+   "base": "P1_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    22,
+    16,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_MAIN_J04",
+   "base": "P1_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    24,
+    15,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_MAIN_J05",
+   "base": "P1_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    26,
+    16,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_MAIN_J06",
+   "base": "P1_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    28,
+    17,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_MAIN_J07",
+   "base": "P1_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    29,
+    19,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_MAIN_J08",
+   "base": "P1_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    28,
+    21,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_MAIN_V1",
+   "base": "P1_MAIN",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    14,
+    16,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_MAIN_V2",
+   "base": "P1_MAIN",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    28,
+    24,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_NAT_J01",
+   "base": "P1_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    16,
+    47,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_NAT_J02",
+   "base": "P1_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    15,
+    49,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_NAT_J03",
+   "base": "P1_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    16,
+    51,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_NAT_J04",
+   "base": "P1_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    17,
+    55,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_NAT_J05",
+   "base": "P1_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    19,
+    56,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_NAT_J06",
+   "base": "P1_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    21,
+    55,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_NAT_J07",
+   "base": "P1_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    23,
+    56,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_NAT_J08",
+   "base": "P1_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    25,
+    55,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_NAT_V1",
+   "base": "P1_NAT",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    14,
+    53,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_NAT_V2",
+   "base": "P1_NAT",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    28,
+    52,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_THIRD_J01",
+   "base": "P1_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    14,
+    78,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_THIRD_J02",
+   "base": "P1_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    13,
+    80,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_THIRD_J03",
+   "base": "P1_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    14,
+    82,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_THIRD_J04",
+   "base": "P1_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    13,
+    84,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_THIRD_J05",
+   "base": "P1_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    14,
+    86,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_THIRD_J06",
+   "base": "P1_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    16,
+    88,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_THIRD_J07",
+   "base": "P1_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    18,
+    89,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_THIRD_J08",
+   "base": "P1_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    20,
+    88,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P1_THIRD_V1",
+   "base": "P1_THIRD",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    12,
+    73,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true,
+   "note": "standard"
+  },
+  {
+   "id": "P1_THIRD_V2",
+   "base": "P1_THIRD",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    24,
+    74,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true,
+   "note": "standard (Strategy placeholder: 2 per third)"
+  },
+  {
+   "id": "P2_MAIN_J01",
+   "base": "P2_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    108,
+    111,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_MAIN_J02",
+   "base": "P2_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    106,
+    112,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_MAIN_J03",
+   "base": "P2_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    104,
+    111,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_MAIN_J04",
+   "base": "P2_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    102,
+    112,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_MAIN_J05",
+   "base": "P2_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    100,
+    111,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_MAIN_J06",
+   "base": "P2_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    99,
+    109,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_MAIN_J07",
+   "base": "P2_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    98,
+    107,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_MAIN_J08",
+   "base": "P2_MAIN",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    99,
+    105,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_MAIN_V1",
+   "base": "P2_MAIN",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    111,
+    109,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_MAIN_V2",
+   "base": "P2_MAIN",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    97,
+    101,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_NAT_J01",
+   "base": "P2_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    111,
+    79,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_NAT_J02",
+   "base": "P2_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    112,
+    77,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_NAT_J03",
+   "base": "P2_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    111,
+    75,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_NAT_J04",
+   "base": "P2_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    109,
+    72,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_NAT_J05",
+   "base": "P2_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    107,
+    71,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_NAT_J06",
+   "base": "P2_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    105,
+    72,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_NAT_J07",
+   "base": "P2_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    103,
+    71,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_NAT_J08",
+   "base": "P2_NAT",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    101,
+    72,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_NAT_V1",
+   "base": "P2_NAT",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    111,
+    72,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_NAT_V2",
+   "base": "P2_NAT",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    97,
+    73,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_THIRD_J01",
+   "base": "P2_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    113,
+    48,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_THIRD_J02",
+   "base": "P2_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    114,
+    46,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_THIRD_J03",
+   "base": "P2_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    113,
+    44,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_THIRD_J04",
+   "base": "P2_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    114,
+    42,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_THIRD_J05",
+   "base": "P2_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    113,
+    40,
+    1,
+    2
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_THIRD_J06",
+   "base": "P2_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    110,
+    39,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_THIRD_J07",
+   "base": "P2_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    108,
+    38,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_THIRD_J08",
+   "base": "P2_THIRD",
+   "type": "JADEITE",
+   "state": "standard",
+   "rect": [
+    106,
+    39,
+    2,
+    1
+   ],
+   "amount": 1200,
+   "yield_per_trip": 5,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "P2_THIRD_V1",
+   "base": "P2_THIRD",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    113,
+    52,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true,
+   "note": "standard"
+  },
+  {
+   "id": "P2_THIRD_V2",
+   "base": "P2_THIRD",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    101,
+    51,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true,
+   "note": "standard (Strategy placeholder: 2 per third)"
+  },
+  {
+   "id": "MID_FAULTLINE_JR01",
+   "base": "MID_FAULTLINE",
+   "type": "JADEITE",
+   "state": "rich",
+   "rect": [
+    57,
+    63,
+    1,
+    2
+   ],
+   "amount": 900,
+   "yield_per_trip": 7,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "MID_FAULTLINE_JR02",
+   "base": "MID_FAULTLINE",
+   "type": "JADEITE",
+   "state": "rich",
+   "rect": [
+    59,
+    70,
+    2,
+    1
+   ],
+   "amount": 900,
+   "yield_per_trip": 7,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "MID_FAULTLINE_JR03",
+   "base": "MID_FAULTLINE",
+   "type": "JADEITE",
+   "state": "rich",
+   "rect": [
+    61,
+    70,
+    2,
+    1
+   ],
+   "amount": 900,
+   "yield_per_trip": 7,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "MID_FAULTLINE_JR04",
+   "base": "MID_FAULTLINE",
+   "type": "JADEITE",
+   "state": "rich",
+   "rect": [
+    70,
+    63,
+    1,
+    2
+   ],
+   "amount": 900,
+   "yield_per_trip": 7,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "MID_FAULTLINE_JR05",
+   "base": "MID_FAULTLINE",
+   "type": "JADEITE",
+   "state": "rich",
+   "rect": [
+    67,
+    57,
+    2,
+    1
+   ],
+   "amount": 900,
+   "yield_per_trip": 7,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "MID_FAULTLINE_JR06",
+   "base": "MID_FAULTLINE",
+   "type": "JADEITE",
+   "state": "rich",
+   "rect": [
+    65,
+    57,
+    2,
+    1
+   ],
+   "amount": 900,
+   "yield_per_trip": 7,
+   "workers_optimal": 2,
+   "ue_tags": [
+    "KodResourceJadeite"
+   ],
+   "placeholder": true
+  },
+  {
+   "id": "MID_FAULTLINE_V1",
+   "base": "MID_FAULTLINE",
+   "type": "LUMINENE_VENT",
+   "state": "rich",
+   "rect": [
+    55,
+    55,
+    3,
+    3
+   ],
+   "amount": 1500,
+   "yield_per_trip": 6,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true,
+   "note": "RICH (SW, nearer P1 side) \u2014 fairness FLAG"
+  },
+  {
+   "id": "MID_FAULTLINE_V2",
+   "base": "MID_FAULTLINE",
+   "type": "LUMINENE_VENT",
+   "state": "standard",
+   "rect": [
+    70,
+    70,
+    3,
+    3
+   ],
+   "amount": 2250,
+   "yield_per_trip": 4,
+   "workers_optimal": 3,
+   "depleted_trickle_per_trip": 1,
+   "depleted_pool": -1,
+   "depleted_workers": 1,
+   "no_build_ring_cells": 1,
+   "ue_tags": [
+    "KodResourceLuminene"
+   ],
+   "placeholder": true,
+   "note": "standard (NE)"
+  }
+ ],
+ "los_blockers": [
+  {
+   "id": "P1_LOS_CENTRE",
+   "rect": [
+    58,
+    44,
+    3,
+    3
+   ],
+   "walkable": true,
+   "blocks_vision": true
+  },
+  {
+   "id": "P2_LOS_CENTRE",
+   "rect": [
+    67,
+    81,
+    3,
+    3
+   ],
+   "walkable": true,
+   "blocks_vision": true
+  },
+  {
+   "id": "P1_LOS_FLANKLANE",
+   "rect": [
+    88,
+    12,
+    3,
+    3
+   ],
+   "walkable": true,
+   "blocks_vision": true
+  },
+  {
+   "id": "P2_LOS_FLANKLANE",
+   "rect": [
+    37,
+    113,
+    3,
+    3
+   ],
+   "walkable": true,
+   "blocks_vision": true
+  }
+ ],
+ "destructibles": [
+  {
+   "id": "P1_DESTRUCTIBLE_ROCKS_BACKDOOR",
+   "player_side": 1,
+   "rect": [
+    12,
+    64,
+    4,
+    2
+   ],
+   "state": "closed",
+   "hp": 2000,
+   "armor": 8,
+   "placeholder": true,
+   "opens_to": "walkable, unbuildable"
+  },
+  {
+   "id": "P2_DESTRUCTIBLE_ROCKS_BACKDOOR",
+   "player_side": 2,
+   "rect": [
+    112,
+    62,
+    4,
+    2
+   ],
+   "state": "closed",
+   "hp": 2000,
+   "armor": 8,
+   "placeholder": true,
+   "opens_to": "walkable, unbuildable"
+  }
+ ],
+ "build_slots": [
+  {
+   "id": "P1_SLOT_BARRACKS_ADDON",
+   "player": 1,
+   "rect": [
+    26,
+    30,
+    5,
+    3
+   ],
+   "kind": "production+addon 3x5 (3x3 parent W + 2x2 addon E)",
+   "valid": true
+  },
+  {
+   "id": "P2_SLOT_BARRACKS_ADDON",
+   "player": 2,
+   "rect": [
+    97,
+    95,
+    5,
+    3
+   ],
+   "kind": "production+addon 3x5 (3x3 parent W + 2x2 addon E)",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_FACTORY_ADDON",
+   "player": 1,
+   "rect": [
+    26,
+    33,
+    5,
+    3
+   ],
+   "kind": "production+addon 3x5 (3x3 parent W + 2x2 addon E)",
+   "valid": true
+  },
+  {
+   "id": "P2_SLOT_FACTORY_ADDON",
+   "player": 2,
+   "rect": [
+    97,
+    92,
+    5,
+    3
+   ],
+   "kind": "production+addon 3x5 (3x3 parent W + 2x2 addon E)",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_ENG_BAY",
+   "player": 1,
+   "rect": [
+    32,
+    30,
+    3,
+    3
+   ],
+   "kind": "Eng Bay 3x3",
+   "valid": true
+  },
+  {
+   "id": "P2_SLOT_ENG_BAY",
+   "player": 2,
+   "rect": [
+    93,
+    95,
+    3,
+    3
+   ],
+   "kind": "Eng Bay 3x3",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_ORDNANCE_DEPOT",
+   "player": 1,
+   "rect": [
+    32,
+    8,
+    3,
+    3
+   ],
+   "kind": "Ordnance Depot 3x3 standalone",
+   "valid": true
+  },
+  {
+   "id": "P2_SLOT_ORDNANCE_DEPOT",
+   "player": 2,
+   "rect": [
+    93,
+    117,
+    3,
+    3
+   ],
+   "kind": "Ordnance Depot 3x3 standalone",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_PAD_1",
+   "player": 1,
+   "rect": [
+    8,
+    8,
+    2,
+    2
+   ],
+   "kind": "Supply/depot pad 2x2",
+   "valid": true
+  },
+  {
+   "id": "P2_SLOT_PAD_1",
+   "player": 2,
+   "rect": [
+    118,
+    118,
+    2,
+    2
+   ],
+   "kind": "Supply/depot pad 2x2",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_PAD_2",
+   "player": 1,
+   "rect": [
+    11,
+    8,
+    2,
+    2
+   ],
+   "kind": "Supply/depot pad 2x2",
+   "valid": true
+  },
+  {
+   "id": "P2_SLOT_PAD_2",
+   "player": 2,
+   "rect": [
+    115,
+    118,
+    2,
+    2
+   ],
+   "kind": "Supply/depot pad 2x2",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_PAD_3",
+   "player": 1,
+   "rect": [
+    33,
+    13,
+    2,
+    2
+   ],
+   "kind": "Supply/depot pad 2x2",
+   "valid": true
+  },
+  {
+   "id": "P2_SLOT_PAD_3",
+   "player": 2,
+   "rect": [
+    93,
+    113,
+    2,
+    2
+   ],
+   "kind": "Supply/depot pad 2x2",
+   "valid": true
+  },
+  {
+   "id": "P1_SLOT_PAD_4",
+   "player": 1,
+   "rect": [
+    33,
+    16,
+    2,
+    2
+   ],
+   "kind": "Supply/depot pad 2x2",
+   "valid": true
+  },
+  {
+   "id": "P2_SLOT_PAD_4",
+   "player": 2,
+   "rect": [
+    93,
+    110,
+    2,
+    2
+   ],
+   "kind": "Supply/depot pad 2x2",
+   "valid": true
+  },
+  {
+   "id": "P1_WALL_NAT_BARRACKS",
+   "player": 1,
+   "rect": [
+    38,
+    50,
+    3,
+    3
+   ],
+   "kind": "wall-off test: 3x3 in choke",
+   "valid": true
+  },
+  {
+   "id": "P2_WALL_NAT_BARRACKS",
+   "player": 2,
+   "rect": [
+    87,
+    75,
+    3,
+    3
+   ],
+   "kind": "wall-off test: 3x3 in choke",
+   "valid": true
+  },
+  {
+   "id": "P1_WALL_NAT_PAD",
+   "player": 1,
+   "rect": [
+    38,
+    54,
+    2,
+    2
+   ],
+   "kind": "wall-off test: 2x2 in choke (1-cell unit gap)",
+   "valid": true
+  },
+  {
+   "id": "P2_WALL_NAT_PAD",
+   "player": 2,
+   "rect": [
+    88,
+    72,
+    2,
+    2
+   ],
+   "kind": "wall-off test: 2x2 in choke (1-cell unit gap)",
+   "valid": true
+  }
+ ],
+ "spawns": [
+  {
+   "id": "P1_SPAWN",
+   "player": 1,
+   "team": 0,
+   "faction": "USA (Vanguard)",
+   "base": "P1_MAIN",
+   "cc_rect": [
+    20,
+    20,
+    5,
+    5
+   ],
+   "rally_cell": [
+    28,
+    32
+   ],
+   "ue_tags": [
+    "KodStartSpot_0"
+   ],
+   "start_units": {
+    "HQ": 1,
+    "drop_off_Logistics_Hub": "1 pre-placed per Strategy sheet (open Q1: HQ vs Hub as the expand; socket TBD)",
+    "workers": 12,
+    "credits": 50,
+    "luminene": 0,
+    "supply_used": 12,
+    "supply_cap_start": 15,
+    "placeholder": true
+   }
+  },
+  {
+   "id": "P2_SPAWN",
+   "player": 2,
+   "team": 1,
+   "faction": "PROXY opponent (stand-in for Versus rival; Versus = USA vs Scinder per docs)",
+   "base": "P2_MAIN",
+   "cc_rect": [
+    103,
+    103,
+    5,
+    5
+   ],
+   "rally_cell": [
+    99,
+    95
+   ],
+   "ue_tags": [
+    "KodStartSpot_1"
+   ],
+   "start_units": {
+    "HQ": 1,
+    "drop_off_Logistics_Hub": "1 pre-placed per Strategy sheet (open Q1: HQ vs Hub as the expand; socket TBD)",
+    "workers": 12,
+    "credits": 50,
+    "luminene": 0,
+    "supply_used": 12,
+    "supply_cap_start": 15,
+    "placeholder": true
+   }
+  }
+ ],
+ "routes": {
+  "A_CENTRE": {
+   "cc_centre_to_centre_cells": 170.1,
+   "hall_edge_to_edge_cells": 166.1,
+   "hall_edge_to_edge_uu": 33213,
+   "time_s": {
+    "VAN_AMP": 42.1,
+    "VAN_MARINE": 52.7,
+    "VAN_MARINE_STIM": 35.1
+   },
+   "in_42_55_band": {
+    "VAN_AMP": true,
+    "VAN_MARINE": true,
+    "VAN_MARINE_STIM": false
+   },
+   "waypoints": [
+    [
+     22,
+     22
+    ],
+    [
+     11,
+     34
+    ],
+    [
+     18,
+     38
+    ],
+    [
+     30,
+     43
+    ],
+    [
+     42,
+     50
+    ],
+    [
+     54,
+     50
+    ],
+    [
+     66,
+     53
+    ],
+    [
+     78,
+     65
+    ],
+    [
+     90,
+     77
+    ],
+    [
+     102,
+     84
+    ],
+    [
+     114,
+     86
+    ],
+    [
+     112,
+     98
+    ],
+    [
+     105,
+     105
+    ]
+   ]
+  },
+  "B_SOUTH_LANE": {
+   "cc_centre_to_centre_cells": 176.5,
+   "hall_edge_to_edge_cells": 172.5,
+   "hall_edge_to_edge_uu": 34502,
+   "time_s": {
+    "VAN_AMP": 43.8,
+    "VAN_MARINE": 54.8,
+    "VAN_MARINE_STIM": 36.5
+   },
+   "in_42_55_band": {
+    "VAN_AMP": true,
+    "VAN_MARINE": true,
+    "VAN_MARINE_STIM": false
+   },
+   "waypoints": [
+    [
+     22,
+     22
+    ],
+    [
+     11,
+     34
+    ],
+    [
+     18,
+     38
+    ],
+    [
+     30,
+     43
+    ],
+    [
+     42,
+     50
+    ],
+    [
+     54,
+     50
+    ],
+    [
+     66,
+     50
+    ],
+    [
+     76,
+     53
+    ],
+    [
+     80,
+     65
+    ],
+    [
+     91,
+     77
+    ],
+    [
+     103,
+     79
+    ],
+    [
+     115,
+     87
+    ],
+    [
+     111,
+     99
+    ],
+    [
+     105,
+     105
+    ]
+   ]
+  },
+  "C_NORTH_LANE": {
+   "cc_centre_to_centre_cells": 176.5,
+   "hall_edge_to_edge_cells": 172.5,
+   "hall_edge_to_edge_uu": 34502,
+   "time_s": {
+    "VAN_AMP": 43.8,
+    "VAN_MARINE": 54.8,
+    "VAN_MARINE_STIM": 36.5
+   },
+   "in_42_55_band": {
+    "VAN_AMP": true,
+    "VAN_MARINE": true,
+    "VAN_MARINE_STIM": false
+   },
+   "waypoints": [
+    [
+     22,
+     22
+    ],
+    [
+     11,
+     34
+    ],
+    [
+     18,
+     38
+    ],
+    [
+     30,
+     43
+    ],
+    [
+     42,
+     50
+    ],
+    [
+     54,
+     50
+    ],
+    [
+     66,
+     50
+    ],
+    [
+     76,
+     53
+    ],
+    [
+     80,
+     65
+    ],
+    [
+     91,
+     77
+    ],
+    [
+     103,
+     79
+    ],
+    [
+     115,
+     87
+    ],
+    [
+     111,
+     99
+    ],
+    [
+     105,
+     105
+    ]
+   ]
+  },
+  "ROCKS_OPEN_SHORTEST": {
+   "cc_centre_to_centre_cells": 170.1,
+   "hall_edge_to_edge_cells": 166.1,
+   "hall_edge_to_edge_uu": 33213,
+   "time_s": {
+    "VAN_AMP": 42.1,
+    "VAN_MARINE": 52.7,
+    "VAN_MARINE_STIM": 35.1
+   },
+   "in_42_55_band": {
+    "VAN_AMP": true,
+    "VAN_MARINE": true,
+    "VAN_MARINE_STIM": false
+   },
+   "waypoints": [
+    [
+     22,
+     22
+    ],
+    [
+     11,
+     34
+    ],
+    [
+     18,
+     38
+    ],
+    [
+     30,
+     43
+    ],
+    [
+     42,
+     50
+    ],
+    [
+     54,
+     50
+    ],
+    [
+     66,
+     53
+    ],
+    [
+     78,
+     65
+    ],
+    [
+     90,
+     77
+    ],
+    [
+     102,
+     84
+    ],
+    [
+     114,
+     86
+    ],
+    [
+     112,
+     98
+    ],
+    [
+     105,
+     105
+    ]
+   ]
+  }
+ },
+ "resource_gaps_cells": {
+  "P1_MAIN": {
+   "jadeite_min": 3,
+   "jadeite_max": 4,
+   "vent_min": 3,
+   "vent_max": 3
+  },
+  "P1_NAT": {
+   "jadeite_min": 3,
+   "jadeite_max": 4,
+   "vent_min": 3,
+   "vent_max": 3
+  },
+  "P1_THIRD": {
+   "jadeite_min": 3,
+   "jadeite_max": 4,
+   "vent_min": 3,
+   "vent_max": 4
+  },
+  "P2_MAIN": {
+   "jadeite_min": 3,
+   "jadeite_max": 4,
+   "vent_min": 3,
+   "vent_max": 3
+  },
+  "P2_NAT": {
+   "jadeite_min": 3,
+   "jadeite_max": 4,
+   "vent_min": 3,
+   "vent_max": 3
+  },
+  "P2_THIRD": {
+   "jadeite_min": 3,
+   "jadeite_max": 4,
+   "vent_min": 3,
+   "vent_max": 4
+  },
+  "MID_FAULTLINE": {
+   "jadeite_min": 3,
+   "jadeite_max": 4,
+   "vent_min": 3,
+   "vent_max": 4
+  }
+ },
+ "legs_hall_edge_cells": {
+  "P1 main->nat": 33.5,
+  "P1 nat->third": 56.1,
+  "P1 nat->third (rocks open)": 41.0,
+  "P1 nat->Faultline": 44.2,
+  "P2 nat->Faultline": 42.8,
+  "P1 main->P2 nat": 128.5,
+  "P1 third->P2 nat": 88.5
+ },
+ "unit_speed_uu_s": {
+  "VAN_AMP": 788,
+  "VAN_MARINE": 630,
+  "VAN_MARINE_STIM": 945
+ }
+}

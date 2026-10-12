@@ -101,6 +101,22 @@ bool UKodSimSubsystem::AreResourcePointsInset(int32 InsetCells) const
 bool UKodSimSubsystem::IsCellBlocked(int32 CellX, int32 CellY, int32 TeamId, bool bIgnoreLowered) const
 {
 	(void)TeamId;
+	if (IsDressBlockCell(CellX, CellY))
+	{
+		return true;
+	}
+	for (const FKodDestructFoot& Foot : DestructFoots)
+	{
+		if (CellX < Foot.MinX || CellX >= Foot.MaxX || CellY < Foot.MinY || CellY >= Foot.MaxY)
+		{
+			continue;
+		}
+		const FKodSimEntityState* Rock = States.Find(Foot.Id);
+		if (Rock && Rock->Health > 0.f)
+		{
+			return true;
+		}
+	}
 	TArray<int32> Keys;
 	Structures.GetKeys(Keys);
 	Keys.Sort();

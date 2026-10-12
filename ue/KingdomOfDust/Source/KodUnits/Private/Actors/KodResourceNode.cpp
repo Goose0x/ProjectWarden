@@ -246,6 +246,7 @@ void AKodResourceNode::ApplyDefinition(const UKodResourceNodeDefinition* Def)
 				}
 			}
 		}
+		ApplyJadeiteStandIn();
 		return;
 	}
 	ApplyPlaceholder(ResourceType);
@@ -268,6 +269,7 @@ void AKodResourceNode::ApplyDefinition(const UKodResourceNodeDefinition* Def)
 	{
 		NodeMesh->SetRelativeScale3D(NodeMesh->GetRelativeScale3D() * Def->MeshScale);
 	}
+	ApplyJadeiteStandIn();
 }
 
 void AKodResourceNode::ClearClusterMeshes()
@@ -405,6 +407,40 @@ void AKodResourceNode::ApplyPlaceholder(EKodResourceType Type)
 		}
 	}
 	LogNodeTint(!UsedParam.IsNone(), UsedParam);
+	ApplyJadeiteStandIn();
+}
+
+void AKodResourceNode::ApplyJadeiteStandIn()
+{
+	if (ResourceType != EKodResourceType::Jadeite || !NodeMesh)
+	{
+		return;
+	}
+	UStaticMesh* Monolith = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Monoliths/SM_Monolith_A.SM_Monolith_A"));
+	if (!Monolith)
+	{
+		return;
+	}
+	ClearClusterMeshes();
+	NodeMesh->SetStaticMesh(Monolith);
+	const int32 Salt = EntityId.IsValid() ? EntityId.Value : FMath::RoundToInt(GetActorLocation().X);
+	const float Alpha = static_cast<float>(Salt % 9) / 8.f;
+	const float Scale = FMath::Lerp(0.12f, 0.2f, Alpha);
+	const float Yaw = static_cast<float>((Salt * 15) % 360);
+	NodeMesh->SetRelativeScale3D(FVector(Scale));
+	NodeMesh->SetRelativeRotation(FRotator(0.f, Yaw, 0.f));
+	NodeMesh->SetRelativeLocation(FVector(0.f, 0.f, Monolith->GetBounds().BoxExtent.Z * Scale));
+	UMaterialInterface* Parent = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Monoliths/MI_T_Monolith_Obsidian.MI_T_Monolith_Obsidian"));
+	if (!Parent)
+	{
+		return;
+	}
+	UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(Parent, this);
+	const FLinearColor Tint(FColor(0x00, 0xFF, 0x73));
+	Mid->SetVectorParameterValue(TEXT("Color"), Tint);
+	Mid->SetVectorParameterValue(TEXT("BaseColor"), Tint);
+	Mid->SetVectorParameterValue(TEXT("Tint"), Tint);
+	NodeMesh->SetMaterial(0, Mid);
 }
 
 FName AKodResourceNode::ApplyTint(UStaticMeshComponent* Mesh, const FLinearColor& Tint, bool bEmissive)

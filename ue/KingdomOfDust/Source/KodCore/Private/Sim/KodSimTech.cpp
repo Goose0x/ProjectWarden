@@ -64,7 +64,7 @@ bool UKodSimSubsystem::HasCompletedStructure(int32 TeamId, FName TypeId) const
 bool UKodSimSubsystem::IsCellTerrainBlocked(int32 CellX, int32 CellY) const
 {
 	// Height layer hook. Negative height is reserved for unbuildable terrain.
-	return GetMapCellHeight(CellX, CellY) < 0;
+	return GetMapCellHeight(CellX, CellY) < 0 || IsDressBlockCell(CellX, CellY);
 }
 
 bool UKodSimSubsystem::CellHasUnit(int32 CellX, int32 CellY) const
