@@ -175,6 +175,16 @@ void UKodSlice0Bootstrap::ResolveRangerRifleCombatStats(float& OutDamage, float&
 
 	if (bFallback)
 	{
+		if (const UKodWeaponDefinition* CatalogWeapon = ResolveWeapon(FName(KodWardenPaths::Id_RangerRifle), GetTransientPackage()))
+		{
+			bFallback = false;
+			Damage = CatalogWeapon->Damage;
+			Range = CatalogWeapon->Range;
+			CooldownSeconds = CatalogWeapon->CooldownSeconds;
+		}
+	}
+	if (bFallback)
+	{
 		UE_LOG(LogTemp, Warning, TEXT("KodWeapon fallback RangerRifle Damage=%.0f Range=%.0f Cooldown=%.4f"),
 			Damage,
 			Range,

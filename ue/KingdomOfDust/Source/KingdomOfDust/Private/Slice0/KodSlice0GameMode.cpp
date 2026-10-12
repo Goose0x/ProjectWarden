@@ -14,9 +14,14 @@
 #include "Data/KodBuildingDefinition.h"
 #include "Warden/KodWardenPaths.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Components/LightComponent.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/SceneComponent.h"
+#include "Components/SkyLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/SkyLight.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Materials/Material.h"
@@ -330,6 +335,7 @@ void AKodSlice0GameMode::StartPlay()
 				Spec.bBiological = Def->bBiological;
 				Spec.bInfantry = Def->bInfantry;
 				Spec.bFlyer = Def->bFlyer;
+				Spec.bOrganic = Def->UsesOrganicDeath();
 				Spec.bHealer = Def->bHealer;
 				Spec.CargoSize = Def->CargoSize;
 				Spec.BaseArmor = FMath::Max(0, FMath::RoundToInt(Def->Armor));
@@ -517,15 +523,7 @@ void AKodSlice0GameMode::StartPlay()
 		}
 	}
 
-	if (bSpawnSmokeRanger && GetWorld())
-	{
-		const FTransform T(FRotator::ZeroRotator, SmokeRangerOffset);
-		UKodSlice0Bootstrap::SpawnRanger(GetWorld(), T, 0);
-	}
-
-	SpawnHostileTestTarget();
-	// After both Marines so combat entity ids stay 1 then 2. Nodes are not attackable.
-	// The drop-off is registered at the end of the field, then the workers.
+	// Nodes and workers seat off the command center after it has moved.
 	PublishPlayableBounds();
 	SeatPlayerBase();
 	SpawnResourceField();
@@ -661,7 +659,6 @@ void AKodSlice0GameMode::PublishPlayableBounds()
 					Mesh->SetMobility(EComponentMobility::Movable);
 					Mesh->SetStaticMesh(PlaneMesh);
 					Plane->SetActorScale3D(FVector(FMath::Max(1.f, Extent.X * 2.f / 100.f), FMath::Max(1.f, Extent.Y * 2.f / 100.f), 1.f));
-					Mesh->SetMobility(EComponentMobility::Static);
 					if (GroundMat)
 					{
 						Mesh->SetMaterial(0, GroundMat);
@@ -675,6 +672,53 @@ void AKodSlice0GameMode::PublishPlayableBounds()
 
 	Sim->SetPlayableWorldBox(Chosen);
 	UE_LOG(LogTemp, Log, TEXT("KodPlayable Min=%.0f,%.0f Max=%.0f,%.0f"), Chosen.Min.X, Chosen.Min.Y, Chosen.Max.X, Chosen.Max.Y);
+
+	for (TActorIterator<ADirectionalLight> LightIt(World); LightIt; ++LightIt)
+	{
+		if (ULightComponent* Light = LightIt->GetLightComponent())
+		{
+			Light->SetMobility(EComponentMobility::Movable);
+		}
+	}
+	for (TActorIterator<ASkyLight> SkyIt(World); SkyIt; ++SkyIt)
+	{
+		if (USkyLightComponent* Sky = SkyIt->GetLightComponent())
+		{
+			Sky->SetMobility(EComponentMobility::Movable);
+		}
+	}
+
+	bool bGeneratedGround = false;
+	for (TActorIterator<AActor> GroundIt(World); GroundIt; ++GroundIt)
+	{
+		if (*GroundIt && (*GroundIt)->ActorHasTag(FName(TEXT("KodGeneratedGround"))))
+		{
+			bGeneratedGround = true;
+			break;
+		}
+	}
+	if (bGeneratedGround)
+	{
+		for (TActorIterator<AActor> HideIt(World); HideIt; ++HideIt)
+		{
+			AActor* Blockout = *HideIt;
+			if (!Blockout || Blockout->ActorHasTag(FName(TEXT("KodGeneratedGround"))))
+			{
+				continue;
+			}
+			const bool bOldFloor = IsSlice0GroundFloor(Blockout) || Blockout->ActorHasTag(FName(TEXT("KodGround")));
+			const bool bGreybox = Blockout->ActorHasTag(FName(TEXT("KodGreybox"))) || IsSlice0GreyboxProxy(Blockout);
+			if (!bOldFloor && !bGreybox)
+			{
+				continue;
+			}
+			if (IsSlice0CommandCenter(Blockout))
+			{
+				continue;
+			}
+			Blockout->SetActorHiddenInGame(true);
+		}
+	}
 }
 
 void AKodSlice0GameMode::SeatPlayerBase()
@@ -706,8 +750,22 @@ void AKodSlice0GameMode::SeatPlayerBase()
 	TArray<AActor*> Ignored;
 	Ignored.Add(Anchor);
 	const float FloorZ = ResolveResourceFloorZ(World, Sim, -Base, -Base, Anchor->GetActorLocation().Z, Ignored);
-	Anchor->SetActorLocation(FVector(-Base, -Base, FloorZ));
-	UE_LOG(LogTemp, Log, TEXT("KodBase Player Loc=%.0f,%.0f,%.0f"), -Base, -Base, FloorZ);
+	if (USceneComponent* AnchorRoot = Anchor->GetRootComponent())
+	{
+		AnchorRoot->SetMobility(EComponentMobility::Movable);
+	}
+	TInlineComponentArray<UPrimitiveComponent*> Primitives;
+	Anchor->GetComponents(Primitives);
+	for (UPrimitiveComponent* Primitive : Primitives)
+	{
+		if (Primitive)
+		{
+			Primitive->SetMobility(EComponentMobility::Movable);
+		}
+	}
+	Anchor->SetActorLocation(FVector(-Base, -Base, FloorZ), false, nullptr, ETeleportType::TeleportPhysics);
+	const FVector Seated = Anchor->GetActorLocation();
+	UE_LOG(LogTemp, Log, TEXT("KodBase Player Loc=%.0f,%.0f,%.0f"), Seated.X, Seated.Y, Seated.Z);
 }
 
 void AKodSlice0GameMode::PlaceExpansionFields()
@@ -906,6 +964,8 @@ void AKodSlice0GameMode::PlaceFieldAt(const FVector& AnchorLocation, const FVect
 		if (AKodResourceNode* Node = Cast<AKodResourceNode>(Actor))
 		{
 			Node->SetEntityId(Id);
+			Node->ApplyJadeiteStandIn();
+			Node->SetActorHiddenInGame(false);
 		}
 		const FVector SpawnedAt = Actor->GetActorLocation();
 		UE_LOG(LogTemp, Log, TEXT("KodEcon Node Spawn Id=%d Type=%s Loc=%.0f,%.0f,%.0f"),
@@ -1157,6 +1217,8 @@ void AKodSlice0GameMode::SpawnResourceField()
 		if (AKodResourceNode* Node = Cast<AKodResourceNode>(Actor))
 		{
 			Node->SetEntityId(Id);
+			Node->ApplyJadeiteStandIn();
+			Node->SetActorHiddenInGame(false);
 		}
 		const FVector SpawnedAt = Actor->GetActorLocation();
 		UE_LOG(LogTemp, Log, TEXT("KodEcon Node Spawn Id=%d Type=%s Loc=%.0f,%.0f,%.0f"),
@@ -1262,7 +1324,8 @@ void AKodSlice0GameMode::SpawnResourceField()
 	}
 	if (FMath::Abs(AnchorLocation.X) + FMath::Abs(AnchorLocation.Y) > 4000.f)
 	{
-		FieldDir = FVector(AnchorLocation.X >= 0.f ? 1.f : -1.f, AnchorLocation.Y >= 0.f ? 1.f : -1.f, 0.f).GetSafeNormal2D();
+		// In front of a corner command center, toward the map, not further into the corner.
+		FieldDir = FVector(AnchorLocation.X >= 0.f ? -1.f : 1.f, AnchorLocation.Y >= 0.f ? -1.f : 1.f, 0.f).GetSafeNormal2D();
 	}
 
 	const float FacingDeg = FMath::RadiansToDegrees(FMath::Atan2(FieldDir.Y, FieldDir.X));

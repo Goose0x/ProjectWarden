@@ -7,6 +7,11 @@
 #include "KodHUD.generated.h"
 
 class UUserWidget;
+class UMaterialInstanceDynamic;
+class UMaterialInterface;
+class UStaticMesh;
+class UStaticMeshComponent;
+class AStaticMeshActor;
 
 /** One clickable canvas command. Presentation only. Not sim state. */
 struct KODCORE_API FKodHudCommandHit
@@ -72,7 +77,7 @@ public:
 
 	void ToggleHotkeyLegend();
 
-	void AddMinimapPing(const FVector& WorldPoint);
+	void AddMinimapPing(const FVector& WorldPoint, float Seconds = 6.f);
 
 	/** 0 move (green), 1 attack (red), 2 build complete (gold). Presentation only. */
 	void AddCommandMarker(const FVector& WorldPoint, int32 Kind);
@@ -184,6 +189,11 @@ protected:
 	void DrawControlGroupTabs();
 	void DrawHotkeyLegend();
 	void DrawWorldFog();
+	void SyncFogSheet(const class UKodSimSubsystem* Sim, int32 LocalTeam);
+	void SyncGroundRings(const TMap<AActor*, int32>& Rings, const class UKodSimSubsystem* Sim);
+	class UStaticMesh* GetPresentationQuad();
+	class UMaterialInterface* GetPassThroughMaterial();
+	class UMaterialInstanceDynamic* RingMaterialFor(int32 Kind);
 	void DrawGameClock();
 	void DrawScaffolds();
 	void DrawAlertFeed();
@@ -295,8 +305,42 @@ protected:
 
 	TArray<FKodAlertLine> AlertLines;
 	TMap<FName, float> AlertThrottleUntil;
-	/** Displayed fog alpha per cell. Presentation only. Not hashed. */
-	TMap<int64, float> FogShownAlpha;
+
+	struct FKodRingSlot
+	{
+		TWeakObjectPtr<AActor> Actor;
+		TWeakObjectPtr<UStaticMeshComponent> Mesh;
+	};
+
+	/** Ground shroud. One texel per cell. Presentation only. Not hashed. */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> FogSheetTexture;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> FogSheetMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMesh> PresentationQuad;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInterface> PassThroughMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> RingMaterialOwn;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> RingMaterialAlly;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> RingMaterialEnemy;
+
+	TWeakObjectPtr<AStaticMeshActor> FogSheetActor;
+	int64 FogSheetTick = MIN_int64;
+	int32 FogOriginX = 0;
+	int32 FogOriginY = 0;
+	int32 FogCellsX = 0;
+	int32 FogCellsY = 0;
+	TArray<FKodRingSlot> GroundRings;
 
 	UPROPERTY()
 	TObjectPtr<class AKodPortraitStage> PortraitStage;
