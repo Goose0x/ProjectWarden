@@ -11,6 +11,7 @@
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
@@ -194,7 +195,379 @@ namespace
 		UE_LOG(LogTemp, Log, TEXT("KodFaultline CC Octagon Loc=%.0f,%.0f,%.0f"), Seated.X, Seated.Y, Seated.Z);
 	}
 
-	int32 SpawnScinder(UWorld* World, UKodSimSubsystem* Sim, FVector& WaveOrigin)
+	struct FScnBuilding
+	{
+		int32 Hp = 1000;
+		int32 Armor = 1;
+		int32 RegenMilli = 2000;
+	};
+
+	int32 CellUU(double Cells)
+	{
+		return FMath::Max(0, FMath::RoundToInt(Cells * 200.0));
+	}
+
+	int32 MeleeOrRangeUU(double Cells)
+	{
+		if (Cells < 1.0)
+		{
+			return 100;
+		}
+		return CellUU(Cells);
+	}
+
+	void RememberUnit(UKodSimSubsystem* Sim, const TCHAR* UnitId, const TCHAR* Display, int32 Hp, int32 Armor, int32 Speed, int32 Supply, bool bInfantry)
+	{
+		if (UKodUnitDefinition* Def = UKodSlice0Bootstrap::ResolveUnit(FName(UnitId), Sim))
+		{
+			Def->MaxHealth = static_cast<float>(Hp);
+			Def->Armor = static_cast<float>(Armor);
+			Def->MoveSpeed = static_cast<float>(Speed);
+			Def->Cost.Supply = Supply;
+			Def->bBiological = true;
+			Def->bInfantry = bInfantry;
+		}
+		FKodTrainSpec Spec;
+		Spec.UnitId = FName(UnitId);
+		Spec.DisplayId = FName(Display);
+		Spec.bBiological = true;
+		Spec.bInfantry = bInfantry;
+		Spec.bOrganic = true;
+		Spec.BaseArmor = Armor;
+		Spec.Cost.Supply = Supply;
+		Sim->RegisterTrainSpec(Spec);
+	}
+
+	void LoadBalance(UKodSimSubsystem* Sim, bool bEasy, FKodFaultlineScript& Script, TMap<FString, FScnBuilding>& Buildings)
+	{
+		Script.GuardFighters = bEasy ? 2 : 3;
+		Script.GuardBlades = bEasy ? 0 : 1;
+		Script.GuardWorkers = 3;
+		Script.WaveFighters = bEasy ? 4 : 5;
+		Script.WaveBlades = 1;
+		Script.FighterLeashUU = 12 * 200;
+		Script.FighterAggroUU = 8 * 200;
+		Script.BladeLeashUU = 10 * 200;
+		Script.BladeAggroUU = 6 * 200;
+		Script.DelayTicks = (bEasy ? 60 : 45) * 16;
+		Script.RetreatTicks = 90 * 16;
+		Script.HpPermille = bEasy ? 750 : 1000;
+		Script.FighterHp = 35;
+		Script.FighterDamage = 5;
+		Script.FighterRangeUU = 800;
+		Script.FighterSpeed = 700;
+		Script.FighterArmor = 0;
+		Script.FighterCooldownTicks = 10;
+		Script.FighterRegenMilli = 1000;
+		Script.BladeHp = 110;
+		Script.BladeDamage = 12;
+		Script.BladeRangeUU = 100;
+		Script.BladeSpeed = 826;
+		Script.BladeArmor = 1;
+		Script.BladeCooldownTicks = 10;
+		Script.BladeRegenMilli = 1000;
+		Script.WorkerHp = 40;
+		Script.WorkerSpeed = 788;
+		Script.WorkerRegenMilli = 1000;
+		Buildings.Add(TEXT("SCN_HQ"), FScnBuilding{ 1500, 1, 2000 });
+		Buildings.Add(TEXT("SCN_OUTPOST"), FScnBuilding{ 1000, 1, 2000 });
+		Buildings.Add(TEXT("SCN_DEPOT"), FScnBuilding{ 400, 1, 2000 });
+		Buildings.Add(TEXT("SCN_EXTRACTOR"), FScnBuilding{ 400, 1, 2000 });
+		Buildings.Add(TEXT("SCN_BARRACKS"), FScnBuilding{ 1000, 1, 2000 });
+		Buildings.Add(TEXT("SCN_FACTORY"), FScnBuilding{ 1250, 1, 2000 });
+		Buildings.Add(TEXT("SCN_TECH"), FScnBuilding{ 1500, 1, 2000 });
+
+		TSharedPtr<FJsonObject> Root;
+		const FString Path = FPaths::Combine(FPaths::ProjectConfigDir(), TEXT("KodBalance/faultline_training_balance_v1.json"));
+		FString Text;
+		if (!FFileHelper::LoadFileToString(Text, *Path))
+		{
+			UE_LOG(LogTemp, Error, TEXT("KodFaultline Balance Miss %s"), *Path);
+			return;
+		}
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Text);
+		if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+		{
+			UE_LOG(LogTemp, Error, TEXT("KodFaultline Balance Parse %s"), *Path);
+			return;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* Units = nullptr;
+		if (Root->TryGetArrayField(TEXT("units"), Units) && Units)
+		{
+			for (const TSharedPtr<FJsonValue>& Value : *Units)
+			{
+				const TSharedPtr<FJsonObject> Row = Value.IsValid() ? Value->AsObject() : nullptr;
+				if (!Row.IsValid())
+				{
+					continue;
+				}
+				FString Id;
+				Row->TryGetStringField(TEXT("id"), Id);
+				double Hp = 0.0;
+				double Armor = 0.0;
+				double Damage = 0.0;
+				double Attacks = 1.0;
+				double Cooldown = 0.61;
+				double Range = 1.0;
+				double Speed = 3.0;
+				double Supply = 1.0;
+				double Regen = 0.0;
+				Row->TryGetNumberField(TEXT("hp"), Hp);
+				Row->TryGetNumberField(TEXT("armor"), Armor);
+				Row->TryGetNumberField(TEXT("damage"), Damage);
+				Row->TryGetNumberField(TEXT("attacks_per_cycle"), Attacks);
+				Row->TryGetNumberField(TEXT("cooldown_s"), Cooldown);
+				Row->TryGetNumberField(TEXT("range"), Range);
+				Row->TryGetNumberField(TEXT("move_speed"), Speed);
+				Row->TryGetNumberField(TEXT("supply"), Supply);
+				Row->TryGetNumberField(TEXT("regen_hp_s"), Regen);
+				const int32 CycleDamage = FMath::Max(0, FMath::RoundToInt(Damage * FMath::Max(1.0, Attacks)));
+				const int32 CooldownTicks = FMath::Max(1, FMath::RoundToInt(Cooldown * 16.0));
+				if (Id == TEXT("SCN_FIGHTER"))
+				{
+					Script.FighterHp = FMath::Max(1, FMath::RoundToInt(Hp));
+					Script.FighterDamage = CycleDamage;
+					Script.FighterRangeUU = MeleeOrRangeUU(Range);
+					Script.FighterSpeed = CellUU(Speed);
+					Script.FighterArmor = FMath::RoundToInt(Armor);
+					Script.FighterCooldownTicks = CooldownTicks;
+					Script.FighterRegenMilli = FMath::Max(0, FMath::RoundToInt(Regen * 1000.0));
+					RememberUnit(Sim, KodWardenPaths::Id_ScnFighter, TEXT("Fighter"), Script.FighterHp, Script.FighterArmor, Script.FighterSpeed, FMath::RoundToInt(Supply), true);
+				}
+				else if (Id == TEXT("SCN_TWINBLADE"))
+				{
+					Script.BladeHp = FMath::Max(1, FMath::RoundToInt(Hp));
+					Script.BladeDamage = CycleDamage;
+					Script.BladeRangeUU = MeleeOrRangeUU(Range);
+					Script.BladeSpeed = CellUU(Speed);
+					Script.BladeArmor = FMath::RoundToInt(Armor);
+					Script.BladeCooldownTicks = CooldownTicks;
+					Script.BladeRegenMilli = FMath::Max(0, FMath::RoundToInt(Regen * 1000.0));
+					RememberUnit(Sim, KodWardenPaths::Id_ScnTwinblade, TEXT("Twin-blade"), Script.BladeHp, Script.BladeArmor, Script.BladeSpeed, FMath::RoundToInt(Supply), true);
+				}
+				else if (Id == TEXT("SCN_WORKER"))
+				{
+					Script.WorkerHp = FMath::Max(1, FMath::RoundToInt(Hp));
+					Script.WorkerSpeed = CellUU(Speed);
+					Script.WorkerRegenMilli = FMath::Max(0, FMath::RoundToInt(Regen * 1000.0));
+					RememberUnit(Sim, KodWardenPaths::Id_ScnWorker, TEXT("Worker"), Script.WorkerHp, FMath::RoundToInt(Armor), Script.WorkerSpeed, FMath::RoundToInt(Supply), false);
+				}
+			}
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* Structures = nullptr;
+		if (Root->TryGetArrayField(TEXT("structures"), Structures) && Structures)
+		{
+			for (const TSharedPtr<FJsonValue>& Value : *Structures)
+			{
+				const TSharedPtr<FJsonObject> Row = Value.IsValid() ? Value->AsObject() : nullptr;
+				if (!Row.IsValid())
+				{
+					continue;
+				}
+				FString Id;
+				Row->TryGetStringField(TEXT("id"), Id);
+				if (!Id.StartsWith(TEXT("SCN_")))
+				{
+					continue;
+				}
+				double Hp = 1000.0;
+				double Armor = 1.0;
+				double Regen = 2.0;
+				Row->TryGetNumberField(TEXT("hp"), Hp);
+				Row->TryGetNumberField(TEXT("armor"), Armor);
+				Row->TryGetNumberField(TEXT("regen_hp_s"), Regen);
+				FScnBuilding Building;
+				Building.Hp = FMath::Max(1, FMath::RoundToInt(Hp));
+				Building.Armor = FMath::Max(0, FMath::RoundToInt(Armor));
+				Building.RegenMilli = FMath::Max(0, FMath::RoundToInt(Regen * 1000.0));
+				Buildings.Add(Id, Building);
+			}
+		}
+
+		const TSharedPtr<FJsonObject>* Ai = nullptr;
+		if (Root->TryGetObjectField(TEXT("ai"), Ai) && Ai && Ai->IsValid())
+		{
+			const TArray<TSharedPtr<FJsonValue>>* Defense = nullptr;
+			if ((*Ai)->TryGetArrayField(TEXT("static_defense"), Defense) && Defense)
+			{
+				for (const TSharedPtr<FJsonValue>& Value : *Defense)
+				{
+					const TSharedPtr<FJsonObject> Row = Value.IsValid() ? Value->AsObject() : nullptr;
+					if (!Row.IsValid())
+					{
+						continue;
+					}
+					FString UnitId;
+					Row->TryGetStringField(TEXT("unit"), UnitId);
+					const TSharedPtr<FJsonObject>* Count = nullptr;
+					int32 EasyCount = 0;
+					int32 NormalCount = 0;
+					if (Row->TryGetObjectField(TEXT("count"), Count) && Count && Count->IsValid())
+					{
+						double EasyValue = 0.0;
+						double NormalValue = 0.0;
+						(*Count)->TryGetNumberField(TEXT("easy"), EasyValue);
+						(*Count)->TryGetNumberField(TEXT("normal"), NormalValue);
+						EasyCount = FMath::Max(0, FMath::RoundToInt(EasyValue));
+						NormalCount = FMath::Max(0, FMath::RoundToInt(NormalValue));
+					}
+					double Leash = 0.0;
+					double Aggro = 0.0;
+					Row->TryGetNumberField(TEXT("leash_radius"), Leash);
+					Row->TryGetNumberField(TEXT("aggro_range"), Aggro);
+					const int32 UseCount = bEasy ? EasyCount : NormalCount;
+					if (UnitId == TEXT("SCN_FIGHTER"))
+					{
+						Script.GuardFighters = UseCount;
+						Script.FighterLeashUU = CellUU(Leash);
+						Script.FighterAggroUU = CellUU(Aggro);
+					}
+					else if (UnitId == TEXT("SCN_TWINBLADE"))
+					{
+						Script.GuardBlades = UseCount;
+						Script.BladeLeashUU = CellUU(Leash);
+						Script.BladeAggroUU = CellUU(Aggro);
+					}
+					else if (UnitId == TEXT("SCN_WORKER"))
+					{
+						Script.GuardWorkers = UseCount;
+					}
+				}
+			}
+			const TSharedPtr<FJsonObject>* Wave = nullptr;
+			if ((*Ai)->TryGetObjectField(TEXT("counter_wave"), Wave) && Wave && Wave->IsValid())
+			{
+				const TSharedPtr<FJsonObject>* Delay = nullptr;
+				if ((*Wave)->TryGetObjectField(TEXT("trigger_delay_s"), Delay) && Delay && Delay->IsValid())
+				{
+					double EasyDelay = 60.0;
+					double NormalDelay = 45.0;
+					(*Delay)->TryGetNumberField(TEXT("easy"), EasyDelay);
+					(*Delay)->TryGetNumberField(TEXT("normal"), NormalDelay);
+					Script.DelayTicks = FMath::Max(0, FMath::RoundToInt((bEasy ? EasyDelay : NormalDelay) * 16.0));
+				}
+				const TCHAR* Column = bEasy ? TEXT("easy") : TEXT("normal");
+				const TSharedPtr<FJsonObject>* Composition = nullptr;
+				if ((*Wave)->TryGetObjectField(TEXT("composition"), Composition) && Composition && Composition->IsValid())
+				{
+					const TArray<TSharedPtr<FJsonValue>>* ColumnRows = nullptr;
+					if ((*Composition)->TryGetArrayField(Column, ColumnRows) && ColumnRows)
+					{
+						for (const TSharedPtr<FJsonValue>& Value : *ColumnRows)
+						{
+							const TSharedPtr<FJsonObject> Row = Value.IsValid() ? Value->AsObject() : nullptr;
+							if (!Row.IsValid())
+							{
+								continue;
+							}
+							FString UnitId;
+							Row->TryGetStringField(TEXT("unit"), UnitId);
+							double Count = 0.0;
+							Row->TryGetNumberField(TEXT("count"), Count);
+							if (UnitId == TEXT("SCN_FIGHTER"))
+							{
+								Script.WaveFighters = FMath::Max(0, FMath::RoundToInt(Count));
+							}
+							else if (UnitId == TEXT("SCN_TWINBLADE"))
+							{
+								Script.WaveBlades = FMath::Max(0, FMath::RoundToInt(Count));
+							}
+						}
+					}
+				}
+				const TSharedPtr<FJsonObject>* Scalar = nullptr;
+				if ((*Wave)->TryGetObjectField(TEXT("difficulty_scalar"), Scalar) && Scalar && Scalar->IsValid())
+				{
+					double EasyScale = 0.75;
+					double NormalScale = 1.0;
+					(*Scalar)->TryGetNumberField(TEXT("easy"), EasyScale);
+					(*Scalar)->TryGetNumberField(TEXT("normal"), NormalScale);
+					const double UseScale = bEasy ? EasyScale : NormalScale;
+					Script.HpPermille = FMath::Clamp(FMath::RoundToInt(UseScale * 1000.0), 1, 1000);
+				}
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodFaultline Balance Profile=%s DelayTicks=%d Wave=%d+%d Guards=%d+%d Permille=%d"),
+			bEasy ? TEXT("easy") : TEXT("normal"),
+			Script.DelayTicks,
+			Script.WaveFighters,
+			Script.WaveBlades,
+			Script.GuardFighters,
+			Script.GuardBlades,
+			Script.HpPermille);
+	}
+
+	FString BuildingKey(const FString& FeatureId)
+	{
+		if (FeatureId == TEXT("ENEMY_HQ"))
+		{
+			return TEXT("SCN_HQ");
+		}
+		if (FeatureId == TEXT("ENEMY_PROD_A"))
+		{
+			return TEXT("SCN_BARRACKS");
+		}
+		if (FeatureId == TEXT("ENEMY_PROD_B"))
+		{
+			return TEXT("SCN_FACTORY");
+		}
+		if (FeatureId.Contains(TEXT("OUTPOST")) || FeatureId.Contains(TEXT("TOWER")))
+		{
+			return TEXT("SCN_OUTPOST");
+		}
+		return TEXT("SCN_BARRACKS");
+	}
+
+	bool FindMarker(UWorld* World, const TCHAR* MarkerId, FVector& OutPoint)
+	{
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			AActor* Actor = *It;
+			if (Actor && (Actor->ActorHasTag(FName(MarkerId)) || Actor->GetName().Contains(MarkerId)))
+			{
+				OutPoint = Actor->GetActorLocation();
+				return true;
+			}
+		}
+		TSharedPtr<FJsonObject> Root;
+		if (!LoadJson(TEXT("map_features.json"), Root))
+		{
+			return false;
+		}
+		const TArray<TSharedPtr<FJsonValue>>* Features = nullptr;
+		if (!Root->TryGetArrayField(TEXT("features"), Features) || !Features)
+		{
+			return false;
+		}
+		for (const TSharedPtr<FJsonValue>& Value : *Features)
+		{
+			const TSharedPtr<FJsonObject> Feature = Value.IsValid() ? Value->AsObject() : nullptr;
+			if (!Feature.IsValid())
+			{
+				continue;
+			}
+			FString Id;
+			Feature->TryGetStringField(TEXT("id"), Id);
+			if (!Id.Equals(MarkerId))
+			{
+				continue;
+			}
+			const TSharedPtr<FJsonObject>* Cells = nullptr;
+			Feature->TryGetObjectField(TEXT("cells"), Cells);
+			const TArray<TSharedPtr<FJsonValue>>* Rect = nullptr;
+			if (Cells && Cells->IsValid())
+			{
+				(*Cells)->TryGetArrayField(TEXT("rect_xywh"), Rect);
+			}
+			OutPoint = RectCenter(Rect, 80.f);
+			return true;
+		}
+		return false;
+	}
+
+	int32 SpawnScinder(UWorld* World, UKodSimSubsystem* Sim, FVector& WaveOrigin, const TMap<FString, FScnBuilding>& Buildings)
 	{
 		TSharedPtr<FJsonObject> Root;
 		int32 Outposts = 0;
@@ -285,11 +658,16 @@ namespace
 				Mesh->SetWorldScale3D(FVector(Span, Span, 1.5f));
 				Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 			}
+			const FString Key = BuildingKey(Id);
+			const FScnBuilding* Row = Buildings.Find(Key);
+			const int32 Hp = Row ? Row->Hp : 1000;
+			const int32 Armor = Row ? Row->Armor : 1;
+			const int32 RegenMilli = Row ? Row->RegenMilli : 2000;
 			FKodStructureSpec Spec;
 			Spec.DefinitionId = FName(*Tag);
 			Spec.DisplayId = FName(*Id);
 			Spec.TeamId = 1;
-			Spec.MaxHealth = bOutpost ? 500.f : (bHq ? 1500.f : 750.f);
+			Spec.MaxHealth = static_cast<float>(Hp);
 			Spec.FootprintX = bHq ? 5 : (Id == TEXT("OUTPOST_SPIRE") ? 3 : 2);
 			Spec.FootprintY = Spec.FootprintX;
 			const FKodEntityId Built = Sim->RegisterStructure(Building, Spec);
@@ -298,9 +676,14 @@ namespace
 			{
 				++Outposts;
 			}
-			const bool bGun = bOutpost || Id.Contains(TEXT("TOWER"));
-			Sim->TuneStructureCombat(Built, 1, bGun ? 12.f : 0.f, bGun ? 700.f : 0.f);
-			UE_LOG(LogTemp, Log, TEXT("KodFaultline Scinder %s HP=%.0f Loc=%.0f,%.0f"), *Id, Spec.MaxHealth, At.X, At.Y);
+			if (Built.IsValid())
+			{
+				const bool bGun = bOutpost || Id.Contains(TEXT("TOWER"));
+				Sim->TuneStructureCombat(Built, Armor, bGun ? 12.f : 0.f, bGun ? 700.f : 0.f);
+				Sim->SetStructureVitals(Built, Hp, Armor, RegenMilli);
+			}
+			UE_LOG(LogTemp, Log, TEXT("KodFaultline Scinder %s Balance=%s HP=%d Armor=%d RegenMilli=%d Loc=%.0f,%.0f"),
+				*Id, *Key, Hp, Armor, RegenMilli, At.X, At.Y);
 		}
 		return Outposts;
 	}
@@ -355,6 +738,15 @@ void KodFaultline::Begin(UWorld* World)
 	}
 	Sim->SetMatchMode(EKodMatchMode::Campaign);
 	Sim->SetAiEnabled(false);
+	int32 CmdDiff = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("kod.AIDifficulty="), CmdDiff))
+	{
+		Sim->SetAiDifficulty(CmdDiff);
+	}
+	else if (Sim->GetAiDifficulty() <= 1)
+	{
+		Sim->SetAiDifficulty(2);
+	}
 	if (APlayerController* Controller = World->GetFirstPlayerController())
 	{
 		if (const AKodHUD* HUD = Cast<AKodHUD>(Controller->GetHUD()))
@@ -364,15 +756,36 @@ void KodFaultline::Begin(UWorld* World)
 	}
 	PlaceResources(World, Sim);
 	SeatOctagon(World);
-	FVector WaveOrigin(1500.f, -300.f, 80.f);
-	const int32 Outposts = SpawnScinder(World, Sim, WaveOrigin);
-	Sim->ArmFaultlineWave(
-		Outposts,
-		FMath::RoundToInt(WaveOrigin.X),
-		FMath::RoundToInt(WaveOrigin.Y),
-		FMath::RoundToInt(WaveOrigin.Z),
-		-7500,
-		-7500,
-		340);
-	UE_LOG(LogTemp, Log, TEXT("KodFaultline Begin Map=%s Outposts=%d"), *World->GetMapName(), Outposts);
+	const bool bEasy = Sim->GetAiDifficulty() <= 1;
+	FKodFaultlineScript Script;
+	TMap<FString, FScnBuilding> Buildings;
+	LoadBalance(Sim, bEasy, Script, Buildings);
+	FVector OutpostAt(1500.f, -300.f, 80.f);
+	const int32 Outposts = SpawnScinder(World, Sim, OutpostAt, Buildings);
+	FVector SpawnAt = OutpostAt;
+	FVector LaneAt = FVector::ZeroVector;
+	const bool bSpawnMarker = FindMarker(World, TEXT("SPAWN_CW_01"), SpawnAt);
+	const bool bLaneMarker = FindMarker(World, TEXT("QRF_LANE_01"), LaneAt);
+	if (!bSpawnMarker)
+	{
+		SpawnAt = OutpostAt;
+		UE_LOG(LogTemp, Log, TEXT("KodFaultline Spawn marker miss SPAWN_CW_01; using the outpost"));
+	}
+	Script.OutpostCount = Outposts;
+	Script.OutpostX = FMath::RoundToInt(OutpostAt.X);
+	Script.OutpostY = FMath::RoundToInt(OutpostAt.Y);
+	Script.OutpostZ = FMath::RoundToInt(OutpostAt.Z);
+	Script.SpawnX = FMath::RoundToInt(SpawnAt.X);
+	Script.SpawnY = FMath::RoundToInt(SpawnAt.Y);
+	Script.SpawnZ = FMath::RoundToInt(SpawnAt.Z);
+	Script.HomeX = -7500;
+	Script.HomeY = -7500;
+	Script.HomeZ = 340;
+	Script.bHasLane = bLaneMarker ? 1 : 0;
+	Script.LaneX = FMath::RoundToInt(LaneAt.X);
+	Script.LaneY = FMath::RoundToInt(LaneAt.Y);
+	Script.LaneZ = FMath::RoundToInt(LaneAt.Z);
+	Sim->ArmFaultlineScript(Script);
+	UE_LOG(LogTemp, Log, TEXT("KodFaultline Begin Map=%s Outposts=%d Spawn=%.0f,%.0f Lane=%d"),
+		*World->GetMapName(), Outposts, SpawnAt.X, SpawnAt.Y, bLaneMarker ? 1 : 0);
 }

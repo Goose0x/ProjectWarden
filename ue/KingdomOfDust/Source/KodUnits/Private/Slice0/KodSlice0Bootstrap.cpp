@@ -64,6 +64,9 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	UKodWeaponDefinition* Rifle = MakeRangerRifle(Catalog);
 	UKodUnitDefinition* Ranger = MakeRanger(Catalog, Rifle);
 	UKodUnitDefinition* ScinderInfantry = MakeScinderInfantry(Catalog, Rifle);
+	UKodUnitDefinition* ScnFighter = MakeScnFighter(Catalog);
+	UKodUnitDefinition* ScnTwinblade = MakeScnTwinblade(Catalog);
+	UKodUnitDefinition* ScnWorker = MakeScnWorker(Catalog);
 	UKodUnitDefinition* Dozer = MakeDozer(Catalog);
 	UKodBuildingDefinition* CC = MakeCommandCenter(Catalog, Dozer);
 	UKodUnitDefinition* Medic = MakeMedic(Catalog);
@@ -111,6 +114,9 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	}
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Ranger), Ranger);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScinderInfantry), ScinderInfantry);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScnFighter), ScnFighter);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScnTwinblade), ScnTwinblade);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScnWorker), ScnWorker);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Dozer), Dozer);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_CommandCenter), CC);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Barracks), Barracks);
@@ -315,6 +321,67 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeScinderInfantry(UObject* Outer, UKo
 	{
 		Unit->PrimaryWeapon = Rifle;
 	}
+	Unit->SkeletalMesh.Reset();
+	Unit->StaticMesh.Reset();
+	return Unit;
+}
+
+UKodUnitDefinition* UKodSlice0Bootstrap::MakeScnFighter(UObject* Outer)
+{
+	UKodUnitDefinition* Unit = NewObject<UKodUnitDefinition>(Outer, FName(KodWardenPaths::Id_ScnFighter), RF_Public | RF_Transient);
+	Unit->DefinitionId = FName(KodWardenPaths::Id_ScnFighter);
+	Unit->DisplayName = NSLOCTEXT("Kod", "Unit_ScnFighter", "Fighter");
+	Unit->MaxHealth = 35.f;
+	Unit->Armor = 0.f;
+	Unit->bBiological = true;
+	Unit->bInfantry = true;
+	Unit->CargoSize = 1;
+	Unit->MoveSpeed = 700.f;
+	Unit->SightRadius = 1400.f;
+	Unit->Cost.Credits = 40;
+	Unit->Cost.Supply = 1;
+	Unit->Cost.BuildTime = 14 * 16;
+	Unit->BuildTicks = 14 * 16;
+	Unit->SkeletalMesh.Reset();
+	Unit->StaticMesh.Reset();
+	return Unit;
+}
+
+UKodUnitDefinition* UKodSlice0Bootstrap::MakeScnTwinblade(UObject* Outer)
+{
+	UKodUnitDefinition* Unit = NewObject<UKodUnitDefinition>(Outer, FName(KodWardenPaths::Id_ScnTwinblade), RF_Public | RF_Transient);
+	Unit->DefinitionId = FName(KodWardenPaths::Id_ScnTwinblade);
+	Unit->DisplayName = NSLOCTEXT("Kod", "Unit_ScnTwinblade", "Twin-blade");
+	Unit->MaxHealth = 110.f;
+	Unit->Armor = 1.f;
+	Unit->bBiological = true;
+	Unit->bInfantry = true;
+	Unit->CargoSize = 1;
+	Unit->MoveSpeed = 826.f;
+	Unit->SightRadius = 1200.f;
+	Unit->Cost.Credits = 75;
+	Unit->Cost.Supply = 2;
+	Unit->Cost.BuildTime = 22 * 16;
+	Unit->BuildTicks = 22 * 16;
+	Unit->SkeletalMesh.Reset();
+	Unit->StaticMesh.Reset();
+	return Unit;
+}
+
+UKodUnitDefinition* UKodSlice0Bootstrap::MakeScnWorker(UObject* Outer)
+{
+	UKodUnitDefinition* Unit = NewObject<UKodUnitDefinition>(Outer, FName(KodWardenPaths::Id_ScnWorker), RF_Public | RF_Transient);
+	Unit->DefinitionId = FName(KodWardenPaths::Id_ScnWorker);
+	Unit->DisplayName = NSLOCTEXT("Kod", "Unit_ScnWorker", "Worker");
+	Unit->MaxHealth = 40.f;
+	Unit->Armor = 0.f;
+	Unit->bBiological = true;
+	Unit->MoveSpeed = 788.f;
+	Unit->SightRadius = 1000.f;
+	Unit->Cost.Credits = 50;
+	Unit->Cost.Supply = 1;
+	Unit->Cost.BuildTime = 12 * 16;
+	Unit->BuildTicks = 12 * 16;
 	Unit->SkeletalMesh.Reset();
 	Unit->StaticMesh.Reset();
 	return Unit;

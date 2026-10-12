@@ -89,6 +89,10 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 		return;
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodProd Complete Spawned=%s"), *Unit->GetName());
+	if (Request.ScriptRole != 0)
+	{
+		Sim->AdoptScriptedSpawn(Unit->EntityId, Request);
+	}
 
 	if (Request.RallyUnit.IsValid())
 	{

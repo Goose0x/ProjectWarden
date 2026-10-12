@@ -335,7 +335,7 @@ void UKodSimSubsystem::ResyncActors() const
 TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 {
 	FBlob Blob;
-	const int32 Version = 9;
+	const int32 Version = 10;
 	Blob.WInt(Version);
 	Blob.W(&SimTickIndex, sizeof(SimTickIndex));
 	TArray<int32> Keys;
@@ -739,6 +739,66 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 	Blob.WInt(FaultlineHomeX);
 	Blob.WInt(FaultlineHomeY);
 	Blob.WInt(FaultlineHomeZ);
+	Blob.WU8(FaultlineWavePhase);
+	Blob.W(&FaultlineWaveDueTick, sizeof(FaultlineWaveDueTick));
+	Blob.W(&FaultlineWaveStartTick, sizeof(FaultlineWaveStartTick));
+	Blob.W(&FaultlineRetreatTick, sizeof(FaultlineRetreatTick));
+	Blob.WInt(FaultlineWaveStartHp);
+	Blob.WInt(FaultlineWaveExpected);
+	Blob.WU8(bFaultlineGuardsSent);
+	Blob.WInt(FaultlineOutpostX);
+	Blob.WInt(FaultlineOutpostY);
+	Blob.WInt(FaultlineOutpostZ);
+	Blob.WInt(FaultlineLaneX);
+	Blob.WInt(FaultlineLaneY);
+	Blob.WInt(FaultlineLaneZ);
+	Blob.WU8(bFaultlineHasLane);
+	Blob.WInt(FaultlineBarracksX);
+	Blob.WInt(FaultlineBarracksY);
+	Blob.WInt(FaultlineBarracksZ);
+	Blob.WInt(FaultlineDelayTicks);
+	Blob.WInt(FaultlineRetreatTicks);
+	Blob.WInt(FaultlineHpPermille);
+	Blob.WInt(FaultlineGuardFighters);
+	Blob.WInt(FaultlineGuardBlades);
+	Blob.WInt(FaultlineGuardWorkers);
+	Blob.WInt(FaultlineWaveFighters);
+	Blob.WInt(FaultlineWaveBlades);
+	Blob.WInt(FaultlineFighterLeashUU);
+	Blob.WInt(FaultlineFighterAggroUU);
+	Blob.WInt(FaultlineBladeLeashUU);
+	Blob.WInt(FaultlineBladeAggroUU);
+	Blob.WInt(FaultlineFighterHp);
+	Blob.WInt(FaultlineFighterDamage);
+	Blob.WInt(FaultlineFighterRangeUU);
+	Blob.WInt(FaultlineFighterSpeed);
+	Blob.WInt(FaultlineFighterArmor);
+	Blob.WInt(FaultlineFighterCooldownTicks);
+	Blob.WInt(FaultlineFighterRegenMilli);
+	Blob.WInt(FaultlineBladeHp);
+	Blob.WInt(FaultlineBladeDamage);
+	Blob.WInt(FaultlineBladeRangeUU);
+	Blob.WInt(FaultlineBladeSpeed);
+	Blob.WInt(FaultlineBladeArmor);
+	Blob.WInt(FaultlineBladeCooldownTicks);
+	Blob.WInt(FaultlineBladeRegenMilli);
+	Blob.WInt(FaultlineWorkerHp);
+	Blob.WInt(FaultlineWorkerSpeed);
+	Blob.WInt(FaultlineWorkerRegenMilli);
+	Blob.WInt(ScriptedUnits.Num());
+	for (const FKodScriptedUnit& Scripted : ScriptedUnits)
+	{
+		Blob.WInt(Scripted.Id);
+		Blob.WU8(Scripted.Role);
+		Blob.WInt(Scripted.HomeX);
+		Blob.WInt(Scripted.HomeY);
+		Blob.WInt(Scripted.LeashUU);
+		Blob.WInt(Scripted.AggroUU);
+		Blob.WInt(Scripted.RegenMilliPerSec);
+		Blob.WInt(Scripted.RegenAcc);
+		Blob.WU8(Scripted.bOrdered);
+		Blob.WInt(Scripted.LastHealth);
+	}
 	return Blob.Bytes;
 }
 
@@ -747,7 +807,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version < 6 || Version > 9)
+	if (!Blob.RInt(Version) || Version < 6 || Version > 10)
 	{
 		return;
 	}
@@ -1593,6 +1653,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	FaultlineHomeX = 0;
 	FaultlineHomeY = 0;
 	FaultlineHomeZ = 0;
+	ResetFaultlineScript();
 	if (Version >= 9)
 	{
 		uint8 FactionByte = 0;
@@ -1617,6 +1678,65 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 			FaultlineHomeY = 0;
 			FaultlineHomeZ = 0;
 		}
+	}
+	if (Version >= 10 && bFaultlineTraining)
+	{
+		uint8 PhaseByte = 0;
+		uint8 GuardsByte = 0;
+		uint8 LaneByte = 0;
+		bool bTail = Blob.RU8(PhaseByte)
+			&& Blob.R(&FaultlineWaveDueTick, sizeof(FaultlineWaveDueTick))
+			&& Blob.R(&FaultlineWaveStartTick, sizeof(FaultlineWaveStartTick))
+			&& Blob.R(&FaultlineRetreatTick, sizeof(FaultlineRetreatTick))
+			&& Blob.RInt(FaultlineWaveStartHp)
+			&& Blob.RInt(FaultlineWaveExpected)
+			&& Blob.RU8(GuardsByte)
+			&& Blob.RInt(FaultlineOutpostX) && Blob.RInt(FaultlineOutpostY) && Blob.RInt(FaultlineOutpostZ)
+			&& Blob.RInt(FaultlineLaneX) && Blob.RInt(FaultlineLaneY) && Blob.RInt(FaultlineLaneZ)
+			&& Blob.RU8(LaneByte)
+			&& Blob.RInt(FaultlineBarracksX) && Blob.RInt(FaultlineBarracksY) && Blob.RInt(FaultlineBarracksZ)
+			&& Blob.RInt(FaultlineDelayTicks) && Blob.RInt(FaultlineRetreatTicks) && Blob.RInt(FaultlineHpPermille)
+			&& Blob.RInt(FaultlineGuardFighters) && Blob.RInt(FaultlineGuardBlades) && Blob.RInt(FaultlineGuardWorkers)
+			&& Blob.RInt(FaultlineWaveFighters) && Blob.RInt(FaultlineWaveBlades)
+			&& Blob.RInt(FaultlineFighterLeashUU) && Blob.RInt(FaultlineFighterAggroUU)
+			&& Blob.RInt(FaultlineBladeLeashUU) && Blob.RInt(FaultlineBladeAggroUU)
+			&& Blob.RInt(FaultlineFighterHp) && Blob.RInt(FaultlineFighterDamage) && Blob.RInt(FaultlineFighterRangeUU)
+			&& Blob.RInt(FaultlineFighterSpeed) && Blob.RInt(FaultlineFighterArmor)
+			&& Blob.RInt(FaultlineFighterCooldownTicks) && Blob.RInt(FaultlineFighterRegenMilli)
+			&& Blob.RInt(FaultlineBladeHp) && Blob.RInt(FaultlineBladeDamage) && Blob.RInt(FaultlineBladeRangeUU)
+			&& Blob.RInt(FaultlineBladeSpeed) && Blob.RInt(FaultlineBladeArmor)
+			&& Blob.RInt(FaultlineBladeCooldownTicks) && Blob.RInt(FaultlineBladeRegenMilli)
+			&& Blob.RInt(FaultlineWorkerHp) && Blob.RInt(FaultlineWorkerSpeed) && Blob.RInt(FaultlineWorkerRegenMilli);
+		int32 ScriptedCount = 0;
+		bTail = bTail && Blob.RInt(ScriptedCount);
+		if (bTail && ScriptedCount >= 0 && ScriptedCount <= 256)
+		{
+			FaultlineWavePhase = PhaseByte;
+			bFaultlineGuardsSent = GuardsByte;
+			bFaultlineHasLane = LaneByte;
+			for (int32 ScriptedIndex = 0; ScriptedIndex < ScriptedCount; ++ScriptedIndex)
+			{
+				FKodScriptedUnit Scripted;
+				if (!Blob.RInt(Scripted.Id) || !Blob.RU8(Scripted.Role)
+					|| !Blob.RInt(Scripted.HomeX) || !Blob.RInt(Scripted.HomeY)
+					|| !Blob.RInt(Scripted.LeashUU) || !Blob.RInt(Scripted.AggroUU)
+					|| !Blob.RInt(Scripted.RegenMilliPerSec) || !Blob.RInt(Scripted.RegenAcc)
+					|| !Blob.RU8(Scripted.bOrdered) || !Blob.RInt(Scripted.LastHealth))
+				{
+					break;
+				}
+				ScriptedUnits.Add(Scripted);
+			}
+			ScriptedUnits.Sort([](const FKodScriptedUnit& A, const FKodScriptedUnit& B) { return A.Id < B.Id; });
+		}
+		else
+		{
+			ResetFaultlineScript();
+		}
+	}
+	else if (Version >= 10)
+	{
+		ResetFaultlineScript();
 	}
 	GrantStartingPowerIncome();
 	int32 MaxId = 0;
@@ -1648,7 +1768,7 @@ bool UKodSimSubsystem::CollectSavedEntityIds(const TArray<uint8>& Bytes, TSet<in
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version < 6 || Version > 9)
+	if (!Blob.RInt(Version) || Version < 6 || Version > 10)
 	{
 		return false;
 	}

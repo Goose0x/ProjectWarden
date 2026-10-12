@@ -82,6 +82,7 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	FaultlineHomeX = 0;
 	FaultlineHomeY = 0;
 	FaultlineHomeZ = 0;
+	ResetFaultlineScript();
 	PowerPoints0 = 0;
 	PowerPoints1 = 0;
 	ArtilleryCd0 = 0;
@@ -184,6 +185,7 @@ void UKodSimSubsystem::Deinitialize()
 	FaultlineHomeX = 0;
 	FaultlineHomeY = 0;
 	FaultlineHomeZ = 0;
+	ResetFaultlineScript();
 	Super::Deinitialize();
 }
 
@@ -352,17 +354,258 @@ void UKodSimSubsystem::SetPlayerFaction(int32 Faction)
 	PlayerFaction = Faction == 1 ? 1 : 0;
 }
 
-void UKodSimSubsystem::ArmFaultlineWave(int32 OutpostCount, int32 WaveX, int32 WaveY, int32 WaveZ, int32 HomeX, int32 HomeY, int32 HomeZ)
+void UKodSimSubsystem::ResetFaultlineScript()
+{
+	FaultlineWavePhase = 0;
+	FaultlineWaveDueTick = 0;
+	FaultlineWaveStartTick = 0;
+	FaultlineRetreatTick = 0;
+	FaultlineWaveStartHp = 0;
+	FaultlineWaveExpected = 0;
+	bFaultlineGuardsSent = 0;
+	FaultlineOutpostX = 0;
+	FaultlineOutpostY = 0;
+	FaultlineOutpostZ = 0;
+	FaultlineLaneX = 0;
+	FaultlineLaneY = 0;
+	FaultlineLaneZ = 0;
+	bFaultlineHasLane = 0;
+	FaultlineBarracksX = 0;
+	FaultlineBarracksY = 0;
+	FaultlineBarracksZ = 0;
+	FaultlineDelayTicks = 0;
+	FaultlineRetreatTicks = 0;
+	FaultlineHpPermille = 1000;
+	FaultlineGuardFighters = 0;
+	FaultlineGuardBlades = 0;
+	FaultlineGuardWorkers = 0;
+	FaultlineWaveFighters = 0;
+	FaultlineWaveBlades = 0;
+	FaultlineFighterLeashUU = 0;
+	FaultlineFighterAggroUU = 0;
+	FaultlineBladeLeashUU = 0;
+	FaultlineBladeAggroUU = 0;
+	FaultlineFighterHp = 1;
+	FaultlineFighterDamage = 0;
+	FaultlineFighterRangeUU = 0;
+	FaultlineFighterSpeed = 0;
+	FaultlineFighterArmor = 0;
+	FaultlineFighterCooldownTicks = 1;
+	FaultlineFighterRegenMilli = 0;
+	FaultlineBladeHp = 1;
+	FaultlineBladeDamage = 0;
+	FaultlineBladeRangeUU = 0;
+	FaultlineBladeSpeed = 0;
+	FaultlineBladeArmor = 0;
+	FaultlineBladeCooldownTicks = 1;
+	FaultlineBladeRegenMilli = 0;
+	FaultlineWorkerHp = 1;
+	FaultlineWorkerSpeed = 0;
+	FaultlineWorkerRegenMilli = 0;
+	ScriptedUnits.Reset();
+}
+
+void UKodSimSubsystem::SetStructureVitals(FKodEntityId Id, int32 MaxHp, int32 Armor, int32 RegenMilliPerSec)
+{
+	const int32 Hp = FMath::Max(1, MaxHp);
+	if (FKodStructureState* Structure = Structures.Find(Id.Value))
+	{
+		Structure->MaxHealth = static_cast<float>(Hp);
+	}
+	if (FKodSimEntityState* State = States.Find(Id.Value))
+	{
+		State->MaxHealth = static_cast<float>(Hp);
+		State->Health = static_cast<float>(Hp);
+		State->ArmorPoints = FMath::Max(0, Armor);
+	}
+	FKodScriptedUnit Row;
+	Row.Id = Id.Value;
+	Row.Role = 4;
+	Row.RegenMilliPerSec = FMath::Max(0, RegenMilliPerSec);
+	Row.LastHealth = Hp;
+	ScriptedUnits.RemoveAll([Id](const FKodScriptedUnit& Existing) { return Existing.Id == Id.Value; });
+	ScriptedUnits.Add(Row);
+	ScriptedUnits.Sort([](const FKodScriptedUnit& A, const FKodScriptedUnit& B) { return A.Id < B.Id; });
+}
+
+void UKodSimSubsystem::AdoptScriptedSpawn(FKodEntityId Id, const FKodPendingUnitSpawn& Request)
+{
+	if (Request.ScriptRole == 0)
+	{
+		return;
+	}
+	FKodSimEntityState* State = States.Find(Id.Value);
+	if (!State)
+	{
+		return;
+	}
+	if (Request.ScriptHealth > 0)
+	{
+		State->MaxHealth = static_cast<float>(Request.ScriptHealth);
+		State->Health = static_cast<float>(Request.ScriptHealth);
+	}
+	State->MoveSpeed = static_cast<float>(FMath::Max(0, Request.ScriptSpeed));
+	State->ArmorPoints = FMath::Max(0, Request.ScriptArmor);
+	if (Request.ScriptRole == 3)
+	{
+		State->WeaponDamage = 0.f;
+		State->bCanGather = false;
+		State->bBiological = true;
+		State->bInfantry = false;
+	}
+	else
+	{
+		State->WeaponDamage = static_cast<float>(FMath::Max(0, Request.ScriptDamage));
+		State->WeaponRange = static_cast<float>(FMath::Max(0, Request.ScriptRangeUU));
+		State->WeaponCooldownTicks = FMath::Max(1, Request.ScriptCooldownTicks);
+		State->bBiological = true;
+		State->bInfantry = true;
+	}
+	FKodScriptedUnit Row;
+	Row.Id = Id.Value;
+	Row.Role = Request.ScriptRole;
+	Row.HomeX = Request.ScriptHomeX;
+	Row.HomeY = Request.ScriptHomeY;
+	Row.LeashUU = Request.ScriptLeashUU;
+	Row.AggroUU = Request.ScriptAggroUU;
+	Row.RegenMilliPerSec = FMath::Max(0, Request.ScriptRegenMilli);
+	Row.LastHealth = FMath::RoundToInt(State->Health);
+	ScriptedUnits.RemoveAll([Id](const FKodScriptedUnit& Existing) { return Existing.Id == Id.Value; });
+	ScriptedUnits.Add(Row);
+	ScriptedUnits.Sort([](const FKodScriptedUnit& A, const FKodScriptedUnit& B) { return A.Id < B.Id; });
+}
+
+void UKodSimSubsystem::EnqueueFaultlineUnit(
+	FName UnitId,
+	int32 Slot,
+	uint8 Role,
+	int32 Health,
+	int32 Damage,
+	int32 RangeUU,
+	int32 Speed,
+	int32 Armor,
+	int32 CooldownTicks,
+	int32 RegenMilli,
+	int32 HomeX,
+	int32 HomeY,
+	int32 LeashUU,
+	int32 AggroUU,
+	const FVector& Rally,
+	bool bAttackMove,
+	FName Tag)
+{
+	FKodPendingUnitSpawn Spawn;
+	Spawn.UnitId = UnitId;
+	Spawn.TeamId = 1;
+	Spawn.Location = FVector(
+		static_cast<float>(HomeX + (Slot - 1) * 160),
+		static_cast<float>(HomeY + (Role == 2 ? 220 : 80)),
+		static_cast<float>(FaultlineOutpostZ));
+	if (Role == 2)
+	{
+		Spawn.Location.Z = static_cast<float>(FaultlineWaveZ);
+	}
+	Spawn.bAttackMove = bAttackMove;
+	Spawn.RallyPoint = Rally;
+	Spawn.ActorTag = Tag;
+	Spawn.ScriptRole = Role;
+	Spawn.ScriptHealth = Health;
+	Spawn.ScriptDamage = Damage;
+	Spawn.ScriptRangeUU = RangeUU;
+	Spawn.ScriptSpeed = Speed;
+	Spawn.ScriptArmor = Armor;
+	Spawn.ScriptCooldownTicks = CooldownTicks;
+	Spawn.ScriptRegenMilli = RegenMilli;
+	Spawn.ScriptHomeX = HomeX;
+	Spawn.ScriptHomeY = HomeY;
+	Spawn.ScriptLeashUU = LeashUU;
+	Spawn.ScriptAggroUU = AggroUU;
+	PendingSpawns.Add(Spawn);
+}
+
+void UKodSimSubsystem::DespawnFaultlineRole(uint8 Role)
+{
+	TArray<int32> DropIds;
+	for (const FKodScriptedUnit& Row : ScriptedUnits)
+	{
+		if (Row.Role == Role)
+		{
+			DropIds.Add(Row.Id);
+		}
+	}
+	for (int32 DropId : DropIds)
+	{
+		FKodEntityId Drop;
+		Drop.Value = DropId;
+		AActor* Actor = ResolveEntity(Drop);
+		UnregisterEntity(Drop);
+		if (Actor && !Actor->IsActorBeingDestroyed())
+		{
+			Actor->Destroy();
+		}
+	}
+	ScriptedUnits.RemoveAll([Role](const FKodScriptedUnit& Row) { return Row.Role == Role; });
+}
+
+void UKodSimSubsystem::ArmFaultlineScript(const FKodFaultlineScript& Script)
 {
 	bFaultlineTraining = true;
-	FaultlineOutpostCount = FMath::Max(0, OutpostCount);
-	FaultlineWaveX = WaveX;
-	FaultlineWaveY = WaveY;
-	FaultlineWaveZ = WaveZ;
-	FaultlineHomeX = HomeX;
-	FaultlineHomeY = HomeY;
-	FaultlineHomeZ = HomeZ;
-	if (FaultlineOutpostCount <= 0 && !bFaultlineWaveErrorLogged)
+	TArray<FKodScriptedUnit> StructureRegen;
+	for (const FKodScriptedUnit& Row : ScriptedUnits)
+	{
+		if (Row.Role == 4)
+		{
+			StructureRegen.Add(Row);
+		}
+	}
+	ResetFaultlineScript();
+	ScriptedUnits = MoveTemp(StructureRegen);
+	bFaultlineWaveSent = false;
+	bFaultlineWaveErrorLogged = false;
+	FaultlineOutpostCount = FMath::Max(0, Script.OutpostCount);
+	FaultlineWaveX = Script.SpawnX;
+	FaultlineWaveY = Script.SpawnY;
+	FaultlineWaveZ = Script.SpawnZ;
+	FaultlineOutpostX = Script.OutpostX;
+	FaultlineOutpostY = Script.OutpostY;
+	FaultlineOutpostZ = Script.OutpostZ;
+	FaultlineHomeX = Script.HomeX;
+	FaultlineHomeY = Script.HomeY;
+	FaultlineHomeZ = Script.HomeZ;
+	FaultlineLaneX = Script.LaneX;
+	FaultlineLaneY = Script.LaneY;
+	FaultlineLaneZ = Script.LaneZ;
+	bFaultlineHasLane = Script.bHasLane;
+	FaultlineDelayTicks = FMath::Max(0, Script.DelayTicks);
+	FaultlineRetreatTicks = FMath::Max(1, Script.RetreatTicks);
+	FaultlineHpPermille = FMath::Clamp(Script.HpPermille, 1, 1000);
+	FaultlineGuardFighters = FMath::Max(0, Script.GuardFighters);
+	FaultlineGuardBlades = FMath::Max(0, Script.GuardBlades);
+	FaultlineGuardWorkers = FMath::Max(0, Script.GuardWorkers);
+	FaultlineWaveFighters = FMath::Max(0, Script.WaveFighters);
+	FaultlineWaveBlades = FMath::Max(0, Script.WaveBlades);
+	FaultlineFighterLeashUU = FMath::Max(0, Script.FighterLeashUU);
+	FaultlineFighterAggroUU = FMath::Max(0, Script.FighterAggroUU);
+	FaultlineBladeLeashUU = FMath::Max(0, Script.BladeLeashUU);
+	FaultlineBladeAggroUU = FMath::Max(0, Script.BladeAggroUU);
+	FaultlineFighterHp = FMath::Max(1, Script.FighterHp);
+	FaultlineFighterDamage = FMath::Max(0, Script.FighterDamage);
+	FaultlineFighterRangeUU = FMath::Max(0, Script.FighterRangeUU);
+	FaultlineFighterSpeed = FMath::Max(0, Script.FighterSpeed);
+	FaultlineFighterArmor = FMath::Max(0, Script.FighterArmor);
+	FaultlineFighterCooldownTicks = FMath::Max(1, Script.FighterCooldownTicks);
+	FaultlineFighterRegenMilli = FMath::Max(0, Script.FighterRegenMilli);
+	FaultlineBladeHp = FMath::Max(1, Script.BladeHp);
+	FaultlineBladeDamage = FMath::Max(0, Script.BladeDamage);
+	FaultlineBladeRangeUU = FMath::Max(0, Script.BladeRangeUU);
+	FaultlineBladeSpeed = FMath::Max(0, Script.BladeSpeed);
+	FaultlineBladeArmor = FMath::Max(0, Script.BladeArmor);
+	FaultlineBladeCooldownTicks = FMath::Max(1, Script.BladeCooldownTicks);
+	FaultlineBladeRegenMilli = FMath::Max(0, Script.BladeRegenMilli);
+	FaultlineWorkerHp = FMath::Max(1, Script.WorkerHp);
+	FaultlineWorkerSpeed = FMath::Max(0, Script.WorkerSpeed);
+	FaultlineWorkerRegenMilli = FMath::Max(0, Script.WorkerRegenMilli);
+	if (FaultlineOutpostCount <= 0)
 	{
 		bFaultlineWaveErrorLogged = true;
 		UE_LOG(LogTemp, Error, TEXT("KodFaultline Wave skipped: no outposts registered"));
@@ -371,10 +614,30 @@ void UKodSimSubsystem::ArmFaultlineWave(int32 OutpostCount, int32 WaveX, int32 W
 
 void UKodSimSubsystem::StepFaultlineWave()
 {
-	if (!bFaultlineTraining || bFaultlineWaveSent)
+	if (!bFaultlineTraining)
 	{
 		return;
 	}
+
+	for (FKodScriptedUnit& Row : ScriptedUnits)
+	{
+		FKodSimEntityState* State = States.Find(Row.Id);
+		if (!State || State->Health <= 0.f || Row.RegenMilliPerSec <= 0)
+		{
+			continue;
+		}
+		if (State->Health >= State->MaxHealth)
+		{
+			continue;
+		}
+		Row.RegenAcc += Row.RegenMilliPerSec;
+		while (Row.RegenAcc >= 16000 && State->Health < State->MaxHealth)
+		{
+			Row.RegenAcc -= 16000;
+			State->Health = FMath::Min(State->MaxHealth, State->Health + 1.f);
+		}
+	}
+
 	if (FaultlineOutpostCount <= 0)
 	{
 		if (!bFaultlineWaveErrorLogged)
@@ -384,50 +647,337 @@ void UKodSimSubsystem::StepFaultlineWave()
 		}
 		return;
 	}
-	int32 LivingOutposts = 0;
-	TArray<int32> StructureKeys;
-	Structures.GetKeys(StructureKeys);
-	StructureKeys.Sort();
-	for (int32 StructureKey : StructureKeys)
+
+	auto Scaled = [this](int32 Value) -> int32
 	{
-		const FKodStructureState* Found = Structures.Find(StructureKey);
-		if (!Found || Found->TeamId != 1 || Found->DefinitionId != FName(TEXT("KodEnemyOutpost")))
+		if (Value <= 0)
+		{
+			return 0;
+		}
+		return FMath::Max(1, (Value * FaultlineHpPermille + 500) / 1000);
+	};
+
+	if (!bFaultlineGuardsSent)
+	{
+		bFaultlineGuardsSent = 1;
+		for (int32 Slot = 0; Slot < FaultlineGuardFighters; ++Slot)
+		{
+			EnqueueFaultlineUnit(
+				FName(KodWardenPaths::Id_ScnFighter), Slot, 1,
+				Scaled(FaultlineFighterHp), Scaled(FaultlineFighterDamage), FaultlineFighterRangeUU,
+				FaultlineFighterSpeed, FaultlineFighterArmor, FaultlineFighterCooldownTicks, FaultlineFighterRegenMilli,
+				FaultlineOutpostX, FaultlineOutpostY, FaultlineFighterLeashUU, FaultlineFighterAggroUU,
+				FVector::ZeroVector, false, FName(TEXT("KodOutpostGuard")));
+		}
+		for (int32 Slot = 0; Slot < FaultlineGuardBlades; ++Slot)
+		{
+			EnqueueFaultlineUnit(
+				FName(KodWardenPaths::Id_ScnTwinblade), Slot + FaultlineGuardFighters, 1,
+				Scaled(FaultlineBladeHp), Scaled(FaultlineBladeDamage), FaultlineBladeRangeUU,
+				FaultlineBladeSpeed, FaultlineBladeArmor, FaultlineBladeCooldownTicks, FaultlineBladeRegenMilli,
+				FaultlineOutpostX, FaultlineOutpostY, FaultlineBladeLeashUU, FaultlineBladeAggroUU,
+				FVector::ZeroVector, false, FName(TEXT("KodOutpostGuard")));
+		}
+		for (int32 Slot = 0; Slot < FaultlineGuardWorkers; ++Slot)
+		{
+			EnqueueFaultlineUnit(
+				FName(KodWardenPaths::Id_ScnWorker), Slot, 3,
+				Scaled(FaultlineWorkerHp), 0, 0,
+				FaultlineWorkerSpeed, 0, 1, FaultlineWorkerRegenMilli,
+				FaultlineOutpostX, FaultlineOutpostY, 0, 0,
+				FVector::ZeroVector, false, FName(TEXT("KodOutpostWorker")));
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodFaultline Guards Fighters=%d Blades=%d Workers=%d"),
+			FaultlineGuardFighters, FaultlineGuardBlades, FaultlineGuardWorkers);
+	}
+
+	for (FKodScriptedUnit& Row : ScriptedUnits)
+	{
+		FKodSimEntityState* State = States.Find(Row.Id);
+		if (!State || State->Health <= 0.f || Row.Role == 2 || Row.Role == 4)
 		{
 			continue;
 		}
-		const FKodSimEntityState* Combat = States.Find(StructureKey);
-		if (Combat && Combat->Health > 0.f)
+		const FVector Home(static_cast<float>(Row.HomeX), static_cast<float>(Row.HomeY), State->Position.Z);
+		const float DistHome = FVector::Dist2D(State->Position, Home);
+		const int32 HpNow = FMath::RoundToInt(State->Health);
+		if (Row.Role == 3)
 		{
-			++LivingOutposts;
+			if (HpNow < Row.LastHealth)
+			{
+				FVector Away(180.f, 180.f, 0.f);
+				float Best = 0.f;
+				bool bSeen = false;
+				TArray<int32> Keys;
+				States.GetKeys(Keys);
+				Keys.Sort();
+				for (int32 Key : Keys)
+				{
+					const FKodSimEntityState* Other = States.Find(Key);
+					if (!Other || Other->Health <= 0.f || Other->TeamId == State->TeamId)
+					{
+						continue;
+					}
+					const float Dist = FVector::DistSquared2D(State->Position, Other->Position);
+					if (!bSeen || Dist < Best)
+					{
+						bSeen = true;
+						Best = Dist;
+						Away = State->Position - Other->Position;
+						Away.Z = 0.f;
+					}
+				}
+				if (Away.SizeSquared2D() < 1.f)
+				{
+					Away = FVector(1.f, 0.f, 0.f);
+				}
+				Away = Away.GetSafeNormal2D() * 600.f;
+				IssueMove(State->Id, Home + Away);
+			}
+			Row.LastHealth = HpNow;
+			continue;
 		}
+		if (Row.LeashUU > 0 && DistHome > static_cast<float>(Row.LeashUU))
+		{
+			if (State->Order != EKodSimOrderType::Move)
+			{
+				IssueMove(State->Id, Home);
+			}
+			Row.LastHealth = HpNow;
+			continue;
+		}
+		FKodEntityId Nearest;
+		float NearestDist = 0.f;
+		bool bNearest = false;
+		if (Row.AggroUU > 0)
+		{
+			TArray<int32> Keys;
+			States.GetKeys(Keys);
+			Keys.Sort();
+			for (int32 Key : Keys)
+			{
+				const FKodSimEntityState* Other = States.Find(Key);
+				if (!Other || Other->Health <= 0.f || Other->TeamId == State->TeamId || Other->InsideBunker.IsValid())
+				{
+					continue;
+				}
+				const float Dist = FVector::DistSquared2D(State->Position, Other->Position);
+				if (Dist > FMath::Square(static_cast<float>(Row.AggroUU)))
+				{
+					continue;
+				}
+				if (!bNearest || Dist < NearestDist)
+				{
+					bNearest = true;
+					NearestDist = Dist;
+					Nearest.Value = Key;
+				}
+			}
+		}
+		if (bNearest)
+		{
+			if (State->Order != EKodSimOrderType::Attack || State->AttackTarget != Nearest)
+			{
+				IssueAttack(State->Id, Nearest);
+			}
+		}
+		else if (DistHome > 180.f && State->Order != EKodSimOrderType::Move)
+		{
+			IssueMove(State->Id, Home);
+		}
+		Row.LastHealth = HpNow;
 	}
-	if (LivingOutposts > 0)
+
+	if (FaultlineWavePhase == 0)
 	{
+		int32 LivingOutposts = 0;
+		TArray<int32> StructureKeys;
+		Structures.GetKeys(StructureKeys);
+		StructureKeys.Sort();
+		for (int32 StructureKey : StructureKeys)
+		{
+			const FKodStructureState* Found = Structures.Find(StructureKey);
+			if (!Found || Found->TeamId != 1 || Found->DefinitionId != FName(TEXT("KodEnemyOutpost")))
+			{
+				continue;
+			}
+			const FKodSimEntityState* Combat = States.Find(StructureKey);
+			if (Combat && Combat->Health > 0.f)
+			{
+				++LivingOutposts;
+			}
+		}
+		if (LivingOutposts == 0)
+		{
+			FaultlineWavePhase = 1;
+			FaultlineWaveDueTick = SimTickIndex + static_cast<int64>(FaultlineDelayTicks);
+			UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Scheduled DueTick=%lld"), FaultlineWaveDueTick);
+		}
 		return;
 	}
-	bFaultlineWaveSent = true;
-	FName UnitId(KodWardenPaths::Id_ScinderInfantry);
-	if (PlayerFaction == 1)
+	if (FaultlineWavePhase == 1)
 	{
-		UnitId = FName(KodWardenPaths::Id_Ranger);
+		if (SimTickIndex < FaultlineWaveDueTick)
+		{
+			return;
+		}
+		FaultlineBarracksX = FaultlineHomeX;
+		FaultlineBarracksY = FaultlineHomeY;
+		FaultlineBarracksZ = FaultlineHomeZ;
+		float BestBarracks = 0.f;
+		bool bBarracks = false;
+		TArray<int32> StructureKeys;
+		Structures.GetKeys(StructureKeys);
+		StructureKeys.Sort();
+		for (int32 StructureKey : StructureKeys)
+		{
+			const FKodStructureState* Found = Structures.Find(StructureKey);
+			if (!Found || Found->TeamId != 0 || Found->DefinitionId != FName(KodWardenPaths::Id_Barracks))
+			{
+				continue;
+			}
+			const float Dist = FVector::DistSquared2D(
+				FVector(static_cast<float>(FaultlineWaveX), static_cast<float>(FaultlineWaveY), 0.f),
+				Found->Position);
+			if (!bBarracks || Dist < BestBarracks)
+			{
+				bBarracks = true;
+				BestBarracks = Dist;
+				FaultlineBarracksX = FMath::RoundToInt(Found->Position.X);
+				FaultlineBarracksY = FMath::RoundToInt(Found->Position.Y);
+				FaultlineBarracksZ = FMath::RoundToInt(Found->Position.Z);
+			}
+		}
+		const FVector Rally = bFaultlineHasLane
+			? FVector(static_cast<float>(FaultlineLaneX), static_cast<float>(FaultlineLaneY), static_cast<float>(FaultlineLaneZ))
+			: FVector(static_cast<float>(FaultlineBarracksX), static_cast<float>(FaultlineBarracksY), static_cast<float>(FaultlineBarracksZ));
+		for (int32 Slot = 0; Slot < FaultlineWaveFighters; ++Slot)
+		{
+			EnqueueFaultlineUnit(
+				FName(KodWardenPaths::Id_ScnFighter), Slot, 2,
+				Scaled(FaultlineFighterHp), Scaled(FaultlineFighterDamage), FaultlineFighterRangeUU,
+				FaultlineFighterSpeed, FaultlineFighterArmor, FaultlineFighterCooldownTicks, FaultlineFighterRegenMilli,
+				FaultlineWaveX, FaultlineWaveY, 0, 0,
+				Rally, true, FName(TEXT("KodCounterWave")));
+		}
+		for (int32 Slot = 0; Slot < FaultlineWaveBlades; ++Slot)
+		{
+			EnqueueFaultlineUnit(
+				FName(KodWardenPaths::Id_ScnTwinblade), Slot + FaultlineWaveFighters, 2,
+				Scaled(FaultlineBladeHp), Scaled(FaultlineBladeDamage), FaultlineBladeRangeUU,
+				FaultlineBladeSpeed, FaultlineBladeArmor, FaultlineBladeCooldownTicks, FaultlineBladeRegenMilli,
+				FaultlineWaveX, FaultlineWaveY, 0, 0,
+				Rally, true, FName(TEXT("KodCounterWave")));
+		}
+		bFaultlineWaveSent = true;
+		FaultlineWavePhase = 2;
+		FaultlineWaveStartTick = SimTickIndex;
+		FaultlineWaveExpected = FaultlineWaveFighters + FaultlineWaveBlades;
+		FaultlineWaveStartHp = Scaled(FaultlineFighterHp) * FaultlineWaveFighters + Scaled(FaultlineBladeHp) * FaultlineWaveBlades;
+		UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Spawn Fighters=%d Blades=%d Hp=%d Lane=%d"),
+			FaultlineWaveFighters, FaultlineWaveBlades, FaultlineWaveStartHp, bFaultlineHasLane ? 1 : 0);
+		return;
 	}
-	UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave OutpostDown Unit=%s"), *UnitId.ToString());
-	for (int32 SpawnIndex = 0; SpawnIndex < 4; ++SpawnIndex)
+
+	for (FKodScriptedUnit& Row : ScriptedUnits)
 	{
-		FKodPendingUnitSpawn Spawn;
-		Spawn.UnitId = UnitId;
-		Spawn.TeamId = 1;
-		Spawn.Location = FVector(
-			static_cast<float>(FaultlineWaveX + (SpawnIndex - 1) * 180),
-			static_cast<float>(FaultlineWaveY + 220),
-			static_cast<float>(FaultlineWaveZ));
-		Spawn.bAttackMove = true;
-		Spawn.RallyPoint = FVector(
-			static_cast<float>(FaultlineHomeX),
-			static_cast<float>(FaultlineHomeY),
-			static_cast<float>(FaultlineHomeZ));
-		Spawn.ActorTag = FName(TEXT("KodCounterWave"));
-		PendingSpawns.Add(Spawn);
+		if (Row.Role != 2 || Row.bOrdered)
+		{
+			continue;
+		}
+		FKodSimEntityState* State = States.Find(Row.Id);
+		if (!State || State->Health <= 0.f)
+		{
+			continue;
+		}
+		if (bFaultlineHasLane)
+		{
+			IssueAttackMove(State->Id, FVector(static_cast<float>(FaultlineLaneX), static_cast<float>(FaultlineLaneY), static_cast<float>(FaultlineLaneZ)));
+			IssueOrder(
+				State->Id,
+				EKodSimOrderType::AttackMove,
+				FVector(static_cast<float>(FaultlineBarracksX), static_cast<float>(FaultlineBarracksY), static_cast<float>(FaultlineBarracksZ)),
+				FKodEntityId(),
+				true);
+		}
+		Row.bOrdered = 1;
+	}
+
+	if (FaultlineWavePhase == 2)
+	{
+		int32 LiveHp = 0;
+		int32 Seen = 0;
+		for (const FKodScriptedUnit& Row : ScriptedUnits)
+		{
+			if (Row.Role != 2)
+			{
+				continue;
+			}
+			const FKodSimEntityState* State = States.Find(Row.Id);
+			if (!State)
+			{
+				continue;
+			}
+			++Seen;
+			if (State->Health > 0.f)
+			{
+				LiveHp += FMath::RoundToInt(State->Health);
+			}
+		}
+		const bool bBodiesReady = Seen >= FaultlineWaveExpected || (Seen > 0 && SimTickIndex >= FaultlineWaveStartTick + 32);
+		const bool bBroken = FaultlineWaveStartHp > 0 && LiveHp * 1000 <= FaultlineWaveStartHp * 300;
+		const bool bTimedOut = SimTickIndex >= FaultlineWaveStartTick + static_cast<int64>(FaultlineRetreatTicks);
+		if (bBodiesReady && (bBroken || bTimedOut))
+		{
+			FaultlineWavePhase = 3;
+			FaultlineRetreatTick = SimTickIndex;
+			const FVector Back(static_cast<float>(FaultlineWaveX), static_cast<float>(FaultlineWaveY), static_cast<float>(FaultlineWaveZ));
+			for (const FKodScriptedUnit& Row : ScriptedUnits)
+			{
+				if (Row.Role != 2)
+				{
+					continue;
+				}
+				const FKodSimEntityState* State = States.Find(Row.Id);
+				if (State && State->Health > 0.f)
+				{
+					IssueMove(State->Id, Back);
+				}
+			}
+			UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Retreat LiveHp=%d StartHp=%d"), LiveHp, FaultlineWaveStartHp);
+		}
+		return;
+	}
+	if (FaultlineWavePhase == 3)
+	{
+		bool bHome = true;
+		int32 Living = 0;
+		for (const FKodScriptedUnit& Row : ScriptedUnits)
+		{
+			if (Row.Role != 2)
+			{
+				continue;
+			}
+			const FKodSimEntityState* State = States.Find(Row.Id);
+			if (!State || State->Health <= 0.f)
+			{
+				continue;
+			}
+			++Living;
+			const float Dist = FVector::Dist2D(
+				State->Position,
+				FVector(static_cast<float>(FaultlineWaveX), static_cast<float>(FaultlineWaveY), State->Position.Z));
+			if (Dist > 250.f)
+			{
+				bHome = false;
+			}
+		}
+		if (Living == 0 || bHome || SimTickIndex >= FaultlineRetreatTick + 8 * 16)
+		{
+			DespawnFaultlineRole(2);
+			FaultlineWavePhase = 4;
+			UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Despawn"));
+		}
 	}
 }
 
@@ -2805,6 +3355,67 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	Append(&FaultlineHomeX, sizeof(FaultlineHomeX));
 	Append(&FaultlineHomeY, sizeof(FaultlineHomeY));
 	Append(&FaultlineHomeZ, sizeof(FaultlineHomeZ));
+	Append(&FaultlineWavePhase, sizeof(FaultlineWavePhase));
+	Append(&FaultlineWaveDueTick, sizeof(FaultlineWaveDueTick));
+	Append(&FaultlineWaveStartTick, sizeof(FaultlineWaveStartTick));
+	Append(&FaultlineRetreatTick, sizeof(FaultlineRetreatTick));
+	Append(&FaultlineWaveStartHp, sizeof(FaultlineWaveStartHp));
+	Append(&FaultlineWaveExpected, sizeof(FaultlineWaveExpected));
+	Append(&bFaultlineGuardsSent, sizeof(bFaultlineGuardsSent));
+	Append(&FaultlineOutpostX, sizeof(FaultlineOutpostX));
+	Append(&FaultlineOutpostY, sizeof(FaultlineOutpostY));
+	Append(&FaultlineOutpostZ, sizeof(FaultlineOutpostZ));
+	Append(&FaultlineLaneX, sizeof(FaultlineLaneX));
+	Append(&FaultlineLaneY, sizeof(FaultlineLaneY));
+	Append(&FaultlineLaneZ, sizeof(FaultlineLaneZ));
+	Append(&bFaultlineHasLane, sizeof(bFaultlineHasLane));
+	Append(&FaultlineBarracksX, sizeof(FaultlineBarracksX));
+	Append(&FaultlineBarracksY, sizeof(FaultlineBarracksY));
+	Append(&FaultlineBarracksZ, sizeof(FaultlineBarracksZ));
+	Append(&FaultlineDelayTicks, sizeof(FaultlineDelayTicks));
+	Append(&FaultlineRetreatTicks, sizeof(FaultlineRetreatTicks));
+	Append(&FaultlineHpPermille, sizeof(FaultlineHpPermille));
+	Append(&FaultlineGuardFighters, sizeof(FaultlineGuardFighters));
+	Append(&FaultlineGuardBlades, sizeof(FaultlineGuardBlades));
+	Append(&FaultlineGuardWorkers, sizeof(FaultlineGuardWorkers));
+	Append(&FaultlineWaveFighters, sizeof(FaultlineWaveFighters));
+	Append(&FaultlineWaveBlades, sizeof(FaultlineWaveBlades));
+	Append(&FaultlineFighterLeashUU, sizeof(FaultlineFighterLeashUU));
+	Append(&FaultlineFighterAggroUU, sizeof(FaultlineFighterAggroUU));
+	Append(&FaultlineBladeLeashUU, sizeof(FaultlineBladeLeashUU));
+	Append(&FaultlineBladeAggroUU, sizeof(FaultlineBladeAggroUU));
+	Append(&FaultlineFighterHp, sizeof(FaultlineFighterHp));
+	Append(&FaultlineFighterDamage, sizeof(FaultlineFighterDamage));
+	Append(&FaultlineFighterRangeUU, sizeof(FaultlineFighterRangeUU));
+	Append(&FaultlineFighterSpeed, sizeof(FaultlineFighterSpeed));
+	Append(&FaultlineFighterArmor, sizeof(FaultlineFighterArmor));
+	Append(&FaultlineFighterCooldownTicks, sizeof(FaultlineFighterCooldownTicks));
+	Append(&FaultlineFighterRegenMilli, sizeof(FaultlineFighterRegenMilli));
+	Append(&FaultlineBladeHp, sizeof(FaultlineBladeHp));
+	Append(&FaultlineBladeDamage, sizeof(FaultlineBladeDamage));
+	Append(&FaultlineBladeRangeUU, sizeof(FaultlineBladeRangeUU));
+	Append(&FaultlineBladeSpeed, sizeof(FaultlineBladeSpeed));
+	Append(&FaultlineBladeArmor, sizeof(FaultlineBladeArmor));
+	Append(&FaultlineBladeCooldownTicks, sizeof(FaultlineBladeCooldownTicks));
+	Append(&FaultlineBladeRegenMilli, sizeof(FaultlineBladeRegenMilli));
+	Append(&FaultlineWorkerHp, sizeof(FaultlineWorkerHp));
+	Append(&FaultlineWorkerSpeed, sizeof(FaultlineWorkerSpeed));
+	Append(&FaultlineWorkerRegenMilli, sizeof(FaultlineWorkerRegenMilli));
+	const int32 ScriptedCount = ScriptedUnits.Num();
+	Append(&ScriptedCount, sizeof(ScriptedCount));
+	for (const FKodScriptedUnit& Scripted : ScriptedUnits)
+	{
+		Append(&Scripted.Id, sizeof(Scripted.Id));
+		Append(&Scripted.Role, sizeof(Scripted.Role));
+		Append(&Scripted.HomeX, sizeof(Scripted.HomeX));
+		Append(&Scripted.HomeY, sizeof(Scripted.HomeY));
+		Append(&Scripted.LeashUU, sizeof(Scripted.LeashUU));
+		Append(&Scripted.AggroUU, sizeof(Scripted.AggroUU));
+		Append(&Scripted.RegenMilliPerSec, sizeof(Scripted.RegenMilliPerSec));
+		Append(&Scripted.RegenAcc, sizeof(Scripted.RegenAcc));
+		Append(&Scripted.bOrdered, sizeof(Scripted.bOrdered));
+		Append(&Scripted.LastHealth, sizeof(Scripted.LastHealth));
+	}
 
 	const uint64 Hash = Bytes.Num() > 0
 		? CityHash64(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num())

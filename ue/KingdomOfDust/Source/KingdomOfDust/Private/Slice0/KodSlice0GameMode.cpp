@@ -507,6 +507,18 @@ void AKodSlice0GameMode::StartPlay()
 			{
 				RegisterUnit(Scinder, FName(KodWardenPaths::Id_ScinderInfantry), FName(TEXT("Scinder Infantry")));
 			}
+			if (const UKodUnitDefinition* Fighter = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_ScnFighter), this))
+			{
+				RegisterUnit(Fighter, FName(KodWardenPaths::Id_ScnFighter), FName(TEXT("Fighter")));
+			}
+			if (const UKodUnitDefinition* Blade = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_ScnTwinblade), this))
+			{
+				RegisterUnit(Blade, FName(KodWardenPaths::Id_ScnTwinblade), FName(TEXT("Twin-blade")));
+			}
+			if (const UKodUnitDefinition* ScnWorker = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_ScnWorker), this))
+			{
+				RegisterUnit(ScnWorker, FName(KodWardenPaths::Id_ScnWorker), FName(TEXT("Worker")));
+			}
 			auto RegisterBuild = [Sim, this](const TCHAR* TypeId, const TArray<FName>& Trains)
 			{
 				const UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(FName(TypeId), this);

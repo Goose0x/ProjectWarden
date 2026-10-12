@@ -78,6 +78,9 @@ protected:
 	static UKodWeaponDefinition* MakeRangerRifle(UObject* Outer);
 	static UKodUnitDefinition* MakeRanger(UObject* Outer, UKodWeaponDefinition* Rifle);
 	static UKodUnitDefinition* MakeScinderInfantry(UObject* Outer, UKodWeaponDefinition* Rifle);
+	static UKodUnitDefinition* MakeScnFighter(UObject* Outer);
+	static UKodUnitDefinition* MakeScnTwinblade(UObject* Outer);
+	static UKodUnitDefinition* MakeScnWorker(UObject* Outer);
 	static UKodUnitDefinition* MakeDozer(UObject* Outer);
 	static UKodBuildingDefinition* MakeCommandCenter(UObject* Outer, UKodUnitDefinition* Dozer);
 	static UKodBuildingDefinition* MakeBarracks(UObject* Outer, UKodUnitDefinition* Ranger);
