@@ -33,6 +33,7 @@ AKodPortraitStage::AKodPortraitStage()
 	FillLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Fill"));
 	FillLight->SetupAttachment(Root);
 	SetActorLocation(FVector(0.f, 0.f, -200000.f));
+	SetActorEnableCollision(false);
 }
 
 void AKodPortraitStage::EnsureCapture()

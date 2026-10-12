@@ -245,21 +245,6 @@ void AKodHUD::DrawJuiceFloaters()
 	{
 		return;
 	}
-	if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
-	{
-		TArray<FKodJuiceText> Fresh;
-		Sim->ConsumeJuiceText(Fresh);
-		const float Now = World->GetTimeSeconds();
-		for (const FKodJuiceText& Text : Fresh)
-		{
-			FKodHudFloater Floater;
-			Floater.World = Text.Position;
-			Floater.Amount = Text.Amount;
-			Floater.Kind = Text.Kind;
-			Floater.Born = Now;
-			JuiceFloaters.Add(Floater);
-		}
-	}
 	const UKodUserSettings* Settings = UKodUserSettings::Get();
 	const bool bNumbers = Settings && Settings->bShowDamageNumbers;
 	const float Now = World->GetTimeSeconds();
@@ -898,6 +883,11 @@ bool AKodHUD::ConsumePortraitClick()
 	return bDouble;
 }
 
+void AKodHUD::CancelPortraitClick()
+{
+	PortraitClickSeconds = -1.f;
+}
+
 float AKodHUD::WireZoneRemain(int32 UnitId, int32 ZoneIndex, int32 ZoneCount, int32 Health, int32 MaxHealth)
 {
 	const int32 Count = FMath::Max(1, ZoneCount);
@@ -949,7 +939,23 @@ void AKodHUD::BindAlertFeed()
 		{
 			Sim->OnCue.AddDynamic(this, &AKodHUD::HandleAlertCue);
 			Sim->OnUnitHit.AddDynamic(this, &AKodHUD::HandleWireHit);
+			Sim->OnJuiceText.RemoveAll(this);
+			Sim->OnJuiceText.AddUObject(this, &AKodHUD::HandleJuiceText);
 		}
+	}
+}
+
+void AKodHUD::HandleJuiceText(FVector Position, int32 Amount, uint8 Kind)
+{
+	FKodHudFloater Floater;
+	Floater.World = Position;
+	Floater.Amount = Amount;
+	Floater.Kind = Kind;
+	Floater.Born = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+	JuiceFloaters.Add(Floater);
+	while (JuiceFloaters.Num() > 48)
+	{
+		JuiceFloaters.RemoveAt(0);
 	}
 }
 
@@ -2719,4 +2725,16 @@ void AKodHUD::BeginPlay()
 			}
 		}
 	}
+}
+
+void AKodHUD::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			Sim->OnJuiceText.RemoveAll(this);
+		}
+	}
+	Super::EndPlay(EndPlayReason);
 }

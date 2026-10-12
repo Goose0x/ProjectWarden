@@ -21,14 +21,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKodOnUnitKilled, AActor*, Target, 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKodOnTrainCompleted, FVector, Location, int32, TeamId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FKodOnCue, FName, CueId, FVector, Location, bool, bAtLocation);
 
-/** Floating combat or resource text. Presentation only. Not hashed and not saved. */
-struct KODCORE_API FKodJuiceText
-{
-	FVector Position = FVector::ZeroVector;
-	int32 Amount = 0;
-	/** 0 is damage, 1 is a resource drop. */
-	uint8 Kind = 0;
-};
+/** Floating combat or resource text. Presentation only. Not a sim field. */
+DECLARE_MULTICAST_DELEGATE_ThreeParams(FKodJuiceTextEvent, FVector, int32, uint8);
 
 UENUM(BlueprintType)
 enum class EKodSimOrderType : uint8
@@ -644,9 +638,11 @@ public:
 	bool CastHeal(FKodEntityId UnitId);
 	void RaiseCue(FName CueId, FVector Location, bool bAtLocation);
 
-	/** Presentation floaters. Drained by the HUD. Not hashed. */
+	/** Broadcasts a floater. Nothing is stored on the sim, hashed, or saved. */
 	void PushJuiceText(const FVector& Position, int32 Amount, uint8 Kind);
-	void ConsumeJuiceText(TArray<FKodJuiceText>& Out);
+
+	/** HUD binds this. Cleared in Deinitialize. Not hashed and not saved. */
+	FKodJuiceTextEvent OnJuiceText;
 	EKodMatchOutcome GetMatchOutcome() const { return MatchOutcome; }
 	bool IsMatchOver() const { return MatchOutcome != EKodMatchOutcome::None; }
 
@@ -867,9 +863,6 @@ protected:
 	/** Drop-off buildings. A structure drop-off also has combat HP. Included in ComputeIdleHash. */
 	UPROPERTY()
 	TMap<int32, FKodDropOffState> DropOffs;
-
-	/** Presentation only. Not a UPROPERTY, so it stays out of the idle hash and the save blob. */
-	TArray<FKodJuiceText> JuiceTexts;
 
 	TMap<int32, FKodSupplyState> Supply;
 	TMap<int32, FKodStructureState> Structures;
