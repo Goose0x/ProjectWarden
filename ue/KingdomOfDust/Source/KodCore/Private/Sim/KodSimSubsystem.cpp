@@ -81,6 +81,7 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	RepairCd1 = 0;
 	ScheduledPowers.Reset();
 	RampCells.Reset();
+	HighGroundCells.Reset();
 	DressBlockCells.Reset();
 	VisionBlockCells.Reset();
 	DestructFoots.Reset();
@@ -2637,6 +2638,12 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	for (int64 Ramp : RampCells)
 	{
 		Append(&Ramp, sizeof(Ramp));
+	}
+	const int32 HighCount = HighGroundCells.Num();
+	Append(&HighCount, sizeof(HighCount));
+	for (int64 HighCell : HighGroundCells)
+	{
+		Append(&HighCell, sizeof(HighCell));
 	}
 	const int32 DressCount = DressBlockCells.Num();
 	Append(&DressCount, sizeof(DressCount));

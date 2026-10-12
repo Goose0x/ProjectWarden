@@ -411,7 +411,11 @@ void UKodSimSubsystem::ApplyReconVision()
 
 int32 UKodSimSubsystem::GetMapCellHeight(int32 CellX, int32 CellY) const
 {
-	return RampCells.Contains(PackRamp(CellX, CellY)) ? 1 : 0;
+	if (IsHighGroundCell(CellX, CellY) || RampCells.Contains(PackRamp(CellX, CellY)))
+	{
+		return 1;
+	}
+	return 0;
 }
 
 void UKodSimSubsystem::RegisterRampCell(int32 CellX, int32 CellY)
@@ -456,6 +460,24 @@ void UKodSimSubsystem::SetVisionBlockCells(TArray<int64> Cells)
 bool UKodSimSubsystem::IsVisionBlockCell(int32 CellX, int32 CellY) const
 {
 	return Algo::BinarySearch(VisionBlockCells, PackRamp(CellX, CellY)) != INDEX_NONE;
+}
+
+void UKodSimSubsystem::SetHighGroundCells(TArray<int64> Cells)
+{
+	Cells.Sort();
+	HighGroundCells.Reset();
+	for (int64 Cell : Cells)
+	{
+		if (HighGroundCells.Num() == 0 || HighGroundCells.Last() != Cell)
+		{
+			HighGroundCells.Add(Cell);
+		}
+	}
+}
+
+bool UKodSimSubsystem::IsHighGroundCell(int32 CellX, int32 CellY) const
+{
+	return Algo::BinarySearch(HighGroundCells, PackRamp(CellX, CellY)) != INDEX_NONE;
 }
 
 bool UKodSimSubsystem::VisionRayHitsBlock(int32 X0, int32 Y0, int32 X1, int32 Y1) const

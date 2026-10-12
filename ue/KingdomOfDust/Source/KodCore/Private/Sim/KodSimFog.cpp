@@ -1,9 +1,16 @@
 #include "Sim/KodSimSubsystem.h"
 
+#include "Algo/BinarySearch.h"
+
 namespace
 {
 	constexpr uint8 VisionExplored = 1;
 	constexpr uint8 VisionVisible = 2;
+
+	int64 PackVisionCell(int32 X, int32 Y)
+	{
+		return (static_cast<int64>(X) << 32) | static_cast<uint32>(Y);
+	}
 }
 
 void UKodSimSubsystem::EnsureVisionStorage()
@@ -173,6 +180,36 @@ void UKodSimSubsystem::StepVision()
 		}
 	}
 
+	TMap<int32, TArray<int64>> HighOccupied;
+	for (int32 Key : EntityKeys)
+	{
+		const FKodSimEntityState* Occupant = States.Find(Key);
+		if (!Occupant || Occupant->Health <= 0.f)
+		{
+			continue;
+		}
+		const int32 OccX = KodBuildGrid::CellOf(Occupant->Position.X);
+		const int32 OccY = KodBuildGrid::CellOf(Occupant->Position.Y);
+		if (!IsHighGroundCell(OccX, OccY))
+		{
+			continue;
+		}
+		HighOccupied.FindOrAdd(Occupant->TeamId).Add(PackVisionCell(OccX, OccY));
+	}
+	for (TPair<int32, TArray<int64>>& Pair : HighOccupied)
+	{
+		Pair.Value.Sort();
+		int32 Write = 0;
+		for (int32 Read = 0; Read < Pair.Value.Num(); ++Read)
+		{
+			if (Write == 0 || Pair.Value[Write - 1] != Pair.Value[Read])
+			{
+				Pair.Value[Write++] = Pair.Value[Read];
+			}
+		}
+		Pair.Value.SetNum(Write);
+	}
+
 	for (int32 Key : EntityKeys)
 	{
 		const FKodSimEntityState* State = States.Find(Key);
@@ -188,6 +225,9 @@ void UKodSimSubsystem::StepVision()
 		const int32 OriginX = KodBuildGrid::CellOf(State->Position.X);
 		const int32 OriginY = KodBuildGrid::CellOf(State->Position.Y);
 		const int32 ViewerHeight = GetMapCellHeight(OriginX, OriginY);
+		const FString ViewerName = State->DefinitionId.ToString();
+		const bool bSpotter = ViewerName.Contains(TEXT("Isr")) || ViewerName.Contains(TEXT("Spotter"));
+		const TArray<int64>* Occupied = HighOccupied.Find(State->TeamId);
 		const int32 RadiusCells = FMath::Max(1, FMath::DivideAndRoundUp(State->SightRadiusUU, KodBuildGrid::CellUU));
 		const int32 RadiusSq = RadiusCells * RadiusCells;
 		for (int32 DY = -RadiusCells; DY <= RadiusCells; ++DY)
@@ -202,10 +242,13 @@ void UKodSimSubsystem::StepVision()
 				const int32 CellY = OriginY + DY;
 				if (GetMapCellHeight(CellX, CellY) > ViewerHeight)
 				{
-					continue;
+					const int64 PackedCell = PackVisionCell(CellX, CellY);
+					const bool bUnitOnCell = Occupied && Algo::BinarySearch(*Occupied, PackedCell) != INDEX_NONE;
+					if (!State->bFlyer && !bSpotter && !bUnitOnCell)
+					{
+						continue;
+					}
 				}
-				// TODO: SC2 high-ground vision. KodHighGround is a 500 uu visual lift only.
-				// Low ground should not see that plateau unless a friendly unit is up there.
 				if (VisionRayHitsBlock(OriginX, OriginY, CellX, CellY))
 				{
 					continue;

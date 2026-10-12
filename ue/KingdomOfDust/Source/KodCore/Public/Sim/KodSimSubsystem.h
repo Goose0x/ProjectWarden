@@ -432,7 +432,7 @@ public:
 
 	void CopySeenStructureBlips(int32 TeamId, TArray<int32>& OutTeam, TArray<int32>& OutX, TArray<int32>& OutY, TArray<int32>& OutFootX, TArray<int32>& OutFootY) const;
 
-	/** Height layer. Ramp cells are 1. Flat ground is 0. */
+	/** Height layer. High ground and ramp cells are 1. Flat ground is 0. */
 	int32 GetMapCellHeight(int32 CellX, int32 CellY) const;
 	void RegisterRampCell(int32 CellX, int32 CellY);
 	bool IsRampCell(int32 CellX, int32 CellY) const;
@@ -443,6 +443,9 @@ public:
 	void SetVisionBlockCells(TArray<int64> Cells);
 	bool IsVisionBlockCell(int32 CellX, int32 CellY) const;
 	bool VisionRayHitsBlock(int32 X0, int32 Y0, int32 X1, int32 Y1) const;
+	/** Sorted unique plateau cells. Low ground cannot see them. Not saved. */
+	void SetHighGroundCells(TArray<int64> Cells);
+	bool IsHighGroundCell(int32 CellX, int32 CellY) const;
 	/** Immobile rock. Footprint blocks walk while Health > 0. HP and armour are hashed with the entity. */
 	FKodEntityId RegisterMapDestructible(AActor* Actor, int32 MinX, int32 MinY, int32 MaxX, int32 MaxY, float HP, int32 Armor);
 	void SetLayoutSockets(const TArray<FVector2D>& Sockets);
@@ -1007,6 +1010,8 @@ protected:
 	int32 RepairCd1 = 0;
 	TArray<FKodScheduledPower> ScheduledPowers;
 	TArray<int64> RampCells;
+	/** Sorted unique high-ground cells. Vision only. Not saved. */
+	TArray<int64> HighGroundCells;
 	/** Sorted unique cliff cells. Hashed. */
 	TArray<int64> DressBlockCells;
 	/** Sorted unique LOS cells. Hashed. Fog only. */
