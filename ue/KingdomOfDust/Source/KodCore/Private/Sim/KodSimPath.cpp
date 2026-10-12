@@ -127,8 +127,69 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 	};
 
 	TArray<FNode> Nodes;
-	TArray<int32> Open;
+	TArray<int32> Heap;
 	TMap<int64, int32> BestG;
+	auto Worse = [&Nodes](int32 A, int32 B)
+	{
+		const FNode& Left = Nodes[A];
+		const FNode& Right = Nodes[B];
+		if (Left.F != Right.F)
+		{
+			return Left.F > Right.F;
+		}
+		if (Left.G != Right.G)
+		{
+			return Left.G > Right.G;
+		}
+		if (Left.X != Right.X)
+		{
+			return Left.X > Right.X;
+		}
+		return Left.Y > Right.Y;
+	};
+	auto HeapPush = [&Heap, &Worse](int32 Index)
+	{
+		Heap.Add(Index);
+		int32 Slot = Heap.Num() - 1;
+		while (Slot > 0)
+		{
+			const int32 Parent = (Slot - 1) / 2;
+			if (!Worse(Heap[Parent], Heap[Slot]))
+			{
+				break;
+			}
+			Swap(Heap[Parent], Heap[Slot]);
+			Slot = Parent;
+		}
+	};
+	auto HeapPop = [&Heap, &Worse]()
+	{
+		const int32 Top = Heap[0];
+		Heap[0] = Heap.Last();
+		Heap.Pop(EAllowShrinking::No);
+		int32 Slot = 0;
+		while (true)
+		{
+			const int32 Left = Slot * 2 + 1;
+			const int32 Right = Left + 1;
+			int32 Best = Slot;
+			if (Left < Heap.Num() && Worse(Heap[Best], Heap[Left]))
+			{
+				Best = Left;
+			}
+			if (Right < Heap.Num() && Worse(Heap[Best], Heap[Right]))
+			{
+				Best = Right;
+			}
+			if (Best == Slot)
+			{
+				break;
+			}
+			Swap(Heap[Slot], Heap[Best]);
+			Slot = Best;
+		}
+		return Top;
+	};
 	FNode Start;
 	Start.X = StartX;
 	Start.Y = StartY;
@@ -136,7 +197,7 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 	Start.F = Octile(StartX, StartY, GoalX, GoalY);
 	Start.Parent = INDEX_NONE;
 	Nodes.Add(Start);
-	Open.Add(0);
+	HeapPush(0);
 	BestG.Add(PackCell(StartX, StartY), 0);
 
 	constexpr int32 MaxExpand = 2048;
@@ -147,22 +208,9 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 		{1, 1, 14}, {1, -1, 14}, {-1, 1, 14}, {-1, -1, 14}
 	};
 
-	while (Open.Num() > 0 && Expanded < MaxExpand)
+	while (Heap.Num() > 0 && Expanded < MaxExpand)
 	{
-		int32 BestSlot = 0;
-		for (int32 Slot = 1; Slot < Open.Num(); ++Slot)
-		{
-			const FNode& A = Nodes[Open[Slot]];
-			const FNode& B = Nodes[Open[BestSlot]];
-			const bool bBetter = A.F < B.F
-				|| (A.F == B.F && (A.G < B.G || (A.G == B.G && (A.X < B.X || (A.X == B.X && A.Y < B.Y)))));
-			if (bBetter)
-			{
-				BestSlot = Slot;
-			}
-		}
-		const int32 Current = Open[BestSlot];
-		Open.RemoveAt(BestSlot);
+		const int32 Current = HeapPop();
 		const FNode Here = Nodes[Current];
 		if (const int32* Known = BestG.Find(PackCell(Here.X, Here.Y)))
 		{
@@ -209,7 +257,7 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 			Next.F = NextG + Octile(NextX, NextY, GoalX, GoalY);
 			Next.Parent = Current;
 			const int32 Index = Nodes.Add(Next);
-			Open.Add(Index);
+			HeapPush(Index);
 		}
 	}
 
@@ -250,11 +298,23 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 		Anchor = Farthest;
 	}
 
-	if (StoredPaths.Num() > 24)
+	while (StoredPaths.Num() >= 256)
 	{
-		StoredPaths.RemoveAt(0);
+		int32 Worst = 0;
+		for (int32 Index = 1; Index < StoredPaths.Num(); ++Index)
+		{
+			const FKodStoredPath& Candidate = StoredPaths[Index];
+			const FKodStoredPath& Current = StoredPaths[Worst];
+			if (Candidate.LastUsedTick < Current.LastUsedTick
+				|| (Candidate.LastUsedTick == Current.LastUsedTick && Candidate.Id < Current.Id))
+			{
+				Worst = Index;
+			}
+		}
+		StoredPaths.RemoveAt(Worst);
 	}
 	FKodStoredPath Path;
+	Path.LastUsedTick = SimTickIndex;
 	Path.Id = NextPathId++;
 	if (NextPathId < 1)
 	{
@@ -273,14 +333,14 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 	return Path.Id;
 }
 
-FVector UKodSimSubsystem::GetSteeredGoal(FKodSimEntityState& State) const
+FVector UKodSimSubsystem::GetSteeredGoal(FKodSimEntityState& State)
 {
 	if (State.PathId == 0)
 	{
 		return State.MoveTarget;
 	}
-	const FKodStoredPath* Path = nullptr;
-	for (const FKodStoredPath& Stored : StoredPaths)
+	FKodStoredPath* Path = nullptr;
+	for (FKodStoredPath& Stored : StoredPaths)
 	{
 		if (Stored.Id == State.PathId)
 		{
@@ -290,9 +350,27 @@ FVector UKodSimSubsystem::GetSteeredGoal(FKodSimEntityState& State) const
 	}
 	if (!Path || Path->CellX.Num() == 0)
 	{
-		State.PathId = 0;
-		return State.MoveTarget;
+		State.PathId = PlanMovePath(State.Position, State.MoveTarget);
+		State.PathCursor = 0;
+		UE_LOG(LogTemp, Log, TEXT("KodPath Replan Unit=%d Path=%d"), State.Id.Value, State.PathId);
+		if (State.PathId == 0)
+		{
+			return State.MoveTarget;
+		}
+		for (FKodStoredPath& Stored : StoredPaths)
+		{
+			if (Stored.Id == State.PathId)
+			{
+				Path = &Stored;
+				break;
+			}
+		}
+		if (!Path)
+		{
+			return State.MoveTarget;
+		}
 	}
+	Path->LastUsedTick = SimTickIndex;
 	while (State.PathCursor < Path->CellX.Num())
 	{
 		const float X = KodBuildGrid::CellCenter(Path->CellX[State.PathCursor]) + static_cast<float>(State.PathOffsetX);

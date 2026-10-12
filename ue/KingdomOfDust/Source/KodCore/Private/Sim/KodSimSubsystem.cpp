@@ -1,5 +1,6 @@
 #include "Sim/KodSimSubsystem.h"
 #include "Game/KodPlayerController.h"
+#include "Game/KodPlayerState.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
@@ -37,6 +38,9 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bTeam1HadStructure = false;
 	AcquireGrid.Reset();
 	StoredPaths.Reset();
+	TeamVision.Reset();
+	SeenStructures.Reset();
+	bAiCheatVision = false;
 	NextPathId = 1;
 	SimHz = KodBuildTicks::SimHz;
 	MaxCatchUpSteps = KodBuildTicks::MaxCatchUpSteps;
@@ -63,6 +67,10 @@ void UKodSimSubsystem::Deinitialize()
 	PendingSpawns.Reset();
 	PendingBuildingSpawns.Reset();
 	AcquireGrid.Reset();
+	StoredPaths.Reset();
+	TeamVision.Reset();
+	SeenStructures.Reset();
+	bAiCheatVision = false;
 	bHasPlayable = false;
 	PrevPositions.Reset();
 	PrevYaws.Reset();
@@ -144,8 +152,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 			&& State->GatherPhase == EKodGatherPhase::None
 			&& IsWorldCellBlocked(State->Position))
 		{
-			const FVector Push = SteerAroundBuildings(*State, FVector(FMath::Max(1.f, EffectiveMoveSpeed(*State)) * FixedDt, 0.f, 0.f));
-			State->Position += Push;
+			SnapOutOfFootprint(*State);
 			QuantizePose(*State);
 		}
 
@@ -189,6 +196,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 		}
 	}
 	StepSeparation();
+	StepVision();
 	StepProduction();
 	StepConstruction();
 	StepAbilities();
@@ -266,6 +274,20 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 		State.Order = EKodSimOrderType::None;
 		State.AttackTarget = FKodEntityId();
 		QuantizePose(State);
+		return;
+	}
+	if (Target->TeamId != State.TeamId && !CanTeamSeeWorld(State.TeamId, Target->Position.X, Target->Position.Y))
+	{
+		State.AttackTarget = FKodEntityId();
+		State.BackswingTicksRemaining = 0;
+		if (State.Order == EKodSimOrderType::Attack)
+		{
+			CompleteCurrentOrder(State, FixedDt);
+		}
+		else
+		{
+			QuantizePose(State);
+		}
 		return;
 	}
 
@@ -396,6 +418,10 @@ FKodEntityId UKodSimSubsystem::FindNearestEnemyInRange(const FKodSimEntityState&
 		{
 			continue;
 		}
+		if (!CanTeamSeeWorld(State.TeamId, Other->Position.X, Other->Position.Y))
+		{
+			continue;
+		}
 		const float DistSq = FVector::DistSquared2D(State.Position, Other->Position);
 		if (DistSq > RangeSq)
 		{
@@ -434,6 +460,10 @@ FKodEntityId UKodSimSubsystem::FindNearestEnemyStructureInRange(const FKodSimEnt
 		{
 			continue;
 		}
+		if (!CanTeamSeeWorld(State.TeamId, Other->Position.X, Other->Position.Y))
+		{
+			continue;
+		}
 		const float DistSq = FVector::DistSquared2D(State.Position, Other->Position);
 		if (DistSq > RangeSq)
 		{
@@ -465,7 +495,8 @@ bool UKodSimSubsystem::TryAutoAcquire(FKodSimEntityState& State, float FixedDt)
 		State.RetaliateTarget = FKodEntityId();
 		if (const FKodSimEntityState* Aggro = States.Find(Pending.Value))
 		{
-			if (Aggro->Health > 0.f && Aggro->TeamId != State.TeamId && Aggro->Id.Value != State.Id.Value)
+			if (Aggro->Health > 0.f && Aggro->TeamId != State.TeamId && Aggro->Id.Value != State.Id.Value
+				&& CanTeamSeeWorld(State.TeamId, Aggro->Position.X, Aggro->Position.Y))
 			{
 				Chosen = Aggro->Id;
 				Reason = TEXT("Retaliate");
@@ -523,6 +554,15 @@ void UKodSimSubsystem::QuantizeResourcePosition(FVector& Position) const
 
 void UKodSimSubsystem::SyncActorPresentation(float Alpha) const
 {
+	int32 LocalTeam = 0;
+	if (const APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+	{
+		if (const AKodPlayerState* PlayerState = PC->GetPlayerState<AKodPlayerState>())
+		{
+			LocalTeam = PlayerState->TeamId;
+		}
+	}
+
 	for (const TPair<int32, FKodSimEntityState>& Pair : States)
 	{
 		const TWeakObjectPtr<AActor>* ActorPtr = Entities.Find(Pair.Key);
@@ -546,6 +586,17 @@ void UKodSimSubsystem::SyncActorPresentation(float Alpha) const
 		// None keeps the previous transform so motion vectors stay continuous.
 		// TeleportPhysics would zero them and smear the skinned mesh under TAA.
 		Actor->SetActorRotation(Rot, ETeleportType::None);
+
+		if (Pair.Value.TeamId == LocalTeam)
+		{
+			Actor->SetActorHiddenInGame(false);
+		}
+		else
+		{
+			// Enemy units and structures are live only in current vision.
+			// Explored cells keep a last-seen structure snapshot on the HUD.
+			Actor->SetActorHiddenInGame(GetTeamVision(LocalTeam, Pair.Value.Position.X, Pair.Value.Position.Y) != 2);
+		}
 	}
 }
 
@@ -619,7 +670,8 @@ void UKodSimSubsystem::ConfigureEntity(
 	float WeaponCooldownSeconds,
 		int32 TeamId,
 	bool bCanGather,
-	int32 BodyRadiusUU)
+	int32 BodyRadiusUU,
+	int32 SightRadiusUU)
 {
 	FKodSimEntityState* State = States.Find(Id.Value);
 	if (!State)
@@ -641,6 +693,7 @@ void UKodSimSubsystem::ConfigureEntity(
 	State->TeamId = TeamId;
 	State->bCanGather = bCanGather;
 	State->BodyRadiusUU = FMath::Clamp(BodyRadiusUU, 8, 256);
+	State->SightRadiusUU = FMath::Clamp(SightRadiusUU, 0, 10000);
 	State->WeaponBackswingTicks = 2;
 }
 
@@ -1826,6 +1879,7 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&S.WeaponCooldownTicks, sizeof(S.WeaponCooldownTicks));
 		Append(&S.CooldownTicksRemaining, sizeof(S.CooldownTicksRemaining));
 		Append(&S.BodyRadiusUU, sizeof(S.BodyRadiusUU));
+		Append(&S.SightRadiusUU, sizeof(S.SightRadiusUU));
 		Append(&S.WeaponBackswingTicks, sizeof(S.WeaponBackswingTicks));
 		Append(&S.BackswingTicksRemaining, sizeof(S.BackswingTicksRemaining));
 		Append(&S.FollowTarget.Value, sizeof(S.FollowTarget.Value));
@@ -1991,6 +2045,49 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	Append(&AiNextWaveTick, sizeof(AiNextWaveTick));
 	const uint8 Seeded = bAiSeeded ? 1 : 0;
 	Append(&Seeded, sizeof(Seeded));
+	const uint8 Cheat = bAiCheatVision ? 1 : 0;
+	Append(&Cheat, sizeof(Cheat));
+
+	TArray<int32> VisionTeams;
+	TeamVision.GetKeys(VisionTeams);
+	VisionTeams.Sort();
+	const int32 VisionTeamCount = VisionTeams.Num();
+	Append(&VisionTeamCount, sizeof(VisionTeamCount));
+	for (int32 TeamId : VisionTeams)
+	{
+		Append(&TeamId, sizeof(TeamId));
+		const TMap<int64, uint8>& Grid = TeamVision.FindChecked(TeamId);
+		TArray<int64> Cells;
+		Grid.GetKeys(Cells);
+		Cells.Sort();
+		const int32 CellCount = Cells.Num();
+		Append(&CellCount, sizeof(CellCount));
+		for (int64 Cell : Cells)
+		{
+			Append(&Cell, sizeof(Cell));
+			const uint8 Value = Grid.FindChecked(Cell);
+			Append(&Value, sizeof(Value));
+		}
+		const TArray<FKodSeenStructure>* Seen = SeenStructures.Find(TeamId);
+		const int32 SeenCount = Seen ? Seen->Num() : 0;
+		Append(&SeenCount, sizeof(SeenCount));
+		if (Seen)
+		{
+			for (const FKodSeenStructure& Entry : *Seen)
+			{
+				Append(&Entry.Id, sizeof(Entry.Id));
+				Append(&Entry.TeamId, sizeof(Entry.TeamId));
+				const int32 SeenDef = GetTypeHash(Entry.DefinitionId);
+				Append(&SeenDef, sizeof(SeenDef));
+				Append(&Entry.PosX, sizeof(Entry.PosX));
+				Append(&Entry.PosY, sizeof(Entry.PosY));
+				Append(&Entry.FootprintX, sizeof(Entry.FootprintX));
+				Append(&Entry.FootprintY, sizeof(Entry.FootprintY));
+				Append(&Entry.Health, sizeof(Entry.Health));
+				Append(&Entry.MaxHealth, sizeof(Entry.MaxHealth));
+			}
+		}
+	}
 
 	const uint64 Hash = Bytes.Num() > 0
 		? CityHash64(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num())

@@ -582,6 +582,22 @@ KodAbility Damage Unit=4 HP=90
 KodProd Rally Struct=3 Node=0 Unit=8
 ```
 
+## B7.1 — compile fixes and unit feel
+
+`FKodQueuedOrder` is not a Blueprint type, so the order queue is a plain `UPROPERTY()`. `GetArmedOrderName` is public because the HUD reads it. **S** on a mixed selection trains from the structures and stops the units. A unit inside a footprint snaps to the nearest free cell edge in one tick. The path cache holds 256 paths and drops the least recently used; a unit whose path was dropped logs `KodPath Replan` and plans again. A* keeps its open list in a binary heap (lower F, then G, then X, then Y). Combat Stim still flashes the hit and still will not go below 1 HP. It does not raise the unit-hit alert and it clears retaliation.
+
+## B8 — fog, minimap layers, health bars, clock
+
+Each team has a visibility grid on the 200 uu build cells: missing is unexplored, 1 is explored, 2 is visible. Sight radius comes from the unit or structure definition. A cell on higher ground than the watcher is skipped. `GetMapCellHeight` returns 0 until a map writes a height layer. Enemy units are hidden outside current vision. Enemy structures stay as last-seen snapshots in explored cells and drop out of that list when the cell is visible and the building is gone. Units do not acquire or shoot a target they cannot see. Difficulty 1 and 2 use that same grid. `SetAiCheatVision` is off unless something turns it on later.
+
+The world fog is a canvas darkening of the cells in the camera footprint (no material asset). The minimap uses the same grid. Six buttons beside the minimap toggle terrain, units, resources, fog, alerts, and own-units-only. Alt+click on the minimap pings that point for about six seconds. Health bars are green, yellow, or red by thirds, with a tick every 10 HP (the step doubles while a bar would have more than 16 segments). They show on hover, on selection, when damaged, and while Alt is held. Enemies you cannot see have no bar. The clock at the top centre is elapsed sim time, `GetSimTickIndex() / 16`, as mm:ss.
+
+```
+KodPath Replan Unit=4 Path=12
+KodMap Ping X=1200 Y=800
+KodMap Layer=3
+```
+
 ## Camera — SC2 player view
 
 `AKodRTSCameraPawn` is the player camera. Pitch **-56°**, yaw **0** (looks north), vertical FOV **42** (horizontal FOV follows the window). The pawn is the ground look-at point. Default arm length **3600** (about 20 SC2 cells of ground at 200 uu, zoom clamped **2400–5200**). All of those are `Config` on the class.
@@ -618,6 +634,7 @@ KodCam Spectate=1
 - [ ] M1 train (section above). Select `PROXY_CC`, **S** queues an AMP and spends 50 Credits, **Backspace** refunds it, a finished train logs `KodProd Complete` and raises supply to `5/15`. CC-only RMB sets `KodProd Rally`. The AMP body stays the tan cube.
 - [ ] M5 opponent. PIE logs `KodAI Seed How=Corner` (or `Tag` / `Arg`) with 6 workers. Team 1 gathers, trains AMPs, builds a Depot near the supply cap, builds a Barracks, trains Marines, and logs `KodAI Wave Size=` once eight or more idle Marines exist. Right-click an enemy structure with Marines selected and it takes HP. Destroy every team 1 structure: the canvas says **VICTORY** and selection, orders, and hotkeys stop. The camera still pans. Losing every team 0 structure says **DEFEAT**. `kod.AI 0` logs `KodAI Enabled=0` and `KodAI Orders Cleared`, and issues no new AI orders. `kod.AIDifficulty 2` logs `KodAI Difficulty=2`.
 - [ ] M6 canvas. The bottom-left minimap shows the playable box, jade and yellow-green nodes, team dots, structure rectangles, and a white camera trapezoid. Left-drag jumps the camera. Right-click logs `Minimap Order` (attack-move for Marines, move for AMPs). An idle-worker button and F1 cycle idle AMPs. One selected unit shows name, HP, Stim, and order; several show up to 24 tiles (click, Shift-click, Ctrl-click). The portrait is a letter. Ctrl+1 sets a group, 1 selects it, double-tap centres, and the tab shows the count. Supply turns red when it is blocked. Tab swaps the command card when Marines and AMPs are both selected.
+- [ ] B7.1 and B8. **S** with a CC and Marines selected logs a train and `KodOrder Stop` on the Marines. A unit pushed into a footprint leaves it in one tick. A long fight can log `KodPath Replan`. Stim on your own Marine flashes the body and does not ping the minimap alert. Unexplored ground is dark on the world and the minimap; walking a Marine turns those cells clear and leaves a dim explored trail. An enemy Marine outside that trail is hidden and is not shot. A seen enemy structure stays as a faded minimap mark after you look away. The six buttons beside the minimap log `KodMap Layer=`. Alt+click on the minimap logs `KodMap Ping` and draws a cross. Health bars are green, yellow, or red with segment ticks, and holding Alt shows every visible bar. The top-centre clock reads mm:ss from the sim tick.
 
 ## Blockers
 

@@ -770,7 +770,8 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 				WeaponCooldown,
 				TeamId,
 				bGather,
-				FMath::Max(8, FMath::RoundToInt(Def->CollisionRadius)));
+				FMath::Max(8, FMath::RoundToInt(Def->CollisionRadius)),
+				FMath::Max(0, FMath::RoundToInt(Def->SightRadius)));
 			Sim->AccountUnitSupply(EntityId, Def->Cost.Supply, bSupplyPrepaid);
 		}
 	}

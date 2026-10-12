@@ -385,6 +385,10 @@ void UKodSimSubsystem::StepAI()
 		{
 			continue;
 		}
+		if (!CanTeamSeeWorld(AiTeamId, Structure->Position.X, Structure->Position.Y))
+		{
+			continue;
+		}
 		const int64 Dist = Dist2DSq(From, Structure->Position);
 		if (!bTarget || Dist < BestDist)
 		{

@@ -125,6 +125,9 @@ public:
 	/** Ground order from the minimap. Combat units attack-move. Others move. */
 	virtual void IssueMinimapGroundOrder(FVector WorldLocation);
 
+	/** HUD reads this for the armed-order hint. */
+	virtual FName GetArmedOrderName() const { return FName(); }
+
 protected:
 	void HandleSelectStarted();
 	void HandleSelectCompleted();
@@ -204,8 +207,6 @@ protected:
 
 	/** Armed M / A / P / G click. Default does nothing. */
 	virtual bool ConsumeArmedOrderClick() { return false; }
-
-	virtual FName GetArmedOrderName() const { return FName(); }
 
 	void BeginMarquee(FVector2D ScreenPos);
 	void UpdateMarquee(FVector2D ScreenPos);

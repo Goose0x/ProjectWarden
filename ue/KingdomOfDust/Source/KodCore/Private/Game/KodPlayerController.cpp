@@ -1406,6 +1406,11 @@ bool AKodPlayerController::ConsumeMinimapClick()
 	{
 		return false;
 	}
+	if (IsInputKeyDown(EKeys::LeftAlt) || IsInputKeyDown(EKeys::RightAlt))
+	{
+		const_cast<AKodHUD*>(HUD)->AddMinimapPing(WorldPoint);
+		return true;
+	}
 	bMinimapDrag = true;
 	if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn()))
 	{
@@ -1434,6 +1439,14 @@ bool AKodPlayerController::ConsumeChromeClick()
 	}
 	const bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
 	const bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
+	if (Hit.Kind == FName(TEXT("Layer")))
+	{
+		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))
+		{
+			MutableHUD->ToggleMinimapLayer(Hit.IntParam);
+		}
+		return true;
+	}
 	if (Hit.Kind == FName(TEXT("Idle")))
 	{
 		SelectIdleWorker();

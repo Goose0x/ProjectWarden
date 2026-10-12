@@ -288,10 +288,9 @@ bool AKodRTSCameraPawn::ConsumesAltDrag() const
 
 void AKodRTSCameraPawn::HandleUnitHit(AActor* Attacker, AActor* Target, float Health, int32 TargetId)
 {
-	(void)Attacker;
 	(void)Health;
 	(void)TargetId;
-	if (Target)
+	if (Target && Attacker != Target)
 	{
 		NoteAlert(Target->GetActorLocation());
 	}

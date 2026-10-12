@@ -70,16 +70,16 @@ public:
 
 	void ToggleHotkeyLegend();
 
+	void AddMinimapPing(const FVector& WorldPoint);
+	void ToggleMinimapLayer(int32 LayerIndex);
+
 	/** Selection panel, portrait, tabs, and the idle button. The minimap is separate. */
 	bool IsPassiveHudChrome(float MouseX, float MouseY) const;
 
 	int32 GetCommandSubgroupCount() const { return CommandSubgroupCount; }
 	FName GetActiveCommandSubgroup() const { return ActiveCommandSubgroup; }
 
-	/**
-	 * Fog of war is not simulated yet. Always revealed.
-	 * A later override can hide minimap marks that the local team has not seen.
-	 */
+	/** Explored or visible for the local team. The fog layer toggle reveals everything. */
 	virtual bool IsMinimapWorldRevealed(float WorldX, float WorldY) const;
 
 	/**
@@ -118,6 +118,8 @@ protected:
 	void DrawSelectionPanel();
 	void DrawControlGroupTabs();
 	void DrawHotkeyLegend();
+	void DrawWorldFog();
+	void DrawGameClock();
 	void CacheSimSnapshot();
 	const FKodSimEntityState* FindFrameState(int32 EntityId) const;
 	const FKodStructureState* FindFrameStructure(int32 EntityId) const;
@@ -145,6 +147,14 @@ protected:
 	float PortraitMaxX = 0.f;
 	float PortraitMaxY = 0.f;
 	bool bHotkeyLegend = false;
+	bool bMapTerrain = true;
+	bool bMapUnits = true;
+	bool bMapResources = true;
+	bool bMapFog = true;
+	bool bMapAlerts = true;
+	bool bMapOwnOnly = false;
+	TArray<FVector> MinimapPings;
+	TArray<float> MinimapPingUntil;
 	TArray<FKodSimEntityState> FrameStates;
 	TArray<AActor*> FrameActors;
 	TArray<FKodStructureState> FrameStructures;

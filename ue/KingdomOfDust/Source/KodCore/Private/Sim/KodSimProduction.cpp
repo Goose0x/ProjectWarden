@@ -203,6 +203,7 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 		Combat.bMobile = false;
 		Combat.MoveSpeed = 0.f;
 		Combat.TeamId = Structure.TeamId;
+		Combat.SightRadiusUU = 2000;
 		QuantizePose(Combat);
 		States.Add(Id.Value, Combat);
 		PrevPositions.Add(Id.Value, Combat.Position);
