@@ -15,14 +15,16 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "Game/KodHUD.h"
+#include "GameFramework/PlayerController.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Slice0/KodSlice0Bootstrap.h"
+#include "Slice0/KodSlice0GameMode.h"
+#include "Slice0/KodWorldSettings.h"
 #include "Warden/KodWardenPaths.h"
 
 namespace
 {
-	bool bWaveSent = false;
-	FVector OutpostCenter(1500.f, -300.f, 80.f);
 
 	bool LoadJson(const TCHAR* FileName, TSharedPtr<FJsonObject>& OutRoot)
 	{
@@ -192,17 +194,18 @@ namespace
 		UE_LOG(LogTemp, Log, TEXT("KodFaultline CC Octagon Loc=%.0f,%.0f,%.0f"), Seated.X, Seated.Y, Seated.Z);
 	}
 
-	void SpawnScinder(UWorld* World, UKodSimSubsystem* Sim)
+	int32 SpawnScinder(UWorld* World, UKodSimSubsystem* Sim, FVector& WaveOrigin)
 	{
 		TSharedPtr<FJsonObject> Root;
+		int32 Outposts = 0;
 		if (!LoadJson(TEXT("map_features.json"), Root))
 		{
-			return;
+			return 0;
 		}
 		const TArray<TSharedPtr<FJsonValue>>* Features = nullptr;
 		if (!Root->TryGetArrayField(TEXT("features"), Features) || !Features)
 		{
-			return;
+			return 0;
 		}
 		UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 		for (const TSharedPtr<FJsonValue>& Value : *Features)
@@ -261,7 +264,7 @@ namespace
 			const bool bHq = Id == TEXT("ENEMY_HQ");
 			if (bOutpost && Id == TEXT("OUTPOST_SPIRE"))
 			{
-				OutpostCenter = At;
+				WaveOrigin = At;
 			}
 			FActorSpawnParameters Params;
 			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -291,16 +294,52 @@ namespace
 			Spec.FootprintY = Spec.FootprintX;
 			const FKodEntityId Built = Sim->RegisterStructure(Building, Spec);
 			Building->EntityId = Built;
+			if (Built.IsValid() && bOutpost)
+			{
+				++Outposts;
+			}
 			const bool bGun = bOutpost || Id.Contains(TEXT("TOWER"));
 			Sim->TuneStructureCombat(Built, 1, bGun ? 12.f : 0.f, bGun ? 700.f : 0.f);
 			UE_LOG(LogTemp, Log, TEXT("KodFaultline Scinder %s HP=%.0f Loc=%.0f,%.0f"), *Id, Spec.MaxHealth, At.X, At.Y);
 		}
+		return Outposts;
+	}
+
+	bool MapLeafMatches(const FString& MapName, const FString& Entry)
+	{
+		const FString Leaf = FPaths::GetBaseFilename(Entry);
+		return !Leaf.IsEmpty() && MapName.EndsWith(Leaf);
 	}
 }
 
 bool KodFaultline::IsTrainingMap(const UWorld* World)
 {
-	return World && World->GetMapName().Contains(TEXT("Faultline"));
+	if (!World)
+	{
+		return false;
+	}
+	if (const AKodWorldSettings* Settings = Cast<AKodWorldSettings>(World->GetWorldSettings()))
+	{
+		if (Settings->bFaultlineTraining)
+		{
+			return true;
+		}
+	}
+	UWorld* MutableWorld = const_cast<UWorld*>(World);
+	const AKodSlice0GameMode* Mode = Cast<AKodSlice0GameMode>(MutableWorld->GetAuthGameMode());
+	if (!Mode)
+	{
+		return false;
+	}
+	const FString MapName = FPaths::GetBaseFilename(World->GetMapName());
+	for (const FString& Entry : Mode->FaultlineMaps)
+	{
+		if (MapLeafMatches(MapName, Entry))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void KodFaultline::Begin(UWorld* World)
@@ -309,7 +348,6 @@ void KodFaultline::Begin(UWorld* World)
 	{
 		return;
 	}
-	bWaveSent = false;
 	UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>();
 	if (!Sim)
 	{
@@ -317,55 +355,24 @@ void KodFaultline::Begin(UWorld* World)
 	}
 	Sim->SetMatchMode(EKodMatchMode::Campaign);
 	Sim->SetAiEnabled(false);
+	if (APlayerController* Controller = World->GetFirstPlayerController())
+	{
+		if (const AKodHUD* HUD = Cast<AKodHUD>(Controller->GetHUD()))
+		{
+			Sim->SetPlayerFaction(HUD->GetHudSkin());
+		}
+	}
 	PlaceResources(World, Sim);
 	SeatOctagon(World);
-	SpawnScinder(World, Sim);
-	UE_LOG(LogTemp, Log, TEXT("KodFaultline Begin Map=%s"), *World->GetMapName());
-}
-
-void KodFaultline::TickWave(UWorld* World)
-{
-	if (!IsTrainingMap(World) || bWaveSent)
-	{
-		return;
-	}
-	UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>();
-	if (!Sim)
-	{
-		return;
-	}
-	int32 Outposts = 0;
-	TArray<FKodStructureState> Structures;
-	Sim->CopyStructures(Structures);
-	for (const FKodStructureState& Structure : Structures)
-	{
-		if (Structure.TeamId == 1 && Structure.DefinitionId == FName(TEXT("KodEnemyOutpost")))
-		{
-			FKodSimEntityState State;
-			if (Sim->TryGetState(Structure.Id, State) && State.Health > 0.f)
-			{
-				++Outposts;
-			}
-		}
-	}
-	if (Outposts > 0)
-	{
-		return;
-	}
-	bWaveSent = true;
-	UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave OutpostDown"));
-	for (int32 Index = 0; Index < 4; ++Index)
-	{
-		const FVector At = OutpostCenter + FVector(static_cast<float>(Index - 1) * 180.f, 220.f, 0.f);
-		AKodUnit* Ranger = UKodSlice0Bootstrap::SpawnRanger(World, FTransform(At), 1, true);
-		if (!Ranger)
-		{
-			continue;
-		}
-		Ranger->Tags.Add(FName(TEXT("KodCounterWave")));
-		if (Ranger->EntityId.IsValid())
-		{
-			Sim->IssueAttackMove(Ranger->EntityId, FVector(-7500.f, -7500.f, 340.f));
-		}
-	}
+	FVector WaveOrigin(1500.f, -300.f, 80.f);
+	const int32 Outposts = SpawnScinder(World, Sim, WaveOrigin);
+	Sim->ArmFaultlineWave(
+		Outposts,
+		FMath::RoundToInt(WaveOrigin.X),
+		FMath::RoundToInt(WaveOrigin.Y),
+		FMath::RoundToInt(WaveOrigin.Z),
+		-7500,
+		-7500,
+		340);
+	UE_LOG(LogTemp, Log, TEXT("KodFaultline Begin Map=%s Outposts=%d"), *World->GetMapName(), Outposts);
 }

@@ -16,6 +16,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Sim/KodBuildTypes.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Slice0/KodFaultline.h"
 
 namespace
 {
@@ -55,7 +56,7 @@ void KodDress::Apply(AActor* Owner, TArray<TObjectPtr<USceneComponent>>& OutDres
 	}
 	UWorld* World = Owner->GetWorld();
 	UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>();
-	const bool bFaultline = World->GetMapName().Contains(TEXT("Faultline"));
+	const bool bFaultline = KodFaultline::IsTrainingMap(World);
 	const TCHAR* Folder = bFaultline ? TEXT("KodDress/faultline_training") : TEXT("KodDress");
 	const FString Path = FPaths::Combine(FPaths::ProjectConfigDir(), Folder, TEXT("dress_list.json"));
 	FString Text;

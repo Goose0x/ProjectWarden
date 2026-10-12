@@ -302,6 +302,18 @@ void AKodHUD::DrawTopBar()
 	}
 }
 
+void AKodHUD::SetHudSkin(int32 Skin)
+{
+	HudSkin = Skin == 1 ? 1 : 0;
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			Sim->SetPlayerFaction(HudSkin);
+		}
+	}
+}
+
 void AKodHUD::DrawFaultlineObjectives()
 {
 	if (!Canvas)
@@ -310,7 +322,7 @@ void AKodHUD::DrawFaultlineObjectives()
 	}
 	UWorld* World = GetWorld();
 	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
-	if (!Sim || !World || !World->GetMapName().Contains(TEXT("Faultline")))
+	if (!Sim || !Sim->IsFaultlineTraining())
 	{
 		return;
 	}
@@ -855,6 +867,7 @@ void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
 		FogSheetTexture->AddressY = TA_Clamp;
 		FogSheetTexture->NeverStream = true;
 		FogSheetTexture->MipGenSettings = TMGS_NoMipmaps;
+		FogSheetTexture->UpdateResource();
 		FogCellsX = GridW;
 		FogCellsY = GridH;
 		FogOriginX = MinX;
@@ -891,7 +904,6 @@ void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
 					Bits[Offset + 3] = Alpha;
 				}
 			}
-			Platform->Mips[0].BulkData.Unlock();
 			struct FKodFogUpload
 			{
 				TArray<uint8> Bytes;
@@ -901,6 +913,7 @@ void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
 			const int32 ByteCount = GridW * GridH * 4;
 			Upload->Bytes.SetNumUninitialized(ByteCount);
 			FMemory::Memcpy(Upload->Bytes.GetData(), Bits, ByteCount);
+			Platform->Mips[0].BulkData.Unlock();
 			Upload->Region = FUpdateTextureRegion2D(0, 0, 0, 0, static_cast<uint32>(GridW), static_cast<uint32>(GridH));
 			FogSheetTexture->UpdateTextureRegions(
 				0,

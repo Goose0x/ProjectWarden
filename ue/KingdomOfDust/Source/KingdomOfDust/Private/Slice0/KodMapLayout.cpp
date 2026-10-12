@@ -11,6 +11,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Sim/KodBuildTypes.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Slice0/KodFaultline.h"
 
 namespace
 {
@@ -126,7 +127,7 @@ void KodMapLayout::Load(UWorld* World)
 	{
 		return;
 	}
-	const bool bFaultline = World->GetMapName().Contains(TEXT("Faultline"));
+	const bool bFaultline = KodFaultline::IsTrainingMap(World);
 	const TCHAR* Folder = bFaultline ? TEXT("KodDress/faultline_training") : TEXT("KodDress");
 	const int32 CellBias = bFaultline ? -56 : 0;
 	TSharedPtr<FJsonObject> Root;

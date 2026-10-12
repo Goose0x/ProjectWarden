@@ -659,10 +659,19 @@ public:
 	void SetHealAutocast(FKodEntityId UnitId, bool bEnabled);
 	bool CastHeal(FKodEntityId UnitId);
 	void RaiseCue(FName CueId, FVector Location, bool bAtLocation);
-	/** Armour and optional gun on a structure that is already registered. */
+	/** Armour and a structure gun. The shot comes from the structure's turret fields, not a mobile unit. */
 	void TuneStructureCombat(FKodEntityId Id, int32 Armor, float WeaponDamage, float WeaponRange);
 	/** Team 0 damage. Area-throttled under-attack alert. Hashed. */
 	void NotifyOwnedDamage(const FKodSimEntityState& Target);
+	/** 0 is Vanguard, 1 is Scinder. The other faction is the enemy. Hashed and saved. */
+	void SetPlayerFaction(int32 Faction);
+	int32 GetPlayerFaction() const { return PlayerFaction; }
+	bool IsFaultlineTraining() const { return bFaultlineTraining; }
+	/**
+	 * Arms the one-shot counter-wave. OutpostCount is how many KodEnemyOutpost actors registered.
+	 * A count of 0 logs an error and never spawns. Hashed and saved.
+	 */
+	void ArmFaultlineWave(int32 OutpostCount, int32 WaveX, int32 WaveY, int32 WaveZ, int32 HomeX, int32 HomeY, int32 HomeZ);
 
 	/** Broadcasts a floater. Nothing is stored on the sim, hashed, or saved. */
 	void PushJuiceText(const FVector& Position, int32 Amount, uint8 Kind);
@@ -859,6 +868,7 @@ protected:
 	void ChooseAiOpener();
 	void RememberAiMatch();
 	void StepTech();
+	void StepFaultlineWave();
 	void StepOrbital();
 	void StepPowers();
 	void ApplyReconVision();
@@ -1002,6 +1012,19 @@ protected:
 		int64 Tick = 0;
 	};
 	TArray<FKodAttackAlert> AttackAlerts;
+	/** 0 Vanguard, 1 Scinder. Hashed and saved. */
+	uint8 PlayerFaction = 0;
+	bool bFaultlineTraining = false;
+	bool bFaultlineWaveSent = false;
+	/** Log-once guard. Not hashed and not saved. */
+	bool bFaultlineWaveErrorLogged = false;
+	int32 FaultlineOutpostCount = 0;
+	int32 FaultlineWaveX = 0;
+	int32 FaultlineWaveY = 0;
+	int32 FaultlineWaveZ = 0;
+	int32 FaultlineHomeX = 0;
+	int32 FaultlineHomeY = 0;
+	int32 FaultlineHomeZ = 0;
 	int32 PowerPoints0 = 0;
 	int32 PowerPoints1 = 0;
 	int32 ArtilleryCd0 = 0;

@@ -184,4 +184,7 @@ struct KODCORE_API FKodPendingUnitSpawn
 	int32 OrbitCenterY = 0;
 	int32 OrbitRadiusUU = 0;
 	int32 OrbitTicks = 0;
+	/** Attack-move to RallyPoint after the actor is registered. A plain rally uses IssueMove. */
+	bool bAttackMove = false;
+	FName ActorTag;
 };

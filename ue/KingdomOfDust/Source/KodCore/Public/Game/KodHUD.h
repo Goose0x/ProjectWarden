@@ -108,7 +108,8 @@ public:
 	class AKodPortraitStage* GetPortraitStage() const { return PortraitStage; }
 	bool IsMenuOpen() const { return MenuPage != 0; }
 	void TogglePauseMenu();
-	void SetHudSkin(int32 Skin) { HudSkin = Skin == 1 ? 1 : 0; }
+	void SetHudSkin(int32 Skin);
+	int32 GetHudSkin() const { return HudSkin; }
 	void SetMenuPage(int32 Page);
 	void HandleMenuChoice(int32 Choice);
 	void SetHealthBarMode(int32 Mode) { HealthBarMode = FMath::Clamp(Mode, 0, 2); }

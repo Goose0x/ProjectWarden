@@ -237,13 +237,15 @@ void UKodSimSubsystem::TuneStructureCombat(FKodEntityId Id, int32 Armor, float W
 		return;
 	}
 	State->ArmorPoints = FMath::Max(0, Armor);
-	State->WeaponDamage = FMath::Max(0.f, WeaponDamage);
-	State->WeaponRange = FMath::Max(0.f, WeaponRange);
+	State->bMobile = false;
+	State->MoveSpeed = 0.f;
+	State->WeaponDamage = 0.f;
+	State->WeaponRange = 0.f;
 	State->WeaponCooldownTicks = 16;
-	if (State->WeaponDamage > 0.f)
+	if (FKodStructureState* Structure = Structures.Find(Id.Value))
 	{
-		State->bMobile = true;
-		State->MoveSpeed = 0.f;
+		Structure->AttackDamage = FMath::Max(0, FMath::RoundToInt(WeaponDamage));
+		Structure->AttackRangeUU = FMath::Max(0, FMath::RoundToInt(WeaponRange));
 	}
 }
 

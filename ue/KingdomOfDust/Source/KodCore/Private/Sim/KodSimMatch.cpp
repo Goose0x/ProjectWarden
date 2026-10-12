@@ -335,7 +335,7 @@ void UKodSimSubsystem::ResyncActors() const
 TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 {
 	FBlob Blob;
-	const int32 Version = 8;
+	const int32 Version = 9;
 	Blob.WInt(Version);
 	Blob.W(&SimTickIndex, sizeof(SimTickIndex));
 	TArray<int32> Keys;
@@ -729,6 +729,16 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 		Blob.WInt(Alert.Y);
 		Blob.W(&Alert.Tick, sizeof(Alert.Tick));
 	}
+	Blob.WU8(PlayerFaction);
+	Blob.WU8(bFaultlineTraining ? 1 : 0);
+	Blob.WU8(bFaultlineWaveSent ? 1 : 0);
+	Blob.WInt(FaultlineOutpostCount);
+	Blob.WInt(FaultlineWaveX);
+	Blob.WInt(FaultlineWaveY);
+	Blob.WInt(FaultlineWaveZ);
+	Blob.WInt(FaultlineHomeX);
+	Blob.WInt(FaultlineHomeY);
+	Blob.WInt(FaultlineHomeZ);
 	return Blob.Bytes;
 }
 
@@ -737,7 +747,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || (Version != 6 && Version != 7 && Version != 8))
+	if (!Blob.RInt(Version) || Version < 6 || Version > 9)
 	{
 		return;
 	}
@@ -1573,6 +1583,41 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 			}
 		}
 	}
+	PlayerFaction = 0;
+	bFaultlineTraining = false;
+	bFaultlineWaveSent = false;
+	FaultlineOutpostCount = 0;
+	FaultlineWaveX = 0;
+	FaultlineWaveY = 0;
+	FaultlineWaveZ = 0;
+	FaultlineHomeX = 0;
+	FaultlineHomeY = 0;
+	FaultlineHomeZ = 0;
+	if (Version >= 9)
+	{
+		uint8 FactionByte = 0;
+		uint8 TrainingByte = 0;
+		uint8 WaveSentByte = 0;
+		if (Blob.RU8(FactionByte) && Blob.RU8(TrainingByte) && Blob.RU8(WaveSentByte)
+			&& Blob.RInt(FaultlineOutpostCount)
+			&& Blob.RInt(FaultlineWaveX) && Blob.RInt(FaultlineWaveY) && Blob.RInt(FaultlineWaveZ)
+			&& Blob.RInt(FaultlineHomeX) && Blob.RInt(FaultlineHomeY) && Blob.RInt(FaultlineHomeZ))
+		{
+			PlayerFaction = FactionByte == 1 ? 1 : 0;
+			bFaultlineTraining = TrainingByte != 0;
+			bFaultlineWaveSent = WaveSentByte != 0;
+		}
+		else
+		{
+			FaultlineOutpostCount = 0;
+			FaultlineWaveX = 0;
+			FaultlineWaveY = 0;
+			FaultlineWaveZ = 0;
+			FaultlineHomeX = 0;
+			FaultlineHomeY = 0;
+			FaultlineHomeZ = 0;
+		}
+	}
 	GrantStartingPowerIncome();
 	int32 MaxId = 0;
 	TArray<int32> LiveKeys;
@@ -1603,7 +1648,7 @@ bool UKodSimSubsystem::CollectSavedEntityIds(const TArray<uint8>& Bytes, TSet<in
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || (Version != 6 && Version != 7 && Version != 8))
+	if (!Blob.RInt(Version) || Version < 6 || Version > 9)
 	{
 		return false;
 	}

@@ -71,6 +71,17 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bGeneralPowers = true;
 	bPowerStartGranted = false;
 	AttackAlerts.Reset();
+	PlayerFaction = 0;
+	bFaultlineTraining = false;
+	bFaultlineWaveSent = false;
+	bFaultlineWaveErrorLogged = false;
+	FaultlineOutpostCount = 0;
+	FaultlineWaveX = 0;
+	FaultlineWaveY = 0;
+	FaultlineWaveZ = 0;
+	FaultlineHomeX = 0;
+	FaultlineHomeY = 0;
+	FaultlineHomeZ = 0;
 	PowerPoints0 = 0;
 	PowerPoints1 = 0;
 	ArtilleryCd0 = 0;
@@ -162,6 +173,17 @@ void UKodSimSubsystem::Deinitialize()
 	MatchOutcome = EKodMatchOutcome::None;
 	bTeam0HadStructure = false;
 	bTeam1HadStructure = false;
+	PlayerFaction = 0;
+	bFaultlineTraining = false;
+	bFaultlineWaveSent = false;
+	bFaultlineWaveErrorLogged = false;
+	FaultlineOutpostCount = 0;
+	FaultlineWaveX = 0;
+	FaultlineWaveY = 0;
+	FaultlineWaveZ = 0;
+	FaultlineHomeX = 0;
+	FaultlineHomeY = 0;
+	FaultlineHomeZ = 0;
 	Super::Deinitialize();
 }
 
@@ -317,11 +339,96 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 	EvaluateMatch();
 	StepAI();
 	StepTech();
+	StepFaultlineWave();
 	StepOrbital();
 	StepLiftoff();
 	StepPowers();
 	StepExposed();
 	RecordMatchSample();
+}
+
+void UKodSimSubsystem::SetPlayerFaction(int32 Faction)
+{
+	PlayerFaction = Faction == 1 ? 1 : 0;
+}
+
+void UKodSimSubsystem::ArmFaultlineWave(int32 OutpostCount, int32 WaveX, int32 WaveY, int32 WaveZ, int32 HomeX, int32 HomeY, int32 HomeZ)
+{
+	bFaultlineTraining = true;
+	FaultlineOutpostCount = FMath::Max(0, OutpostCount);
+	FaultlineWaveX = WaveX;
+	FaultlineWaveY = WaveY;
+	FaultlineWaveZ = WaveZ;
+	FaultlineHomeX = HomeX;
+	FaultlineHomeY = HomeY;
+	FaultlineHomeZ = HomeZ;
+	if (FaultlineOutpostCount <= 0 && !bFaultlineWaveErrorLogged)
+	{
+		bFaultlineWaveErrorLogged = true;
+		UE_LOG(LogTemp, Error, TEXT("KodFaultline Wave skipped: no outposts registered"));
+	}
+}
+
+void UKodSimSubsystem::StepFaultlineWave()
+{
+	if (!bFaultlineTraining || bFaultlineWaveSent)
+	{
+		return;
+	}
+	if (FaultlineOutpostCount <= 0)
+	{
+		if (!bFaultlineWaveErrorLogged)
+		{
+			bFaultlineWaveErrorLogged = true;
+			UE_LOG(LogTemp, Error, TEXT("KodFaultline Wave skipped: no outposts registered"));
+		}
+		return;
+	}
+	int32 LivingOutposts = 0;
+	TArray<int32> StructureKeys;
+	Structures.GetKeys(StructureKeys);
+	StructureKeys.Sort();
+	for (int32 StructureKey : StructureKeys)
+	{
+		const FKodStructureState* Found = Structures.Find(StructureKey);
+		if (!Found || Found->TeamId != 1 || Found->DefinitionId != FName(TEXT("KodEnemyOutpost")))
+		{
+			continue;
+		}
+		const FKodSimEntityState* Combat = States.Find(StructureKey);
+		if (Combat && Combat->Health > 0.f)
+		{
+			++LivingOutposts;
+		}
+	}
+	if (LivingOutposts > 0)
+	{
+		return;
+	}
+	bFaultlineWaveSent = true;
+	FName UnitId(KodWardenPaths::Id_ScinderInfantry);
+	if (PlayerFaction == 1)
+	{
+		UnitId = FName(KodWardenPaths::Id_Ranger);
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave OutpostDown Unit=%s"), *UnitId.ToString());
+	for (int32 SpawnIndex = 0; SpawnIndex < 4; ++SpawnIndex)
+	{
+		FKodPendingUnitSpawn Spawn;
+		Spawn.UnitId = UnitId;
+		Spawn.TeamId = 1;
+		Spawn.Location = FVector(
+			static_cast<float>(FaultlineWaveX + (SpawnIndex - 1) * 180),
+			static_cast<float>(FaultlineWaveY + 220),
+			static_cast<float>(FaultlineWaveZ));
+		Spawn.bAttackMove = true;
+		Spawn.RallyPoint = FVector(
+			static_cast<float>(FaultlineHomeX),
+			static_cast<float>(FaultlineHomeY),
+			static_cast<float>(FaultlineHomeZ));
+		Spawn.ActorTag = FName(TEXT("KodCounterWave"));
+		PendingSpawns.Add(Spawn);
+	}
 }
 
 void UKodSimSubsystem::StepEntityMove(FKodSimEntityState& State, float FixedDt)
@@ -2686,6 +2793,18 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&Alert.Y, sizeof(Alert.Y));
 		Append(&Alert.Tick, sizeof(Alert.Tick));
 	}
+	Append(&PlayerFaction, sizeof(PlayerFaction));
+	const uint8 TrainingByte = bFaultlineTraining ? 1 : 0;
+	const uint8 WaveSentByte = bFaultlineWaveSent ? 1 : 0;
+	Append(&TrainingByte, sizeof(TrainingByte));
+	Append(&WaveSentByte, sizeof(WaveSentByte));
+	Append(&FaultlineOutpostCount, sizeof(FaultlineOutpostCount));
+	Append(&FaultlineWaveX, sizeof(FaultlineWaveX));
+	Append(&FaultlineWaveY, sizeof(FaultlineWaveY));
+	Append(&FaultlineWaveZ, sizeof(FaultlineWaveZ));
+	Append(&FaultlineHomeX, sizeof(FaultlineHomeX));
+	Append(&FaultlineHomeY, sizeof(FaultlineHomeY));
+	Append(&FaultlineHomeZ, sizeof(FaultlineHomeZ));
 
 	const uint64 Hash = Bytes.Num() > 0
 		? CityHash64(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num())

@@ -224,7 +224,8 @@ AKodSlice0GameMode::AKodSlice0GameMode()
 	HUDClass = AKodHUD::StaticClass();
 	WorkerSpawnCount = KodEconomyDefaults::WorkerSpawnCount;
 	PlayableCells = KodEconomyDefaults::PlayableCells;
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
+	FaultlineMaps.Add(TEXT("L_FaultlineTraining"));
 }
 
 void AKodSlice0GameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
@@ -502,6 +503,10 @@ void AKodSlice0GameMode::StartPlay()
 					Sim->RegisterUnitAbility(Spec.UnitId, Stim->ToSpec());
 				}
 			}
+			if (const UKodUnitDefinition* Scinder = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_ScinderInfantry), this))
+			{
+				RegisterUnit(Scinder, FName(KodWardenPaths::Id_ScinderInfantry), FName(TEXT("Scinder Infantry")));
+			}
 			auto RegisterBuild = [Sim, this](const TCHAR* TypeId, const TArray<FName>& Trains)
 			{
 				const UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(FName(TypeId), this);
@@ -694,7 +699,6 @@ void AKodSlice0GameMode::StartPlay()
 	{
 		KodMapLayout::Load(LayoutWorld);
 	}
-	SetActorTickEnabled(KodFaultline::IsTrainingMap(GetWorld()));
 	if (UWorld* DressWorld = GetWorld())
 	{
 		FActorSpawnParameters DressParams;
@@ -709,12 +713,6 @@ void AKodSlice0GameMode::StartPlay()
 			Sim->ApplyBalance();
 		}
 	}
-}
-
-void AKodSlice0GameMode::Tick(float DeltaSeconds)
-{
-	Super::Tick(DeltaSeconds);
-	KodFaultline::TickWave(GetWorld());
 }
 
 void AKodSlice0GameMode::PublishPlayableBounds()

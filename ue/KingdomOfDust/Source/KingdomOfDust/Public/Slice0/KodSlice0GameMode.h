@@ -26,7 +26,6 @@ public:
 
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void StartPlay() override;
-	virtual void Tick(float DeltaSeconds) override;
 
 	/** When true, spawn one Ranger at origin+offset for walk gate smoke. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Slice0")
@@ -56,6 +55,13 @@ public:
 	/** Playable box in build cells, centred on the origin. KodGround wins only when it is larger. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Map")
 	int32 PlayableCells = 128;
+
+	/**
+	 * Short map names that run Faultline Training. A PIE prefix such as UEDPIE_0_ still matches.
+	 * AKodWorldSettings::bFaultlineTraining also turns the tutorial on.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Kod|Map")
+	TArray<FString> FaultlineMaps;
 
 private:
 	/**
