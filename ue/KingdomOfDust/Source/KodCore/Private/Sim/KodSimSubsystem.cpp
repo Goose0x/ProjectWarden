@@ -891,12 +891,15 @@ FVector UKodSimSubsystem::MeleeSlotPoint(const FKodSimEntityState& State, const 
 	constexpr int32 SlotCount = 8;
 	constexpr float MeleeLimit = static_cast<float>(KodBuildGrid::CellUU) * 0.5f + 1.f;
 	const float Radius = FMath::Max(48.f, State.WeaponRange - 16.f);
-	TArray<int32>* Cached = MeleeAttackersByTarget.Find(Target.Id.Value);
-	if (!Cached)
+	TArray<int32> Attackers;
+	if (const TArray<int32>* Cached = MeleeAttackersByTarget.Find(Target.Id.Value))
+	{
+		Attackers = *Cached;
+	}
+	else
 	{
 		TArray<int32> Candidates;
 		CollectAcquireCandidates(Target.Position.X, Target.Position.Y, 1600.f, Candidates);
-		TArray<int32> Attackers;
 		for (int32 Key : Candidates)
 		{
 			const FKodSimEntityState* Other = States.Find(Key);
@@ -918,10 +921,10 @@ FVector UKodSimSubsystem::MeleeSlotPoint(const FKodSimEntityState& State, const 
 			}
 			Attackers.Add(Key);
 		}
-		Cached = &MeleeAttackersByTarget.Add(Target.Id.Value, MoveTemp(Attackers));
+		MeleeAttackersByTarget.Add(Target.Id.Value, Attackers);
 	}
-	TArray<int32> Attackers = *Cached;
-	const bool bJoinsRing = State.AttackTarget == Target.Id
+	const bool bJoinsRing = State.Health > 0.f
+		&& State.AttackTarget == Target.Id
 		&& State.WeaponRange <= MeleeLimit
 		&& !(State.bCanGather && !State.bExplicitAttack)
 		&& (State.Order == EKodSimOrderType::Attack || State.Order == EKodSimOrderType::AttackMove);

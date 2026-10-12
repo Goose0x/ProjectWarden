@@ -141,6 +141,22 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Kod|UI")
 	TSoftClassPtr<UUserWidget> HudWidgetClass;
 
+	/** Multiplies the DPI curve. Clamped to 0.8–1.2. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|UI")
+	float HudUserScale = 1.f;
+
+	struct FKodScreenRect
+	{
+		float X = 0.f;
+		float Y = 0.f;
+		float W = 0.f;
+		float H = 0.f;
+	};
+
+	/** 1920×1080 spec rect, scaled by the shortest-side DPI curve inside the 90% title-safe frame. */
+	FKodScreenRect MapSpec(float X, float Y, float W, float H) const;
+	float GetHudFrameScale() const { return FrameScale; }
+
 protected:
 	void RefreshReadout();
 	void DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed, int32 SupplyCap);
@@ -174,6 +190,9 @@ protected:
 	float DrawCheatSummary(const class UKodSimSubsystem* Sim, float X, float Y, float MaxWidth, float Scale, class UFont* Font);
 	void DrawSpectatorPanel();
 	void DrawShellMenus();
+	void BuildVanguardFrame();
+	void DrawVanguardChrome();
+	void DrawPlate(float X, float Y, float W, float H, const FLinearColor& Fill, const TCHAR* SliceName, float MarginL, float MarginT, float MarginR, float MarginB);
 	void DrawWireHeat(float X, float Y, float W, float H, int32 UnitId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash);
 	void BindAlertFeed();
 	void HandleJuiceText(FVector Position, int32 Amount, uint8 Kind);
@@ -267,6 +286,13 @@ protected:
 		FVector World = FVector::ZeroVector;
 		float Until = 0.f;
 	};
+	float FrameScale = 1.f;
+	float FrameOriginX = 0.f;
+	float FrameOriginY = 0.f;
+	float SafeMinX = 0.f;
+	float SafeMaxX = 0.f;
+	int32 MapChipCycle = 0;
+
 	TArray<FKodAlertLine> AlertLines;
 	TMap<FName, float> AlertThrottleUntil;
 	/** Displayed fog alpha per cell. Presentation only. Not hashed. */
@@ -302,4 +328,11 @@ protected:
 
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UTexture2D>> IconHits;
+
+	/** Missing /Game/UI/Vanguard slices. Cached so a miss is not reloaded every frame. */
+	UPROPERTY()
+	TSet<FName> PlateMiss;
+
+	UPROPERTY()
+	TMap<FName, TObjectPtr<UTexture2D>> PlateHits;
 };

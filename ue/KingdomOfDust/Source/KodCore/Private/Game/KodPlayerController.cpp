@@ -294,8 +294,11 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 		{
 			PressHUD->CancelPortraitClick();
 		}
-		ConsumeMinimapClick();
-		ConsumeChromeClick();
+		if (!ConsumeHudCommandClick())
+		{
+			ConsumeMinimapClick();
+			ConsumeChromeClick();
+		}
 		bSelectPressed = false;
 		bMarqueeActive = false;
 	}
@@ -1583,6 +1586,22 @@ bool AKodPlayerController::ConsumeChromeClick()
 	}
 	const bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
 	const bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
+	if (Hit.Kind == FName(TEXT("MenuBtn")))
+	{
+		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))
+		{
+			MutableHUD->TogglePauseMenu();
+		}
+		return true;
+	}
+	if (Hit.Kind == FName(TEXT("ChatBtn")))
+	{
+		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))
+		{
+			MutableHUD->OpenChat();
+		}
+		return true;
+	}
 	if (Hit.Kind == FName(TEXT("Menu")))
 	{
 		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))

@@ -39,9 +39,22 @@ namespace
 	{
 		if (TeamId == LocalTeam)
 		{
-			return FLinearColor(0.3f, 0.9f, 0.38f, 1.f);
+			return FLinearColor(FColor(0x59, 0x78, 0x8A));
 		}
-		return FLinearColor(0.92f, 0.22f, 0.16f, 1.f);
+		return FLinearColor(FColor(0x8C, 0x5A, 0x5A));
+	}
+
+	FLinearColor PanelHealthInk(float Fraction)
+	{
+		if (Fraction >= 0.66f)
+		{
+			return FLinearColor(FColor(0x4C, 0xD9, 0x64));
+		}
+		if (Fraction >= 0.33f)
+		{
+			return FLinearColor(FColor(0xF2, 0xC2, 0x30));
+		}
+		return FLinearColor(FColor(0xE5, 0x38, 0x3B));
 	}
 
 	UFont* HudFont()
@@ -77,6 +90,11 @@ namespace
 	bool PointIn(float X, float Y, float MinX, float MinY, float MaxX, float MaxY)
 	{
 		return X >= MinX && X <= MaxX && Y >= MinY && Y <= MaxY;
+	}
+
+	FLinearColor Tok(uint8 R, uint8 G, uint8 B, float A = 1.f)
+	{
+		return FLinearColor(FColor(R, G, B, static_cast<uint8>(FMath::Clamp(A, 0.f, 1.f) * 255.f)));
 	}
 }
 
@@ -177,7 +195,6 @@ bool AKodHUD::IsPassiveHudChrome(float MouseX, float MouseY) const
 
 void AKodHUD::DrawMinimap()
 {
-	ChromeHits.Reset();
 	bHasMinimap = false;
 	bHasPassiveChrome = false;
 	if (!Canvas)
@@ -191,13 +208,13 @@ void AKodHUD::DrawMinimap()
 		return;
 	}
 
-	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
-	const float MapSize = 220.f * Scale;
-	const float Margin = 16.f * Scale;
-	MapMinX = Margin;
-	MapMaxX = Margin + MapSize;
-	MapMaxY = Canvas->SizeY - Margin;
-	MapMinY = MapMaxY - MapSize;
+	const FKodScreenRect MapRect = MapSpec(24.f, 820.f, 250.f, 250.f);
+	const float Scale = FrameScale;
+	const float MapSize = MapRect.W;
+	MapMinX = MapRect.X;
+	MapMinY = MapRect.Y;
+	MapMaxX = MapRect.X + MapRect.W;
+	MapMaxY = MapRect.Y + MapRect.H;
 
 	int32 CellMinX = 0;
 	int32 CellMinY = 0;
@@ -250,7 +267,7 @@ void AKodHUD::DrawMinimap()
 	MapWorldMaxY += Pad;
 	bHasMinimap = true;
 
-	DrawRect(FLinearColor(0.02f, 0.025f, 0.03f, 0.94f), MapMinX, MapMinY, MapSize, MapSize);
+	DrawPlate(MapMinX, MapMinY, MapSize, MapSize, Tok(0x1F, 0x23, 0x27, 0.94f), TEXT("T_UI_VG_Bay_Minimap"), 24.f, 24.f, 24.f, 24.f);
 	if (bHave && bMapTerrain)
 	{
 		float Left = 0.f;
@@ -324,8 +341,8 @@ void AKodHUD::DrawMinimap()
 			continue;
 		}
 		const FLinearColor Ink = Node.Type == EKodResourceType::Luminene
-			? KodResourceColors::LumineneCore()
-			: KodResourceColors::Jadeite();
+			? Tok(0xFF, 0xD2, 0x3F)
+			: Tok(0xB0, 0x8D, 0x57);
 		const float Dot = 5.f * Scale;
 		DrawRect(Ink, X - Dot * 0.5f, Y - Dot * 0.5f, Dot, Dot);
 	}
@@ -477,7 +494,7 @@ void AKodHUD::DrawMinimap()
 			const float Life = FMath::Clamp((MinimapPingUntil[Index] - Now) / 6.f, 0.f, 1.f);
 			const float Grow = 1.f - Life;
 			const float R = (4.f + 16.f * Grow) * Scale;
-			const FLinearColor Ping(0.35f, 0.82f, 1.f, Life);
+			const FLinearColor Ping = Tok(0xFF, 0xD2, 0x3F, Life);
 			const int32 Steps = 10;
 			FVector2D Prev(X + R, Y);
 			for (int32 Step = 1; Step <= Steps; ++Step)
@@ -490,32 +507,17 @@ void AKodHUD::DrawMinimap()
 		}
 	}
 
-	const TCHAR* LayerLabels[] = { TEXT("Ter"), TEXT("Unit"), TEXT("Res"), TEXT("Fog"), TEXT("Alrt"), TEXT("Own") };
-	const bool LayerOn[] = { bMapTerrain, bMapUnits, bMapResources, bMapFog, bMapAlerts, bMapOwnOnly };
-	const float ButtonW = 36.f * Scale;
-	const float ButtonGap = 2.f * Scale;
-	const float ButtonH = (MapSize - ButtonGap * 5.f) / 6.f;
-	const float ButtonX = MapMaxX + 4.f * Scale;
+	const TCHAR* ChipLabels[] = { TEXT("Map"), TEXT("Army"), TEXT("Ping") };
+	const int32 ChipLayers[] = { 10, 5, 4 };
+	const bool ChipOn[] = { true, bMapOwnOnly, bMapAlerts };
+	const float ChipYSpec[] = { 820.f, 872.f, 924.f };
 	UFont* LayerFont = HudFont();
-	for (int32 Index = 0; Index < 6; ++Index)
+	for (int32 Index = 0; Index < 3; ++Index)
 	{
-		const float ButtonY = MapMinY + Index * (ButtonH + ButtonGap);
-		const bool bOn = LayerOn[Index];
-		DrawRect(
-			bOn ? FLinearColor(0.14f, 0.2f, 0.14f, 0.95f) : FLinearColor(0.06f, 0.06f, 0.07f, 0.85f),
-			ButtonX,
-			ButtonY,
-			ButtonW,
-			ButtonH);
-		DrawText(
-			LayerLabels[Index],
-			bOn ? FLinearColor::White : FLinearColor(0.45f, 0.45f, 0.45f, 1.f),
-			ButtonX + 2.f * Scale,
-			ButtonY + 2.f * Scale,
-			LayerFont,
-			0.65f * Scale,
-			false);
-		RememberChrome(FName(TEXT("Layer")), Index, FName(), ButtonX, ButtonY, ButtonX + ButtonW, ButtonY + ButtonH);
+		const FKodScreenRect Chip = MapSpec(282.f, ChipYSpec[Index], 44.f, 44.f);
+		DrawPlate(Chip.X, Chip.Y, Chip.W, Chip.H, ChipOn[Index] ? Tok(0x5C, 0x64, 0x6C) : Tok(0x3A, 0x3F, 0x45), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
+		DrawText(ChipLabels[Index], Tok(0xE6, 0xE6, 0xE0), Chip.X + 4.f * Scale, Chip.Y + 12.f * Scale, LayerFont, 0.65f * Scale, false);
+		RememberChrome(FName(TEXT("Layer")), ChipLayers[Index], FName(), Chip.X, Chip.Y, Chip.X + Chip.W, Chip.Y + Chip.H);
 	}
 }
 
@@ -531,7 +533,7 @@ void AKodHUD::DrawIdleWorkerButton()
 	{
 		return;
 	}
-	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
+	const float Scale = FrameScale;
 	const int32 LocalTeam = ReadLocalTeamId();
 	int32 Idle = 0;
 	for (const FKodSimEntityState& State : FrameStates)
@@ -548,16 +550,15 @@ void AKodHUD::DrawIdleWorkerButton()
 		}
 	}
 
-	const float Gap = 6.f * Scale;
-	const float Height = 28.f * Scale;
-	const float X = MapMinX;
-	const float Y = MapMinY - Gap - Height;
-	const float Width = MapMaxX - MapMinX;
-	DrawRect(FLinearColor(0.04f, 0.06f, 0.04f, 0.94f), X, Y, Width, Height);
-	DrawRect(FLinearColor(0.2f, 0.55f, 0.25f, 1.f), X, Y, 4.f * Scale, Height);
+	const FKodScreenRect Slot = MapSpec(24.f, 724.f, 48.f, 48.f);
+	if (Idle <= 0)
+	{
+		return;
+	}
+	DrawPlate(Slot.X, Slot.Y, Slot.W, Slot.H, Tok(0x5C, 0x64, 0x6C), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
 	UFont* Font = HudFont();
-	DrawText(FString::Printf(TEXT("Idle %d"), Idle), FLinearColor::White, X + 10.f * Scale, Y + 4.f * Scale, Font, Scale, false);
-	RememberChrome(FName(TEXT("Idle")), Idle, FName(), X, Y, X + Width, Y + Height);
+	DrawText(FString::Printf(TEXT("%d"), Idle), Tok(0xE6, 0xE6, 0xE0), Slot.X + 8.f * Scale, Slot.Y + 8.f * Scale, Font, Scale, false);
+	RememberChrome(FName(TEXT("Idle")), Idle, FName(), Slot.X, Slot.Y, Slot.X + Slot.W, Slot.Y + Slot.H);
 }
 
 void AKodHUD::DrawControlGroupTabs()
@@ -571,26 +572,21 @@ void AKodHUD::DrawControlGroupTabs()
 	{
 		return;
 	}
-	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
-	const float PanelW = 420.f * Scale;
-	const float PanelH = 168.f * Scale;
-	const float Bottom = 18.f * Scale;
-	const float PanelX = (Canvas->SizeX - PanelW) * 0.5f;
-	const float PanelY = Canvas->SizeY - Bottom - PanelH;
-	const float TabH = 22.f * Scale;
-	const float TabGap = 3.f * Scale;
-	const float TabY = PanelY - 6.f * Scale - TabH;
-	const float TabW = (PanelW - TabGap * 9.f) / 10.f;
+	const float Scale = FrameScale;
 	const int32 Order[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
 	UFont* Font = HudFont();
 	for (int32 Visual = 0; Visual < 10; ++Visual)
 	{
 		const int32 Index = Order[Visual];
 		const int32 Count = PC->GetControlGroupCount(Index);
-		const float X = PanelX + Visual * (TabW + TabGap);
+		const FKodScreenRect Tab = MapSpec(394.f + 78.f * static_cast<float>(Visual), 786.f, 72.f, 28.f);
+		const float X = Tab.X;
+		const float TabY = Tab.Y;
+		const float TabW = Tab.W;
+		const float TabH = Tab.H;
 		const FLinearColor Plate = Count > 0
-			? FLinearColor(0.1f, 0.14f, 0.1f, 0.95f)
-			: FLinearColor(0.06f, 0.06f, 0.06f, 0.8f);
+			? Tok(0x5C, 0x64, 0x6C, 0.95f)
+			: Tok(0x3A, 0x3F, 0x45, 0.8f);
 		DrawRect(Plate, X, TabY, TabW, TabH);
 		const FString Label = FString::Printf(TEXT("%d %d"), Index == 0 ? 0 : Index, Count);
 		DrawText(Label, Count > 0 ? FLinearColor::White : FLinearColor(0.45f, 0.45f, 0.45f, 1.f), X + 2.f, TabY + 2.f, Font, 0.7f * Scale, false);
@@ -612,16 +608,12 @@ void AKodHUD::DrawPortrait()
 	{
 		return;
 	}
-	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
-	const float PanelW = 420.f * Scale;
-	const float PanelH = 168.f * Scale;
-	const float Bottom = 18.f * Scale;
-	const float PanelX = (Canvas->SizeX - PanelW) * 0.5f;
-	const float PanelY = Canvas->SizeY - Bottom - PanelH;
-	const float Gap = 8.f * Scale;
-	const float Width = 132.f * Scale;
-	const float X = PanelX - Gap - Width;
-	const float Y = PanelY;
+	const float Scale = FrameScale;
+	const FKodScreenRect Art = MapSpec(1226.f, 788.f, 236.f, 236.f);
+	const float Width = Art.W;
+	const float PanelH = Art.H;
+	const float X = Art.X;
+	const float Y = Art.Y;
 
 	FName Shown = ActiveCommandSubgroup;
 	if (PC->GetLocalSelection().Num() == 1)
@@ -679,11 +671,38 @@ void AKodHUD::DrawPortrait()
 		DrawText(Name, FLinearColor::White, X + 8.f * Scale, Y + PanelH - 28.f * Scale, HudFont(), 0.8f * Scale, false);
 	}
 	RememberChrome(FName(TEXT("Portrait")), 0, FName(*Name), X, Y, X + Width, Y + PanelH);
+	int32 ShownHP = 1;
+	int32 MaxHP = 1;
+	int32 Energy = 0;
+	int32 EnergyMax = 0;
+	if (PortraitActor)
+	{
+		const int32 BarId = Sim->FindIdForActor(PortraitActor).Value;
+		if (const FKodSimEntityState* BarState = FindFrameState(BarId))
+		{
+			ShownHP = FMath::Max(0, FMath::FloorToInt(BarState->Health));
+			MaxHP = FMath::Max(1, FMath::FloorToInt(BarState->MaxHealth));
+			Energy = BarState->Energy;
+			EnergyMax = BarState->EnergyMax;
+		}
+	}
+	const float HpFraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
+	const FKodScreenRect HP = MapSpec(1226.f, 1024.f, 236.f, 16.f);
+	const FKodScreenRect EN = MapSpec(1226.f, 1044.f, 236.f, 12.f);
+	DrawRect(Tok(0x1F, 0x23, 0x27), HP.X, HP.Y, HP.W, HP.H);
+	DrawRect(PanelHealthInk(HpFraction), HP.X, HP.Y, HP.W * HpFraction, HP.H);
+	DrawText(FString::Printf(TEXT("%d/%d"), ShownHP, MaxHP), Tok(0xE6, 0xE6, 0xE0), HP.X + 4.f * Scale, HP.Y, HudFont(), 0.65f * Scale, false);
+	DrawRect(Tok(0x1F, 0x23, 0x27), EN.X, EN.Y, EN.W, EN.H);
+	if (EnergyMax > 0)
+	{
+		const float EnergyFrac = FMath::Clamp(static_cast<float>(Energy) / static_cast<float>(EnergyMax), 0.f, 1.f);
+		DrawRect(Tok(0x2F, 0x7B, 0xFF), EN.X, EN.Y, EN.W * EnergyFrac, EN.H);
+	}
 	bHasPortrait = true;
 	PortraitMinX = X;
 	PortraitMinY = Y;
 	PortraitMaxX = X + Width;
-	PortraitMaxY = Y + PanelH;
+	PortraitMaxY = EN.Y + EN.H;
 }
 
 void AKodHUD::DrawSelectionPanel()
@@ -835,6 +854,15 @@ void AKodHUD::DrawSelectionPanel()
 		return;
 	}
 
+	int32 PrimaryId = 0;
+	if (PC->GetLocalSelection().Num() > 0)
+	{
+		if (AActor* FirstSelected = PC->GetLocalSelection()[0])
+		{
+			PrimaryId = Sim->FindIdForActor(FirstSelected).Value;
+		}
+	}
+
 	Tiles.Sort([](const FTile& A, const FTile& B)
 	{
 		if (A.TypeName == B.TypeName)
@@ -844,77 +872,126 @@ void AKodHUD::DrawSelectionPanel()
 		return A.TypeName < B.TypeName;
 	});
 
-	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
-	const float PanelW = 420.f * Scale;
-	const float PanelH = 168.f * Scale;
-	const float Bottom = 18.f * Scale;
-	const float X = (Canvas->SizeX - PanelW) * 0.5f;
-	const float Y = Canvas->SizeY - Bottom - PanelH;
-	const int32 LocalTeam = ReadLocalTeamId();
+	const float Scale = FrameScale;
+	const FKodScreenRect Grid = MapSpec(402.f, 826.f, 714.f, 234.f);
+	const FKodScreenRect Rail = MapSpec(1136.f, 826.f, 32.f, 234.f);
 	UFont* Font = HudFont();
-	DrawRect(FLinearColor(0.03f, 0.035f, 0.04f, 0.94f), X, Y, PanelW, PanelH);
-	RememberChrome(FName(TEXT("Panel")), 0, FName(), X, Y, X + PanelW, Y + PanelH);
 	bHasSelectionPanel = true;
-	PanelMinX = X;
-	PanelMinY = Y;
-	PanelMaxX = X + PanelW;
-	PanelMaxY = Y + PanelH;
+	PanelMinX = Grid.X;
+	PanelMinY = Grid.Y;
+	PanelMaxX = Rail.X + Rail.W;
+	PanelMaxY = Grid.Y + Grid.H;
+	RememberChrome(FName(TEXT("Panel")), 0, FName(), PanelMinX, PanelMinY, PanelMaxX, PanelMaxY);
+
+	auto DrawQueue = [this, Sim, Font, Scale](int32 EntityId)
+	{
+		const FKodStructureState* Structure = FindFrameStructure(EntityId);
+		if (!Structure || (Structure->Trains.Num() == 0 && Structure->Slots.Num() == 0))
+		{
+			return;
+		}
+		const float SlotX[5] = { 638.f, 734.f, 806.f, 878.f, 950.f };
+		const float SlotW[5] = { 80.f, 64.f, 64.f, 64.f, 64.f };
+		const float SlotY[5] = { 962.f, 978.f, 978.f, 978.f, 978.f };
+		const float SlotH[5] = { 80.f, 64.f, 64.f, 64.f, 64.f };
+		for (int32 Slot = 0; Slot < 5; ++Slot)
+		{
+			const FKodScreenRect Cell = MapSpec(SlotX[Slot], SlotY[Slot], SlotW[Slot], SlotH[Slot]);
+			const bool bFilled = Slot < Structure->Slots.Num();
+			DrawPlate(Cell.X, Cell.Y, Cell.W, Cell.H, bFilled ? Tok(0x5C, 0x64, 0x6C) : Tok(0x3A, 0x3F, 0x45, 0.55f), TEXT("T_UI_VG_Btn_Cell"), 10.f, 10.f, 10.f, 10.f);
+			if (!bFilled)
+			{
+				continue;
+			}
+			const FKodProductionSlot& Job = Structure->Slots[Slot];
+			const FString Name = PanelFacingName(Sim, Job.DisplayId.IsNone() ? Job.UnitId : Job.DisplayId).ToString();
+			DrawText(Name.Left(8), Tok(0xE6, 0xE6, 0xE0), Cell.X + 4.f * Scale, Cell.Y + 4.f * Scale, Font, 0.65f * Scale, false);
+			if (Slot == 0)
+			{
+				float Fraction = 0.f;
+				if (Job.bStarted && Structure->ActiveBuildTime > 0)
+				{
+					Fraction = 1.f - (static_cast<float>(Structure->ActiveTicksRemaining) / static_cast<float>(Structure->ActiveBuildTime));
+					Fraction = FMath::Clamp(Fraction, 0.f, 1.f);
+				}
+				const FKodScreenRect Prog = MapSpec(638.f, 1036.f, 80.f, 6.f);
+				DrawRect(Tok(0x1F, 0x23, 0x27), Prog.X, Prog.Y, Prog.W, Prog.H);
+				DrawRect(Tok(0xFF, 0xD2, 0x3F), Prog.X, Prog.Y, Prog.W * Fraction, Prog.H);
+			}
+			FKodHudCommandHit Hit;
+			Hit.bInsideChrome = true;
+			Hit.bEnabled = true;
+			Hit.Action = TEXT("CancelSlot");
+			Hit.SlotIndex = Slot;
+			Hit.StructureId = Structure->Id.Value;
+			Hit.MinX = Cell.X;
+			Hit.MinY = Cell.Y;
+			Hit.MaxX = Cell.X + Cell.W;
+			Hit.MaxY = Cell.Y + Cell.H;
+			Hit.Tooltip = TEXT("Cancel");
+			CommandHits.Add(Hit);
+		}
+	};
 
 	if (Tiles.Num() == 1)
 	{
 		const FTile& Tile = Tiles[0];
-		DrawText(Tile.Name, FLinearColor::White, X + 14.f * Scale, Y + 12.f * Scale, Font, 1.1f * Scale, false);
-		const float BarX = X + 14.f * Scale;
-		const float BarY = Y + 42.f * Scale;
-		const float BarW = PanelW - 28.f * Scale;
+		const FKodScreenRect Wire = MapSpec(402.f, 826.f, 220.f, 234.f);
+		const FKodScreenRect Info = MapSpec(638.f, 826.f, 490.f, 120.f);
 		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(Tile.Health));
 		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(Tile.MaxHealth));
 		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
-		DrawRect(FLinearColor(0.12f, 0.12f, 0.12f, 1.f), BarX, BarY, BarW, 12.f * Scale);
-		DrawRect(TeamInk(Tile.TeamId, LocalTeam), BarX, BarY, BarW * Fraction, 12.f * Scale);
-		DrawText(FString::Printf(TEXT("%d / %d"), ShownHP, MaxHP), FLinearColor::White, BarX, BarY + 16.f * Scale, Font, 0.85f * Scale, false);
-		float TextY = BarY + 40.f * Scale;
-		if (!Tile.Stim.IsEmpty())
-		{
-			DrawText(Tile.Stim, FLinearColor(1.f, 0.55f, 0.2f, 1.f), BarX, TextY, Font, 0.9f * Scale, false);
-			TextY += 22.f * Scale;
-		}
-		DrawText(Tile.Order, FLinearColor(0.85f, 0.85f, 0.8f, 1.f), BarX, TextY, Font, 0.9f * Scale, false);
-		TextY += 22.f * Scale;
-		if (Tile.EnergyMax > 0)
-		{
-			const float EnergyFrac = FMath::Clamp(static_cast<float>(Tile.Energy) / static_cast<float>(Tile.EnergyMax), 0.f, 1.f);
-			DrawRect(FLinearColor(0.08f, 0.1f, 0.16f, 1.f), BarX, TextY, BarW, 8.f * Scale);
-			DrawRect(FLinearColor(0.25f, 0.55f, 0.95f, 1.f), BarX, TextY, BarW * EnergyFrac, 8.f * Scale);
-			DrawText(FString::Printf(TEXT("Energy %d/%d"), Tile.Energy, Tile.EnergyMax), FLinearColor(0.7f, 0.85f, 1.f, 1.f), BarX, TextY + 10.f * Scale, Font, 0.8f * Scale, false);
-			TextY += 28.f * Scale;
-		}
-		if (const FKodStructureState* CargoStructure = FindFrameStructure(Tile.EntityId))
-		{
-			if (CargoStructure->Cargo.Num() > 0)
-			{
-				DrawText(TEXT("Unload all"), FLinearColor::White, BarX, TextY, Font, 0.8f * Scale, false);
-				RememberChrome(FName(TEXT("UnloadAll")), CargoStructure->Id.Value, FName(), BarX, TextY, BarX + 120.f * Scale, TextY + 18.f * Scale);
-				TextY += 20.f * Scale;
-				for (int32 Rider : CargoStructure->Cargo)
-				{
-					DrawText(FString::Printf(TEXT("Unload %d"), Rider), FLinearColor(0.8f, 0.85f, 0.8f, 1.f), BarX, TextY, Font, 0.75f * Scale, false);
-					RememberChrome(FName(TEXT("Unload")), Rider, FName(), BarX, TextY, BarX + 120.f * Scale, TextY + 16.f * Scale);
-					TextY += 16.f * Scale;
-				}
-			}
-		}
-		RememberChrome(FName(TEXT("Tile")), Tile.EntityId, Tile.TypeId, X, Y, X + PanelW, Y + PanelH);
 		const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 		const float* HitUntil = WireHitUntil.Find(Tile.EntityId);
 		const bool bFlash = HitUntil && *HitUntil > Now;
-		DrawWireHeat(X + PanelW - 90.f * Scale, Y + 16.f * Scale, 70.f * Scale, 130.f * Scale, Tile.EntityId, ShownHP, MaxHP, Tile.bStructure, bFlash);
+		DrawRect(PanelHealthInk(Fraction).CopyWithNewOpacity(0.35f), Wire.X, Wire.Y, Wire.W, Wire.H);
+		DrawWireHeat(Wire.X + 8.f * Scale, Wire.Y + 8.f * Scale, Wire.W - 16.f * Scale, Wire.H - 16.f * Scale, Tile.EntityId, ShownHP, MaxHP, Tile.bStructure, bFlash);
+		DrawRect(Tok(0xB0, 0x8D, 0x57), Wire.X, Wire.Y, Wire.W, 2.f * Scale);
+		float TextY = Info.Y + 6.f * Scale;
+		const float Line = 16.f * Scale;
+		DrawText(Tile.Name, Tok(0xE6, 0xE6, 0xE0), Info.X, TextY, Font, 0.9f * Scale, false);
+		TextY += Line;
+		DrawText(FString::Printf(TEXT("HP %d/%d"), ShownHP, MaxHP), PanelHealthInk(Fraction), Info.X, TextY, Font, 0.8f * Scale, false);
+		TextY += Line;
+		if (!Tile.Stim.IsEmpty())
+		{
+			DrawText(Tile.Stim, Tok(0xFF, 0x7A, 0x1A), Info.X, TextY, Font, 0.75f * Scale, false);
+			TextY += Line;
+		}
+		DrawText(Tile.Order, Tok(0xB0, 0x8D, 0x57), Info.X, TextY, Font, 0.75f * Scale, false);
+		TextY += Line;
+		if (Tile.EnergyMax > 0)
+		{
+			DrawText(FString::Printf(TEXT("Energy %d/%d"), Tile.Energy, Tile.EnergyMax), Tok(0x2F, 0x7B, 0xFF), Info.X, TextY, Font, 0.75f * Scale, false);
+			TextY += Line;
+		}
+		if (const FKodStructureState* CargoStructure = FindFrameStructure(Tile.EntityId))
+		{
+			if (CargoStructure->Cargo.Num() > 0 && TextY < Info.Y + Info.H - Line)
+			{
+				DrawText(TEXT("Unload all"), Tok(0xE6, 0xE6, 0xE0), Info.X, TextY, Font, 0.7f * Scale, false);
+				RememberChrome(FName(TEXT("UnloadAll")), CargoStructure->Id.Value, FName(), Info.X, TextY, Info.X + 120.f * Scale, TextY + Line);
+				TextY += Line;
+				for (int32 Rider : CargoStructure->Cargo)
+				{
+					if (TextY >= Info.Y + Info.H)
+					{
+						break;
+					}
+					DrawText(FString::Printf(TEXT("Unload %d"), Rider), Tok(0x8E, 0x94, 0x9A), Info.X, TextY, Font, 0.65f * Scale, false);
+					RememberChrome(FName(TEXT("Unload")), Rider, FName(), Info.X, TextY, Info.X + 120.f * Scale, TextY + Line);
+					TextY += Line;
+				}
+			}
+		}
+		RememberChrome(FName(TEXT("Tile")), Tile.EntityId, Tile.TypeId, Wire.X, Wire.Y, Info.X + Info.W, Info.Y + Info.H);
+		DrawQueue(Tile.EntityId);
 		return;
 	}
 
 	constexpr int32 PageSize = 24;
 	const int32 Pages = FMath::Max(1, FMath::DivideAndRoundUp(Tiles.Num(), PageSize));
-	if (SelectionPage >= Pages)
+	if (SelectionPage >= Pages || SelectionPage >= 4)
 	{
 		SelectionPage = 0;
 	}
@@ -922,43 +999,45 @@ void AKodHUD::DrawSelectionPanel()
 	const int32 Shown = FMath::Min(PageSize, Tiles.Num() - PageStart);
 	if (Pages > 1)
 	{
-		for (int32 Page = 0; Page < Pages; ++Page)
+		const int32 ShownPages = FMath::Min(Pages, 4);
+		for (int32 Page = 0; Page < ShownPages; ++Page)
 		{
-			const float TabX = X + Page * 28.f * Scale;
-			const float TabY = Y - 22.f * Scale;
-			DrawRect(Page == SelectionPage ? FLinearColor(0.2f, 0.35f, 0.22f, 1.f) : FLinearColor(0.08f, 0.08f, 0.08f, 0.9f), TabX, TabY, 24.f * Scale, 18.f * Scale);
-			DrawText(FString::FromInt(Page + 1), FLinearColor::White, TabX + 6.f * Scale, TabY + 2.f * Scale, Font, 0.7f * Scale, false);
-			RememberChrome(FName(TEXT("Page")), Page, FName(), TabX, TabY, TabX + 24.f * Scale, TabY + 18.f * Scale);
+			const FKodScreenRect Tab = MapSpec(1136.f, 826.f + 58.f * static_cast<float>(Page), 32.f, 52.f);
+			const bool bOn = Page == SelectionPage;
+			DrawPlate(Tab.X, Tab.Y, Tab.W, Tab.H, bOn ? Tok(0xB0, 0x8D, 0x57) : Tok(0x3A, 0x3F, 0x45), TEXT("T_UI_VG_Tab_Group"), 8.f, 6.f, 8.f, 6.f);
+			DrawText(FString::FromInt(Page + 1), Tok(0xE6, 0xE6, 0xE0), Tab.X + 8.f * Scale, Tab.Y + 14.f * Scale, Font, 0.7f * Scale, false);
+			RememberChrome(FName(TEXT("Page")), Page, FName(), Tab.X, Tab.Y, Tab.X + Tab.W, Tab.Y + Tab.H);
 		}
 	}
-	constexpr int32 Cols = 8;
-	const float TileW = (PanelW - 16.f * Scale) / Cols;
-	const float TileH = (PanelH - 12.f * Scale) / 3.f;
 	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 	for (int32 Index = 0; Index < Shown; ++Index)
 	{
 		const FTile& Tile = Tiles[PageStart + Index];
 		const float* HitUntil = WireHitUntil.Find(Tile.EntityId);
 		const bool bFlash = HitUntil && *HitUntil > Now;
-		const int32 Col = Index % Cols;
-		const int32 Row = Index / Cols;
-		const float TileX = X + 8.f * Scale + Col * TileW;
-		const float TileY = Y + 6.f * Scale + Row * TileH;
-		const float Box = TileW - 4.f * Scale;
-		const float BoxH = TileH - 8.f * Scale;
-		const FLinearColor Ink = TeamInk(Tile.TeamId, LocalTeam);
-		const float Edge = FMath::Max(1.f, 1.5f * Scale);
-		DrawRect(Ink, TileX, TileY, Box, Edge);
-		DrawRect(Ink, TileX, TileY + BoxH - Edge, Box, Edge);
-		DrawRect(Ink, TileX, TileY, Edge, BoxH);
-		DrawRect(Ink, TileX + Box - Edge, TileY, Edge, BoxH);
+		const int32 Col = Index % 8;
+		const int32 Row = Index / 8;
+		const FKodScreenRect Cell = MapSpec(402.f + 90.f * static_cast<float>(Col), 826.f + 80.f * static_cast<float>(Row), 84.f, 74.f);
 		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(Tile.Health));
 		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(Tile.MaxHealth));
 		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
-		DrawRect(FLinearColor(0.1f, 0.1f, 0.1f, 1.f), TileX, TileY + BoxH - 4.f * Scale, Box, 3.f * Scale);
-		DrawRect(Ink, TileX, TileY + BoxH - 4.f * Scale, Box * Fraction, 3.f * Scale);
-		DrawWireHeat(TileX + 4.f * Scale, TileY + 2.f * Scale, Box - 8.f * Scale, BoxH - 10.f * Scale, Tile.EntityId, ShownHP, MaxHP, Tile.bStructure, bFlash);
-		RememberChrome(FName(TEXT("Tile")), Tile.EntityId, Tile.TypeId, TileX, TileY, TileX + Box, TileY + BoxH);
+		const FLinearColor Tint = PanelHealthInk(Fraction);
+		DrawRect(Tint.CopyWithNewOpacity(0.85f), Cell.X, Cell.Y, Cell.W, Cell.H);
+		const FLinearColor Frame = Tile.EntityId == PrimaryId ? Tok(0xD9, 0xB8, 0x78) : Tok(0x5C, 0x64, 0x6C);
+		const float Edge = FMath::Max(1.f, (Tile.EntityId == PrimaryId ? 2.f : 1.f) * Scale);
+		DrawRect(Frame, Cell.X, Cell.Y, Cell.W, Edge);
+		DrawRect(Frame, Cell.X, Cell.Y + Cell.H - Edge, Cell.W, Edge);
+		DrawRect(Frame, Cell.X, Cell.Y, Edge, Cell.H);
+		DrawRect(Frame, Cell.X + Cell.W - Edge, Cell.Y, Edge, Cell.H);
+		DrawRect(TeamInk(Tile.TeamId, ReadLocalTeamId()), Cell.X, Cell.Y, 2.f * Scale, Cell.H);
+		if (Tile.EnergyMax > 0)
+		{
+			const float EnergyFrac = FMath::Clamp(static_cast<float>(Tile.Energy) / static_cast<float>(Tile.EnergyMax), 0.f, 1.f);
+			DrawRect(Tok(0x1F, 0x23, 0x27), Cell.X, Cell.Y + Cell.H - 4.f * Scale, Cell.W, 4.f * Scale);
+			DrawRect(Tok(0x2F, 0x7B, 0xFF), Cell.X, Cell.Y + Cell.H - 4.f * Scale, Cell.W * EnergyFrac, 4.f * Scale);
+		}
+		DrawWireHeat(Cell.X + 6.f * Scale, Cell.Y + 4.f * Scale, Cell.W - 12.f * Scale, Cell.H - 12.f * Scale, Tile.EntityId, ShownHP, MaxHP, Tile.bStructure, bFlash);
+		RememberChrome(FName(TEXT("Tile")), Tile.EntityId, Tile.TypeId, Cell.X, Cell.Y, Cell.X + Cell.W, Cell.Y + Cell.H);
 	}
 }
 
