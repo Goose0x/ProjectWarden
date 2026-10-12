@@ -125,19 +125,20 @@ bool UKodSimSubsystem::UseOrbitalAbility(FKodEntityId CcId, FName AbilityId, FVe
 	{
 		return false;
 	}
-	if (*Cooldown > 0)
+	const bool bFreeCast = bCheatNoCooldown && Cc->TeamId == 0;
+	if (*Cooldown > 0 && !bFreeCast)
 	{
 		UE_LOG(LogTemp, Log, TEXT("KodOrbital Reject Reason=Cooldown"));
 		return false;
 	}
-	const int32 EnergyCost = FMath::Max(0, Spec->EnergyCost);
+	const int32 EnergyCost = bFreeCast ? 0 : FMath::Max(0, Spec->EnergyCost);
 	if (CcState->Energy < EnergyCost)
 	{
 		UE_LOG(LogTemp, Log, TEXT("KodOrbital Reject Reason=Energy"));
 		return false;
 	}
 	CcState->Energy -= EnergyCost;
-	*Cooldown = FMath::Max(0, Spec->CooldownTicks);
+	*Cooldown = bFreeCast ? 0 : FMath::Max(0, Spec->CooldownTicks);
 
 	if (AbilityId == FName(KodWardenPaths::Id_OrbitalGathererDrop))
 	{

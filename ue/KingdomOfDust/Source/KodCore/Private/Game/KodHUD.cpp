@@ -96,12 +96,22 @@ void AKodHUD::DrawHUD()
 	DrawThreatRings();
 	DrawIsrPopup();
 	DrawShellMenus();
-	if (bChatOpen && Canvas)
+	if (Canvas && (bChatOpen || ChatLog.Num() > 0))
 	{
 		UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
-		const FString Line = FString::Printf(TEXT("> %s_"), *ChatLine);
-		DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.9f), 16.f, Canvas->SizeY - 36.f, 640.f, 28.f);
-		DrawText(Line, FLinearColor(0.9f, 0.95f, 0.7f, 1.f), 24.f, Canvas->SizeY - 32.f, Font, 1.f, false);
+		const float RowH = 22.f;
+		float Y = Canvas->SizeY - 36.f - static_cast<float>(ChatLog.Num()) * RowH;
+		for (const FString& Msg : ChatLog)
+		{
+			DrawText(Msg, FLinearColor(0.86f, 0.84f, 0.72f, 1.f), 24.f, Y, Font, 1.f, false);
+			Y += RowH;
+		}
+		if (bChatOpen)
+		{
+			const FString Line = FString::Printf(TEXT("> %s_"), *ChatLine);
+			DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.9f), 16.f, Canvas->SizeY - 36.f, 640.f, 28.f);
+			DrawText(Line, FLinearColor(0.9f, 0.95f, 0.7f, 1.f), 24.f, Canvas->SizeY - 32.f, Font, 1.f, false);
+		}
 	}
 }
 
@@ -1045,6 +1055,21 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 	{
 		Text = TEXT("You are exposed");
 	}
+	else if (CueId == FName(TEXT("cheat_enabled")))
+	{
+		Text = TEXT("Cheat enabled");
+		if (const UWorld* CueWorld = GetWorld())
+		{
+			if (const UKodSimSubsystem* CueSim = CueWorld->GetSubsystem<UKodSimSubsystem>())
+			{
+				const FString Named = CueSim->GetCheatFeedbackLine();
+				if (!Named.IsEmpty())
+				{
+					Text = Named;
+				}
+			}
+		}
+	}
 	else
 	{
 		return;
@@ -1154,11 +1179,19 @@ void AKodHUD::DrawAlertFeed()
 	{
 		const FKodAlertLine& Line = AlertLines[Index];
 		const float Alpha = FMath::Clamp((Line.Until - Now) / 1.5f, 0.25f, 1.f);
+		const bool bCheatLine = Line.CueId == FName(TEXT("cheat_enabled"));
 		const FString Glyph = Line.Text.Left(2).ToUpper();
-		DrawRect(FLinearColor(0.05f, 0.06f, 0.07f, 0.86f * Alpha), 16.f * Scale, Y, 280.f * Scale, 28.f * Scale);
-		DrawRect(FLinearColor(0.25f, 0.45f, 0.32f, Alpha), 20.f * Scale, Y + 4.f * Scale, 22.f * Scale, 20.f * Scale);
+		const FLinearColor Plate = bCheatLine
+			? FLinearColor(0.28f, 0.22f, 0.05f, 0.9f * Alpha)
+			: FLinearColor(0.05f, 0.06f, 0.07f, 0.86f * Alpha);
+		const FLinearColor Ink = bCheatLine
+			? FLinearColor(0.95f, 0.82f, 0.28f, Alpha)
+			: FLinearColor(0.92f, 0.9f, 0.82f, Alpha);
+		const float PlateW = bCheatLine ? 560.f * Scale : 280.f * Scale;
+		DrawRect(Plate, 16.f * Scale, Y, PlateW, 28.f * Scale);
+		DrawRect(bCheatLine ? FLinearColor(0.72f, 0.58f, 0.12f, Alpha) : FLinearColor(0.25f, 0.45f, 0.32f, Alpha), 20.f * Scale, Y + 4.f * Scale, 22.f * Scale, 20.f * Scale);
 		DrawText(Glyph, FLinearColor(1.f, 1.f, 1.f, Alpha), 22.f * Scale, Y + 6.f * Scale, Font, 0.55f * Scale, false);
-		DrawText(Line.Text, FLinearColor(0.92f, 0.9f, 0.82f, Alpha), 48.f * Scale, Y + 6.f * Scale, Font, 0.8f * Scale, false);
+		DrawText(Line.Text, Ink, 48.f * Scale, Y + 6.f * Scale, Font, 0.8f * Scale, false);
 		Y += 32.f * Scale;
 	}
 }
@@ -1989,6 +2022,42 @@ void AKodHUD::DrawSelectionSummary()
 	DrawText(Line, FLinearColor::White, X, Y, Font, 1.f, false);
 }
 
+float AKodHUD::DrawCheatSummary(const UKodSimSubsystem* Sim, float X, float Y, float MaxWidth, float Scale, UFont* Font)
+{
+	if (!Sim || !Canvas)
+	{
+		return Y;
+	}
+	FString Rest = Sim->GetCheatResultLine();
+	if (Rest.IsEmpty())
+	{
+		return Y;
+	}
+	const FLinearColor Gold(0.95f, 0.75f, 0.2f, 1.f);
+	while (!Rest.IsEmpty())
+	{
+		FString Line = Rest;
+		float Width = 0.f;
+		float Height = 0.f;
+		Canvas->TextSize(Font, Line, Width, Height);
+		while (Line.Len() > 1 && Width * Scale > MaxWidth)
+		{
+			int32 Cut = Line.Find(TEXT(", "), ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			if (Cut <= 0)
+			{
+				Cut = FMath::Max(1, Line.Len() / 2);
+			}
+			Line.LeftInline(Cut);
+			Canvas->TextSize(Font, Line, Width, Height);
+		}
+		DrawText(Line, Gold, X, Y, Font, Scale, false);
+		Y += FMath::Max(16.f, Height) * Scale + 4.f;
+		Rest.RightChopInline(Line.Len());
+		Rest.TrimStartInline();
+	}
+	return Y;
+}
+
 void AKodHUD::DrawMatchOutcome()
 {
 	if (!Canvas)
@@ -2021,7 +2090,8 @@ void AKodHUD::DrawMatchOutcome()
 	DrawText(Line, Ink, X, Y, Font, Scale, false);
 	if (Sim->IsMatchCheated())
 	{
-		DrawText(TEXT("CHEATED"), FLinearColor(0.95f, 0.75f, 0.2f, 1.f), X, Y + Height + 8.f, Font, 1.f, false);
+		UFont* SummaryFont = GEngine ? GEngine->GetMediumFont() : Font;
+		DrawCheatSummary(Sim, 24.f, Y + Height + 16.f, Canvas->SizeX - 48.f, 1.f, SummaryFont);
 	}
 }
 
@@ -2328,9 +2398,23 @@ void AKodHUD::BackspaceChat()
 	}
 }
 
+void AKodHUD::AddChatMessage(const FString& Text)
+{
+	if (Text.IsEmpty())
+	{
+		return;
+	}
+	ChatLog.Add(Text);
+	while (ChatLog.Num() > 8)
+	{
+		ChatLog.RemoveAt(0);
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodChat Line=%s"), *Text);
+}
+
 void AKodHUD::SubmitChat()
 {
-	const FString Line = ChatLine;
+	const FString Line = ChatLine.TrimStartAndEnd();
 	bChatOpen = false;
 	ChatLine.Reset();
 	if (Line.IsEmpty())
@@ -2341,9 +2425,13 @@ void AKodHUD::SubmitChat()
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
 		{
-			Sim->ApplyCheatLine(Line);
+			if (Sim->SubmitCheatPhrase(Line) == EKodCheatSubmit::Applied)
+			{
+				return;
+			}
 		}
 	}
+	AddChatMessage(Line);
 }
 
 void AKodHUD::HandleMenuChoice(int32 Choice)
@@ -2586,8 +2674,8 @@ void AKodHUD::DrawShellMenus()
 		Y += 56.f * Scale;
 		if (Sim && Sim->IsMatchCheated())
 		{
-			DrawText(TEXT("CHEATED"), FLinearColor(0.95f, 0.75f, 0.2f, 1.f), X, Y, Font, Scale, false);
-			Y += 36.f * Scale;
+			Y = DrawCheatSummary(Sim, X, Y, W, Scale, Font);
+			Y += 8.f * Scale;
 		}
 		Button(X, Y, W, TEXT("Continue Watching"), 6); Y += 44.f * Scale;
 		Button(X, Y, W, TEXT("Score Screen"), 7); Y += 44.f * Scale;
@@ -2609,8 +2697,8 @@ void AKodHUD::DrawShellMenus()
 		Y += 40.f * Scale;
 		if (Sim->IsMatchCheated())
 		{
-			DrawText(TEXT("CHEATED"), FLinearColor(0.95f, 0.75f, 0.2f, 1.f), X, Y, Font, Scale, false);
-			Y += 32.f * Scale;
+			Y = DrawCheatSummary(Sim, X, Y, W, Scale, Font);
+			Y += 8.f * Scale;
 		}
 		for (int32 Tab = 0; Tab < 4; ++Tab)
 		{

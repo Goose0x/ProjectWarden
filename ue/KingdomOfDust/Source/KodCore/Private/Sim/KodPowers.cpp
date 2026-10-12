@@ -168,6 +168,12 @@ void UKodSimSubsystem::AwardPowerPoints(int32 TeamId, int32 Amount)
 
 void UKodSimSubsystem::StepPowers()
 {
+	if (bCheatNoCooldown)
+	{
+		ArtilleryCd0 = 0;
+		ReconCd0 = 0;
+		RepairCd0 = 0;
+	}
 	if (ArtilleryCd0 > 0) { --ArtilleryCd0; }
 	if (ArtilleryCd1 > 0) { --ArtilleryCd1; }
 	if (ReconCd0 > 0) { --ReconCd0; }

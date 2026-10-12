@@ -112,6 +112,7 @@ public:
 	void AppendChatText(const FString& Text);
 	void BackspaceChat();
 	void SubmitChat();
+	void AddChatMessage(const FString& Text);
 	/** True on the second click inside 0.3 seconds. */
 	bool ConsumePortraitClick();
 
@@ -167,6 +168,7 @@ protected:
 	void DrawGameClock();
 	void DrawScaffolds();
 	void DrawAlertFeed();
+	float DrawCheatSummary(const class UKodSimSubsystem* Sim, float X, float Y, float MaxWidth, float Scale, class UFont* Font);
 	void DrawSpectatorPanel();
 	void DrawShellMenus();
 	void DrawWireHeat(float X, float Y, float W, float H, int32 UnitId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash);
@@ -276,6 +278,7 @@ protected:
 	float FlashUntilSeconds = -1.f;
 	bool bChatOpen = false;
 	FString ChatLine;
+	TArray<FString> ChatLog;
 	float IsrCaptureAccum = 0.f;
 	bool bHasPowerPanel = false;
 	float PowerMinX = 0.f;
