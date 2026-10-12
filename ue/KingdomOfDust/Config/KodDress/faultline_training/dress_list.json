@@ -7,7 +7,7 @@
   "generated_by": "_tools/gen_dress.py",
   "coords": "uu centre origin; z: floor 0, plateaus +300, 'on cliff/mesa' = proxy top (greybox 500), attached rows = structure top",
   "collision_rule": "ALL dress visual-only, collision off, no navigation effect. blocks:true = looks solid → wholly on sim-blocked cells, or attached to a Scinder PROXY footprint and hidden when it dies.",
-  "asset_rule": "Only /workspace/artifacts/env/naomi_content_paths_2026-10-12.md paths; SM_Monolith_A is the single user-mandated exception (full-scan confirmed).",
+  "asset_rule": "Only /workspace/artifacts/env/naomi_content_paths_2026-10-12.md paths; SM_Monolith_A (user-mandated) and the AAM Island grass layer infos/meshes (Soft Dev-approved 2026-10-12) are the only full-scan exceptions.",
   "look": "SC2-Terran-start FUNCTION and read (raised metal CC platform, resource arc to one side, vents at the arc ends, cracked dirt with dark rock patches, lush green home, cliffs dropping off) with our assets/palette, no SC2 IP; Jadeite is jade (#00FF73)."
  },
  "global_exclusions": [
@@ -116,21 +116,25 @@
    "zone": "GRASS_HOME",
    "where": "PLAYER_MAIN plateau outside the mining hull",
    "read": "lush green (ref 2)",
-   "landscape_layer": "Grass (NO layer info in the md scan — GAP)",
-   "layer_info": null,
+   "landscape_layer": "Painted_Grass (AAM Island; landscape grass type spawns SM_Grass_Clump_A / SM_Grass_A_Low, no collision, low density for top-down read)",
+   "layer_info": "/Game/Advanced_Auto_Material/Levels/Island_sharedassets/Painted_Grass_LayerInfo",
    "material_options": [
     "/Game/Advanced_Auto_Material/Landscape_Material_Instances/MI_Adv_MM_Landscape_28_Island_MultiGrass",
-    "/Game/StylizedOrcWarcamp/Materials/Foliage/M_Grass (foliage material only; no grass mesh in the md)"
+    "/Game/Advanced_Auto_Material/Models/Grass/SM_Grass_Clump_A (grass mesh)",
+    "/Game/Advanced_Auto_Material/Models/Grass/SM_Grass_A_Low (grass mesh)",
+    "/Game/Advanced_Auto_Material/Levels/Island_sharedassets/No_Grass_LayerInfo (mask: platform apron + mining hull)"
    ]
   },
   {
    "zone": "GRASS_EDGE",
    "where": "EXPANSION fringe (outside the mining hull), fading to dirt toward the choke",
    "read": "grass → dirt transition",
-   "landscape_layer": "Grass + Soil blend",
-   "layer_info": null,
+   "landscape_layer": "Painted_Grass + Soil blend (AAM Island; sparser)",
+   "layer_info": "/Game/Advanced_Auto_Material/Levels/Island_sharedassets/Painted_Grass_LayerInfo",
    "material_options": [
-    "as GRASS_HOME"
+    "/Game/Advanced_Auto_Material/Landscape_Material_Instances/MI_Adv_MM_Landscape_28_Island_MultiGrass",
+    "/Game/Advanced_Auto_Material/Models/Grass/SM_Grass_Thin_B7_Short (grass mesh)",
+    "/Game/Advanced_Auto_Material/Levels/Island_sharedassets/No_Grass_LayerInfo (mask)"
    ]
   },
   {
@@ -149,7 +153,8 @@
   "status": "CUSTOM ASSET NEEDED — no hex/octagon platform or trim mesh in the scan",
   "proposed_asset": "/Game/Kod/Env/Platforms/SM_Kod_CCPlatform_Oct9 (Art)",
   "stand_in": "greybox row strips + bevel skirts (build_greybox.py 8c) with F11 MI_Scifi_Panels_06/09",
-  "optional_marking": "/Game/ModularSciFi/StaticMeshes/DecalsPlanes/SM_GraphicalDecal_001 — dropped: the guided KodRoute crosses the aprons (decals keep the 400 uu path rule); revisit with the custom platform",
+  "optional_marking": "none (SM_GraphicalDecal_001 removed, Soft Dev 2026-10-12)",
+  "art_queue": "SM_Kod_CCPlatform_Oct9 queued for Art; octagon approved",
   "rejected": {
    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_OrcTowerPlatform": "wooden Orc platform: wrong faction read for a Vanguard CC"
   }
@@ -1789,7 +1794,8 @@
     "/Game/StylizedProvencal/Meshes/SM_Bush_01",
     "/Game/StylizedProvencal/Meshes/SM_Bush_02",
     "/Game/StylizedProvencal/Meshes/SM_Bush_03",
-    "/Game/StylizedProvencal/Meshes/SM_Bush_04"
+    "/Game/StylizedProvencal/Meshes/SM_Bush_04",
+    "/Game/Advanced_Auto_Material/Models/Grass/SM_Grass_Clump_A"
    ],
    "kind": "static mesh (HISM)",
    "zone": "grass zones (player main, expansion): 1-cell band at the cliff toes only",

@@ -191,6 +191,106 @@ void AKodMapLife::ScatterDressing()
 }
 
 
+void AKodMapLife::TickSparks(float Now)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	TArray<FKodStructureState> Structures;
+	TArray<FKodSimEntityState> States;
+	if (Sim)
+	{
+		Sim->CopyStructures(Structures);
+		TArray<AActor*> Actors;
+		Sim->CopyEntitySnapshot(States, Actors);
+	}
+	TInlineComponentArray<UNiagaraComponent*> Niagaras;
+	GetComponents(Niagaras);
+	for (UNiagaraComponent* Comp : Niagaras)
+	{
+		if (!Comp)
+		{
+			continue;
+		}
+		if (Comp->ComponentHasTag(FName(TEXT("KodFobSpark"))))
+		{
+			float* Next = NextSparkTime.Find(Comp->GetUniqueID());
+			if (!Next)
+			{
+				NextSparkTime.Add(Comp->GetUniqueID(), Now + 4.f + static_cast<float>(Comp->GetUniqueID() % 5));
+				continue;
+			}
+			if (Now >= *Next)
+			{
+				Comp->Activate(true);
+				*Next = Now + 4.f + static_cast<float>(Comp->GetUniqueID() % 5);
+			}
+			continue;
+		}
+		if (!Comp->ComponentHasTag(FName(TEXT("KodDamageSpark"))))
+		{
+			continue;
+		}
+		bool bShow = false;
+		const FVector At = Comp->GetComponentLocation();
+		float BestDist = MAX_flt;
+		FKodEntityId NearestId;
+		for (const FKodStructureState& Structure : Structures)
+		{
+			if (Structure.TeamId != 1)
+			{
+				continue;
+			}
+			const float Dist = FVector::DistSquared2D(Structure.Position, At);
+			if (Dist < BestDist)
+			{
+				BestDist = Dist;
+				NearestId = Structure.Id;
+			}
+		}
+		if (NearestId.IsValid() && BestDist <= FMath::Square(900.f))
+		{
+			for (const FKodSimEntityState& State : States)
+			{
+				if (State.Id != NearestId || State.MaxHealth <= 0.f || State.Health <= 0.f)
+				{
+					continue;
+				}
+				bShow = State.Health <= State.MaxHealth * 0.5f;
+				break;
+			}
+		}
+		Comp->SetVisibility(bShow);
+		if (bShow && !Comp->IsActive())
+		{
+			Comp->Activate(true);
+		}
+		else if (!bShow && Comp->IsActive())
+		{
+			Comp->Deactivate();
+		}
+	}
+	TInlineComponentArray<UParticleSystemComponent*> Particles;
+	GetComponents(Particles);
+	for (UParticleSystemComponent* Comp : Particles)
+	{
+		if (!Comp || !Comp->ComponentHasTag(FName(TEXT("KodFobSpark"))))
+		{
+			continue;
+		}
+		float* Next = NextSparkTime.Find(Comp->GetUniqueID());
+		if (!Next)
+		{
+			NextSparkTime.Add(Comp->GetUniqueID(), Now + 4.f + static_cast<float>(Comp->GetUniqueID() % 5));
+			continue;
+		}
+		if (Now >= *Next)
+		{
+			Comp->Activate(true);
+			*Next = Now + 4.f + static_cast<float>(Comp->GetUniqueID() % 5);
+		}
+	}
+}
+
 void AKodMapLife::SpawnBurst(UNiagaraSystem* Niagara, UParticleSystem* Cascade, const FVector& Location, const FRotator& Rotation, float Scale) const
 {
 	if (!bAmbient)
@@ -228,6 +328,10 @@ void AKodMapLife::Tick(float DeltaSeconds)
 		Sim->OnUnitKilled.AddDynamic(this, &AKodMapLife::HandleKilled);
 		Sim->OnCue.AddDynamic(this, &AKodMapLife::HandleCue);
 		bBound = true;
+	}
+	if (bAmbient)
+	{
+		TickSparks(World->GetTimeSeconds());
 	}
 	if (!bAmbient || (!FootstepNiagara && !FootstepCascade))
 	{
