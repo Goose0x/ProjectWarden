@@ -955,11 +955,26 @@ void AKodSlice0GameMode::SpawnWorkersIfNeeded()
 	const int32 Count = FMath::Clamp(WorkerSpawnCount, 1, 8);
 	int32 Spawned = 0;
 	TArray<AActor*> Ignored;
+	int32 HalfSpan = (5 * KodBuildGrid::CellUU) / 2;
+	if (Anchor)
+	{
+		FKodStructureState CcStructure;
+		if (Sim->TryGetStructure(Sim->FindIdForActor(Anchor), CcStructure))
+		{
+			HalfSpan = (FMath::Max(CcStructure.FootprintX, CcStructure.FootprintY) * KodBuildGrid::CellUU) / 2;
+		}
+	}
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
 		const float Angle = (static_cast<float>(Index) - (static_cast<float>(Count) - 1.f) * 0.5f) * 28.f;
 		const FVector Dir = FieldDir.RotateAngleAxis(Angle, FVector::UpVector);
-		const FVector Spot = AnchorLocation + Dir * 420.f;
+		float Radius = static_cast<float>(HalfSpan + KodBuildGrid::CellUU);
+		FVector Spot = AnchorLocation + Dir * Radius;
+		for (int32 Step = 0; Step < 8 && Sim->IsCellBlocked(KodBuildGrid::CellOf(Spot.X), KodBuildGrid::CellOf(Spot.Y)); ++Step)
+		{
+			Radius += static_cast<float>(KodBuildGrid::CellUU);
+			Spot = AnchorLocation + Dir * Radius;
+		}
 		const float FloorZ = ResolveResourceFloorZ(World, Sim, Spot.X, Spot.Y, AnchorLocation.Z, Ignored);
 		const FTransform Xform(FRotator::ZeroRotator, FVector(Spot.X, Spot.Y, FloorZ + 100.f));
 		AKodUnit* Worker = UKodSlice0Bootstrap::SpawnDozer(World, Xform, /*TeamId*/ 0);

@@ -148,7 +148,36 @@ FVector UKodSimSubsystem::SteerAroundBuildings(const FKodSimEntityState& State, 
 			}
 			return Dir * Step;
 		}
-		return FVector::ZeroVector;
+		const FKodStructureState* Occupant = nullptr;
+		TArray<int32> Keys;
+		Structures.GetKeys(Keys);
+		Keys.Sort();
+		for (int32 Key : Keys)
+		{
+			const FKodStructureState* Structure = Structures.Find(Key);
+			if (!Structure)
+			{
+				continue;
+			}
+			const int32 MaxX = Structure->CellX + FMath::Max(1, Structure->FootprintX);
+			const int32 MaxY = Structure->CellY + FMath::Max(1, Structure->FootprintY);
+			if (CellX >= Structure->CellX && CellX < MaxX && CellY >= Structure->CellY && CellY < MaxY)
+			{
+				Occupant = Structure;
+				break;
+			}
+		}
+		FVector Away(1.f, 0.f, 0.f);
+		if (Occupant)
+		{
+			Away = State.Position - Occupant->Position;
+			Away.Z = 0.f;
+			if (!Away.Normalize())
+			{
+				Away = FVector(1.f, 0.f, 0.f);
+			}
+		}
+		return Away * Step;
 	}
 
 	FVector Dir = DesiredDelta;
@@ -251,6 +280,31 @@ FKodPlacementResult UKodSimSubsystem::QueryPlacement(int32 TeamId, FName TypeId,
 				return Result;
 			}
 		}
+	}
+
+	TArray<int32> OverlapNodes;
+	ResourceNodes.GetKeys(OverlapNodes);
+	OverlapNodes.Sort();
+	for (int32 Key : OverlapNodes)
+	{
+		const FKodResourceNodeState* Node = ResourceNodes.Find(Key);
+		if (!Node)
+		{
+			continue;
+		}
+		const int32 NodeX = KodBuildGrid::CellOf(Node->Position.X);
+		const int32 NodeY = KodBuildGrid::CellOf(Node->Position.Y);
+		if (NodeX < OriginX || NodeX >= OriginX + SizeX || NodeY < OriginY || NodeY >= OriginY + SizeY)
+		{
+			continue;
+		}
+		// A Rig is allowed to cover the Luminene vent it snaps to. Any other node blocks.
+		if (Spec->bExtractor && Node->Type == EKodResourceType::Luminene)
+		{
+			continue;
+		}
+		Result.Reason = TEXT("Node");
+		return Result;
 	}
 
 	if (Spec->bExtractor)
