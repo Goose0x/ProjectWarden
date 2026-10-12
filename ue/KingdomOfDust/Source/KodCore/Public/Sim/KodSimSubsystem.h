@@ -110,7 +110,7 @@ struct KODCORE_API FKodSimEntityState
 	 * Attacker to retaliate against after a hit taken while Idle or AttackMove.
 	 * Not an order. Idle consumes it. Attack-move keeps it while the attacker is visible.
 	 * Not part of ComputeIdleHash. An explicit Move / Attack / Stop clears it.
-	 * Gathering workers never receive one.
+	 * Workers never receive one. They attack only on an explicit attack order.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	FKodEntityId RetaliateTarget;

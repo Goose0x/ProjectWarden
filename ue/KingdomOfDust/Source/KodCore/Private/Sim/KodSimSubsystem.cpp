@@ -621,7 +621,7 @@ FKodEntityId UKodSimSubsystem::FindNearestEnemyStructureInRange(const FKodSimEnt
 
 bool UKodSimSubsystem::TryAutoAcquire(FKodSimEntityState& State, float FixedDt)
 {
-	if (State.Order != EKodSimOrderType::None || State.GatherPhase != EKodGatherPhase::None || State.WeaponDamage <= 0.f || State.Health <= 0.f)
+	if (State.bCanGather || State.Order != EKodSimOrderType::None || State.GatherPhase != EKodGatherPhase::None || State.WeaponDamage <= 0.f || State.Health <= 0.f)
 	{
 		return false;
 	}
@@ -908,6 +908,10 @@ FVector UKodSimSubsystem::MeleeSlotPoint(const FKodSimEntityState& State, const 
 			{
 				continue;
 			}
+			if (Other->bCanGather && !Other->bExplicitAttack)
+			{
+				continue;
+			}
 			if (Other->Order != EKodSimOrderType::Attack && Other->Order != EKodSimOrderType::AttackMove)
 			{
 				continue;
@@ -971,6 +975,16 @@ void UKodSimSubsystem::StepAttackMove(FKodSimEntityState& State, float FixedDt)
 
 	const FVector Dest = State.MoveTarget;
 	const int32 SelfId = State.Id.Value;
+	if (State.bCanGather)
+	{
+		State.RetaliateTarget = FKodEntityId();
+		State.AttackTarget = FKodEntityId();
+		State.bExplicitAttack = false;
+		State.Order = EKodSimOrderType::AttackMove;
+		State.MoveTarget = Dest;
+		StepEntityMove(State, FixedDt);
+		return;
+	}
 	FKodEntityId Threat;
 	bool bFromHit = false;
 	if (State.RetaliateTarget.IsValid() && State.GatherPhase == EKodGatherPhase::None)

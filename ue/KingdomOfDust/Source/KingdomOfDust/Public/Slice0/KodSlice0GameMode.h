@@ -48,7 +48,7 @@ public:
 	bool bSpawnWorkers = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
-	int32 WorkerSpawnCount = 6;
+	int32 WorkerSpawnCount = 8;
 
 	/** How close a hauler must get to PROXY_CC before the bank takes the cargo. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
@@ -81,10 +81,10 @@ private:
 	/** Crystals on a 1160 arc and gas on the diagonal, relative to one CC. */
 	void PlaceFieldAt(const FVector& AnchorLocation, const FVector& FieldDir);
 
-	/** Workers between the CC and the field. They split onto the nearby nodes. */
+	/** Workers between the CC and the field. They spawn idle. */
 	int32 SpawnWorkerFan(const FVector& AnchorLocation, const FVector& FieldDir, int32 TeamId, int32 Count);
 
-	/** Six Dozers between the CC and the field when no team-0 Dozer is already placed. */
+	/** Eight Dozers between the CC and the field when no team-0 Dozer is already placed. */
 	void SpawnWorkersIfNeeded();
 
 	/** KodGround / PROXY_GROUND box becomes the sim placement limit. */
