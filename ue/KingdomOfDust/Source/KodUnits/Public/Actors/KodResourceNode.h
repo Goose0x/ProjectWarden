@@ -30,11 +30,13 @@ public:
 	void ApplyDefinition(const UKodResourceNodeDefinition* Def);
 
 	/**
-	 * Jadeite: three engine cones, about 135 cm tall, deep jade #00A86B.
+	 * Jadeite: three engine cones, about 135 cm tall, JadeBase #11928F unless
+	 * the mesh already uses MI_Jadeite_Node (that material reads the collection).
 	 * Luminene: a low fissure disc (#9EE60B) with a highlight plume (#C6FF1A).
 	 */
 	void ApplyPlaceholder(EKodResourceType Type);
 	void ApplyJadeiteStandIn();
+	void RefreshJadeitePresentation();
 
 	void SetEntityId(FKodEntityId Id) { EntityId = Id; }
 
@@ -63,7 +65,11 @@ protected:
 	void ConfigurePlaceholderCollision(UStaticMeshComponent* Mesh) const;
 	/** Returns the parameter that took the tint. None when nothing was assigned. */
 	FName ApplyTint(UStaticMeshComponent* Mesh, const FLinearColor& Tint, bool bEmissive);
+	void BindJadeitePalette();
+	void UnbindJadeitePalette();
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	FKodEntityId EntityId;
+
+	FDelegateHandle JadeitePaletteHandle;
 };

@@ -125,8 +125,10 @@ ALandscape* UKodLandscapeBuilder::CreateFaultlineLandscape(const FString& Materi
 	TArray<uint16> Height;
 	Height.Init(FlatHeight, Verts * Verts);
 
-	// Paint layers live inside this edit-layer GUID, not as extra map keys.
+	// Paint layers live inside the edit-layer GUID. 5.8 Import also FindChecked
+	// the zero GUID, so that key has to be present before the real layer.
 	TMap<FGuid, TArray<uint16>> HeightPerLayer;
+	HeightPerLayer.Add(FGuid(), Height);
 	HeightPerLayer.Add(BaseLayerGuid, MoveTemp(Height));
 
 	TArray<FLandscapeImportLayerInfo> ImportLayers;
@@ -157,11 +159,13 @@ ALandscape* UKodLandscapeBuilder::CreateFaultlineLandscape(const FString& Materi
 
 	const int32 AssignedLayers = ImportLayers.Num();
 	TMap<FGuid, TArray<FLandscapeImportLayerInfo>> MaterialPerLayer;
+	MaterialPerLayer.Add(FGuid(), ImportLayers);
 	MaterialPerLayer.Add(BaseLayerGuid, MoveTemp(ImportLayers));
 
+	// Guid and Name on FLandscapeLayer are deprecated in 5.8 (C2039). The layer
+	// object itself is the import entry.
 	FLandscapeLayer ImportEditLayer;
-	ImportEditLayer.Guid = BaseLayerGuid;
-	ImportEditLayer.Name = BaseEditLayerName;
+	ImportEditLayer.EditLayer = EditLayer;
 	TArray<FLandscapeLayer> ImportEditLayers;
 	ImportEditLayers.Add(ImportEditLayer);
 

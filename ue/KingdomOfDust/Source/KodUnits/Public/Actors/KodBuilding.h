@@ -73,7 +73,11 @@ private:
 	TObjectPtr<UNiagaraComponent> FireFx;
 
 	void PreloadLowHealthFx();
+	void BindJadeitePalette();
+	void UnbindJadeitePalette();
+	void RefreshJadeiteEmissive();
 
+	FDelegateHandle JadeitePaletteHandle;
 	FStreamableManager LowHealthStream;
 	TSharedPtr<FStreamableHandle> LowHealthHandle;
 };

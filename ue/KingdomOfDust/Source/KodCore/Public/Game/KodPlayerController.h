@@ -10,6 +10,7 @@
 class UInputMappingContext;
 class UInputAction;
 class UMaterialInterface;
+class UKodJadeiteTunerWidget;
 class AActor;
 
 /** Saved mesh custom-depth state so a selection highlight can be cleared. */
@@ -249,6 +250,14 @@ protected:
 
 	bool bSelectionOverlayResolved = false;
 
+	/** F9. F10 stays the pause menu. Campaign and offline skirmish only. */
+	void ToggleJadeiteTuner();
+	bool IsJadeiteTunerUnderCursor() const;
+
+	UPROPERTY()
+	TObjectPtr<UKodJadeiteTunerWidget> JadeiteTuner;
+
+	bool bJadeiteTunerOpen = false;
 	bool bSelectPressed = false;
 	bool bMarqueeActive = false;
 	bool bMinimapDrag = false;

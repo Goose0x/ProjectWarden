@@ -1,4 +1,6 @@
 #include "Actors/KodUnit.h"
+#include "Actors/KodJadeiteVisual.h"
+#include "Game/KodJadeitePalette.h"
 #include "Animation/KodUnitAnimInstance.h"
 #include "Data/KodFactionDefinition.h"
 #include "Data/KodUnitDefinition.h"
@@ -207,6 +209,8 @@ void AKodUnit::BeginPlay()
 	VisualYaw = GetActorRotation().Yaw;
 	LastPresentationLocation = GetActorLocation();
 	BodyRestRelativeLocation = UnitMesh ? UnitMesh->GetRelativeLocation() : FVector::ZeroVector;
+	BindJadeitePalette();
+	RefreshJadeiteEmissive();
 	UE_LOG(LogTemp, Log, TEXT("KodUnitLife %s Bob=%.1f Turn=%.0f"),
 		*GetName(),
 		BobAmplitudeCm,
@@ -611,7 +615,7 @@ void AKodUnit::UpdateCargoPresentation()
 	}
 	const FLinearColor Tint = bGas
 		? KodResourceColors::LumineneCore()
-		: KodResourceColors::Jadeite();
+		: KodJadeiteVisual::TunedJadeBase(GetWorld());
 	if (!CargoMID)
 	{
 		if (UMaterialInterface* Parent = LoadObject<UMaterialInterface>(nullptr, BasicShapeMaterialPath))
@@ -873,6 +877,7 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 		ApplyColorTintFallback(UnitMesh, FLinearColor(FColor(0xC6, 0xA1, 0x5B)));
 	}
 	ApplyAuthorMesh(Def);
+	RefreshJadeiteEmissive();
 }
 
 void AKodUnit::ApplyAuthorMesh(const UKodUnitDefinition* Def)
@@ -1254,6 +1259,62 @@ void AKodUnit::SetBodyRelativeLocation(const FVector& Bobbed)
 		? FMath::Clamp(HitReactRemaining / HitReactSeconds, 0.f, 1.f)
 		: 0.f;
 	UnitMesh->SetRelativeLocation(Bobbed + HitJiggleLocal * Alpha);
+}
+
+void AKodUnit::BindJadeitePalette()
+{
+	if (JadeitePaletteHandle.IsValid())
+	{
+		return;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodJadeitePaletteSubsystem* Palette = World->GetSubsystem<UKodJadeitePaletteSubsystem>())
+		{
+			JadeitePaletteHandle = Palette->OnPaletteChanged.AddUObject(this, &AKodUnit::RefreshJadeiteEmissive);
+		}
+	}
+}
+
+void AKodUnit::UnbindJadeitePalette()
+{
+	if (!JadeitePaletteHandle.IsValid())
+	{
+		return;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodJadeitePaletteSubsystem* Palette = World->GetSubsystem<UKodJadeitePaletteSubsystem>())
+		{
+			Palette->OnPaletteChanged.Remove(JadeitePaletteHandle);
+		}
+	}
+	JadeitePaletteHandle.Reset();
+}
+
+void AKodUnit::RefreshJadeiteEmissive()
+{
+	if (CargoMID && CargoMesh && ShownCargoJadeite > 0 && ShownCargoLuminene <= 0)
+	{
+		const FLinearColor Tint = KodJadeiteVisual::TunedJadeBase(GetWorld());
+		CargoMID->SetVectorParameterValue(TEXT("Color"), Tint);
+		CargoMID->SetVectorParameterValue(TEXT("BaseColor"), Tint);
+	}
+	FName DefId = NAME_None;
+	if (const UKodUnitDefinition* Def = GetDefinition())
+	{
+		DefId = Def->DefinitionId.IsNone() ? Def->GetFName() : Def->DefinitionId;
+	}
+	if (!KodJadeiteVisual::IsScinderId(DefId) && !KodJadeiteVisual::IsScinderActor(this))
+	{
+		return;
+	}
+	TArray<UMeshComponent*> Meshes;
+	GetComponents<UMeshComponent>(Meshes);
+	for (UMeshComponent* Mesh : Meshes)
+	{
+		KodJadeiteVisual::ApplyTunedEmissive(Mesh);
+	}
 }
 
 void AKodUnit::EnsureBodyTint()
@@ -1685,6 +1746,7 @@ bool AKodUnit::AdvanceDeathSink(float DeltaSeconds)
 
 void AKodUnit::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	UnbindJadeitePalette();
 	UnbindSimEvents();
 	if (UWorld* World = GetWorld())
 	{

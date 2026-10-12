@@ -1,4 +1,6 @@
 #include "Actors/KodResourceNode.h"
+#include "Actors/KodJadeiteVisual.h"
+#include "Game/KodJadeitePalette.h"
 
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -20,7 +22,6 @@ namespace
 	const FName ClusterTag(TEXT("KodResourceCluster"));
 	const FName ColorParamName(TEXT("Color"));
 
-	const FLinearColor JadeiteTint = KodResourceColors::Jadeite();
 	const FLinearColor LumineneTint = KodResourceColors::LumineneCore();
 	const FLinearColor LumineneHighlightTint = KodResourceColors::LumineneHighlight();
 
@@ -132,6 +133,7 @@ void AKodResourceNode::EndPlay(const EEndPlayReason::Type EndPlayReason)
 			}
 		}
 	}
+	UnbindJadeitePalette();
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -311,9 +313,13 @@ void AKodResourceNode::ApplyPlaceholder(EKodResourceType Type)
 	}
 
 	FName UsedParam = NAME_None;
-	const FLinearColor CoreTint = bLuminene ? LumineneTint : JadeiteTint;
+	const FLinearColor CoreTint = bLuminene ? LumineneTint : KodJadeiteVisual::TunedJadeBase(GetWorld());
 	for (UStaticMeshComponent* Mesh : CoreMeshes)
 	{
+		if (!bLuminene && KodJadeiteVisual::UsesJadeiteNodeMaterial(Mesh))
+		{
+			continue;
+		}
 		const FName Param = ApplyTint(Mesh, CoreTint, true);
 		if (!Param.IsNone())
 		{
@@ -329,6 +335,11 @@ void AKodResourceNode::ApplyPlaceholder(EKodResourceType Type)
 		}
 	}
 	LogNodeTint(!UsedParam.IsNone(), UsedParam);
+	if (!bLuminene)
+	{
+		BindJadeitePalette();
+		RefreshJadeitePresentation();
+	}
 	ApplyJadeiteStandIn();
 }
 
@@ -352,27 +363,55 @@ void AKodResourceNode::ApplyJadeiteStandIn()
 	NodeMesh->SetRelativeScale3D(FVector(Scale));
 	NodeMesh->SetRelativeRotation(FRotator(0.f, Yaw, 0.f));
 	NodeMesh->SetRelativeLocation(FVector(0.f, 0.f, Monolith->GetBounds().BoxExtent.Z * Scale));
-	UMaterialInterface* Parent = Monolith->GetMaterial(0);
-	if (!Parent)
-	{
-		Parent = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Monoliths/MI_T_Monolith_Obsidian.MI_T_Monolith_Obsidian"));
-	}
-	if (!Parent)
-	{
-		return;
-	}
-	UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(Parent, this);
-	if (!Mid)
-	{
-		return;
-	}
-	const FLinearColor Tint(FColor(0x00, 0xFF, 0x73));
-	Mid->SetVectorParameterValue(TEXT("Color"), Tint);
-	Mid->SetVectorParameterValue(TEXT("BaseColor"), Tint);
-	Mid->SetVectorParameterValue(TEXT("Tint"), Tint);
-	NodeMesh->SetMaterial(0, Mid);
 	NodeMesh->SetVisibility(true);
 	NodeMesh->SetHiddenInGame(false);
+	BindJadeitePalette();
+	RefreshJadeitePresentation();
+}
+
+void AKodResourceNode::BindJadeitePalette()
+{
+	if (JadeitePaletteHandle.IsValid())
+	{
+		return;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodJadeitePaletteSubsystem* Palette = World->GetSubsystem<UKodJadeitePaletteSubsystem>())
+		{
+			JadeitePaletteHandle = Palette->OnPaletteChanged.AddUObject(this, &AKodResourceNode::RefreshJadeitePresentation);
+		}
+	}
+}
+
+void AKodResourceNode::UnbindJadeitePalette()
+{
+	if (!JadeitePaletteHandle.IsValid())
+	{
+		return;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodJadeitePaletteSubsystem* Palette = World->GetSubsystem<UKodJadeitePaletteSubsystem>())
+		{
+			Palette->OnPaletteChanged.Remove(JadeitePaletteHandle);
+		}
+	}
+	JadeitePaletteHandle.Reset();
+}
+
+void AKodResourceNode::RefreshJadeitePresentation()
+{
+	if (ResourceType != EKodResourceType::Jadeite)
+	{
+		return;
+	}
+	TArray<UStaticMeshComponent*> Meshes;
+	GetComponents<UStaticMeshComponent>(Meshes);
+	for (UStaticMeshComponent* Mesh : Meshes)
+	{
+		KodJadeiteVisual::ApplyJadeiteNode(Mesh);
+	}
 }
 
 FName AKodResourceNode::ApplyTint(UStaticMeshComponent* Mesh, const FLinearColor& Tint, bool bEmissive)

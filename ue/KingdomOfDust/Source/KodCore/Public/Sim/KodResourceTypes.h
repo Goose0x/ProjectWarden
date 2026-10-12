@@ -54,10 +54,14 @@ namespace KodEconomyDefaults
 /** sRGB hex colours for presentation. Not sim state. */
 namespace KodResourceColors
 {
-	/** #00A86B deep jade. */
+	/**
+	 * Default JadeBase #11928F. Live nodes and carried crystal read the tuned
+	 * colour from MPC_KodJadeite. This is only the fallback when that collection
+	 * is not in the world yet.
+	 */
 	inline FLinearColor Jadeite()
 	{
-		return FLinearColor(FColor(0x00, 0xA8, 0x6B));
+		return FLinearColor(FColor(0x11, 0x92, 0x8F));
 	}
 
 	/** #9EE60B neon yellow-green vent core. */

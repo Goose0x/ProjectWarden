@@ -1,4 +1,6 @@
 #include "Game/KodPlayerController.h"
+#include "Game/KodJadeitePalette.h"
+#include "Game/KodJadeiteTunerWidget.h"
 #include "Misc/Char.h"
 #include "Components/PrimitiveComponent.h"
 #include "Game/KodHUD.h"
@@ -74,8 +76,51 @@ AKodPlayerController::AKodPlayerController()
 
 void AKodPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (JadeiteTuner)
+	{
+		JadeiteTuner->RemoveFromParent();
+		JadeiteTuner = nullptr;
+	}
+	bJadeiteTunerOpen = false;
 	ClearSelectionHighlight();
 	Super::EndPlay(EndPlayReason);
+}
+
+void AKodPlayerController::ToggleJadeiteTuner()
+{
+	UWorld* World = GetWorld();
+	UKodJadeitePaletteSubsystem* Palette = World ? World->GetSubsystem<UKodJadeitePaletteSubsystem>() : nullptr;
+	if (!bJadeiteTunerOpen && (!Palette || !Palette->IsTuningAllowed()))
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodJadeite tuner refused (campaign and offline skirmish only)"));
+		return;
+	}
+	if (!JadeiteTuner)
+	{
+		JadeiteTuner = CreateWidget<UKodJadeiteTunerWidget>(this, UKodJadeiteTunerWidget::StaticClass());
+		if (!JadeiteTuner)
+		{
+			return;
+		}
+	}
+	bJadeiteTunerOpen = !bJadeiteTunerOpen;
+	if (bJadeiteTunerOpen)
+	{
+		if (!JadeiteTuner->IsInViewport())
+		{
+			JadeiteTuner->AddToViewport(40);
+		}
+		JadeiteTuner->SetVisibility(ESlateVisibility::Visible);
+	}
+	else
+	{
+		JadeiteTuner->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+bool AKodPlayerController::IsJadeiteTunerUnderCursor() const
+{
+	return bJadeiteTunerOpen && JadeiteTuner && JadeiteTuner->IsCursorOverPanel();
 }
 
 void AKodPlayerController::BeginPlay()
@@ -187,6 +232,23 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 			return;
 		}
 	}
+	if (WasInputKeyJustPressed(EKeys::F9))
+	{
+		ToggleJadeiteTuner();
+	}
+	if (bJadeiteTunerOpen)
+	{
+		if (const UWorld* TunerWorld = GetWorld())
+		{
+			if (const UKodJadeitePaletteSubsystem* Palette = TunerWorld->GetSubsystem<UKodJadeitePaletteSubsystem>())
+			{
+				if (!Palette->IsTuningAllowed())
+				{
+					ToggleJadeiteTuner();
+				}
+			}
+		}
+	}
 	if (WasInputKeyJustPressed(EKeys::F10) || WasInputKeyJustPressed(EKeys::Escape))
 	{
 		if (AKodHUD* MenuHUD = Cast<AKodHUD>(GetHUD()))
@@ -258,6 +320,12 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 	}
 
 	// Greybox mouse fallback until Enhanced Input assets exist.
+	if (IsJadeiteTunerUnderCursor())
+	{
+		bSelectPressed = false;
+		bMarqueeActive = false;
+		return;
+	}
 	bool bBlockWorldSelect = false;
 	float PressX = 0.f;
 	float PressY = 0.f;
