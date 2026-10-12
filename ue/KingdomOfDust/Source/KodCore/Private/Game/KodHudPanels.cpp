@@ -1188,11 +1188,12 @@ void AKodHUD::DrawHotkeyLegend()
 		TEXT("1-0  Select group    Double-tap  Centre"),
 		TEXT("Ctrl+1-0  Set    Shift+1-0  Add"),
 		TEXT("F5-F8  Recall    Ctrl+F5-F8  Save    Space  Alert"),
+		TEXT("F9  Jadeite colour (campaign and offline)"),
 		TEXT("Alt  Show all health bars"),
 		TEXT("Alt+click minimap  Ping"),
 		TEXT("F12 or ?  Hide this list")
 	};
-	constexpr int32 LineCount = 14;
+	constexpr int32 LineCount = 15;
 	UFont* Font = HudFont();
 	const float Width = 560.f * Scale;
 	const float LineH = 22.f * Scale;

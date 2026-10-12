@@ -1,5 +1,8 @@
 #include "Actors/KodBuilding.h"
+#include "Actors/KodJadeiteVisual.h"
+#include "Game/KodJadeitePalette.h"
 #include "Data/KodBuildingDefinition.h"
+#include "Components/MeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
@@ -57,6 +60,8 @@ void AKodBuilding::BeginPlay()
 	{
 		ApplyDefinition(Def);
 	}
+	BindJadeitePalette();
+	RefreshJadeiteEmissive();
 	if (bBoundStructure)
 	{
 		if (UWorld* World = GetWorld())
@@ -245,6 +250,7 @@ void AKodBuilding::PreloadLowHealthFx()
 
 void AKodBuilding::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	UnbindJadeitePalette();
 	if (LowHealthHandle.IsValid())
 	{
 		LowHealthHandle->CancelHandle();
@@ -334,5 +340,56 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 		const float Span = static_cast<float>(FMath::Max(Def->FootprintX, Def->FootprintY)) * 2.f;
 		BaseScale = FVector(Span, Span, Span * 0.6f);
 		BuildingMesh->SetRelativeScale3D(BaseScale);
+	}
+	RefreshJadeiteEmissive();
+}
+
+void AKodBuilding::BindJadeitePalette()
+{
+	if (JadeitePaletteHandle.IsValid())
+	{
+		return;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodJadeitePaletteSubsystem* Palette = World->GetSubsystem<UKodJadeitePaletteSubsystem>())
+		{
+			JadeitePaletteHandle = Palette->OnPaletteChanged.AddUObject(this, &AKodBuilding::RefreshJadeiteEmissive);
+		}
+	}
+}
+
+void AKodBuilding::UnbindJadeitePalette()
+{
+	if (!JadeitePaletteHandle.IsValid())
+	{
+		return;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodJadeitePaletteSubsystem* Palette = World->GetSubsystem<UKodJadeitePaletteSubsystem>())
+		{
+			Palette->OnPaletteChanged.Remove(JadeitePaletteHandle);
+		}
+	}
+	JadeitePaletteHandle.Reset();
+}
+
+void AKodBuilding::RefreshJadeiteEmissive()
+{
+	FName DefId = NAME_None;
+	if (CachedDef)
+	{
+		DefId = CachedDef->DefinitionId.IsNone() ? CachedDef->GetFName() : CachedDef->DefinitionId;
+	}
+	if (!KodJadeiteVisual::IsScinderId(DefId) && !KodJadeiteVisual::IsScinderActor(this))
+	{
+		return;
+	}
+	TArray<UMeshComponent*> Meshes;
+	GetComponents<UMeshComponent>(Meshes);
+	for (UMeshComponent* Mesh : Meshes)
+	{
+		KodJadeiteVisual::ApplyTunedEmissive(Mesh);
 	}
 }

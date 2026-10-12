@@ -35,6 +35,7 @@ public:
 	 */
 	void ApplyPlaceholder(EKodResourceType Type);
 	void ApplyJadeiteStandIn();
+	void RefreshJadeitePresentation();
 
 	void SetEntityId(FKodEntityId Id) { EntityId = Id; }
 
@@ -63,7 +64,11 @@ protected:
 	void ConfigurePlaceholderCollision(UStaticMeshComponent* Mesh) const;
 	/** Returns the parameter that took the tint. None when nothing was assigned. */
 	FName ApplyTint(UStaticMeshComponent* Mesh, const FLinearColor& Tint, bool bEmissive);
+	void BindJadeitePalette();
+	void UnbindJadeitePalette();
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	FKodEntityId EntityId;
+
+	FDelegateHandle JadeitePaletteHandle;
 };

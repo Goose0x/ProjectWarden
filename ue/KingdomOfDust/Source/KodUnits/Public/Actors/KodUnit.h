@@ -168,6 +168,9 @@ protected:
 	void AdvanceAttackPresentation(float DeltaSeconds);
 	void EnsureBodyTint();
 	void WriteBodyTint(const FLinearColor& Tint);
+	void BindJadeitePalette();
+	void UnbindJadeitePalette();
+	void RefreshJadeiteEmissive();
 	void ApplyColorTintFallback(UMeshComponent* VisualBody, const FLinearColor& Tint);
 	void SetBodyRelativeLocation(const FVector& Bobbed);
 	void BeginDeathPresentation();
@@ -227,6 +230,7 @@ protected:
 	bool bBobOffsetApplied = false;
 
 	TWeakObjectPtr<UKodSimSubsystem> BoundSim;
+	FDelegateHandle JadeitePaletteHandle;
 
 	/** Slot 0 tint. Hostile red is stored so a hit flash can restore it. Presentation only. */
 	UPROPERTY(Transient)
