@@ -140,7 +140,7 @@ namespace
 		{
 			SpecPawn->CopyViewFrom(OldCam);
 		}
-		World->FinishSpawningActor(SpecPawn, Xform);
+		SpecPawn->FinishSpawning(Xform);
 
 		GKodSavedPC = Current;
 		GKodSavedPawn = Current->GetPawn();

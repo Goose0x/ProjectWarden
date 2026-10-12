@@ -10,12 +10,16 @@ AKodSpectatorController::AKodSpectatorController()
 	bEnableClickEvents = true;
 	bEnableMouseOverEvents = true;
 	bAutoManageActiveCameraTarget = true;
-	HUDClass = AKodHUD::StaticClass();
 }
 
 void AKodSpectatorController::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (IsLocalController() && !GetHUD())
+	{
+		ClientSetHUD(AKodHUD::StaticClass());
+	}
 
 	FInputModeGameAndUI Mode;
 	Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
