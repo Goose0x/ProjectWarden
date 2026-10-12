@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
 #include "KodGameMode.generated.h"
 
 /**
@@ -18,4 +20,16 @@ public:
 
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void StartPlay() override;
+
+	/** GameMode default, or the `Spectate=1` URL option. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Camera")
+	bool bStartAsSpectator = false;
+
+	TSubclassOf<APlayerController> GetSavedPlayerControllerClass() const { return KodSavedPlayerControllerClass; }
+	TSubclassOf<APawn> GetSavedDefaultPawnClass() const { return KodSavedDefaultPawnClass; }
+
+private:
+	TSubclassOf<APlayerController> KodSavedPlayerControllerClass;
+	TSubclassOf<APawn> KodSavedDefaultPawnClass;
+	bool bKodSpectatorSession = false;
 };

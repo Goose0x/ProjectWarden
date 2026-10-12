@@ -32,6 +32,7 @@ void UKodSimSubsystem::Deinitialize()
 	OnUnitFired.Clear();
 	OnUnitHit.Clear();
 	OnUnitKilled.Clear();
+	OnTrainCompleted.Clear();
 	Entities.Reset();
 	States.Reset();
 	Banks.Reset();
