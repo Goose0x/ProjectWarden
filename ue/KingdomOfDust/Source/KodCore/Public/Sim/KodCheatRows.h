@@ -11,7 +11,9 @@ enum class EKodMatchMode : uint8
 	Campaign,
 	OfflineSkirmish,
 	OnlineRanked,
-	Replay
+	Replay,
+	/** Extended camera. Cheats stay off. Appended so saved mode bytes keep their meaning. */
+	Custom
 };
 
 /** What a chat phrase does. The phrase text lives in the cheat table. */

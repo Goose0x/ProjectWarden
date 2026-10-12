@@ -181,6 +181,7 @@ void UKodSimSubsystem::EnsureBalanceTables()
 		}
 	}
 	AddWeapon(KodWardenPaths::Id_RangerRifle, 12, 900, 13);
+	AddWeapon(KodWardenPaths::Id_DozerMelee, 5, 100, 24);
 
 	FKodUnitBalanceRow Dozer;
 	Dozer.MaxHealth = 200;
@@ -317,6 +318,7 @@ void UKodSimSubsystem::EnsureBalanceTables()
 	AddPower(KodWardenPaths::Id_ArtilleryStrike, 100, 60 * 16, 3 * 16, 400, 40, 0);
 	AddPower(KodWardenPaths::Id_ReconSweep, 50, 30 * 16, 0, 800, 0, 8 * 16);
 	AddPower(KodWardenPaths::Id_FieldRepair, 75, 40 * 16, 0, 500, 200, 0);
+	AddPower(KodWardenPaths::Id_PowerIncome, 0, 10 * 16, 0, 0, 25, 0);
 }
 
 void UKodSimSubsystem::ApplyBalance()
@@ -354,6 +356,10 @@ void UKodSimSubsystem::ApplyBalance()
 		if (Name == FName(KodWardenPaths::Id_Ranger))
 		{
 			Weapon = FindMutableRow<FKodWeaponBalanceRow>(WeaponTable, FName(KodWardenPaths::Id_RangerRifle));
+		}
+		else if (Name == FName(KodWardenPaths::Id_Dozer))
+		{
+			Weapon = FindMutableRow<FKodWeaponBalanceRow>(WeaponTable, FName(KodWardenPaths::Id_DozerMelee));
 		}
 		TArray<int32> Keys;
 		States.GetKeys(Keys);

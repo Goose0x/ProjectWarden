@@ -38,6 +38,10 @@ void AKodGameMode::InitGame(const FString& MapName, const FString& Options, FStr
 	{
 		MatchMode = EKodMatchMode::Replay;
 	}
+	else if (MatchOpt == TEXT("custom"))
+	{
+		MatchMode = EKodMatchMode::Custom;
+	}
 	if (bStartAsSpectator || SpectateOpt == TEXT("1"))
 	{
 		KodSavedPlayerControllerClass = PlayerControllerClass;

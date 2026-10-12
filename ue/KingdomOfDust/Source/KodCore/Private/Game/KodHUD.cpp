@@ -4,6 +4,8 @@
 #include "Blueprint/UserWidget.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/Canvas.h"
+#include "CanvasItem.h"
+#include "Engine/Texture.h"
 #include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Engine/Engine.h"
@@ -351,49 +353,124 @@ void AKodHUD::DrawWorldFog()
 	const int32 X1 = KodBuildGrid::CellOf(MaxX);
 	const int32 Y0 = KodBuildGrid::CellOf(MinY);
 	const int32 Y1 = KodBuildGrid::CellOf(MaxY);
+	const float Dt = World->GetDeltaSeconds();
+	const float FadeRate = 0.8f / 0.3f;
+	auto PackCell = [](int32 X, int32 Y) -> int64
+	{
+		return (static_cast<int64>(X) << 32) | static_cast<uint32>(Y);
+	};
+	auto TargetAlpha = [Sim, LocalTeam](int32 X, int32 Y) -> float
+	{
+		const uint8 Vision = Sim->GetTeamVision(LocalTeam, KodBuildGrid::CellCenter(X), KodBuildGrid::CellCenter(Y));
+		if (Vision == 2)
+		{
+			return 0.f;
+		}
+		return Vision == 0 ? 0.8f : 0.45f;
+	};
+	for (int32 CellY = Y0 - 1; CellY <= Y1 + 1; ++CellY)
+	{
+		for (int32 CellX = X0 - 1; CellX <= X1 + 1; ++CellX)
+		{
+			const int64 Key = PackCell(CellX, CellY);
+			const float Target = TargetAlpha(CellX, CellY);
+			if (float* Shown = FogShownAlpha.Find(Key))
+			{
+				*Shown += FMath::Clamp(Target - *Shown, -FadeRate * Dt, FadeRate * Dt);
+			}
+			else
+			{
+				FogShownAlpha.Add(Key, Target);
+			}
+		}
+	}
+	TArray<int64> DropKeys;
+	for (const TPair<int64, float>& Pair : FogShownAlpha)
+	{
+		const int32 CellX = static_cast<int32>(Pair.Key >> 32);
+		const int32 CellY = static_cast<int32>(static_cast<uint32>(Pair.Key));
+		if (CellX < X0 - 2 || CellX > X1 + 2 || CellY < Y0 - 2 || CellY > Y1 + 2)
+		{
+			DropKeys.Add(Pair.Key);
+		}
+	}
+	for (int64 Key : DropKeys)
+	{
+		FogShownAlpha.Remove(Key);
+	}
+	auto ShownAlpha = [this, &TargetAlpha](int32 X, int32 Y) -> float
+	{
+		if (const float* Shown = FogShownAlpha.Find((static_cast<int64>(X) << 32) | static_cast<uint32>(Y)))
+		{
+			return *Shown;
+		}
+		return TargetAlpha(X, Y);
+	};
+	auto CornerAlpha = [&ShownAlpha](int32 X, int32 Y) -> float
+	{
+		return (ShownAlpha(X - 1, Y - 1) + ShownAlpha(X, Y - 1) + ShownAlpha(X - 1, Y) + ShownAlpha(X, Y)) * 0.25f;
+	};
+	TArray<FCanvasUVTri> Tris;
+	Tris.Reserve((X1 - X0 + 1) * (Y1 - Y0 + 1) * 2);
 	for (int32 CellY = Y0; CellY <= Y1; ++CellY)
 	{
 		for (int32 CellX = X0; CellX <= X1; ++CellX)
 		{
-			const uint8 Vision = Sim->GetTeamVision(
-				LocalTeam,
-				KodBuildGrid::CellCenter(CellX),
-				KodBuildGrid::CellCenter(CellY));
-			if (Vision == 2)
+			const float Alphas[4] = {
+				CornerAlpha(CellX, CellY),
+				CornerAlpha(CellX + 1, CellY),
+				CornerAlpha(CellX + 1, CellY + 1),
+				CornerAlpha(CellX, CellY + 1)
+			};
+			if (Alphas[0] < 0.01f && Alphas[1] < 0.01f && Alphas[2] < 0.01f && Alphas[3] < 0.01f)
 			{
 				continue;
 			}
-			const float Alpha = Vision == 0 ? 0.72f : 0.4f;
-			const FVector Corners[4] = {
+			const FVector WorldCorners[4] = {
 				FVector(static_cast<float>(CellX * Cell), static_cast<float>(CellY * Cell), GroundZ),
 				FVector(static_cast<float>((CellX + 1) * Cell), static_cast<float>(CellY * Cell), GroundZ),
 				FVector(static_cast<float>((CellX + 1) * Cell), static_cast<float>((CellY + 1) * Cell), GroundZ),
 				FVector(static_cast<float>(CellX * Cell), static_cast<float>((CellY + 1) * Cell), GroundZ)
 			};
-			float MinSX = MAX_flt;
-			float MinSY = MAX_flt;
-			float MaxSX = -MAX_flt;
-			float MaxSY = -MAX_flt;
-			bool bAny = false;
-			for (const FVector& Corner : Corners)
+			FVector2D Screen[4];
+			bool bProjected = true;
+			for (int32 Corner = 0; Corner < 4; ++Corner)
 			{
-				FVector2D Screen;
-				if (!PC->ProjectWorldLocationToScreen(Corner, Screen, true))
+				if (!PC->ProjectWorldLocationToScreen(WorldCorners[Corner], Screen[Corner], true))
 				{
-					continue;
+					bProjected = false;
+					break;
 				}
-				bAny = true;
-				MinSX = FMath::Min(MinSX, static_cast<float>(Screen.X));
-				MinSY = FMath::Min(MinSY, static_cast<float>(Screen.Y));
-				MaxSX = FMath::Max(MaxSX, static_cast<float>(Screen.X));
-				MaxSY = FMath::Max(MaxSY, static_cast<float>(Screen.Y));
 			}
-			if (!bAny || MaxSX <= MinSX || MaxSY <= MinSY)
+			if (!bProjected)
 			{
 				continue;
 			}
-			DrawRect(FLinearColor(0.f, 0.f, 0.02f, Alpha), MinSX, MinSY, MaxSX - MinSX, MaxSY - MinSY);
+			auto Push = [&Tris, &Screen, &Alphas](int32 A, int32 B, int32 C)
+			{
+				FCanvasUVTri Tri;
+				Tri.V0_Pos = Screen[A];
+				Tri.V1_Pos = Screen[B];
+				Tri.V2_Pos = Screen[C];
+				Tri.V0_UV = FVector2D(0.f, 0.f);
+				Tri.V1_UV = FVector2D(1.f, 0.f);
+				Tri.V2_UV = FVector2D(1.f, 1.f);
+				Tri.V0_Color = FLinearColor(0.f, 0.f, 0.02f, Alphas[A]);
+				Tri.V1_Color = FLinearColor(0.f, 0.f, 0.02f, Alphas[B]);
+				Tri.V2_Color = FLinearColor(0.f, 0.f, 0.02f, Alphas[C]);
+				Tris.Add(Tri);
+			};
+			Push(0, 1, 2);
+			Push(0, 2, 3);
 		}
+	}
+	const FTexture* White = (GWhiteTexture && GWhiteTexture->GetResource()) ? GWhiteTexture->GetResource() : nullptr;
+	if (White && Tris.Num() > 0)
+	{
+		FCanvasTriangleItem Item(Tris[0].V0_Pos, Tris[0].V1_Pos, Tris[0].V2_Pos, White);
+		Item.TriangleList = Tris;
+		Item.BlendMode = SE_BLEND_Translucent;
+		Canvas->DrawItem(Item);
 	}
 
 	TArray<int32> SeenTeam;
@@ -1055,6 +1132,14 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 	{
 		Text = TEXT("You are exposed");
 	}
+	else if (CueId == FName(TEXT("artillery_strike")))
+	{
+		Text = TEXT("Artillery strike");
+	}
+	else if (CueId == FName(TEXT("recon_sweep")))
+	{
+		Text = TEXT("Recon sweep");
+	}
 	else if (CueId == FName(TEXT("cheat_enabled")))
 	{
 		Text = TEXT("Cheat enabled");
@@ -1276,6 +1361,24 @@ void AKodHUD::DrawSpectatorPanel()
 	}
 }
 
+void AKodHUD::ShowAlertLine(const FString& Text)
+{
+	if (Text.IsEmpty())
+	{
+		return;
+	}
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+	FKodAlertLine Line;
+	Line.Text = Text;
+	Line.CueId = FName();
+	Line.Until = Now + 5.f;
+	AlertLines.Add(Line);
+	while (AlertLines.Num() > 6)
+	{
+		AlertLines.RemoveAt(0);
+	}
+}
+
 void AKodHUD::ShowResourceFlash(FName Reason)
 {
 	FName CueId;
@@ -1422,8 +1525,10 @@ void AKodHUD::DrawPowersPanel()
 	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
 	const float X = 16.f;
 	const float Y = 180.f;
-	const float W = 220.f;
+	const float W = 260.f;
 	const float H = 132.f;
+	const AKodPlayerController* Player = Cast<AKodPlayerController>(GetOwningPlayerController());
+	const FName ArmedPower = Player ? Player->GetArmedOrderName() : FName();
 	PowerMinX = X;
 	PowerMinY = Y;
 	PowerMaxX = X + W;
@@ -1444,24 +1549,50 @@ void AKodHUD::DrawPowersPanel()
 		const bool bHave = Sim->TryGetPowerSpec(Ids[Index], Spec);
 		const int32 Cooldown = Sim->GetPowerCooldown(TeamId, Ids[Index]);
 		const int32 Cost = bHave ? Spec.PointCost : 0;
-		const bool bReady = bHave && Cooldown <= 0 && Sim->GetPowerPoints(TeamId) >= Cost;
+		const bool bArmed = ArmedPower == Ids[Index];
+		FName Fail = FName();
+		if (!bHave)
+		{
+			Fail = FName(TEXT("Energy"));
+		}
+		else if (Cooldown > 0)
+		{
+			Fail = FName(TEXT("Cooldown"));
+		}
+		else if (Sim->GetPowerPoints(TeamId) < Cost)
+		{
+			Fail = FName(TEXT("Points"));
+		}
+		const bool bReady = Fail.IsNone();
 		const float ButtonY = Y + 28.f + Index * 32.f;
-		DrawRect(bReady ? FLinearColor(0.12f, 0.18f, 0.14f, 1.f) : FLinearColor(0.08f, 0.08f, 0.08f, 1.f), X + 8.f, ButtonY, W - 16.f, 28.f);
-		const FString Line = Cooldown > 0
-			? FString::Printf(TEXT("%s %s  %ds"), Keys[Index], Labels[Index], Cooldown / 16)
-			: FString::Printf(TEXT("%s %s  %d"), Keys[Index], Labels[Index], Cost);
+		const FLinearColor Fill = bArmed
+			? FLinearColor(0.55f, 0.42f, 0.12f, 1.f)
+			: (bReady ? FLinearColor(0.12f, 0.18f, 0.14f, 1.f) : FLinearColor(0.08f, 0.08f, 0.08f, 1.f));
+		DrawRect(Fill, X + 8.f, ButtonY, W - 16.f, 28.f);
+		const FString Line = FString::Printf(TEXT("%s %s  %d  %ds"), Keys[Index], Labels[Index], Cost, FMath::Max(0, Cooldown) / 16);
 		DrawText(Line, bReady ? FLinearColor::White : FLinearColor(0.6f, 0.6f, 0.6f, 1.f), X + 14.f, ButtonY + 6.f, Font, 0.85f, false);
 		FKodHudCommandHit Hit;
 		Hit.bInsideChrome = true;
 		Hit.bEnabled = bReady;
 		Hit.Action = FName(TEXT("Power"));
 		Hit.Payload = Ids[Index];
-		Hit.FailReason = bReady ? FName() : FName(TEXT("Energy"));
+		Hit.FailReason = Fail;
 		Hit.MinX = X + 8.f;
 		Hit.MinY = ButtonY;
 		Hit.MaxX = X + W - 8.f;
 		Hit.MaxY = ButtonY + 28.f;
-		Hit.Tooltip = Labels[Index];
+		if (Fail == FName(TEXT("Cooldown")))
+		{
+			Hit.Tooltip = TEXT("Cooldown");
+		}
+		else if (Fail == FName(TEXT("Points")))
+		{
+			Hit.Tooltip = FString::Printf(TEXT("Need %d points"), Cost);
+		}
+		else
+		{
+			Hit.Tooltip = Labels[Index];
+		}
 		CommandHits.Add(Hit);
 	}
 	TArray<int32> StrikeX;
@@ -1493,6 +1624,39 @@ void AKodHUD::DrawPowersPanel()
 			if (bHavePrevious)
 			{
 				DrawLine(Previous.X, Previous.Y, Screen.X, Screen.Y, FLinearColor(1.f, 0.45f, 0.15f, 0.95f), 2.f);
+			}
+			Previous = Screen;
+			bHavePrevious = true;
+		}
+	}
+	TArray<int32> ReconX;
+	TArray<int32> ReconY;
+	TArray<int32> ReconRadius;
+	TArray<int32> ReconLeft;
+	TArray<int32> ReconDuration;
+	Sim->CopyReconPulses(TeamId, ReconX, ReconY, ReconRadius, ReconLeft, ReconDuration);
+	for (int32 Index = 0; Index < ReconX.Num(); ++Index)
+	{
+		const float Span = static_cast<float>(FMath::Max(1, ReconDuration[Index]));
+		const float Grown = 1.f - FMath::Clamp(static_cast<float>(ReconLeft[Index]) / Span, 0.f, 1.f);
+		const FVector Center(static_cast<float>(ReconX[Index]), static_cast<float>(ReconY[Index]), 40.f);
+		const float Radius = static_cast<float>(ReconRadius[Index]) * FMath::Max(0.08f, Grown);
+		constexpr int32 Segments = 24;
+		FVector2D Previous = FVector2D::ZeroVector;
+		bool bHavePrevious = false;
+		for (int32 Step = 0; Step <= Segments; ++Step)
+		{
+			const float Angle = (2.f * PI * static_cast<float>(Step)) / static_cast<float>(Segments);
+			FVector2D Screen = FVector2D::ZeroVector;
+			const FVector Point = Center + FVector(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius, 0.f);
+			if (!PC->ProjectWorldLocationToScreen(Point, Screen, true))
+			{
+				bHavePrevious = false;
+				continue;
+			}
+			if (bHavePrevious)
+			{
+				DrawLine(Previous.X, Previous.Y, Screen.X, Screen.Y, FLinearColor(0.35f, 0.85f, 1.f, 0.9f), 2.f);
 			}
 			Previous = Screen;
 			bHavePrevious = true;

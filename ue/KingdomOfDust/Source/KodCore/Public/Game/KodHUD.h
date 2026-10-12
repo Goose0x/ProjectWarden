@@ -95,6 +95,9 @@ public:
 
 	/** Centre flash. Reason is Credits, Luminene, or Supply. */
 	void ShowResourceFlash(FName Reason);
+
+	/** Left-feed line. Shown even when the matching cue sound is missing. */
+	void ShowAlertLine(const FString& Text);
 	void ShowCenterMessage(const FString& Text);
 	void SetSelectionPage(int32 Page);
 	class AKodPortraitStage* GetPortraitStage() const { return PortraitStage; }
@@ -266,6 +269,8 @@ protected:
 	};
 	TArray<FKodAlertLine> AlertLines;
 	TMap<FName, float> AlertThrottleUntil;
+	/** Displayed fog alpha per cell. Presentation only. Not hashed. */
+	TMap<int64, float> FogShownAlpha;
 
 	UPROPERTY()
 	TObjectPtr<class AKodPortraitStage> PortraitStage;
