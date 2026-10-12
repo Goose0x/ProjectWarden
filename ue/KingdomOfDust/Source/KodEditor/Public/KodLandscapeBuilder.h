@@ -22,8 +22,9 @@ public:
 	 * 4x4 components, scale (44.444, 44.444, 100), origin (-11200, -11200, 0).
 	 * MaterialInstancePath and LayerInfoPaths are soft asset paths. A missing dot
 	 * is completed to ObjectName.ObjectName. Layer weights are additive: the first
-	 * loaded layer is 255 and the rest are 0. The height and weight maps use the
-	 * zero edit-layer GUID.
+	 * loaded layer is 255 and the rest are 0. Height and weight maps are keyed by
+	 * the KodBase edit-layer GUID, and that same layer is passed to Import.
+	 * LI_Dirt, LI_Rock, and LI_Sand have their layer-info names set here.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Landscape")
 	static ALandscape* CreateFaultlineLandscape(const FString& MaterialInstancePath, const TArray<FString>& LayerInfoPaths);

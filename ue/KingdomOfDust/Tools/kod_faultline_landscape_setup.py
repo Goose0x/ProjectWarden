@@ -38,6 +38,20 @@ def find_tex(keys):
         elif d is None and (low.endswith(("_d", "_bc", "_albedo", "_basecolor", "_diffuse")) or "albedo" in low or "basecolor" in low): d = p
     return d, n
 
+def load_tex(path, label):
+    if not path:
+        log(f"WARN {label} texture not found; leaving it unset")
+        return None
+    try:
+        asset = eal.load_asset(path)
+    except Exception as e:
+        log(f"WARN {label} texture failed to load {path} ({e}); leaving it unset")
+        return None
+    if not asset:
+        log(f"WARN {label} texture missing at {path}; leaving it unset")
+        return None
+    return asset
+
 # --- layer infos ---
 eal.make_directory(DST)
 layer_infos = {}
@@ -48,10 +62,7 @@ for name in ("Dirt", "Rock", "Sand"):
     if not eal.does_asset_exist(path):
         eal.duplicate_asset(GRASS_LI, path)
     li = eal.load_asset(path)
-    try:
-        li.set_editor_property("layer_name", name)
-    except Exception as e:
-        log(f"WARN could not set layer_name on {path} ({e}); set it in the asset or create via Landscape panel")
+    # layer_name is read-only from Python. The builder calls SetLayerName for LI_Dirt/Rock/Sand.
     eal.save_asset(path)
     layer_infos[name] = li
 grass_layer_name = str(layer_infos["Painted_Grass"].get_editor_property("layer_name"))
@@ -83,7 +94,8 @@ for i, (name, keys) in enumerate(LAYERS):
     # color
     sd = E(unreal.MaterialExpressionTextureSampleParameter2D, -1200, y)
     sd.set_editor_property("parameter_name", f"{name}_BaseColor")
-    if d: sd.set_editor_property("texture", eal.load_asset(d))
+    base_tex = load_tex(d, f"{name} base color")
+    if base_tex: sd.set_editor_property("texture", base_tex)
     mel.connect_material_expressions(uv, "", sd, "UVs")
     tint = E(unreal.MaterialExpressionVectorParameter, -1200, y + 160)
     tint.set_editor_property("parameter_name", f"{name}_Tint"); tint.set_editor_property("default_value", unreal.LinearColor(1, 1, 1, 1))
@@ -93,8 +105,10 @@ for i, (name, keys) in enumerate(LAYERS):
     sn = E(unreal.MaterialExpressionTextureSampleParameter2D, -1200, y + 280)
     sn.set_editor_property("parameter_name", f"{name}_Normal")
     sn.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
-    if n: sn.set_editor_property("texture", eal.load_asset(n))
-    else: sn.set_editor_property("texture", eal.load_asset("/Engine/EngineMaterials/FlatNormal"))
+    normal_tex = load_tex(n, f"{name} normal") if n else None
+    if not normal_tex:
+        normal_tex = load_tex("/Engine/EngineMaterials/FlatNormal", f"{name} flat normal")
+    if normal_tex: sn.set_editor_property("texture", normal_tex)
     mel.connect_material_expressions(uv, "", sn, "UVs")
     rough = E(unreal.MaterialExpressionScalarParameter, -950, y + 280)
     rough.set_editor_property("parameter_name", f"{name}_Roughness"); rough.set_editor_property("default_value", 0.85 if name != "Rock" else 0.7)
@@ -131,5 +145,7 @@ layer_paths = [
     f"{DST}/LI_Sand",
 ]
 actor = unreal.KodLandscapeBuilder.create_faultline_landscape(mi_path, layer_paths)
+for name in ("Dirt", "Rock", "Sand"):
+    eal.save_asset(f"{DST}/LI_{name}")
 log("Landscape = " + str(actor))
 log("DONE. Material + MI + layer infos saved under " + DST)
