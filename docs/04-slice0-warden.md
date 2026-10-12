@@ -498,6 +498,23 @@ Soft mesh refs, placeholder if the load fails. Data assets stay editable and win
 6. Select only the CC, right-click a Jadeite cluster, train another AMP (gather first so Credits can pay). Expect `KodProd Rally Struct=… Target=<node id>`. The new worker starts gathering that node without a second click. Right-click the ground with only the CC selected and expect `Target=Ground`.
 7. Gather, combat, and the canvas readout still behave as in the economy step 2 checklist. Marines still duel. A selected AMP still gathers.
 
+## M2 — worker building
+
+Select an AMP and press **B**. The canvas hint reads `Build   D Depot   R Barracks   E Rig   RMB Cancel`. **D**, **R**, and **E** start a ghost snapped to the 200 uu grid. Valid cells are `#3DFF6A`. Blocked, unaffordable, off-map, or a Rig that is not on an open Luminene vent are `#FF3D3D`. LMB spends the cost and sends that AMP. Shift keeps the ghost up. RMB or Backspace cancels the ghost. Backspace on a selected unfinished building refunds 75%.
+
+The worker stays and builds. The structure starts near 10% height with HP that climbs in the sim. Moving the worker pauses construction. Another AMP can right-click the site to resume. On completion a Depot adds 8 supply, a Barracks can train a Marine with **S** (M3 is the full train pass), and a finished friendly Rig is the only Luminene harvest point. A depleted vent still trickles. Movement steers around footprints and pushes a unit out of one. Grid A* is M2.5.
+
+```
+KodBuild Place Type=SupplyDepot Cell=3,4 Valid=1
+KodBuild Start Id=12 Type=SupplyDepot
+KodBuild Progress Id=12 Ticks=84/336
+KodBuild Complete Id=12 Type=SupplyDepot
+KodBuild Cancel Refund=C75,L0
+KodBuild Invalid Reason=Blocked
+```
+
+Placeholder Rig: 75 Credits, 30 s, 3×3, HP 500, greybox until a static mesh is set on the DataAsset. Depot uses `SM_storage`. Barracks uses `SM_barracks_1`.
+
 ## Camera — SC2 player view
 
 `AKodRTSCameraPawn` is the player camera. Pitch **-56°**, yaw **0** (looks north), vertical FOV **42** (horizontal FOV follows the window). The pawn is the ground look-at point. Default arm length **3600** (about 20 SC2 cells of ground at 200 uu, zoom clamped **2400–5200**). All of those are `Config` on the class.

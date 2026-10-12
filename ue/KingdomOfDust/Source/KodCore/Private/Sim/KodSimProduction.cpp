@@ -54,7 +54,7 @@ void UKodSimSubsystem::RecalcSupplyCap(int32 TeamId)
 	for (int32 Key : Keys)
 	{
 		const FKodStructureState* Structure = Structures.Find(Key);
-		if (Structure && Structure->TeamId == TeamId)
+		if (Structure && Structure->bComplete && Structure->TeamId == TeamId)
 		{
 			Sum += FMath::Max(0, Structure->SupplyProvided);
 		}
@@ -134,6 +134,15 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	QuantizeResourcePosition(Structure.ExitPoint);
 	Structure.SupplyProvided = FMath::Max(0, Spec.SupplyProvided);
 	Structure.bIsDropOff = Spec.bIsDropOff;
+	Structure.bComplete = true;
+	Structure.DisplayId = Spec.DisplayId.IsNone() ? Spec.DefinitionId : Spec.DisplayId;
+	Structure.MaxHealth = FMath::Max(1.f, Spec.MaxHealth);
+	Structure.FootprintX = FMath::Max(1, Spec.FootprintX);
+	Structure.FootprintY = FMath::Max(1, Spec.FootprintY);
+	Structure.CellX = KodBuildGrid::CellOf(Structure.Position.X) - (Structure.FootprintX - 1) / 2;
+	Structure.CellY = KodBuildGrid::CellOf(Structure.Position.Y) - (Structure.FootprintY - 1) / 2;
+	Structure.Trains = Spec.Trains;
+	Structure.StandPoint = Structure.ExitPoint;
 	if (Structure.RallyPoint.IsNearlyZero())
 	{
 		Structure.RallyPoint = Structure.ExitPoint;
@@ -212,7 +221,12 @@ bool UKodSimSubsystem::EnqueueTrain(FKodEntityId StructureId, FName UnitId)
 {
 	FKodStructureState* Structure = Structures.Find(StructureId.Value);
 	const FKodTrainSpec* Spec = TrainSpecs.Find(UnitId);
-	if (!Structure || !Spec)
+	if (!Structure || !Spec || !Structure->bComplete)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodProd Enqueue Miss Struct=%d Unit=%s"), StructureId.Value, *UnitId.ToString());
+		return false;
+	}
+	if (Structure->Trains.Num() > 0 && !Structure->Trains.Contains(UnitId))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("KodProd Enqueue Miss Struct=%d Unit=%s"), StructureId.Value, *UnitId.ToString());
 		return false;

@@ -104,6 +104,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Input")
 	bool GetGroundHitUnderCursor(FHitResult& OutHit) const;
 
+	/** Canvas hint while the build menu or ghost is up. Empty when closed. */
+	virtual FString GetBuildMenuHint() const { return FString(); }
+
 protected:
 	void HandleSelectStarted();
 	void HandleSelectCompleted();
@@ -111,6 +114,10 @@ protected:
 	void HandleCommandAttack();
 	/** RMB: Attack a foreign sim entity, Gather when a worker hits a node, otherwise Move. */
 	virtual void HandleRightClickCommand();
+
+	/** True when a build ghost consumed the click. */
+	virtual bool ConsumePlacementLeftClick() { return false; }
+	virtual bool ConsumePlacementRightClick() { return false; }
 
 	struct FKodCursorCommand
 	{

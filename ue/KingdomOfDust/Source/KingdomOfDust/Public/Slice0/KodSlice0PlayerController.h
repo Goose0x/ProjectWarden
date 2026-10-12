@@ -2,7 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "Game/KodPlayerController.h"
+#include "Sim/KodEntityId.h"
 #include "KodSlice0PlayerController.generated.h"
+
+class AKodBuildGhost;
 
 /**
  * L_Slice0 PC: left select/box, right move/attack through UKodCommandSubsystem.
@@ -29,6 +32,20 @@ protected:
 	void EnqueueTrainOnSelectedStructures();
 	void CancelTrainOnSelectedStructures();
 	void TryCenterControlGroup();
+	virtual bool ConsumePlacementLeftClick() override;
+	virtual bool ConsumePlacementRightClick() override;
+	virtual FString GetBuildMenuHint() const override;
+	virtual void HandleRightClickCommand() override;
+
+	bool HasSelectedWorker() const;
+	FKodEntityId FirstSelectedWorker() const;
+	void UpdateBuildGhost();
+	void CancelPlacement();
+	bool CancelSelectedConstruction();
+	bool TryResumeBuildUnderCursor();
 
 	TArray<float> LastGroupTapSeconds;
+	bool bBuildMenu = false;
+	FName PlaceType;
+	TWeakObjectPtr<AKodBuildGhost> BuildGhost;
 };

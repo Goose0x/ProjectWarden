@@ -23,6 +23,7 @@ public:
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void Tick(float DeltaSeconds) override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Kod|Data")
 	TSoftObjectPtr<UKodBuildingDefinition> Definition;
@@ -41,4 +42,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Data")
 	void ApplyDefinition(UKodBuildingDefinition* Def);
+
+private:
+	bool bBoundStructure = false;
+	FVector BaseScale = FVector(3.f, 3.f, 2.f);
 };

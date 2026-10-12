@@ -16,10 +16,15 @@ struct KODCORE_API FKodTrainSpec
 struct KODCORE_API FKodStructureSpec
 {
 	FName DefinitionId;
+	FName DisplayId;
 	int32 TeamId = 0;
 	int32 SupplyProvided = 0;
 	bool bIsDropOff = false;
 	int32 DropOffStandUU = 360;
+	int32 FootprintX = 5;
+	int32 FootprintY = 5;
+	float MaxHealth = 2500.f;
+	TArray<FName> Trains;
 };
 
 struct KODCORE_API FKodProductionSlot
@@ -49,6 +54,25 @@ struct KODCORE_API FKodStructureState
 	FVector RallyPoint = FVector::ZeroVector;
 	FKodEntityId RallyNode;
 	bool bRallyNode = false;
+
+	int32 CellX = 0;
+	int32 CellY = 0;
+	int32 FootprintX = 1;
+	int32 FootprintY = 1;
+	int32 BuildTimeTotal = 0;
+	int32 BuildTicksDone = 0;
+	bool bComplete = true;
+	bool bActivelyBuilding = false;
+	int32 LastProgressBucket = -1;
+	FKodEntityId BuilderId;
+	FKodEntityId VentId;
+	bool bExtractor = false;
+	int32 PaidCredits = 0;
+	int32 PaidLuminene = 0;
+	float MaxHealth = 0.f;
+	FName DisplayId;
+	TArray<FName> Trains;
+	FVector StandPoint = FVector::ZeroVector;
 };
 
 struct KODCORE_API FKodSupplyState

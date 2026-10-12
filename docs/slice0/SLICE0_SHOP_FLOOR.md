@@ -66,7 +66,10 @@ Tag `Kod.Building.CommandCenter` · MaxHealth 2500 · Cost 400 Credits · BuildT
 Tag `Kod.Building.Barracks` · MaxHealth 1500 · Cost 150 Credits · BuildTime 46 s · PowerConsumed 2 · Sight 1400 · Trainable: Ranger. Not placed or trained in M1.
 
 ### SupplyDepot
-Tag `Kod.Building.SupplyDepot` · MaxHealth 400 · Cost 100 Credits · BuildTime 21 s · SupplyProvided 8 · mesh soft-ref `SM_storage`. Catalog only. Not spawned.
+Tag `Kod.Building.SupplyDepot` · MaxHealth 400 · Cost 100 Credits · BuildTime 21 s · SupplyProvided 8 · footprint 2×2 · mesh soft-ref `SM_storage`. Placed by an AMP.
+
+### Rig
+Tag `Kod.Building.Rig` · MaxHealth 500 · Cost 75 Credits · BuildTime 30 s (placeholder) · footprint 3×3 · extractor on a Luminene vent · greybox until a static mesh is set. `BP_oil_factory` is later and is not referenced.
 
 ### USA
 StartingBuilding CommandCenter · StartingUnits: 1 Dozer + 2 Ranger (PROXY)
