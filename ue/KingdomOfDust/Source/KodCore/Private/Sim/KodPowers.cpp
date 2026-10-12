@@ -453,7 +453,7 @@ bool UKodSimSubsystem::IsRampWalled(int32 CellX, int32 CellY, int32 ForTeam) con
 		{
 			continue;
 		}
-		if (Structure->bLowered && Structure->bCanLower && Structure->TeamId == ForTeam)
+		if (Structure->bLowered && Structure->bCanLower)
 		{
 			return false;
 		}

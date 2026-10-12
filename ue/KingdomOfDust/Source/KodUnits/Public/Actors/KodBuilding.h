@@ -59,6 +59,9 @@ private:
 	bool bCompletionFlash = false;
 	float FlashLeft = 0.f;
 	bool bLoggedLowHealth = false;
+	/** 0 raised, 1 flush. Presentation only; the sim flag is bLowered. */
+	float DepotLowerAlpha = 0.f;
+	bool bDepotVisualInit = false;
 
 	UPROPERTY()
 	TObjectPtr<UKodBuildingDefinition> CachedDef;

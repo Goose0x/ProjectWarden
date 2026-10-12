@@ -105,14 +105,24 @@ void AKodBuilding::Tick(float DeltaSeconds)
 	float Rise = 0.f;
 	if (Sim->TryGetStructure(EntityId, Structure))
 	{
+		if (Structure.bCanLower)
+		{
+			if (!bDepotVisualInit)
+			{
+				bDepotVisualInit = true;
+				DepotLowerAlpha = Structure.bLowered ? 1.f : 0.f;
+			}
+			const float Target = Structure.bLowered ? 1.f : 0.f;
+			DepotLowerAlpha = FMath::FInterpConstantTo(DepotLowerAlpha, Target, DeltaSeconds, 2.f);
+		}
 		if (Structure.bAirborne)
 		{
 			Rise = 220.f;
 		}
-		else if (Structure.bLowered)
+		else if (Structure.bCanLower && DepotLowerAlpha > 0.f)
 		{
-			Scale.Z *= 0.25f;
-			Rise = -80.f;
+			const float Plate = FMath::Lerp(1.f, 0.12f, DepotLowerAlpha);
+			Scale.Z *= Plate;
 		}
 		else if (!Structure.bComplete && Structure.BuildTimeTotal > 0)
 		{

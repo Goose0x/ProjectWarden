@@ -210,25 +210,75 @@ void AKodHUD::DrawVanguardChrome()
 	{
 		return;
 	}
-	const FKodScreenRect Strip = MapSpec(0.f, 778.f, 1920.f, 302.f);
-	const float BandY = Strip.Y;
-	const float BandH = FMath::Max(Strip.H, Canvas->SizeY - BandY);
-	DrawPlate(0.f, BandY, Canvas->SizeX, BandH, Tok(0x3A, 0x3F, 0x45, 0.96f), TEXT("T_UI_VG_Strip_Plate"), 48.f, 24.f, 48.f, 24.f);
-	const FKodScreenRect MapBay = MapSpec(16.f, 778.f, 346.f, 302.f);
-	DrawPlate(MapBay.X, MapBay.Y, MapBay.W, MapBay.H, Tok(0x1F, 0x23, 0x27, 0.55f), TEXT("T_UI_VG_Bay_Minimap"), 24.f, 24.f, 24.f, 24.f);
-	const FKodScreenRect Sel = MapSpec(378.f, 778.f, 806.f, 302.f);
-	DrawPlate(Sel.X, Sel.Y, Sel.W, Sel.H, Tok(0x4A, 0x55, 0x62, 0.35f), TEXT("T_UI_VG_Panel_Selection"), 24.f, 24.f, 24.f, 24.f);
-	const FKodScreenRect Card = MapSpec(1504.f, 778.f, 384.f, 302.f);
-	DrawPlate(Card.X, Card.Y, Card.W, Card.H, Tok(0x1F, 0x23, 0x27, 0.45f), TEXT("T_UI_VG_Panel_Command"), 24.f, 24.f, 24.f, 24.f);
+	const float Bottom = Canvas->SizeY;
+	const float TopRaised = MapSpec(0.f, 736.f, 1.f, 1.f).Y;
+	const float TopWell = MapSpec(0.f, 776.f, 1.f, 1.f).Y;
+	const float SeamX = MapSpec(328.f, 0.f, 1.f, 1.f).X;
+	const float PortX = MapSpec(1064.f, 0.f, 1.f, 1.f).X;
+	const FLinearColor Gunmetal = Tok(0x3A, 0x3F, 0x45, 0.97f);
+	const FLinearColor Steel = Tok(0x5C, 0x64, 0x6C, 0.96f);
+	const FLinearColor Well = Tok(0x1F, 0x23, 0x27, 0.94f);
+	const FLinearColor Brass = Tok(0xB0, 0x8D, 0x57, 1.f);
+	auto FillTrap = [this](float X0, float Top0, float X1, float Top1, float Y1, const FLinearColor& Ink)
+	{
+		const FTexture* White = (Canvas && Canvas->DefaultTexture) ? Canvas->DefaultTexture->GetResource() : nullptr;
+		if (!White || X1 <= X0)
+		{
+			DrawRect(Ink, X0, FMath::Min(Top0, Top1), FMath::Max(1.f, X1 - X0), Y1 - FMath::Min(Top0, Top1));
+			return;
+		}
+		TArray<FCanvasUVTri> Tris;
+		auto Push = [&Tris, Ink](const FVector2D& A, const FVector2D& B, const FVector2D& C)
+		{
+			FCanvasUVTri Tri;
+			Tri.V0_Pos = A;
+			Tri.V1_Pos = B;
+			Tri.V2_Pos = C;
+			Tri.V0_Color = Ink;
+			Tri.V1_Color = Ink;
+			Tri.V2_Color = Ink;
+			Tris.Add(Tri);
+		};
+		const FVector2D P0(X0, Top0);
+		const FVector2D P1(X1, Top1);
+		const FVector2D P2(X1, Y1);
+		const FVector2D P3(X0, Y1);
+		Push(P0, P1, P2);
+		Push(P0, P2, P3);
+		FCanvasTriangleItem Item(Tris[0].V0_Pos, Tris[0].V1_Pos, Tris[0].V2_Pos, White);
+		Item.TriangleList = Tris;
+		Item.BlendMode = SE_BLEND_Translucent;
+		Canvas->DrawItem(Item);
+	};
+	FillTrap(0.f, TopRaised, SeamX, TopWell, Bottom, Gunmetal);
+	FillTrap(SeamX, TopWell, PortX, TopWell, Bottom, Steel);
+	FillTrap(PortX, TopWell, Canvas->SizeX, TopRaised, Bottom, Gunmetal);
+	DrawLine(0.f, TopRaised, SeamX, TopWell, Brass, 2.f);
+	DrawLine(SeamX, TopWell, PortX, TopWell, Brass, 2.f);
+	DrawLine(PortX, TopWell, Canvas->SizeX, TopRaised, Brass, 2.f);
+	DrawLine(SeamX, TopWell, SeamX, Bottom, Brass, 1.5f);
+	DrawLine(PortX, TopWell, PortX, Bottom, Brass, 1.5f);
+
+	const FKodScreenRect MapWell = MapSpec(18.f, 780.f, 250.f, 250.f);
+	DrawRect(Well, MapWell.X, MapWell.Y, MapWell.W, MapWell.H);
+	const FKodScreenRect SelWell = MapSpec(332.f, 820.f, 718.f, 222.f);
+	DrawRect(Tok(0x1F, 0x23, 0x27, 0.88f), SelWell.X, SelWell.Y, SelWell.W, SelWell.H);
+	const FKodScreenRect PortWell = MapSpec(1068.f, 792.f, 220.f, 246.f);
+	DrawRect(Well, PortWell.X, PortWell.Y, PortWell.W, PortWell.H);
+	DrawRect(Brass, PortWell.X, PortWell.Y, PortWell.W, 2.f * FrameScale);
+	const FKodScreenRect CardWell = MapSpec(1310.f, 848.f, 344.f, 204.f);
+	DrawRect(Well, CardWell.X, CardWell.Y, CardWell.W, CardWell.H);
 
 	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
-	const FKodScreenRect Chat = MapSpec(1725.f, 794.f, 44.f, 40.f);
-	const FKodScreenRect Menu = MapSpec(1777.f, 794.f, 96.f, 40.f);
+	const FKodScreenRect Chat = MapSpec(1490.f, 804.f, 44.f, 36.f);
+	const FKodScreenRect Menu = MapSpec(1542.f, 804.f, 112.f, 36.f);
 	DrawPlate(Chat.X, Chat.Y, Chat.W, Chat.H, Tok(0x5C, 0x64, 0x6C), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
-	DrawText(TEXT("Chat"), Tok(0xE6, 0xE6, 0xE0), Chat.X + 6.f * FrameScale, Chat.Y + 10.f * FrameScale, Font, 0.7f * FrameScale, false);
+	DrawRect(Brass, Chat.X, Chat.Y, Chat.W, 1.5f);
+	DrawText(TEXT("Chat"), Tok(0xE6, 0xE6, 0xE0), Chat.X + 6.f * FrameScale, Chat.Y + 8.f * FrameScale, Font, 0.65f * FrameScale, false);
 	RememberChrome(FName(TEXT("ChatBtn")), 0, FName(), Chat.X, Chat.Y, Chat.X + Chat.W, Chat.Y + Chat.H);
 	DrawPlate(Menu.X, Menu.Y, Menu.W, Menu.H, Tok(0x5C, 0x64, 0x6C), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
-	DrawText(TEXT("MENU"), Tok(0xE6, 0xE6, 0xE0), Menu.X + 18.f * FrameScale, Menu.Y + 10.f * FrameScale, Font, 0.75f * FrameScale, false);
+	DrawRect(Brass, Menu.X, Menu.Y, Menu.W, 1.5f);
+	DrawText(TEXT("MENU"), Tok(0xE6, 0xE6, 0xE0), Menu.X + 28.f * FrameScale, Menu.Y + 8.f * FrameScale, Font, 0.75f * FrameScale, false);
 	RememberChrome(FName(TEXT("MenuBtn")), 0, FName(), Menu.X, Menu.Y, Menu.X + Menu.W, Menu.Y + Menu.H);
 }
 
@@ -376,58 +426,135 @@ void AKodHUD::DrawSelectionPulse()
 {
 	AKodPlayerController* PC = Cast<AKodPlayerController>(GetOwningPlayerController());
 	UWorld* World = GetWorld();
-	if (!Canvas || !PC || !World)
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Canvas || !PC || !World || !Sim)
 	{
 		return;
 	}
-	TArray<AActor*> Selected = PC->GetLocalSelection();
-	Algo::Sort(Selected, [](const AActor* A, const AActor* B)
+	const int32 LocalTeam = ReadLocalTeamId();
+	// Rebuilt every frame from the live actor. 0 own, 1 ally, 2 enemy.
+	TMap<AActor*, int32> Rings;
+	auto Consider = [&Rings](AActor* Actor, int32 Kind)
 	{
-		const uint32 IdA = A ? A->GetUniqueID() : 0u;
-		const uint32 IdB = B ? B->GetUniqueID() : 0u;
-		return IdA < IdB;
-	});
-	TArray<uint32> Ids;
-	Ids.Reserve(Selected.Num());
-	for (const AActor* Actor : Selected)
-	{
-		if (Actor)
+		if (!Actor)
 		{
-			Ids.Add(Actor->GetUniqueID());
+			return;
 		}
-	}
-	if (Ids != PulseSelectionIds)
+		if (int32* Found = Rings.Find(Actor))
+		{
+			*Found = FMath::Max(*Found, Kind);
+			return;
+		}
+		Rings.Add(Actor, Kind);
+	};
+	auto TeamOf = [this](FKodEntityId Id, int32 Fallback) -> int32
 	{
-		PulseSelectionIds = Ids;
-		SelectPulseUntil = World->GetTimeSeconds() + 0.35f;
-	}
-	const float Now = World->GetTimeSeconds();
-	const bool bPulse = Now < SelectPulseUntil;
-	const float Wave = bPulse
-		? 0.55f + 0.45f * FMath::Abs(FMath::Sin((SelectPulseUntil - Now) * 18.f))
-		: 0.35f + 0.12f * FMath::Abs(FMath::Sin(Now * 3.f));
-	const float Radius = bPulse ? 26.f + 14.f * ((SelectPulseUntil - Now) / 0.35f) : 18.f;
-	const FLinearColor Color(0.35f, 0.95f, 0.45f, Wave);
-	for (AActor* Actor : Selected)
+		if (const FKodSimEntityState* State = FindFrameState(Id.Value))
+		{
+			return State->TeamId;
+		}
+		if (const FKodStructureState* Structure = FindFrameStructure(Id.Value))
+		{
+			return Structure->TeamId;
+		}
+		return Fallback;
+	};
+	for (AActor* Actor : PC->GetLocalSelection())
 	{
 		if (!Actor)
 		{
 			continue;
 		}
-		FVector2D Screen;
-		if (!PC->ProjectWorldLocationToScreen(Actor->GetActorLocation(), Screen, true))
+		const FKodEntityId Id = Sim->FindIdForActor(Actor);
+		const int32 Team = TeamOf(Id, LocalTeam);
+		const int32 Opponent = LocalTeam == 0 ? 1 : 0;
+		const int32 Kind = (Team == LocalTeam) ? 0 : (Team == Opponent ? 2 : 1);
+		Consider(Actor, Kind);
+		if (const FKodSimEntityState* State = FindFrameState(Id.Value))
+		{
+			if (State->AttackTarget.IsValid())
+			{
+				if (AActor* TargetActor = Sim->ResolveEntity(State->AttackTarget))
+				{
+					if (TeamOf(State->AttackTarget, Team) != LocalTeam)
+					{
+						Consider(TargetActor, 2);
+					}
+				}
+			}
+		}
+	}
+	FHitResult Hover;
+	if (PC->GetHitResultUnderCursor(ECC_Visibility, true, Hover))
+	{
+		if (AActor* HoverActor = Hover.GetActor())
+		{
+			const FKodEntityId HoverId = Sim->FindIdForActor(HoverActor);
+			const int32 HoverTeam = TeamOf(HoverId, LocalTeam);
+			const bool bKnown = FindFrameState(HoverId.Value) != nullptr || FindFrameStructure(HoverId.Value) != nullptr;
+			if (bKnown && HoverTeam != LocalTeam)
+			{
+				Consider(HoverActor, 2);
+			}
+		}
+	}
+	auto DrawGroundCircle = [this, PC](const FVector& Center, float Radius, const FLinearColor& Ink)
+	{
+		constexpr int32 Steps = 28;
+		FVector2D Prev = FVector2D::ZeroVector;
+		bool bHave = false;
+		for (int32 Step = 0; Step <= Steps; ++Step)
+		{
+			const float Angle = (2.f * PI * static_cast<float>(Step)) / static_cast<float>(Steps);
+			const FVector WorldPoint = Center + FVector(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius, 0.f);
+			FVector2D Screen = FVector2D::ZeroVector;
+			if (!PC->ProjectWorldLocationToScreen(WorldPoint, Screen, true))
+			{
+				bHave = false;
+				continue;
+			}
+			if (bHave)
+			{
+				DrawLine(Prev.X, Prev.Y, Screen.X, Screen.Y, Ink, 2.f);
+			}
+			Prev = Screen;
+			bHave = true;
+		}
+	};
+	for (const TPair<AActor*, int32>& Ring : Rings)
+	{
+		AActor* Actor = Ring.Key;
+		if (!Actor)
 		{
 			continue;
 		}
-		const int32 Steps = 12;
-		FVector2D Prev(Screen.X + Radius, Screen.Y);
-		for (int32 Step = 1; Step <= Steps; ++Step)
+		const FBox Bounds = Actor->GetComponentsBoundingBox(true);
+		FVector Center = Actor->GetActorLocation();
+		if (Bounds.IsValid)
 		{
-			const float Angle = (static_cast<float>(Step) / static_cast<float>(Steps)) * 2.f * PI;
-			const FVector2D Next(Screen.X + FMath::Cos(Angle) * Radius, Screen.Y + FMath::Sin(Angle) * Radius);
-			DrawLine(Prev.X, Prev.Y, Next.X, Next.Y, Color, bPulse ? 2.5f : 1.25f);
-			Prev = Next;
+			Center.X = Bounds.GetCenter().X;
+			Center.Y = Bounds.GetCenter().Y;
+			Center.Z = Bounds.Min.Z + 6.f;
 		}
+		float Radius = 40.f;
+		const FKodEntityId Id = Sim->FindIdForActor(Actor);
+		if (const FKodStructureState* Structure = FindFrameStructure(Id.Value))
+		{
+			const float Cells = static_cast<float>(FMath::Max(Structure->FootprintX, Structure->FootprintY));
+			Radius = 0.5f * Cells * static_cast<float>(KodBuildGrid::CellUU);
+		}
+		else if (const FKodSimEntityState* State = FindFrameState(Id.Value))
+		{
+			Radius = static_cast<float>(FMath::Max(16, State->BodyRadiusUU));
+		}
+		else if (Bounds.IsValid)
+		{
+			Radius = 0.5f * FMath::Max(Bounds.GetExtent().X, Bounds.GetExtent().Y);
+		}
+		const FLinearColor Ink = Ring.Value == 0
+			? Tok(0x4C, 0xD9, 0x64)
+			: (Ring.Value == 1 ? Tok(0xFF, 0xD2, 0x3F) : Tok(0xE5, 0x38, 0x3B));
+		DrawGroundCircle(Center, Radius, Ink);
 	}
 }
 
@@ -765,7 +892,7 @@ void AKodHUD::DrawGameClock()
 	{
 		Font = GEngine->GetSmallFont();
 	}
-	const FKodScreenRect Clock = MapSpec(24.f, 780.f, 120.f, 34.f);
+	const FKodScreenRect Clock = MapSpec(18.f, 748.f, 108.f, 28.f);
 	DrawPlate(Clock.X, Clock.Y, Clock.W, Clock.H, Tok(0x1F, 0x23, 0x27, 0.9f), TEXT("T_UI_VG_Chip_Resource"), 12.f, 8.f, 12.f, 8.f);
 	DrawText(Label, Tok(0xB0, 0x8D, 0x57), Clock.X + 8.f * FrameScale, Clock.Y + 6.f * FrameScale, Font, FrameScale, false);
 }
@@ -1943,18 +2070,18 @@ void AKodHUD::DrawCommandCard()
 		Font = GEngine->GetSmallFont();
 	}
 
-	const float Button = 66.f * FrameScale;
+	const float Button = 64.f * FrameScale;
 	const float Gap = 6.f * FrameScale;
 	constexpr int32 Cols = 5;
 	constexpr int32 Rows = 3;
-	const FKodScreenRect Card = MapSpec(1519.f, 850.f, 354.f, 210.f);
+	const FKodScreenRect Card = MapSpec(1310.f, 848.f, 344.f, 204.f);
 	const float CardW = Card.W;
 	const float CardH = Card.H;
 	const float QueueH = 0.f;
 	const float OriginX = Card.X;
 	const float OriginY = Card.Y;
 	ChromeMinX = OriginX - 8.f;
-	ChromeMinY = OriginY - 8.f;
+	ChromeMinY = OriginY;
 	ChromeMaxX = OriginX + CardW + 8.f;
 	ChromeMaxY = OriginY + CardH + QueueH + 8.f;
 	bCommandChrome = true;
@@ -2034,14 +2161,14 @@ void AKodHUD::DrawCommandCard()
 			++Shown;
 		}
 	}
-	else
+	else if (bMarineCard || bWorker)
 	{
-		AddButton(0, 0, OriginX, OriginY, TEXT("Move"), TEXT("Q"), TEXT("Move"), FName(), 0, INDEX_NONE, bMarineCard || bWorker, FName(), TEXT("Move"));
-		AddButton(1, 0, OriginX, OriginY, TEXT("Stop"), TEXT("W"), TEXT("Stop"), FName(), 0, INDEX_NONE, bMarineCard || bWorker, FName(), TEXT("Stop"));
-		AddButton(2, 0, OriginX, OriginY, TEXT("Hold"), TEXT("E"), TEXT("Hold"), FName(), 0, INDEX_NONE, bMarineCard || bWorker, FName(), TEXT("Hold"));
-		AddButton(3, 0, OriginX, OriginY, TEXT("Patrol"), TEXT("R"), TEXT("Patrol"), FName(), 0, INDEX_NONE, bMarineCard || bWorker, FName(), TEXT("Patrol"));
-		AddButton(4, 0, OriginX, OriginY, TEXT("Attack"), TEXT("T"), TEXT("Attack"), FName(), 0, INDEX_NONE, bMarineCard || bWorker, FName(), TEXT("Attack"));
-		AddButton(4, 2, OriginX, OriginY, TEXT("Guard"), TEXT("G"), TEXT("Guard"), FName(), 0, INDEX_NONE, bMarineCard || bWorker, FName(), TEXT("Guard"));
+		AddButton(0, 0, OriginX, OriginY, TEXT("Move"), TEXT("Q"), TEXT("Move"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Move"));
+		AddButton(1, 0, OriginX, OriginY, TEXT("Stop"), TEXT("W"), TEXT("Stop"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Stop"));
+		AddButton(2, 0, OriginX, OriginY, TEXT("Hold"), TEXT("E"), TEXT("Hold"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Hold"));
+		AddButton(3, 0, OriginX, OriginY, TEXT("Patrol"), TEXT("R"), TEXT("Patrol"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Patrol"));
+		AddButton(4, 0, OriginX, OriginY, TEXT("Attack"), TEXT("T"), TEXT("Attack"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Attack"));
+		AddButton(4, 2, OriginX, OriginY, TEXT("Guard"), TEXT("G"), TEXT("Guard"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Guard"));
 		if (bMarineCard)
 		{
 			FKodAbilitySpec Ability;
@@ -2124,7 +2251,8 @@ void AKodHUD::DrawCommandCard()
 	if (bDepot && !bTrainCard)
 	{
 		const FString Label = SelectedBuilding.bLowered ? TEXT("Raise") : TEXT("Lower");
-		AddButton(0, 0, OriginX, OriginY, Label, TEXT("R"), TEXT("Depot"), FName(), SelectedBuilding.Id.Value, INDEX_NONE, true, FName(), Label);
+		const int32 DepotRow = (bMarineCard || bWorker) ? 2 : 0;
+		AddButton(0, DepotRow, OriginX, OriginY, Label, TEXT("R"), TEXT("Depot"), FName(), SelectedBuilding.Id.Value, INDEX_NONE, true, FName(), Label);
 	}
 	if (bBay && !bTrainCard)
 	{
