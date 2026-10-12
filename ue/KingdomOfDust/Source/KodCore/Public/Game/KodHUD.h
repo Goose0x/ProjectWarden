@@ -93,6 +93,15 @@ public:
 	void ShowResourceFlash(FName Reason);
 	void ShowCenterMessage(const FString& Text);
 	void SetSelectionPage(int32 Page);
+	class AKodPortraitStage* GetPortraitStage() const { return PortraitStage; }
+	bool IsMenuOpen() const { return MenuPage != 0; }
+	void TogglePauseMenu();
+	void SetMenuPage(int32 Page);
+	void HandleMenuChoice(int32 Choice);
+	void SetHealthBarMode(int32 Mode) { HealthBarMode = FMath::Clamp(Mode, 0, 2); }
+	void SetHotkeyGrid(bool bShow) { bHotkeyLegend = bShow; }
+	int32 GetHealthBarMode() const { return HealthBarMode; }
+	bool IsHotkeyGridShown() const { return bHotkeyLegend; }
 	/** True on the second click inside 0.3 seconds. */
 	bool ConsumePortraitClick();
 
@@ -140,6 +149,7 @@ protected:
 	void DrawScaffolds();
 	void DrawAlertFeed();
 	void DrawSpectatorPanel();
+	void DrawShellMenus();
 	void DrawWireHeat(float X, float Y, float W, float H, int32 UnitId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash);
 	void BindAlertFeed();
 	bool TryDrawIcon(FName IconId, float X, float Y, float SizeX, float SizeY);
@@ -197,6 +207,11 @@ protected:
 	bool bHasPassiveChrome = false;
 	int32 CommandSubgroupCount = 0;
 	int32 SelectionPage = 0;
+	int32 MenuPage = 0;
+	int32 ScoreTab = 0;
+	int32 HealthBarMode = 1;
+	float PortraitCaptureAccum = 0.f;
+	TWeakObjectPtr<AActor> PortraitSubject;
 	float PortraitClickSeconds = -1.f;
 	TMap<int32, float> WireHitUntil;
 

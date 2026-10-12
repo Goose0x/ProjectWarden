@@ -607,6 +607,35 @@ public:
 	EKodMatchOutcome GetMatchOutcome() const { return MatchOutcome; }
 	bool IsMatchOver() const { return MatchOutcome != EKodMatchOutcome::None; }
 
+	void SetSimPaused(bool bPaused) { bSimPaused = bPaused; }
+	bool IsSimPaused() const { return bSimPaused; }
+	void SetMenuMode(bool bEnabled) { bMenuMode = bEnabled; if (bEnabled) bSimPaused = true; }
+	bool IsMenuMode() const { return bMenuMode; }
+
+	bool SaveSkirmishSlot(int32 Slot);
+	bool LoadSkirmishSlot(int32 Slot);
+
+	void SetExposedRule(bool bEnabled);
+	void SetExposedTimeSeconds(int32 Seconds);
+	bool IsExposedRuleEnabled() const { return bExposedRule; }
+	int32 GetExposedTimeSeconds() const { return ExposedTicks / 16; }
+	bool IsTeamExposed(int32 TeamId) const;
+
+	struct FKodStatSample
+	{
+		int32 Tick = 0;
+		int32 Collected = 0;
+		int32 Trained = 0;
+		int32 ArmyValue = 0;
+		int32 Income = 0;
+		int32 Killed = 0;
+		int32 Built = 0;
+		int32 Razed = 0;
+	};
+
+	void CopyStatSamples(int32 TeamId, TArray<FKodStatSample>& Out) const;
+	void GetTeamTotals(int32 TeamId, int32& Collected, int32& Trained, int32& Killed, int32& Built, int32& Razed) const;
+
 	/**
 	 * Presentation snapshot of combat entities (not resource nodes).
 	 * Does not mutate pose, orders, or the idle hash.
@@ -695,6 +724,18 @@ protected:
 	void StepAbilities();
 	void StepAI();
 	void StepTech();
+	void StepExposed();
+	void ApplyExposedReveal();
+	void RecordMatchSample();
+	void NoteResources(int32 TeamId, int32 Amount);
+	void NoteUnitTrained(int32 TeamId);
+	void NoteUnitKilled(int32 TeamId);
+	void NoteStructureBuilt(int32 TeamId);
+	void NoteStructureRazed(int32 TeamId);
+	int32 ArmyValueFor(int32 TeamId) const;
+	TArray<uint8> ExportSimBlob() const;
+	void ImportSimBlob(const TArray<uint8>& Blob);
+	void ResyncActors() const;
 	void ApplyRoster(FKodEntityId Id);
 	void EjectBunker(FKodEntityId BunkerId);
 	bool CellHasUnit(int32 CellX, int32 CellY) const;
@@ -770,6 +811,28 @@ protected:
 	EKodMatchOutcome MatchOutcome = EKodMatchOutcome::None;
 	bool bTeam0HadStructure = false;
 	bool bTeam1HadStructure = false;
+	bool bSimPaused = false;
+	bool bMenuMode = false;
+	bool bExposedRule = true;
+	int32 ExposedTicks = 6 * 60 * 16;
+	bool bTeam0Exposed = false;
+	bool bTeam1Exposed = false;
+	bool bTeam0ExposedWarned = false;
+	bool bTeam1ExposedWarned = false;
+
+	struct FKodTeamTotals
+	{
+		int32 Collected = 0;
+		int32 Trained = 0;
+		int32 Killed = 0;
+		int32 Built = 0;
+		int32 Razed = 0;
+		int32 LastIncomeCollected = 0;
+	};
+	FKodTeamTotals Totals0;
+	FKodTeamTotals Totals1;
+	TArray<FKodStatSample> Samples0;
+	TArray<FKodStatSample> Samples1;
 
 	/** Cell -> sorted entity ids. Rebuilt at the start of each sim tick. */
 	TMap<int64, TArray<int32>> AcquireGrid;

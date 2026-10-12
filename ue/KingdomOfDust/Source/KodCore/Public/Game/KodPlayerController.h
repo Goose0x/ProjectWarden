@@ -65,6 +65,7 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void SetupInputComponent() override;
 	virtual void PlayerTick(float DeltaTime) override;
+	virtual void BuildHiddenComponentList(const FVector& ViewLocation, TSet<FPrimitiveComponentId>& HiddenComponents) override;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Input")
 	TSoftObjectPtr<UInputMappingContext> DefaultMappingContext;

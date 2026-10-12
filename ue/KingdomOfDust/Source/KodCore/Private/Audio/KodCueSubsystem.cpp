@@ -37,7 +37,9 @@ namespace
 		TEXT("victory"),
 		TEXT("defeat"),
 		TEXT("ui_click"),
-		TEXT("cant_build")
+		TEXT("cant_build"),
+		TEXT("expand_or_be_exposed"),
+		TEXT("exposed")
 	};
 }
 
@@ -65,6 +67,19 @@ void UKodCueSubsystem::NoteMissing(FName CueId, const FSoftObjectPath& Path)
 		Entry.bLogged = true;
 		UE_LOG(LogTemp, Warning, TEXT("KodCue Missing Id=%s Path=%s"), *CueId.ToString(), *Path.ToString());
 	}
+}
+
+void UKodCueSubsystem::Deinitialize()
+{
+	if (CueHandle.IsValid())
+	{
+		CueHandle->CancelHandle();
+		CueHandle.Reset();
+	}
+	CueCache.Reset();
+	bPreloadFinished = false;
+	bBound = false;
+	Super::Deinitialize();
 }
 
 void UKodCueSubsystem::OnWorldBeginPlay(UWorld& InWorld)

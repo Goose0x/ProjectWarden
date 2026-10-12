@@ -264,6 +264,13 @@ void AKodSlice0GameMode::MuteGreyboxProxyCollision()
 void AKodSlice0GameMode::StartPlay()
 {
 	Super::StartPlay();
+	if (GetWorld() && GetWorld()->URL.HasOption(TEXT("Menu")))
+	{
+		if (UKodSimSubsystem* Sim = GetWorld()->GetSubsystem<UKodSimSubsystem>())
+		{
+			Sim->SetMenuMode(true);
+		}
+	}
 
 	// Placed greybox has already run BeginPlay. Mute before the smoke Ranger spawn.
 	MuteGreyboxProxyCollision();

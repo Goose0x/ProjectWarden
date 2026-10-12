@@ -1,7 +1,9 @@
 #include "Game/KodSpectatorController.h"
 
+#include "Components/PrimitiveComponent.h"
 #include "Engine/World.h"
 #include "Game/KodHUD.h"
+#include "Game/KodPortraitStage.h"
 #include "GameFramework/PlayerController.h"
 
 AKodSpectatorController::AKodSpectatorController()
@@ -26,4 +28,16 @@ void AKodSpectatorController::BeginPlay()
 	Mode.SetHideCursorDuringCapture(false);
 	SetInputMode(Mode);
 	bShowMouseCursor = true;
+}
+
+void AKodSpectatorController::BuildHiddenComponentList(const FVector& ViewLocation, TSet<FPrimitiveComponentId>& HiddenComponents)
+{
+	Super::BuildHiddenComponentList(ViewLocation, HiddenComponents);
+	if (const AKodHUD* HUD = Cast<AKodHUD>(GetHUD()))
+	{
+		if (const AKodPortraitStage* Stage = HUD->GetPortraitStage())
+		{
+			Stage->AppendHiddenPrimitives(HiddenComponents);
+		}
+	}
 }

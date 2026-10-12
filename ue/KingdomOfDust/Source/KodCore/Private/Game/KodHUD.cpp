@@ -12,7 +12,11 @@
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
 #include "Game/KodPlayerController.h"
+#include "Game/KodApmTracker.h"
 #include "Game/KodPlayerState.h"
+#include "Game/KodUserSettings.h"
+#include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Game/KodPortraitStage.h"
 #include "Game/KodRTSCameraPawn.h"
 #include "Game/KodSpectatorPawn.h"
@@ -81,6 +85,7 @@ void AKodHUD::DrawHUD()
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
 	DrawHotkeyLegend();
+	DrawShellMenus();
 }
 
 void AKodHUD::AddMinimapPing(const FVector& WorldPoint)
@@ -688,6 +693,14 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 	else if (CueId == FName(TEXT("cant_build")))
 	{
 		Text = TEXT("Can't build here");
+	}
+	else if (CueId == FName(TEXT("expand_or_be_exposed")))
+	{
+		Text = TEXT("Expand or be exposed");
+	}
+	else if (CueId == FName(TEXT("exposed")))
+	{
+		Text = TEXT("You are exposed");
 	}
 	else
 	{
@@ -1604,7 +1617,11 @@ void AKodHUD::DrawUnitHealthBars()
 		}
 		const bool bFull = HpState.Health >= HpState.MaxHealth - 0.5f;
 		const bool bSelected = Selected.Contains(BarActor);
-		const bool bShowAll = OwningPC->IsInputKeyDown(EKeys::LeftAlt) || OwningPC->IsInputKeyDown(EKeys::RightAlt);
+		const bool bShowAll = HealthBarMode == 2 || OwningPC->IsInputKeyDown(EKeys::LeftAlt) || OwningPC->IsInputKeyDown(EKeys::RightAlt);
+		if (HealthBarMode == 0 && !bSelected && !bShowAll)
+		{
+			continue;
+		}
 		float MouseX = 0.f;
 		float MouseY = 0.f;
 		const bool bHaveMouse = OwningPC->GetMousePosition(MouseX, MouseY);
@@ -1622,7 +1639,7 @@ void AKodHUD::DrawUnitHealthBars()
 			continue;
 		}
 		const bool bHover = bHaveMouse && FMath::Abs(MouseX - Screen.X) <= 42.f && FMath::Abs(MouseY - Screen.Y) <= 28.f;
-		if (bFull && !bSelected && !bHover && !bShowAll)
+		if (HealthBarMode != 2 && bFull && !bSelected && !bHover && !bShowAll)
 		{
 			continue;
 		}
@@ -1765,11 +1782,356 @@ void AKodHUD::DrawSelectionMarquee()
 	DrawLine(Min.X, Max.Y, Min.X, Min.Y, Edge, 2.f);
 }
 
+void AKodHUD::TogglePauseMenu()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (MenuPage == 1)
+	{
+		MenuPage = 0;
+		if (Sim && !Sim->IsMenuMode())
+		{
+			Sim->SetSimPaused(false);
+		}
+		return;
+	}
+	if (MenuPage != 0 && MenuPage != 6)
+	{
+		MenuPage = Sim && Sim->IsMenuMode() ? 8 : 0;
+		return;
+	}
+	MenuPage = 1;
+	if (Sim)
+	{
+		Sim->SetSimPaused(true);
+	}
+}
+
+void AKodHUD::SetMenuPage(int32 Page)
+{
+	MenuPage = Page;
+}
+
+void AKodHUD::HandleMenuChoice(int32 Choice)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	UKodUserSettings* Settings = UKodUserSettings::Get();
+	auto Resume = [this, Sim]()
+	{
+		MenuPage = 0;
+		if (Sim && !Sim->IsMenuMode())
+		{
+			Sim->SetSimPaused(false);
+		}
+	};
+	if (Choice == 0)
+	{
+		Resume();
+	}
+	else if (Choice == 1)
+	{
+		MenuPage = 3;
+	}
+	else if (Choice == 2)
+	{
+		MenuPage = 4;
+	}
+	else if (Choice == 3)
+	{
+		MenuPage = 2;
+	}
+	else if (Choice == 4 && World)
+	{
+		UGameplayStatics::OpenLevel(World, FName(*World->GetName()));
+	}
+	else if (Choice == 5 && World)
+	{
+		UGameplayStatics::OpenLevel(World, FName(*World->GetName()), true, TEXT("Menu=1"));
+	}
+	else if (Choice == 6)
+	{
+		MenuPage = 7;
+	}
+	else if (Choice == 7)
+	{
+		MenuPage = 5;
+		ScoreTab = 0;
+	}
+	else if (Choice == 8 && World)
+	{
+		UGameplayStatics::OpenLevel(World, FName(*World->GetName()));
+	}
+	else if (Choice == 9)
+	{
+		UKismetSystemLibrary::QuitGame(World, GetOwningPlayerController(), EQuitPreference::Quit, false);
+	}
+	else if (Choice >= 10 && Choice <= 12 && Sim)
+	{
+		Sim->SaveSkirmishSlot(Choice - 9);
+		Resume();
+	}
+	else if (Choice >= 13 && Choice <= 15 && Sim)
+	{
+		Sim->LoadSkirmishSlot(Choice - 12);
+		Resume();
+	}
+	else if (Choice >= 20 && Choice <= 23)
+	{
+		ScoreTab = Choice - 20;
+	}
+	else if (Choice == 30)
+	{
+		MenuPage = Sim && Sim->IsMenuMode() ? 8 : (Sim && Sim->IsMatchOver() ? 6 : 1);
+	}
+	else if (Choice == 40 && Settings)
+	{
+		Settings->MasterVolume = FMath::Clamp(Settings->MasterVolume + 0.1f, 0.f, 1.f);
+		Settings->SaveNow();
+		Settings->Apply(World);
+	}
+	else if (Choice == 41 && Settings)
+	{
+		Settings->MusicVolume = FMath::Clamp(Settings->MusicVolume + 0.1f, 0.f, 1.f);
+		Settings->SaveNow();
+		Settings->Apply(World);
+	}
+	else if (Choice == 42 && Settings)
+	{
+		Settings->SfxVolume = FMath::Clamp(Settings->SfxVolume + 0.1f, 0.f, 1.f);
+		Settings->SaveNow();
+		Settings->Apply(World);
+	}
+	else if (Choice == 43 && Settings)
+	{
+		Settings->VoiceVolume = FMath::Clamp(Settings->VoiceVolume + 0.1f, 0.f, 1.f);
+		Settings->SaveNow();
+		Settings->Apply(World);
+	}
+	else if (Choice == 44 && Settings)
+	{
+		Settings->EdgeScrollSpeed = FMath::Clamp(Settings->EdgeScrollSpeed + 400.f, 400.f, 12000.f);
+		Settings->SaveNow();
+		Settings->Apply(World);
+	}
+	else if (Choice == 45 && Settings)
+	{
+		Settings->KeyboardScrollSpeed = FMath::Clamp(Settings->KeyboardScrollSpeed + 400.f, 400.f, 12000.f);
+		Settings->SaveNow();
+		Settings->Apply(World);
+	}
+	else if (Choice == 46 && Settings)
+	{
+		Settings->MouseSensitivity = FMath::Clamp(Settings->MouseSensitivity + 0.1f, 0.2f, 3.f);
+		Settings->SaveNow();
+		Settings->Apply(World);
+	}
+	else if (Choice == 47 && Settings)
+	{
+		Settings->HealthBarMode = (Settings->HealthBarMode + 1) % 3;
+		Settings->SaveNow();
+		Settings->Apply(World);
+	}
+	else if (Choice == 48 && Settings)
+	{
+		Settings->bShowHotkeyGrid = !Settings->bShowHotkeyGrid;
+		Settings->SaveNow();
+		Settings->Apply(World);
+	}
+	else if (Choice == 49 && Settings)
+	{
+		Settings->GraphicsQuality = (Settings->GraphicsQuality + 1) % 4;
+		Settings->SaveNow();
+		Settings->Apply(World);
+	}
+	else if (Choice == 50 && Sim)
+	{
+		Sim->SetExposedRule(!Sim->IsExposedRuleEnabled());
+	}
+}
+
+void AKodHUD::DrawShellMenus()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (Sim && Sim->IsMenuMode() && MenuPage == 0)
+	{
+		MenuPage = 8;
+	}
+	if (Sim && Sim->IsMatchOver() && MenuPage == 0)
+	{
+		MenuPage = 6;
+	}
+	if (MenuPage == 0 || MenuPage == 7)
+	{
+		return;
+	}
+	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	auto Button = [this, Font, Scale](float X, float Y, float W, const FString& Label, int32 Choice)
+	{
+		DrawRect(FLinearColor(0.08f, 0.12f, 0.09f, 0.96f), X, Y, W, 36.f * Scale);
+		DrawText(Label, FLinearColor::White, X + 12.f * Scale, Y + 8.f * Scale, Font, Scale, false);
+		RememberChrome(FName(TEXT("Menu")), Choice, FName(), X, Y, X + W, Y + 36.f * Scale);
+	};
+	const float W = 420.f * Scale;
+	const float X = (Canvas->SizeX - W) * 0.5f;
+	float Y = Canvas->SizeY * 0.22f;
+	DrawRect(FLinearColor(0.02f, 0.03f, 0.03f, 0.94f), X - 16.f * Scale, Y - 20.f * Scale, W + 32.f * Scale, 520.f * Scale);
+	if (MenuPage == 1)
+	{
+		DrawText(TEXT("Paused"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X, Y, Font, 1.4f * Scale, false);
+		Y += 48.f * Scale;
+		Button(X, Y, W, TEXT("Resume"), 0); Y += 44.f * Scale;
+		Button(X, Y, W, TEXT("Save Game"), 1); Y += 44.f * Scale;
+		Button(X, Y, W, TEXT("Load Game"), 2); Y += 44.f * Scale;
+		Button(X, Y, W, TEXT("Settings"), 3); Y += 44.f * Scale;
+		Button(X, Y, W, TEXT("Restart"), 4); Y += 44.f * Scale;
+		Button(X, Y, W, TEXT("Quit to Main Menu"), 5);
+	}
+	else if (MenuPage == 3 || MenuPage == 4)
+	{
+		const bool bSave = MenuPage == 3;
+		DrawText(bSave ? TEXT("Save Game") : TEXT("Load Game"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X, Y, Font, 1.2f * Scale, false);
+		Y += 48.f * Scale;
+		for (int32 Slot = 1; Slot <= 3; ++Slot)
+		{
+			Button(X, Y, W, FString::Printf(TEXT("Slot %d"), Slot), (bSave ? 9 : 12) + Slot);
+			Y += 44.f * Scale;
+		}
+		Button(X, Y, W, TEXT("Back"), 30);
+	}
+	else if (MenuPage == 2)
+	{
+		UKodUserSettings* Settings = UKodUserSettings::Get();
+		DrawText(TEXT("Settings"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X, Y, Font, 1.2f * Scale, false);
+		Y += 40.f * Scale;
+		const TCHAR* Bars[] = { TEXT("Selected"), TEXT("Damaged"), TEXT("Always") };
+		Button(X, Y, W, FString::Printf(TEXT("Master %.0f%%"), Settings->MasterVolume * 100.f), 40); Y += 40.f * Scale;
+		Button(X, Y, W, FString::Printf(TEXT("Music %.0f%%"), Settings->MusicVolume * 100.f), 41); Y += 40.f * Scale;
+		Button(X, Y, W, FString::Printf(TEXT("SFX %.0f%%"), Settings->SfxVolume * 100.f), 42); Y += 40.f * Scale;
+		Button(X, Y, W, FString::Printf(TEXT("Voice %.0f%%"), Settings->VoiceVolume * 100.f), 43); Y += 40.f * Scale;
+		Button(X, Y, W, FString::Printf(TEXT("Edge scroll %.0f"), Settings->EdgeScrollSpeed), 44); Y += 40.f * Scale;
+		Button(X, Y, W, FString::Printf(TEXT("Key scroll %.0f"), Settings->KeyboardScrollSpeed), 45); Y += 40.f * Scale;
+		Button(X, Y, W, FString::Printf(TEXT("Mouse %.1f"), Settings->MouseSensitivity), 46); Y += 40.f * Scale;
+		Button(X, Y, W, FString::Printf(TEXT("Health bars %s"), Bars[FMath::Clamp(Settings->HealthBarMode, 0, 2)]), 47); Y += 40.f * Scale;
+		Button(X, Y, W, Settings->bShowHotkeyGrid ? TEXT("Hotkey grid On") : TEXT("Hotkey grid Off"), 48); Y += 40.f * Scale;
+		Button(X, Y, W, FString::Printf(TEXT("Graphics %d"), Settings->GraphicsQuality), 49); Y += 40.f * Scale;
+		Button(X, Y, W, Sim && Sim->IsExposedRuleEnabled() ? TEXT("Exposed rule On") : TEXT("Exposed rule Off"), 50); Y += 40.f * Scale;
+		Button(X, Y, W, TEXT("Back"), 30);
+	}
+	else if (MenuPage == 6)
+	{
+		const bool bVictory = Sim && Sim->GetMatchOutcome() == EKodMatchOutcome::Victory;
+		DrawText(bVictory ? TEXT("VICTORY") : TEXT("DEFEAT"), bVictory ? FLinearColor(0.55f, 0.9f, 0.45f, 1.f) : FLinearColor(0.95f, 0.28f, 0.22f, 1.f), X, Y, Font, 1.6f * Scale, false);
+		Y += 56.f * Scale;
+		Button(X, Y, W, TEXT("Continue Watching"), 6); Y += 44.f * Scale;
+		Button(X, Y, W, TEXT("Score Screen"), 7); Y += 44.f * Scale;
+		Button(X, Y, W, TEXT("Restart Skirmish"), 4); Y += 44.f * Scale;
+		Button(X, Y, W, TEXT("Main Menu"), 5);
+	}
+	else if (MenuPage == 8)
+	{
+		DrawText(TEXT("Kingdom of Dust"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X, Y, Font, 1.4f * Scale, false);
+		Y += 56.f * Scale;
+		Button(X, Y, W, TEXT("Skirmish"), 8); Y += 44.f * Scale;
+		Button(X, Y, W, TEXT("Settings"), 3); Y += 44.f * Scale;
+		Button(X, Y, W, TEXT("Quit"), 9);
+	}
+	else if (MenuPage == 5 && Sim)
+	{
+		const TCHAR* Tabs[] = { TEXT("Overview"), TEXT("Production"), TEXT("Army"), TEXT("Income") };
+		DrawText(TEXT("Results"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X, Y, Font, 1.2f * Scale, false);
+		Y += 40.f * Scale;
+		for (int32 Tab = 0; Tab < 4; ++Tab)
+		{
+			Button(X + Tab * (W / 4.f), Y, W / 4.f - 4.f, Tabs[Tab], 20 + Tab);
+		}
+		Y += 48.f * Scale;
+		const int32 Seconds = static_cast<int32>(Sim->GetSimTickIndex() / 16);
+		int32 Average = 0;
+		int32 Peak = 0;
+		if (UKodApmTracker* Apm = World->GetSubsystem<UKodApmTracker>())
+		{
+			Apm->GetApm(Average, Peak);
+		}
+		int32 Collected = 0;
+		int32 Trained = 0;
+		int32 Killed = 0;
+		int32 Built = 0;
+		int32 Razed = 0;
+		Sim->GetTeamTotals(0, Collected, Trained, Killed, Built, Razed);
+		TArray<UKodSimSubsystem::FKodStatSample> Samples;
+		Sim->CopyStatSamples(0, Samples);
+		if (ScoreTab == 0)
+		{
+			DrawText(FString::Printf(TEXT("Time %02d:%02d"), Seconds / 60, Seconds % 60), FLinearColor::White, X, Y, Font, Scale, false); Y += 28.f * Scale;
+			DrawText(FString::Printf(TEXT("APM %d  peak %d"), Average, Peak), FLinearColor::White, X, Y, Font, Scale, false); Y += 28.f * Scale;
+			DrawText(FString::Printf(TEXT("Collected %d"), Collected), FLinearColor::White, X, Y, Font, Scale, false); Y += 28.f * Scale;
+			DrawText(FString::Printf(TEXT("Trained %d   Killed %d"), Trained, Killed), FLinearColor::White, X, Y, Font, Scale, false); Y += 28.f * Scale;
+			DrawText(FString::Printf(TEXT("Built %d   Razed %d"), Built, Razed), FLinearColor::White, X, Y, Font, Scale, false);
+		}
+		else
+		{
+			float MaxValue = 1.f;
+			for (const UKodSimSubsystem::FKodStatSample& Sample : Samples)
+			{
+				const int32 Value = ScoreTab == 1 ? Sample.Trained + Sample.Built : (ScoreTab == 2 ? Sample.ArmyValue : Sample.Income);
+				MaxValue = FMath::Max(MaxValue, static_cast<float>(Value));
+			}
+			const float ChartW = W;
+			const float ChartH = 160.f * Scale;
+			FVector2D Prev(X, Y + ChartH);
+			for (int32 Index = 0; Index < Samples.Num(); ++Index)
+			{
+				const int32 Value = ScoreTab == 1 ? Samples[Index].Trained + Samples[Index].Built : (ScoreTab == 2 ? Samples[Index].ArmyValue : Samples[Index].Income);
+				const float Px = X + ChartW * (Samples.Num() <= 1 ? 0.f : static_cast<float>(Index) / static_cast<float>(Samples.Num() - 1));
+				const float Py = Y + ChartH - ChartH * (static_cast<float>(Value) / MaxValue);
+				if (Index > 0)
+				{
+					DrawLine(Prev.X, Prev.Y, Px, Py, FLinearColor(0.4f, 0.85f, 0.45f, 1.f), 2.f);
+				}
+				Prev = FVector2D(Px, Py);
+			}
+		}
+		Y += 200.f * Scale;
+		Button(X, Y, W, TEXT("Back"), 30);
+	}
+}
+
 void AKodHUD::BeginPlay()
 {
 	Super::BeginPlay();
 	bShowHUD = true;
 	BindAlertFeed();
+	if (UWorld* SettingsWorld = GetWorld())
+	{
+		if (UKodUserSettings* Settings = UKodUserSettings::Get())
+		{
+			Settings->Apply(SettingsWorld);
+		}
+		if (UKodSimSubsystem* Sim = SettingsWorld->GetSubsystem<UKodSimSubsystem>())
+		{
+			if (Sim->IsMenuMode())
+			{
+				MenuPage = 8;
+			}
+		}
+	}
+	if (UWorld* PortraitWorld = GetWorld())
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		PortraitStage = PortraitWorld->SpawnActor<AKodPortraitStage>(
+			AKodPortraitStage::StaticClass(),
+			FVector(0.f, 0.f, -200000.f),
+			FRotator::ZeroRotator,
+			Params);
+	}
 
 	if (APlayerController* PC = GetOwningPlayerController())
 	{

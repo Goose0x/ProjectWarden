@@ -827,6 +827,7 @@ void UKodSimSubsystem::StepConstruction()
 				Combat->Health = Combat->MaxHealth;
 			}
 			RecalcSupplyCap(Structure->TeamId);
+			NoteStructureBuilt(Structure->TeamId);
 			UE_LOG(LogTemp, Log, TEXT("KodBuild Complete Id=%d Type=%s"),
 				Structure->Id.Value,
 				*Structure->DisplayId.ToString());

@@ -642,6 +642,23 @@ KodCue Missing Id=unit_ready_marine Path=/Game/Audio/TEMP/CoreLoop/unit_ready_ma
 KodPath Invalidate Id=3
 ```
 
+## B11 — pause, save, score, exposed
+
+F10 or Esc pauses the sim. The camera still moves. The canvas menu is Resume, Save, Load, Settings, Restart, and Quit to Main Menu. Three slots write `SaveGames/KodSkirmish_<slot>.sav`. Load restores the sim, snaps actors back, and logs `KodSave` / `KodLoad` with the state hash before and after.
+
+Settings cover master, music, SFX, and voice volume, edge and keyboard scroll, mouse grab, health-bar mode, the hotkey grid, and graphics quality 0–3. They persist in GameUserSettings.
+
+After VICTORY or DEFEAT the canvas offers Continue Watching, Score Screen, Restart Skirmish, and Main Menu. The results tabs are Overview, Production, Army, and Income. Samples are recorded every 5 sim seconds. APM counts player commands per real minute.
+
+If a player still has only one command center at 5:00 the alert says `Expand or be exposed`. At 6:00 their structures are revealed through fog and the minimap until a second command center is placed. `kod.Exposed 0/1` and `kod.ExposedTime <sec>` change the rule. The settings page has the same toggle.
+
+```
+KodSave Slot=1 HashBefore=...
+KodLoad Slot=1 HashBefore=... HashAfter=...
+KodExposed Warn Team=0
+KodExposed Start Team=0
+```
+
 ## Camera — SC2 player view
 
 `AKodRTSCameraPawn` is the player camera. Pitch **-56°**, yaw **0** (looks north), vertical FOV **42** (horizontal FOV follows the window). The pawn is the ground look-at point. Default arm length **3600** (about 20 SC2 cells of ground at 200 uu, zoom clamped **2400–5200**). All of those are `Config` on the class.

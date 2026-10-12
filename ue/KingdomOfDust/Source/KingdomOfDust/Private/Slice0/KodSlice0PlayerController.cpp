@@ -162,6 +162,13 @@ void AKodSlice0PlayerController::IssueGatherToSelection_Implementation(AActor* N
 void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
+	if (const AKodHUD* MenuHUD = Cast<AKodHUD>(GetHUD()))
+	{
+		if (MenuHUD->IsMenuOpen())
+		{
+			return;
+		}
+	}
 	if (!IsLocalPlayerController() || Cast<AKodSpectatorPawn>(GetPawn()))
 	{
 		return;
