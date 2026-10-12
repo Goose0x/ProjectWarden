@@ -1,0 +1,543 @@
+{
+  "meta": {
+    "id": "faultline_training_balance_v1",
+    "version": "1.0.0",
+    "date": "2026-10-12",
+    "status": "PLACEHOLDER",
+    "author": "Strategy and AI",
+    "units_convention": {
+      "time": "real seconds = SC2 LotV at Faster",
+      "distance": "SC2 units; 1 cell = 200 uu",
+      "percent": "whole numbers"
+    },
+    "core_sheet": "SOURCE/PLACEHOLDER_INTEGERS_CORE_LOOP_2026-10-11",
+    "id_note": "Core sheet uses SCI_ for Scinder; this file uses SCN_ as requested; core_row cites the SCI_ row",
+    "matchup": "Vanguard vs Scinder (AI)",
+    "start": {
+      "credits": 50,
+      "luminene": 0,
+      "workers": 12,
+      "buildings": [
+        "VAN_HQ",
+        "VAN_DROPOFF (core)"
+      ]
+    }
+  },
+  "units": [
+    {
+      "id": "VAN_AMP",
+      "display_name": "AMP",
+      "house": "Vanguard",
+      "core_row": "units.csv:VAN_AMP",
+      "name_status": "LOCKED",
+      "credits": 50,
+      "luminene": 0,
+      "build_time_s": 12,
+      "hp": 60,
+      "armor": 1,
+      "armor_type": "Armored",
+      "damage": 5,
+      "attacks_per_cycle": 1,
+      "cooldown_s": 1.07,
+      "dps": 4.7,
+      "range": 0.1,
+      "move_speed": 3.94,
+      "supply": 1,
+      "produced_at": "VAN_HQ",
+      "regen_hp_s": 0,
+      "notes": "Gathers Jadeite + works Luminene + builds + repairs (8 HP/s per core HM_VAN_AMP_REPAIR_RATE)",
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "VAN_MARINE",
+      "display_name": "MARINE",
+      "house": "Vanguard",
+      "core_row": "units.csv:VAN_MARINE",
+      "name_status": "LOCKED",
+      "credits": 50,
+      "luminene": 0,
+      "build_time_s": 18,
+      "hp": 45,
+      "armor": 0,
+      "armor_type": "Light",
+      "damage": 6,
+      "attacks_per_cycle": 1,
+      "cooldown_s": 0.61,
+      "dps": 9.8,
+      "dps_stimmed": 14.8,
+      "range": 5,
+      "move_speed": 3.15,
+      "move_speed_stimmed": 4.72,
+      "supply": 1,
+      "produced_at": "VAN_BARRACKS",
+      "regen_hp_s": 0,
+      "ability": {
+        "id": "ABL_VAN_COMBAT_STIM",
+        "core_row": "abilities.csv:ABL_VAN_COMBAT_STIM",
+        "hp_cost": 10,
+        "duration_s": 11,
+        "attack_speed_pct": 50,
+        "move_speed_pct": 50,
+        "cooldown_s": 1,
+        "tutorial_override": "pre-researched in Faultline Training (no Tech Lab step)"
+      },
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "SCN_WORKER",
+      "display_name": "WORKER",
+      "house": "Scinder",
+      "core_row": "units.csv:SCI_WORKER",
+      "name_status": "LOCKED",
+      "credits": 50,
+      "luminene": 0,
+      "build_time_s": 12,
+      "hp": 40,
+      "armor": 0,
+      "armor_type": "Light",
+      "damage": 5,
+      "attacks_per_cycle": 1,
+      "cooldown_s": 1.07,
+      "dps": 4.7,
+      "range": 0.1,
+      "move_speed": 3.94,
+      "supply": 1,
+      "produced_at": "SCN_HQ",
+      "regen_hp_s": 1.0,
+      "notes": "AI-side only in the tutorial (outpost dressing)",
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "SCN_FIGHTER",
+      "display_name": "FIGHTER",
+      "house": "Scinder",
+      "core_row": "units.csv:SCI_FIGHTER",
+      "name_status": "LOCKED",
+      "optional_row": true,
+      "credits": 40,
+      "luminene": 0,
+      "build_time_s": 14,
+      "hp": 35,
+      "armor": 0,
+      "armor_type": "Light",
+      "damage": 5,
+      "attacks_per_cycle": 1,
+      "cooldown_s": 0.61,
+      "dps": 8.2,
+      "range": 4,
+      "move_speed": 3.5,
+      "supply": 1,
+      "produced_at": "SCN_BARRACKS",
+      "regen_hp_s": 1.0,
+      "notes": "Optional reuse row: core basic infantry; backbone of guards and wave",
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "SCN_TWINBLADE",
+      "display_name": "TBD (twin-blade warrior)",
+      "house": "Scinder",
+      "core_row": null,
+      "name_status": "TUTORIAL-ONLY / name TBD (Strategy REVISIT: Art dressing vs elite melee slot)",
+      "credits": 75,
+      "luminene": 0,
+      "build_time_s": 22,
+      "hp": 110,
+      "armor": 1,
+      "armor_type": "Light",
+      "damage": 6,
+      "attacks_per_cycle": 2,
+      "cooldown_s": 0.6,
+      "dps": 20.0,
+      "range": 0.1,
+      "move_speed": 4.13,
+      "supply": 2,
+      "produced_at": "SCN_BARRACKS",
+      "prereq": "SCN_BARRACKS",
+      "regen_hp_s": 1.0,
+      "sc2_analogue": "between Zealot (100 / 18.6 DPS) and adrenal Zergling (35 HP / 14 DPS)",
+      "notes": "Disciplined blade fighter; still a person (organic regen applies)",
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "SCN_HOST",
+      "display_name": "Host",
+      "house": "Scinder",
+      "core_row": null,
+      "name_status": "STAMPED 2026-10-11 per PM relay (canon log on box still shows #78 DIRECTION); plate = Director",
+      "credits": 275,
+      "luminene": 200,
+      "build_time_s": 39,
+      "hp": 450,
+      "armor": 2,
+      "armor_type": "Armored",
+      "extra_tags": [
+        "Massive",
+        "Organic",
+        "T3"
+      ],
+      "damage": 30,
+      "attacks_per_cycle": 1,
+      "cooldown_s": 0.61,
+      "dps": 49.2,
+      "splash": "frontal arc 33 pct to units within 1.0",
+      "bonus_vs": null,
+      "range": 1,
+      "move_speed": 4.13,
+      "supply": 6,
+      "produced_at": "SCN_BARRACKS",
+      "prereq": "SCN_TECH + T3 gate (concept; name: Lore/Director)",
+      "regen_hp_s": 1.0,
+      "sc2_analogue": "Ultralisk (500 HP / 35 dmg) trimmed 10 pct",
+      "notes": "Rams ground units and lines; no Barrier-breaker and no structure bonus (damage vs Structure = base only). Not used in the tutorial wave (would wipe 8-10 Marines); listed for data completeness",
+      "placeholder": "PLACEHOLDER"
+    }
+  ],
+  "structures": [
+    {
+      "id": "VAN_HQ",
+      "display_name": "Command Center",
+      "core_row": "structures.csv:VAN_HQ",
+      "credits": 400,
+      "luminene": 0,
+      "build_time_s": 71,
+      "hp": 1500,
+      "armor": 1,
+      "armor_type": "Structure",
+      "supply_provided": 15,
+      "produces": [
+        "VAN_AMP"
+      ],
+      "regen_hp_s": 0,
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "VAN_DEPOT",
+      "display_name": "Supply Depot",
+      "core_row": "structures.csv:VAN_DEPOT",
+      "credits": 100,
+      "luminene": 0,
+      "build_time_s": 21,
+      "hp": 400,
+      "armor": 1,
+      "armor_type": "Structure",
+      "supply_provided": 8,
+      "produces": [],
+      "regen_hp_s": 0,
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "VAN_BARRACKS",
+      "display_name": "Barracks",
+      "core_row": "structures.csv:VAN_BARRACKS",
+      "credits": 150,
+      "luminene": 0,
+      "build_time_s": 46,
+      "hp": 1000,
+      "armor": 1,
+      "armor_type": "Structure",
+      "supply_provided": 0,
+      "produces": [
+        "VAN_MARINE"
+      ],
+      "prereq": "VAN_DEPOT",
+      "regen_hp_s": 0,
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "SCN_HQ",
+      "display_name": "Command Tent",
+      "house": "Scinder",
+      "core_row": "structures.csv:SCI_HQ",
+      "softdev_proposal": {
+        "hp": 1500,
+        "armor": 1
+      },
+      "hp": 1500,
+      "armor": 1,
+      "armor_type": "Structure",
+      "regen_hp_s": 2.0,
+      "regen_rule": "always-on (core HM_SCI_REGEN_STRUCT)",
+      "rationale": "Matches Hatchery 1500 and Soft Dev; a hall should take a real army to kill",
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "SCN_OUTPOST",
+      "display_name": "Scinder outpost (tutorial objective; concept; name: Lore/Director)",
+      "house": "Scinder",
+      "core_row": "structures.csv:SCI_DROPOFF",
+      "softdev_proposal": {
+        "hp": 500,
+        "armor": 1
+      },
+      "hp": 1000,
+      "armor": 1,
+      "armor_type": "Structure",
+      "regen_hp_s": 2.0,
+      "regen_rule": "always-on (core HM_SCI_REGEN_STRUCT)",
+      "rationale": "500 dies in ~8 s to 8 Marines and feels like a prop; 1000 (Spawning Pool / core drop-off) gives ~15-20 s of focused fire and a clear objective beat",
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "SCN_DEPOT",
+      "display_name": "Supply Depot",
+      "house": "Scinder",
+      "core_row": "structures.csv:SCI_DEPOT",
+      "softdev_proposal": {
+        "hp": 750,
+        "armor": 1
+      },
+      "hp": 400,
+      "armor": 1,
+      "armor_type": "Structure",
+      "regen_hp_s": 2.0,
+      "regen_rule": "always-on (core HM_SCI_REGEN_STRUCT)",
+      "rationale": "A 100-credit supply building should not outlast a Barracks; SC2 Depot 400 / Pylon 200+200",
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "SCN_EXTRACTOR",
+      "display_name": "Tapper",
+      "house": "Scinder",
+      "core_row": "structures.csv:SCI_EXTRACTOR",
+      "softdev_proposal": {
+        "hp": 750,
+        "armor": 1
+      },
+      "hp": 400,
+      "armor": 1,
+      "armor_type": "Structure",
+      "regen_hp_s": 2.0,
+      "regen_rule": "always-on (core HM_SCI_REGEN_STRUCT)",
+      "rationale": "Jury-rigged tap; Extractor 500 trimmed; keeps vent harass meaningful",
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "SCN_BARRACKS",
+      "display_name": "Camp",
+      "house": "Scinder",
+      "core_row": "structures.csv:SCI_BARRACKS",
+      "softdev_proposal": {
+        "hp": 750,
+        "armor": 1
+      },
+      "hp": 1000,
+      "armor": 1,
+      "armor_type": "Structure",
+      "regen_hp_s": 2.0,
+      "regen_rule": "always-on (core HM_SCI_REGEN_STRUCT)",
+      "rationale": "Spawning Pool / Barracks 1000; production should not fall before the outpost",
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "SCN_FACTORY",
+      "display_name": "Works",
+      "house": "Scinder",
+      "core_row": "structures.csv:SCI_FACTORY",
+      "softdev_proposal": {
+        "hp": 750,
+        "armor": 1
+      },
+      "hp": 1250,
+      "armor": 1,
+      "armor_type": "Structure",
+      "regen_hp_s": 2.0,
+      "regen_rule": "always-on (core HM_SCI_REGEN_STRUCT)",
+      "rationale": "Factory 1250 (Roach Warren 850); vehicle plant is the bigger investment",
+      "placeholder": "PLACEHOLDER"
+    },
+    {
+      "id": "SCN_TECH",
+      "display_name": "Palace",
+      "house": "Scinder",
+      "core_row": "structures.csv:SCI_TECH",
+      "softdev_proposal": {
+        "hp": 750,
+        "armor": 1
+      },
+      "hp": 1500,
+      "armor": 1,
+      "armor_type": "Structure",
+      "regen_hp_s": 2.0,
+      "regen_rule": "always-on (core HM_SCI_REGEN_STRUCT)",
+      "rationale": "Hatchery-job tech heart that paints Cause Field; Hatchery 1500 / Lair 2000",
+      "placeholder": "PLACEHOLDER"
+    }
+  ],
+  "pacing": [
+    {
+      "step": 1,
+      "id": "PACE_GATHER",
+      "objective": "Gather: train 2 AMPs and put them on Jadeite",
+      "m01_obj": "Obj 1 Stand up the FOB",
+      "target_s": 60,
+      "max_s": 120,
+      "placeholder": "PLACEHOLDER",
+      "note": "cumulative mission clock"
+    },
+    {
+      "step": 2,
+      "id": "PACE_SUPPLY",
+      "objective": "Build a Supply Depot",
+      "m01_obj": "Obj 1",
+      "target_s": 105,
+      "max_s": 180,
+      "placeholder": "PLACEHOLDER",
+      "note": "cumulative mission clock"
+    },
+    {
+      "step": 3,
+      "id": "PACE_BARRACKS",
+      "objective": "Build a Barracks",
+      "m01_obj": "Obj 1",
+      "target_s": 180,
+      "max_s": 270,
+      "placeholder": "PLACEHOLDER",
+      "note": "cumulative mission clock"
+    },
+    {
+      "step": 4,
+      "id": "PACE_RIG",
+      "objective": "Optional: build a Rig and put 3 AMPs on Luminene",
+      "m01_obj": "Obj 2 (Luminene half only; sensors + air pass deferred)",
+      "target_s": 240,
+      "max_s": 330,
+      "optional": true,
+      "placeholder": "PLACEHOLDER",
+      "note": "cumulative mission clock"
+    },
+    {
+      "step": 5,
+      "id": "PACE_MARINES",
+      "objective": "Train 8 Marines (Combat Stim pre-researched)",
+      "m01_obj": "Obj 1 -> Obj 3 prep",
+      "target_s": 390,
+      "max_s": 510,
+      "placeholder": "PLACEHOLDER",
+      "note": "cumulative mission clock"
+    },
+    {
+      "step": 6,
+      "id": "PACE_OUTPOST",
+      "objective": "Find and destroy the Scinder outpost",
+      "m01_obj": "Training beat (closest: Obj 4 ground clear)",
+      "target_s": 540,
+      "max_s": 660,
+      "placeholder": "PLACEHOLDER",
+      "note": "cumulative mission clock"
+    },
+    {
+      "step": 7,
+      "id": "PACE_COUNTERWAVE",
+      "objective": "Survive the counter-wave at the QRF lane (AMPs repair)",
+      "m01_obj": "Obj 3 Hold the QRF lane (LOCKED)",
+      "target_s": 660,
+      "max_s": 810,
+      "placeholder": "PLACEHOLDER",
+      "note": "cumulative mission clock"
+    },
+    {
+      "step": 8,
+      "id": "PACE_FINISH",
+      "objective": "Finish / debrief",
+      "m01_obj": "-",
+      "target_s": 690,
+      "max_s": 840,
+      "placeholder": "PLACEHOLDER",
+      "note": "cumulative mission clock"
+    }
+  ],
+  "ai": {
+    "static_defense": [
+      {
+        "id": "AI_SD_OUTPOST_FIGHTERS",
+        "guards": "SCN_OUTPOST",
+        "unit": "SCN_FIGHTER",
+        "count": {
+          "easy": 2,
+          "normal": 3
+        },
+        "leash_radius": 12,
+        "aggro_range": 8,
+        "regen": true,
+        "regen_hp_s": 1.0,
+        "on_leash": "walk back to post (no ability use) and regen",
+        "placeholder": "PLACEHOLDER"
+      },
+      {
+        "id": "AI_SD_OUTPOST_BLADE",
+        "guards": "SCN_OUTPOST",
+        "unit": "SCN_TWINBLADE",
+        "count": {
+          "easy": 0,
+          "normal": 1
+        },
+        "leash_radius": 10,
+        "aggro_range": 6,
+        "regen": true,
+        "regen_hp_s": 1.0,
+        "on_leash": "walk back to post and regen",
+        "placeholder": "PLACEHOLDER"
+      },
+      {
+        "id": "AI_SD_OUTPOST_WORKERS",
+        "guards": "SCN_OUTPOST",
+        "unit": "SCN_WORKER",
+        "count": {
+          "easy": 3,
+          "normal": 3
+        },
+        "leash_radius": 0,
+        "aggro_range": 0,
+        "regen": true,
+        "regen_hp_s": 1.0,
+        "on_leash": "passive dressing; flee on damage",
+        "placeholder": "PLACEHOLDER"
+      }
+    ],
+    "counter_wave": {
+      "id": "AI_CW_01",
+      "trigger": "SCN_OUTPOST destroyed",
+      "trigger_delay_s": {
+        "easy": 60,
+        "normal": 45
+      },
+      "warning_vo_lead_s": 15,
+      "composition": {
+        "normal": [
+          {
+            "unit": "SCN_FIGHTER",
+            "count": 5
+          },
+          {
+            "unit": "SCN_TWINBLADE",
+            "count": 1
+          }
+        ],
+        "easy": [
+          {
+            "unit": "SCN_FIGHTER",
+            "count": 4
+          },
+          {
+            "unit": "SCN_TWINBLADE",
+            "count": 1
+          }
+        ]
+      },
+      "difficulty_scalar": {
+        "easy": 0.75,
+        "normal": 1.0,
+        "applies_to": [
+          "hp",
+          "damage"
+        ]
+      },
+      "spawn_point": "SPAWN_CW_01 (map marker; rift edge off the outpost side; Map Designer places)",
+      "attack_target": "attack-move to the QRF lane choke (QRF_LANE_01), then the nearest VAN_BARRACKS",
+      "retreat_rule": "when 70 pct of wave starting HP is lost or 90 s elapse: survivors fall back to SPAWN_CW_01 and despawn; Obj 3 completes",
+      "beatability_check": "normal wave 285 HP / ~61 DPS vs 9 unstimmed Marines 405 HP / ~89 DPS (Lanchester ~2:1 for the player; ~6-7 Marines survive; Stim widens it)",
+      "host_in_wave": false,
+      "placeholder": "PLACEHOLDER"
+    }
+  }
+}

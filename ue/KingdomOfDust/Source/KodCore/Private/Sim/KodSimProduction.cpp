@@ -229,6 +229,26 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	return Id;
 }
 
+void UKodSimSubsystem::TuneStructureCombat(FKodEntityId Id, int32 Armor, float WeaponDamage, float WeaponRange)
+{
+	FKodSimEntityState* State = States.Find(Id.Value);
+	if (!State)
+	{
+		return;
+	}
+	State->ArmorPoints = FMath::Max(0, Armor);
+	State->bMobile = false;
+	State->MoveSpeed = 0.f;
+	State->WeaponDamage = 0.f;
+	State->WeaponRange = 0.f;
+	State->WeaponCooldownTicks = 16;
+	if (FKodStructureState* Structure = Structures.Find(Id.Value))
+	{
+		Structure->AttackDamage = FMath::Max(0, FMath::RoundToInt(WeaponDamage));
+		Structure->AttackRangeUU = FMath::Max(0, FMath::RoundToInt(WeaponRange));
+	}
+}
+
 bool UKodSimSubsystem::IsStructure(FKodEntityId Id) const
 {
 	return Id.IsValid() && Structures.Contains(Id.Value);

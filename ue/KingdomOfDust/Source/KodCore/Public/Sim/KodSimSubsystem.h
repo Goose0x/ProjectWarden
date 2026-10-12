@@ -659,8 +659,23 @@ public:
 	void SetHealAutocast(FKodEntityId UnitId, bool bEnabled);
 	bool CastHeal(FKodEntityId UnitId);
 	void RaiseCue(FName CueId, FVector Location, bool bAtLocation);
+	/** Armour and a structure gun. The shot comes from the structure's turret fields, not a mobile unit. */
+	void TuneStructureCombat(FKodEntityId Id, int32 Armor, float WeaponDamage, float WeaponRange);
 	/** Team 0 damage. Area-throttled under-attack alert. Hashed. */
 	void NotifyOwnedDamage(const FKodSimEntityState& Target);
+	/** 0 is Vanguard, 1 is Scinder. The other faction is the enemy. Hashed and saved. */
+	void SetPlayerFaction(int32 Faction);
+	int32 GetPlayerFaction() const { return PlayerFaction; }
+	bool IsFaultlineTraining() const { return bFaultlineTraining; }
+	/**
+	 * Arms the tutorial from the balance file. OutpostCount 0 logs an error and never spawns.
+	 * Guards, the delayed counter-wave, leash, and retreat all run in the sim tick. Hashed and saved.
+	 */
+	void ArmFaultlineScript(const FKodFaultlineScript& Script);
+	/** Structure HP, armour, and always-on regen. Does not clear a turret's attack fields. */
+	void SetStructureVitals(FKodEntityId Id, int32 MaxHp, int32 Armor, int32 RegenMilliPerSec);
+	/** Applies balance HP, damage, and regen after the spawn bridge registers the actor. */
+	void AdoptScriptedSpawn(FKodEntityId Id, const FKodPendingUnitSpawn& Request);
 
 	/** Broadcasts a floater. Nothing is stored on the sim, hashed, or saved. */
 	void PushJuiceText(const FVector& Position, int32 Amount, uint8 Kind);
@@ -857,6 +872,10 @@ protected:
 	void ChooseAiOpener();
 	void RememberAiMatch();
 	void StepTech();
+	void StepFaultlineWave();
+	void ResetFaultlineScript();
+	void EnqueueFaultlineUnit(FName UnitId, int32 Slot, uint8 Role, int32 Health, int32 Damage, int32 RangeUU, int32 Speed, int32 Armor, int32 CooldownTicks, int32 RegenMilli, int32 HomeX, int32 HomeY, int32 LeashUU, int32 AggroUU, const FVector& Rally, bool bAttackMove, FName Tag);
+	void DespawnFaultlineRole(uint8 Role);
 	void StepOrbital();
 	void StepPowers();
 	void ApplyReconVision();
@@ -1000,6 +1019,80 @@ protected:
 		int64 Tick = 0;
 	};
 	TArray<FKodAttackAlert> AttackAlerts;
+	/** 0 Vanguard, 1 Scinder. Hashed and saved. */
+	uint8 PlayerFaction = 0;
+	bool bFaultlineTraining = false;
+	bool bFaultlineWaveSent = false;
+	/** Log-once guard. Not hashed and not saved. */
+	bool bFaultlineWaveErrorLogged = false;
+	int32 FaultlineOutpostCount = 0;
+	int32 FaultlineWaveX = 0;
+	int32 FaultlineWaveY = 0;
+	int32 FaultlineWaveZ = 0;
+	int32 FaultlineHomeX = 0;
+	int32 FaultlineHomeY = 0;
+	int32 FaultlineHomeZ = 0;
+	/** 0 armed, 1 waiting out the delay, 2 wave in the field, 3 falling back, 4 finished. */
+	uint8 FaultlineWavePhase = 0;
+	int64 FaultlineWaveDueTick = 0;
+	int64 FaultlineWaveStartTick = 0;
+	int64 FaultlineRetreatTick = 0;
+	int32 FaultlineWaveStartHp = 0;
+	int32 FaultlineWaveExpected = 0;
+	uint8 bFaultlineGuardsSent = 0;
+	int32 FaultlineOutpostX = 0;
+	int32 FaultlineOutpostY = 0;
+	int32 FaultlineOutpostZ = 0;
+	int32 FaultlineLaneX = 0;
+	int32 FaultlineLaneY = 0;
+	int32 FaultlineLaneZ = 0;
+	uint8 bFaultlineHasLane = 0;
+	int32 FaultlineBarracksX = 0;
+	int32 FaultlineBarracksY = 0;
+	int32 FaultlineBarracksZ = 0;
+	int32 FaultlineDelayTicks = 0;
+	int32 FaultlineRetreatTicks = 0;
+	int32 FaultlineHpPermille = 1000;
+	int32 FaultlineGuardFighters = 0;
+	int32 FaultlineGuardBlades = 0;
+	int32 FaultlineGuardWorkers = 0;
+	int32 FaultlineWaveFighters = 0;
+	int32 FaultlineWaveBlades = 0;
+	int32 FaultlineFighterLeashUU = 0;
+	int32 FaultlineFighterAggroUU = 0;
+	int32 FaultlineBladeLeashUU = 0;
+	int32 FaultlineBladeAggroUU = 0;
+	int32 FaultlineFighterHp = 1;
+	int32 FaultlineFighterDamage = 0;
+	int32 FaultlineFighterRangeUU = 0;
+	int32 FaultlineFighterSpeed = 0;
+	int32 FaultlineFighterArmor = 0;
+	int32 FaultlineFighterCooldownTicks = 1;
+	int32 FaultlineFighterRegenMilli = 0;
+	int32 FaultlineBladeHp = 1;
+	int32 FaultlineBladeDamage = 0;
+	int32 FaultlineBladeRangeUU = 0;
+	int32 FaultlineBladeSpeed = 0;
+	int32 FaultlineBladeArmor = 0;
+	int32 FaultlineBladeCooldownTicks = 1;
+	int32 FaultlineBladeRegenMilli = 0;
+	int32 FaultlineWorkerHp = 1;
+	int32 FaultlineWorkerSpeed = 0;
+	int32 FaultlineWorkerRegenMilli = 0;
+	struct FKodScriptedUnit
+	{
+		int32 Id = 0;
+		uint8 Role = 0;
+		int32 HomeX = 0;
+		int32 HomeY = 0;
+		int32 LeashUU = 0;
+		int32 AggroUU = 0;
+		int32 RegenMilliPerSec = 0;
+		int32 RegenAcc = 0;
+		uint8 bOrdered = 0;
+		int32 LastHealth = 0;
+	};
+	TArray<FKodScriptedUnit> ScriptedUnits;
 	int32 PowerPoints0 = 0;
 	int32 PowerPoints1 = 0;
 	int32 ArtilleryCd0 = 0;

@@ -54,7 +54,8 @@ namespace
 		TEXT("resource_drop"),
 		TEXT("command_move"),
 		TEXT("command_attack"),
-		TEXT("cheat_enabled")
+		TEXT("cheat_enabled"),
+		TEXT("objective_complete")
 	};
 }
 
@@ -212,7 +213,8 @@ void UKodCueSubsystem::PlayCueNow(FName CueId, FVector Location, bool bAtLocatio
 	}
 
 	FKodCachedCue* Cached = CueCache.Find(CueId);
-	if (CueId == FName(TEXT("alert_ping")) && (!Cached || !Cached->Sound))
+	const bool bUiFallback = CueId == FName(TEXT("alert_ping")) || CueId == FName(TEXT("objective_complete"));
+	if (bUiFallback && (!Cached || !Cached->Sound))
 	{
 		if (FKodCachedCue* Click = CueCache.Find(FName(TEXT("ui_click"))))
 		{

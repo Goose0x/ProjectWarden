@@ -1,0 +1,2713 @@
+{
+ "meta": {
+  "name": "DRESS_LIST_FAULTLINE_TRAINING",
+  "version": "1.0",
+  "date": "2026-10-12",
+  "status": "PROXY / TEST — tutorial dress, lean first pass for AKodMapLife",
+  "generated_by": "_tools/gen_dress.py",
+  "coords": "uu centre origin; z: floor 0, plateaus +300, 'on cliff/mesa' = proxy top (greybox 500), attached rows = structure top",
+  "collision_rule": "ALL dress visual-only, collision off, no navigation effect. blocks:true = looks solid → wholly on sim-blocked cells, or attached to a Scinder PROXY footprint and hidden when it dies.",
+  "asset_rule": "Only /workspace/artifacts/env/naomi_content_paths_2026-10-12.md paths; SM_Monolith_A is the single user-mandated exception (full-scan confirmed).",
+  "look": "SC2-Terran-start FUNCTION and read (raised metal CC platform, resource arc to one side, vents at the arc ends, cracked dirt with dark rock patches, lush green home, cliffs dropping off) with our assets/palette, no SC2 IP; Jadeite is jade (#00FF73)."
+ },
+ "global_exclusions": [
+  {
+   "id": "BASE_KEEPCLEAR",
+   "ref": "KodStartSpot_0 / KodBaseSocket centres",
+   "rule": "no scatter within 2000 uu of either CC centre (base-owned rows exempt: platform deck/markings, Jadeite stand-in)"
+  },
+  {
+   "id": "ROUTES",
+   "ref": "KodRoute S1–S6 centrelines",
+   "rule": "≥400 uu, unless the whole footprint is on sim-blocked cells; decals never exempt"
+  },
+  {
+   "id": "RAMPS",
+   "ref": "KodRamp",
+   "rule": "ramp rect + 400 uu run-out empty"
+  },
+  {
+   "id": "CHOKE",
+   "ref": "KodChoke",
+   "rule": "choke cells empty"
+  },
+  {
+   "id": "BUILD_SLOTS",
+   "ref": "layout build_slots",
+   "rule": "≥100 uu clear of every suggested slot"
+  },
+  {
+   "id": "RESOURCES",
+   "ref": "KodResourceJadeite / KodResourceLuminene",
+   "rule": "≥400 uu from Jadeite, ≥200 uu from vents"
+  },
+  {
+   "id": "ENEMY_FOOTPRINTS",
+   "ref": "KodEnemyOutpost / KodEnemyBase",
+   "rule": "free dress ≥200 uu from footprints; attached rows only ON them"
+  },
+  {
+   "id": "FLOOR_CAP",
+   "rule": "loose props on walkable floor ≤0.1 per 1000×1000 uu"
+  }
+ ],
+ "jadeite_standin": {
+  "id": "R00_JADEITE_STANDIN",
+  "kind": "resource visual (attach to each KodResourceJadeite actor; NOT scatter)",
+  "mesh": "/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Monoliths/SM_Monolith_A",
+  "scale": [
+   0.12,
+   0.2
+  ],
+  "random_yaw": {
+   "random": true,
+   "range_deg": [
+    0,
+    360
+   ],
+   "step_deg": 15
+  },
+  "tint": {
+   "mode": "runtime",
+   "hex": "#00FF73",
+   "linear_rgb": [
+    0.0,
+    1.0,
+    0.45
+   ],
+   "how": "Dynamic material instance on slot 0 at spawn (or CustomPrimitiveData); parameter name per the mesh's material — Soft Dev to confirm"
+  },
+  "count": 16,
+  "collision": "off",
+  "source_note": "User-mandated. NOT in the 2026-10-12 md selection; confirmed in the full scan (/workspace/kod_paths.txt).",
+  "art_call": "Stand-in only; the real Jadeite crystal is Art's call."
+ },
+ "ground_zones": [
+  {
+   "zone": "DIRT_BASE",
+   "where": "whole playable floor by default; MIDDLE and paths",
+   "read": "cracked brown dirt (ref 1)",
+   "landscape_layer": "Soil",
+   "layer_info": "/Game/ModularSciFi/Landscape/Soil_LayerInfo",
+   "material_options": [
+    "/Game/Advanced_Auto_Material/Landscape_Material_Instances/MI_Adv_MM_Landscape_28_Desert_Tutorial",
+    "/Game/SandMaterial/Material/MI_Master_01 (pick the brown variant among MI_Master_01/2/3/10–15 in-editor)"
+   ]
+  },
+  {
+   "zone": "ROCK_PATCHES",
+   "where": "darker patches: cliff tops, mesa tops, 2–3 blobs in MIDDLE away from paths",
+   "read": "darker rock patches (ref 1)",
+   "landscape_layer": "BedRock",
+   "layer_info": "/Game/ModularSciFi/Landscape/BedRock_LayerInfo",
+   "material_options": [
+    "/Game/StylizedRocks_Etherion/RocksVol1/Materials/RockBiomes/MI_StylizedRock_Dusty (mesh tint)"
+   ]
+  },
+  {
+   "zone": "WORKER_SAND",
+   "where": "inside each mining hull (CC ↔ arc) and the platform skirt",
+   "read": "worn ground where AMPs run",
+   "landscape_layer": "Sand",
+   "layer_info": "/Game/ModularSciFi/Landscape/Sand_LayerInfo",
+   "material_options": []
+  },
+  {
+   "zone": "GRASS_HOME",
+   "where": "PLAYER_MAIN plateau outside the mining hull",
+   "read": "lush green (ref 2)",
+   "landscape_layer": "Grass (NO layer info in the md scan — GAP)",
+   "layer_info": null,
+   "material_options": [
+    "/Game/Advanced_Auto_Material/Landscape_Material_Instances/MI_Adv_MM_Landscape_28_Island_MultiGrass",
+    "/Game/StylizedOrcWarcamp/Materials/Foliage/M_Grass (foliage material only; no grass mesh in the md)"
+   ]
+  },
+  {
+   "zone": "GRASS_EDGE",
+   "where": "EXPANSION fringe (outside the mining hull), fading to dirt toward the choke",
+   "read": "grass → dirt transition",
+   "landscape_layer": "Grass + Soil blend",
+   "layer_info": null,
+   "material_options": [
+    "as GRASS_HOME"
+   ]
+  },
+  {
+   "zone": "SCORCHED_ROCK",
+   "where": "ENEMY_BASE_PLATEAU + TRIG_05_OUTPOST area",
+   "read": "Scinder-corrupted dark rock",
+   "landscape_layer": "BedRock (+ F17/F25 scorch decals)",
+   "layer_info": "/Game/ModularSciFi/Landscape/BedRock_LayerInfo",
+   "material_options": [
+    "/Game/StylizedOrcWarcamp/Materials/Landscape/M_Landscape (Orc landscape master; parent material, check it fits)"
+   ]
+  }
+ ],
+ "platform": {
+  "socket": "KodBaseSocket 9×9 octagon, 2-cell chamfer, +40 uu, 100 uu bevel skirt (map_features polygon_uu)",
+  "status": "CUSTOM ASSET NEEDED — no hex/octagon platform or trim mesh in the scan",
+  "proposed_asset": "/Game/Kod/Env/Platforms/SM_Kod_CCPlatform_Oct9 (Art)",
+  "stand_in": "greybox row strips + bevel skirts (build_greybox.py 8c) with F11 MI_Scifi_Panels_06/09",
+  "optional_marking": "/Game/ModularSciFi/StaticMeshes/DecalsPlanes/SM_GraphicalDecal_001 — dropped: the guided KodRoute crosses the aprons (decals keep the 400 uu path rule); revisit with the custom platform",
+  "rejected": {
+   "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_OrcTowerPlatform": "wooden Orc platform: wrong faction read for a Vanguard CC"
+  }
+ },
+ "rows": [
+  {
+   "id": "F01_GREYBOX_FLOOR",
+   "assets": [
+    "/Game/FancyDev/Materials/MI_fancy_grid"
+   ],
+   "kind": "material",
+   "zone": "whole map (greybox, until the landscape pass)",
+   "density": "material override",
+   "scale": [
+    1,
+    1
+   ],
+   "random_yaw": {
+    "random": false
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 0,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "See ground_zones for the landscape pass.",
+   "instances": []
+  },
+  {
+   "id": "F02_BORDER_BG_CLIFF",
+   "assets": [
+    "/Game/StylizedRocks_Etherion/RocksVol1/Meshes/BG_Cliff_A/SM_BG_Cliff_A",
+    "/Game/StylizedRocks_Etherion/RocksVol1/Meshes/BG_Cliff_B/SM_BG_Cliff_B",
+    "/Game/StylizedRocks_Etherion/RocksVol1/Meshes/BG_Cliff_C/SM_BG_Cliff_C"
+   ],
+   "kind": "static mesh (HISM)",
+   "zone": "border band (KodCliffBlock BORDER_*), outside playable ±10,000 uu",
+   "density": {
+    "step_uu": 800
+   },
+   "scale": [
+    0.9,
+    1.4
+   ],
+   "random_yaw": {
+    "random": true,
+    "mode": "face_away_from_walkable",
+    "jitter_deg": 20
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 300,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "MI_BG_Cliff_{A,B,C}_Dusty. 'Cliffs dropping off at the edges' read from ref 2.",
+   "instances": [
+    {
+     "x": -10800.0,
+     "y": -10700.0
+    },
+    {
+     "x": -10800.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -10800.0
+    },
+    {
+     "x": 10700.0,
+     "y": -10800.0
+    },
+    {
+     "x": -10000.0,
+     "y": -10700.0
+    },
+    {
+     "x": -10000.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -10000.0
+    },
+    {
+     "x": 10700.0,
+     "y": -10000.0
+    },
+    {
+     "x": -9200.0,
+     "y": -10700.0
+    },
+    {
+     "x": -9200.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -9200.0
+    },
+    {
+     "x": 10700.0,
+     "y": -9200.0
+    },
+    {
+     "x": -8400.0,
+     "y": -10700.0
+    },
+    {
+     "x": -8400.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -8400.0
+    },
+    {
+     "x": 10700.0,
+     "y": -8400.0
+    },
+    {
+     "x": -7600.0,
+     "y": -10700.0
+    },
+    {
+     "x": -7600.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -7600.0
+    },
+    {
+     "x": 10700.0,
+     "y": -7600.0
+    },
+    {
+     "x": -6800.0,
+     "y": -10700.0
+    },
+    {
+     "x": -6800.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -6800.0
+    },
+    {
+     "x": 10700.0,
+     "y": -6800.0
+    },
+    {
+     "x": -6000.0,
+     "y": -10700.0
+    },
+    {
+     "x": -6000.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -6000.0
+    },
+    {
+     "x": 10700.0,
+     "y": -6000.0
+    },
+    {
+     "x": -5200.0,
+     "y": -10700.0
+    },
+    {
+     "x": -5200.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -5200.0
+    },
+    {
+     "x": 10700.0,
+     "y": -5200.0
+    },
+    {
+     "x": -4400.0,
+     "y": -10700.0
+    },
+    {
+     "x": -4400.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -4400.0
+    },
+    {
+     "x": 10700.0,
+     "y": -4400.0
+    },
+    {
+     "x": -3600.0,
+     "y": -10700.0
+    },
+    {
+     "x": -3600.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -3600.0
+    },
+    {
+     "x": 10700.0,
+     "y": -3600.0
+    },
+    {
+     "x": -2800.0,
+     "y": -10700.0
+    },
+    {
+     "x": -2800.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -2800.0
+    },
+    {
+     "x": 10700.0,
+     "y": -2800.0
+    },
+    {
+     "x": -2000.0,
+     "y": -10700.0
+    },
+    {
+     "x": -2000.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -2000.0
+    },
+    {
+     "x": 10700.0,
+     "y": -2000.0
+    },
+    {
+     "x": -1200.0,
+     "y": -10700.0
+    },
+    {
+     "x": -1200.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -1200.0
+    },
+    {
+     "x": 10700.0,
+     "y": -1200.0
+    },
+    {
+     "x": -400.0,
+     "y": -10700.0
+    },
+    {
+     "x": -400.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": -400.0
+    },
+    {
+     "x": 10700.0,
+     "y": -400.0
+    },
+    {
+     "x": 400.0,
+     "y": -10700.0
+    },
+    {
+     "x": 400.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 400.0
+    },
+    {
+     "x": 10700.0,
+     "y": 400.0
+    },
+    {
+     "x": 1200.0,
+     "y": -10700.0
+    },
+    {
+     "x": 1200.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 1200.0
+    },
+    {
+     "x": 10700.0,
+     "y": 1200.0
+    },
+    {
+     "x": 2000.0,
+     "y": -10700.0
+    },
+    {
+     "x": 2000.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 2000.0
+    },
+    {
+     "x": 10700.0,
+     "y": 2000.0
+    },
+    {
+     "x": 2800.0,
+     "y": -10700.0
+    },
+    {
+     "x": 2800.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 2800.0
+    },
+    {
+     "x": 10700.0,
+     "y": 2800.0
+    },
+    {
+     "x": 3600.0,
+     "y": -10700.0
+    },
+    {
+     "x": 3600.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 3600.0
+    },
+    {
+     "x": 10700.0,
+     "y": 3600.0
+    },
+    {
+     "x": 4400.0,
+     "y": -10700.0
+    },
+    {
+     "x": 4400.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 4400.0
+    },
+    {
+     "x": 10700.0,
+     "y": 4400.0
+    },
+    {
+     "x": 5200.0,
+     "y": -10700.0
+    },
+    {
+     "x": 5200.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 5200.0
+    },
+    {
+     "x": 10700.0,
+     "y": 5200.0
+    },
+    {
+     "x": 6000.0,
+     "y": -10700.0
+    },
+    {
+     "x": 6000.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 6000.0
+    },
+    {
+     "x": 10700.0,
+     "y": 6000.0
+    },
+    {
+     "x": 6800.0,
+     "y": -10700.0
+    },
+    {
+     "x": 6800.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 6800.0
+    },
+    {
+     "x": 10700.0,
+     "y": 6800.0
+    },
+    {
+     "x": 7600.0,
+     "y": -10700.0
+    },
+    {
+     "x": 7600.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 7600.0
+    },
+    {
+     "x": 10700.0,
+     "y": 7600.0
+    },
+    {
+     "x": 8400.0,
+     "y": -10700.0
+    },
+    {
+     "x": 8400.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 8400.0
+    },
+    {
+     "x": 10700.0,
+     "y": 8400.0
+    },
+    {
+     "x": 9200.0,
+     "y": -10700.0
+    },
+    {
+     "x": 9200.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 9200.0
+    },
+    {
+     "x": 10700.0,
+     "y": 9200.0
+    },
+    {
+     "x": 10000.0,
+     "y": -10700.0
+    },
+    {
+     "x": 10000.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 10000.0
+    },
+    {
+     "x": 10700.0,
+     "y": 10000.0
+    },
+    {
+     "x": 10800.0,
+     "y": -10700.0
+    },
+    {
+     "x": 10800.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 10800.0
+    },
+    {
+     "x": 10700.0,
+     "y": 10800.0
+    }
+   ]
+  },
+  {
+   "id": "F03_MAIN_PLATEAU_EDGE",
+   "assets": [
+    "/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Cliffside_A/SM_Cliffside_A",
+    "/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Cliffside_A/SM_Cliffside_A_Bent_A"
+   ],
+   "kind": "static mesh (HISM)",
+   "zone": "player main cliffs CLIFF_MAIN_N + CLIFF_MAIN_E (minus KodRamp)",
+   "density": {
+    "step_uu": 600
+   },
+   "scale": [
+    0.9,
+    1.15
+   ],
+   "random_yaw": {
+    "random": true,
+    "mode": "face_away_from_walkable",
+    "jitter_deg": 10
+   },
+   "align_to_slope": true,
+   "footprint_radius_uu": 200,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "MI_Cliffside_A_Dusty. One continuous +300 uu edge from the top-down camera.",
+   "instances": [
+    {
+     "x": -9700.0,
+     "y": -3000.0
+    },
+    {
+     "x": -9100.0,
+     "y": -3000.0
+    },
+    {
+     "x": -8500.0,
+     "y": -3000.0
+    },
+    {
+     "x": -7900.0,
+     "y": -3000.0
+    },
+    {
+     "x": -7300.0,
+     "y": -3000.0
+    },
+    {
+     "x": -6700.0,
+     "y": -3000.0
+    },
+    {
+     "x": -6100.0,
+     "y": -3000.0
+    },
+    {
+     "x": -5500.0,
+     "y": -3000.0
+    },
+    {
+     "x": -4900.0,
+     "y": -3000.0
+    },
+    {
+     "x": -4300.0,
+     "y": -3000.0
+    },
+    {
+     "x": -3700.0,
+     "y": -3000.0
+    },
+    {
+     "x": -3100.0,
+     "y": -3000.0
+    },
+    {
+     "x": -3000.0,
+     "y": -9690.9
+    },
+    {
+     "x": -3000.0,
+     "y": -9072.7
+    },
+    {
+     "x": -3000.0,
+     "y": -8454.5
+    },
+    {
+     "x": -3000.0,
+     "y": -7836.4
+    },
+    {
+     "x": -3000.0,
+     "y": -7218.2
+    },
+    {
+     "x": -3000.0,
+     "y": -6600.0
+    },
+    {
+     "x": -3000.0,
+     "y": -5981.8
+    },
+    {
+     "x": -3000.0,
+     "y": -4127.3
+    },
+    {
+     "x": -3000.0,
+     "y": -3509.1
+    }
+   ]
+  },
+  {
+   "id": "F04_EXPANSION_WALL",
+   "assets": [
+    "/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Cliffside_A/SM_Cliffside_A",
+    "/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Cliffside_A/SM_Cliffside_A_Bent_A"
+   ],
+   "kind": "static mesh (HISM)",
+   "zone": "CLIFF_EXP_N (minus KodChoke)",
+   "density": {
+    "step_uu": 600
+   },
+   "scale": [
+    0.9,
+    1.15
+   ],
+   "random_yaw": {
+    "random": true,
+    "mode": "face_away_from_walkable",
+    "jitter_deg": 10
+   },
+   "align_to_slope": true,
+   "footprint_radius_uu": 200,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "",
+   "instances": [
+    {
+     "x": -2495.2,
+     "y": -3700.0
+    },
+    {
+     "x": -1885.7,
+     "y": -3700.0
+    },
+    {
+     "x": -1276.2,
+     "y": -3700.0
+    },
+    {
+     "x": -666.7,
+     "y": -3700.0
+    },
+    {
+     "x": -57.1,
+     "y": -3700.0
+    },
+    {
+     "x": 552.4,
+     "y": -3700.0
+    },
+    {
+     "x": 1161.9,
+     "y": -3700.0
+    },
+    {
+     "x": 3600.0,
+     "y": -3700.0
+    },
+    {
+     "x": 4209.5,
+     "y": -3700.0
+    },
+    {
+     "x": 4819.0,
+     "y": -3700.0
+    },
+    {
+     "x": 5428.6,
+     "y": -3700.0
+    },
+    {
+     "x": 6038.1,
+     "y": -3700.0
+    },
+    {
+     "x": 6647.6,
+     "y": -3700.0
+    },
+    {
+     "x": 7257.1,
+     "y": -3700.0
+    },
+    {
+     "x": 7866.7,
+     "y": -3700.0
+    },
+    {
+     "x": 8476.2,
+     "y": -3700.0
+    },
+    {
+     "x": 9085.7,
+     "y": -3700.0
+    },
+    {
+     "x": 9695.2,
+     "y": -3700.0
+    }
+   ]
+  },
+  {
+   "id": "F05_ENEMY_PLATEAU_EDGE",
+   "assets": [
+    "/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Cliffside_A/SM_Cliffside_A",
+    "/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Cliffside_A/SM_Cliffside_A_Bent_A"
+   ],
+   "kind": "static mesh (HISM)",
+   "zone": "CLIFF_ENEMY_S + CLIFF_ENEMY_W (minus KodRamp)",
+   "density": {
+    "step_uu": 600
+   },
+   "scale": [
+    0.9,
+    1.15
+   ],
+   "random_yaw": {
+    "random": true,
+    "mode": "face_away_from_walkable",
+    "jitter_deg": 10
+   },
+   "align_to_slope": true,
+   "footprint_radius_uu": 200,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "Use MI_StylizedRock_Dusty darkened toward the Scinder side if a darker variant is wanted (open question).",
+   "instances": [
+    {
+     "x": 3509.1,
+     "y": 3400.0
+    },
+    {
+     "x": 4127.3,
+     "y": 3400.0
+    },
+    {
+     "x": 5981.8,
+     "y": 3400.0
+    },
+    {
+     "x": 6600.0,
+     "y": 3400.0
+    },
+    {
+     "x": 7218.2,
+     "y": 3400.0
+    },
+    {
+     "x": 7836.4,
+     "y": 3400.0
+    },
+    {
+     "x": 8454.5,
+     "y": 3400.0
+    },
+    {
+     "x": 9072.7,
+     "y": 3400.0
+    },
+    {
+     "x": 9690.9,
+     "y": 3400.0
+    },
+    {
+     "x": 3400.0,
+     "y": 3920.0
+    },
+    {
+     "x": 3400.0,
+     "y": 4560.0
+    },
+    {
+     "x": 3400.0,
+     "y": 5200.0
+    },
+    {
+     "x": 3400.0,
+     "y": 5840.0
+    },
+    {
+     "x": 3400.0,
+     "y": 6480.0
+    },
+    {
+     "x": 3400.0,
+     "y": 7120.0
+    },
+    {
+     "x": 3400.0,
+     "y": 7760.0
+    },
+    {
+     "x": 3400.0,
+     "y": 8400.0
+    },
+    {
+     "x": 3400.0,
+     "y": 9040.0
+    },
+    {
+     "x": 3400.0,
+     "y": 9680.0
+    }
+   ]
+  },
+  {
+   "id": "F06_MESA_FACES",
+   "assets": [
+    "/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Cliffside_A/SM_Cliffside_A",
+    "/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Cliffside_A/SM_Cliffside_A_Bent_A"
+   ],
+   "kind": "static mesh (HISM)",
+   "zone": "MESA_EXP_E, MESA_W, MESA_NW, MESA_MID perimeters, 200 uu inset",
+   "density": {
+    "step_uu": 600
+   },
+   "scale": [
+    0.9,
+    1.2
+   ],
+   "random_yaw": {
+    "random": true,
+    "mode": "face_away_from_walkable",
+    "jitter_deg": 10
+   },
+   "align_to_slope": true,
+   "footprint_radius_uu": 200,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "",
+   "instances": [
+    {
+     "x": 4900.0,
+     "y": -9800.0
+    },
+    {
+     "x": 5500.0,
+     "y": -9800.0
+    },
+    {
+     "x": 6100.0,
+     "y": -9800.0
+    },
+    {
+     "x": 6700.0,
+     "y": -9800.0
+    },
+    {
+     "x": 7300.0,
+     "y": -9800.0
+    },
+    {
+     "x": 7900.0,
+     "y": -9800.0
+    },
+    {
+     "x": 8500.0,
+     "y": -9800.0
+    },
+    {
+     "x": 9100.0,
+     "y": -9800.0
+    },
+    {
+     "x": 9700.0,
+     "y": -9800.0
+    },
+    {
+     "x": 9800.0,
+     "y": -9300.0
+    },
+    {
+     "x": 9800.0,
+     "y": -8700.0
+    },
+    {
+     "x": 9800.0,
+     "y": -8100.0
+    },
+    {
+     "x": 9800.0,
+     "y": -7500.0
+    },
+    {
+     "x": 9800.0,
+     "y": -6900.0
+    },
+    {
+     "x": 9800.0,
+     "y": -6300.0
+    },
+    {
+     "x": 9800.0,
+     "y": -5700.0
+    },
+    {
+     "x": 9800.0,
+     "y": -5100.0
+    },
+    {
+     "x": 9800.0,
+     "y": -4500.0
+    },
+    {
+     "x": 9500.0,
+     "y": -4200.0
+    },
+    {
+     "x": 8900.0,
+     "y": -4200.0
+    },
+    {
+     "x": 8300.0,
+     "y": -4200.0
+    },
+    {
+     "x": 7700.0,
+     "y": -4200.0
+    },
+    {
+     "x": 7100.0,
+     "y": -4200.0
+    },
+    {
+     "x": 6500.0,
+     "y": -4200.0
+    },
+    {
+     "x": 5900.0,
+     "y": -4200.0
+    },
+    {
+     "x": 5300.0,
+     "y": -4200.0
+    },
+    {
+     "x": 4700.0,
+     "y": -4200.0
+    },
+    {
+     "x": 4600.0,
+     "y": -4700.0
+    },
+    {
+     "x": 4600.0,
+     "y": -5300.0
+    },
+    {
+     "x": 4600.0,
+     "y": -5900.0
+    },
+    {
+     "x": 4600.0,
+     "y": -6500.0
+    },
+    {
+     "x": 4600.0,
+     "y": -7100.0
+    },
+    {
+     "x": 4600.0,
+     "y": -7700.0
+    },
+    {
+     "x": 4600.0,
+     "y": -8300.0
+    },
+    {
+     "x": 4600.0,
+     "y": -8900.0
+    },
+    {
+     "x": 4600.0,
+     "y": -9500.0
+    },
+    {
+     "x": -9497.3,
+     "y": -2600.0
+    },
+    {
+     "x": -8891.9,
+     "y": -2600.0
+    },
+    {
+     "x": -8286.5,
+     "y": -2600.0
+    },
+    {
+     "x": -7681.1,
+     "y": -2600.0
+    },
+    {
+     "x": -7075.7,
+     "y": -2600.0
+    },
+    {
+     "x": -6470.3,
+     "y": -2600.0
+    },
+    {
+     "x": -5864.9,
+     "y": -2600.0
+    },
+    {
+     "x": -5259.5,
+     "y": -2600.0
+    },
+    {
+     "x": -4654.1,
+     "y": -2600.0
+    },
+    {
+     "x": -4200.0,
+     "y": -2448.6
+    },
+    {
+     "x": -4200.0,
+     "y": -1843.2
+    },
+    {
+     "x": -4200.0,
+     "y": -1237.8
+    },
+    {
+     "x": -4200.0,
+     "y": -632.4
+    },
+    {
+     "x": -4200.0,
+     "y": -27.0
+    },
+    {
+     "x": -4200.0,
+     "y": 578.4
+    },
+    {
+     "x": -4200.0,
+     "y": 1183.8
+    },
+    {
+     "x": -4200.0,
+     "y": 1789.2
+    },
+    {
+     "x": -4200.0,
+     "y": 2394.6
+    },
+    {
+     "x": -4200.0,
+     "y": 3000.0
+    },
+    {
+     "x": -4805.4,
+     "y": 3000.0
+    },
+    {
+     "x": -5410.8,
+     "y": 3000.0
+    },
+    {
+     "x": -6016.2,
+     "y": 3000.0
+    },
+    {
+     "x": -6621.6,
+     "y": 3000.0
+    },
+    {
+     "x": -7227.0,
+     "y": 3000.0
+    },
+    {
+     "x": -7832.4,
+     "y": 3000.0
+    },
+    {
+     "x": -8437.8,
+     "y": 3000.0
+    },
+    {
+     "x": -9043.2,
+     "y": 3000.0
+    },
+    {
+     "x": -9648.6,
+     "y": 3000.0
+    },
+    {
+     "x": -9800.0,
+     "y": 2545.9
+    },
+    {
+     "x": -9800.0,
+     "y": 1940.5
+    },
+    {
+     "x": -9800.0,
+     "y": 1335.1
+    },
+    {
+     "x": -9800.0,
+     "y": 729.7
+    },
+    {
+     "x": -9800.0,
+     "y": 124.3
+    },
+    {
+     "x": -9800.0,
+     "y": -481.1
+    },
+    {
+     "x": -9800.0,
+     "y": -1086.5
+    },
+    {
+     "x": -9800.0,
+     "y": -1691.9
+    },
+    {
+     "x": -9800.0,
+     "y": -2297.3
+    },
+    {
+     "x": -9500.0,
+     "y": 3400.0
+    },
+    {
+     "x": -8900.0,
+     "y": 3400.0
+    },
+    {
+     "x": -8300.0,
+     "y": 3400.0
+    },
+    {
+     "x": -7700.0,
+     "y": 3400.0
+    },
+    {
+     "x": -7100.0,
+     "y": 3400.0
+    },
+    {
+     "x": -6500.0,
+     "y": 3400.0
+    },
+    {
+     "x": -5900.0,
+     "y": 3400.0
+    },
+    {
+     "x": -5300.0,
+     "y": 3400.0
+    },
+    {
+     "x": -4700.0,
+     "y": 3400.0
+    },
+    {
+     "x": -4100.0,
+     "y": 3400.0
+    },
+    {
+     "x": -3500.0,
+     "y": 3400.0
+    },
+    {
+     "x": -2900.0,
+     "y": 3400.0
+    },
+    {
+     "x": -2300.0,
+     "y": 3400.0
+    },
+    {
+     "x": -1700.0,
+     "y": 3400.0
+    },
+    {
+     "x": -1100.0,
+     "y": 3400.0
+    },
+    {
+     "x": -500.0,
+     "y": 3400.0
+    },
+    {
+     "x": 100.0,
+     "y": 3400.0
+    },
+    {
+     "x": 700.0,
+     "y": 3400.0
+    },
+    {
+     "x": 1300.0,
+     "y": 3400.0
+    },
+    {
+     "x": 1900.0,
+     "y": 3400.0
+    },
+    {
+     "x": 2500.0,
+     "y": 3400.0
+    },
+    {
+     "x": 3000.0,
+     "y": 3500.0
+    },
+    {
+     "x": 3000.0,
+     "y": 4100.0
+    },
+    {
+     "x": 3000.0,
+     "y": 4700.0
+    },
+    {
+     "x": 3000.0,
+     "y": 5300.0
+    },
+    {
+     "x": 3000.0,
+     "y": 5900.0
+    },
+    {
+     "x": 3000.0,
+     "y": 6500.0
+    },
+    {
+     "x": 3000.0,
+     "y": 7100.0
+    },
+    {
+     "x": 3000.0,
+     "y": 7700.0
+    },
+    {
+     "x": 3000.0,
+     "y": 8300.0
+    },
+    {
+     "x": 3000.0,
+     "y": 8900.0
+    },
+    {
+     "x": 3000.0,
+     "y": 9500.0
+    },
+    {
+     "x": 2700.0,
+     "y": 9800.0
+    },
+    {
+     "x": 2100.0,
+     "y": 9800.0
+    },
+    {
+     "x": 1500.0,
+     "y": 9800.0
+    },
+    {
+     "x": 900.0,
+     "y": 9800.0
+    },
+    {
+     "x": 300.0,
+     "y": 9800.0
+    },
+    {
+     "x": -300.0,
+     "y": 9800.0
+    },
+    {
+     "x": -900.0,
+     "y": 9800.0
+    },
+    {
+     "x": -1500.0,
+     "y": 9800.0
+    },
+    {
+     "x": -2100.0,
+     "y": 9800.0
+    },
+    {
+     "x": -2700.0,
+     "y": 9800.0
+    },
+    {
+     "x": -3300.0,
+     "y": 9800.0
+    },
+    {
+     "x": -3900.0,
+     "y": 9800.0
+    },
+    {
+     "x": -4500.0,
+     "y": 9800.0
+    },
+    {
+     "x": -5100.0,
+     "y": 9800.0
+    },
+    {
+     "x": -5700.0,
+     "y": 9800.0
+    },
+    {
+     "x": -6300.0,
+     "y": 9800.0
+    },
+    {
+     "x": -6900.0,
+     "y": 9800.0
+    },
+    {
+     "x": -7500.0,
+     "y": 9800.0
+    },
+    {
+     "x": -8100.0,
+     "y": 9800.0
+    },
+    {
+     "x": -8700.0,
+     "y": 9800.0
+    },
+    {
+     "x": -9300.0,
+     "y": 9800.0
+    },
+    {
+     "x": -9800.0,
+     "y": 9700.0
+    },
+    {
+     "x": -9800.0,
+     "y": 9100.0
+    },
+    {
+     "x": -9800.0,
+     "y": 8500.0
+    },
+    {
+     "x": -9800.0,
+     "y": 7900.0
+    },
+    {
+     "x": -9800.0,
+     "y": 7300.0
+    },
+    {
+     "x": -9800.0,
+     "y": 6700.0
+    },
+    {
+     "x": -9800.0,
+     "y": 6100.0
+    },
+    {
+     "x": -9800.0,
+     "y": 5500.0
+    },
+    {
+     "x": -9800.0,
+     "y": 4900.0
+    },
+    {
+     "x": -9800.0,
+     "y": 4300.0
+    },
+    {
+     "x": -9800.0,
+     "y": 3700.0
+    },
+    {
+     "x": -2680.0,
+     "y": 200.0
+    },
+    {
+     "x": -2040.0,
+     "y": 200.0
+    },
+    {
+     "x": -1400.0,
+     "y": 200.0
+    },
+    {
+     "x": -1400.0,
+     "y": 840.0
+    },
+    {
+     "x": -1400.0,
+     "y": 1480.0
+    },
+    {
+     "x": -1720.0,
+     "y": 1800.0
+    },
+    {
+     "x": -2360.0,
+     "y": 1800.0
+    },
+    {
+     "x": -3000.0,
+     "y": 1800.0
+    },
+    {
+     "x": -3000.0,
+     "y": 1160.0
+    },
+    {
+     "x": -3000.0,
+     "y": 520.0
+    }
+   ]
+  },
+  {
+   "id": "F07_MESA_TOP_BOULDERS",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Rocks/SM_BoulderA",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Rocks/SM_BoulderB",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Rocks/SM_BoulderC",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Rocks/SM_BoulderD"
+   ],
+   "kind": "static mesh (HISM)",
+   "zone": "mesa tops (F06 mesas), 400 uu inset",
+   "density": {
+    "per_1000x1000_uu": 0.15
+   },
+   "scale": [
+    0.8,
+    1.4
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": true,
+   "footprint_radius_uu": 150,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "Dark rock patches on the out-of-play highlands.",
+   "instances": [
+    {
+     "x": 9043.8,
+     "y": -7066.0
+    },
+    {
+     "x": 8988.7,
+     "y": -6361.5
+    },
+    {
+     "x": 9530.2,
+     "y": -9350.2
+    },
+    {
+     "x": 6326.4,
+     "y": -8904.6
+    },
+    {
+     "x": -8564.2,
+     "y": 899.4
+    },
+    {
+     "x": -4505.5,
+     "y": 2437.9
+    },
+    {
+     "x": -7348.9,
+     "y": 1172.7
+    },
+    {
+     "x": -5583.7,
+     "y": 1929.1
+    },
+    {
+     "x": 2482.5,
+     "y": 3687.3
+    },
+    {
+     "x": 644.3,
+     "y": 4139.6
+    },
+    {
+     "x": -5823.4,
+     "y": 7329.7
+    },
+    {
+     "x": -7667.9,
+     "y": 5938.8
+    },
+    {
+     "x": -9594.1,
+     "y": 4494.5
+    },
+    {
+     "x": -8051.0,
+     "y": 8192.0
+    },
+    {
+     "x": -8902.6,
+     "y": 6395.9
+    },
+    {
+     "x": -3740.7,
+     "y": 3696.9
+    },
+    {
+     "x": -4379.5,
+     "y": 4224.1
+    },
+    {
+     "x": -1986.7,
+     "y": 5704.4
+    },
+    {
+     "x": -5064.6,
+     "y": 8243.1
+    }
+   ]
+  },
+  {
+   "id": "F08_PLAYER_RAMP_CHEEKS",
+   "assets": [
+    "/Game/AdvancedVillagePack/Meshes/SM_StoneFlat_Var01",
+    "/Game/AdvancedVillagePack/Meshes/SM_StoneFlat_Var02",
+    "/Game/AdvancedVillagePack/Meshes/SM_StoneFlat_Var03"
+   ],
+   "kind": "static mesh",
+   "zone": "cliff cells flanking the top of RAMP_PLAYER_MAIN",
+   "density": {
+    "count": 2
+   },
+   "scale": [
+    0.6,
+    0.9
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": true,
+   "footprint_radius_uu": 100,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "Frames the ramp mouth; ramp + 400 uu run-out stays empty.",
+   "instances": [
+    {
+     "x": -3100.0,
+     "y": -5700.0
+    },
+    {
+     "x": -3100.0,
+     "y": -4700.0
+    }
+   ]
+  },
+  {
+   "id": "F09_CHOKE_SHOULDERS",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Rocks/SM_BoulderA",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Rocks/SM_BoulderB"
+   ],
+   "kind": "static mesh",
+   "zone": "wall cells flanking CHOKE_EXP_N",
+   "density": {
+    "count": 2
+   },
+   "scale": [
+    0.7,
+    1.0
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": true,
+   "footprint_radius_uu": 100,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "Makes the 6-wide gap obvious.",
+   "instances": [
+    {
+     "x": 1500.0,
+     "y": -3700.0
+    },
+    {
+     "x": 2900.0,
+     "y": -3700.0
+    }
+   ]
+  },
+  {
+   "id": "F10_HOME_GREEN_CLUMPS",
+   "assets": [
+    "/Game/StylizedProvencal/Meshes/SM_Bush_01",
+    "/Game/StylizedProvencal/Meshes/SM_Bush_02",
+    "/Game/StylizedProvencal/Meshes/SM_Bush_03",
+    "/Game/StylizedProvencal/Meshes/SM_Bush_04"
+   ],
+   "kind": "static mesh (HISM)",
+   "zone": "grass zones (player main, expansion): 1-cell band at the cliff toes only",
+   "density": {
+    "count": "≤10 per zone"
+   },
+   "scale": [
+    0.6,
+    1.0
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": true,
+   "footprint_radius_uu": 80,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Low green clumps sell ref 2's lush read without clutter. Walkable: must read as foliage. Never on the platform, arc, slots or paths.",
+   "instances": [
+    {
+     "x": -8300.0,
+     "y": -3300.0
+    },
+    {
+     "x": -4700.0,
+     "y": -3300.0
+    },
+    {
+     "x": -9500.0,
+     "y": -3300.0
+    },
+    {
+     "x": -3300.0,
+     "y": -6300.0
+    },
+    {
+     "x": -6300.0,
+     "y": -3300.0
+    },
+    {
+     "x": -3300.0,
+     "y": -4500.0
+    },
+    {
+     "x": -3300.0,
+     "y": -9900.0
+    },
+    {
+     "x": -3300.0,
+     "y": -7500.0
+    },
+    {
+     "x": -3300.0,
+     "y": -3300.0
+    },
+    {
+     "x": -3300.0,
+     "y": -8700.0
+    },
+    {
+     "x": -2700.0,
+     "y": -6900.0
+    },
+    {
+     "x": -2700.0,
+     "y": -9700.0
+    },
+    {
+     "x": 4300.0,
+     "y": -6500.0
+    },
+    {
+     "x": -500.0,
+     "y": -4100.0
+    },
+    {
+     "x": 4300.0,
+     "y": -8900.0
+    },
+    {
+     "x": 3100.0,
+     "y": -4100.0
+    },
+    {
+     "x": 900.0,
+     "y": -4100.0
+    },
+    {
+     "x": -1900.0,
+     "y": -4100.0
+    },
+    {
+     "x": 4300.0,
+     "y": -4300.0
+    },
+    {
+     "x": -2700.0,
+     "y": -8100.0
+    }
+   ]
+  },
+  {
+   "id": "F11_PLATFORM_DECK",
+   "assets": [
+    "/Game/MaterialsScifi/Materials/Instances/MI_Scifi_Panels_06",
+    "/Game/MaterialsScifi/Materials/Instances/MI_Scifi_Panels_09"
+   ],
+   "kind": "material (on the greybox platform rows)",
+   "zone": "both KodBaseSocket octagons (top + bevel skirt)",
+   "density": "material override",
+   "scale": [
+    1,
+    1
+   ],
+   "random_yaw": {
+    "random": false
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 0,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Grey metal deck read for the raised CC platform. CUSTOM MESH NEEDED: SM_Kod_CCPlatform_Oct9 (9×9 octagon, 2-cell chamfer, +40 uu, 100 uu bevel). No suitable mesh in the scan.",
+   "base_owned": true,
+   "instances": []
+  },
+  {
+   "id": "F13_OUTPOST_SPIKES",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_MetalSpikeA"
+   ],
+   "kind": "static mesh (attached to the structure)",
+   "zone": "on each KodEnemyOutpost footprint",
+   "density": {
+    "count": "2 per structure"
+   },
+   "scale": [
+    0.8,
+    1.0
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 60,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "Scinder flavour. Hidden when the structure dies.",
+   "on": "KodEnemyOutpost",
+   "instances": [
+    {
+     "x": 1320.0,
+     "y": -480.0
+    },
+    {
+     "x": 1680.0,
+     "y": -120.0
+    },
+    {
+     "x": 520.0,
+     "y": -1000.0
+    },
+    {
+     "x": 680.0,
+     "y": -1000.0
+    },
+    {
+     "x": 2400.0,
+     "y": 320.0
+    },
+    {
+     "x": 2400.0,
+     "y": 480.0
+    }
+   ]
+  },
+  {
+   "id": "F14_OUTPOST_FLAG",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_FlagArrangementA"
+   ],
+   "kind": "static mesh (attached)",
+   "zone": "OUTPOST_SPIRE footprint",
+   "density": {
+    "count": 1
+   },
+   "scale": [
+    0.9,
+    1.0
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 100,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "Static flags (cloth banners skipped).",
+   "on": "KodEnemyOutpost",
+   "instances": [
+    {
+     "x": 1500.0,
+     "y": -300.0
+    }
+   ]
+  },
+  {
+   "id": "F15_OUTPOST_FIRE",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/FX/NS_BrazierFire",
+    "/Game/StylizedOrcWarcamp/FX/NS_CampFireSmoke"
+   ],
+   "kind": "niagara (attached)",
+   "zone": "OUTPOST_WARD_A / _B tops (fire) + spire (smoke)",
+   "density": {
+    "count": 3
+   },
+   "scale": [
+    0.7,
+    0.9
+   ],
+   "random_yaw": {
+    "random": false
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 0,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Fire on wards, thin smoke on the spire. Off when the structure dies.",
+   "on": "KodEnemyOutpost",
+   "instances": [
+    {
+     "x": 600.0,
+     "y": -1000.0
+    },
+    {
+     "x": 2400.0,
+     "y": 400.0
+    },
+    {
+     "x": 1500.0,
+     "y": -180.0
+    }
+   ]
+  },
+  {
+   "id": "F16_OUTPOST_BONES",
+   "assets": [
+    "/Game/Fab/Props_Pack_-_Bones___Skulls/props_pack_bones_skulls/StaticMeshes/props_pack_bones_skulls",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_BoneRibCageFull"
+   ],
+   "kind": "static mesh",
+   "zone": "east rim of MESA_MID, facing the outpost",
+   "density": {
+    "count": 3
+   },
+   "scale": [
+    0.8,
+    1.1
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": true,
+   "footprint_radius_uu": 120,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Battle-scar flavour, sparingly.",
+   "instances": [
+    {
+     "x": -1300.0,
+     "y": 500.0
+    },
+    {
+     "x": -1300.0,
+     "y": 1100.0
+    },
+    {
+     "x": -1300.0,
+     "y": 1700.0
+    }
+   ]
+  },
+  {
+   "id": "F17_OUTPOST_SCORCH",
+   "assets": [
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark01",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark02",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark03",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark04",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark05",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark06",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark07",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark08"
+   ],
+   "kind": "decal",
+   "zone": "inside TRIG_05_OUTPOST, off all KodRoute bands",
+   "density": {
+    "count": 3
+   },
+   "scale": [
+    1.5,
+    2.5
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 250,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "",
+   "instances": [
+    {
+     "x": 2226.1,
+     "y": -1032.7
+    },
+    {
+     "x": 926.4,
+     "y": 1478.3
+    },
+    {
+     "x": 3380.6,
+     "y": 230.0
+    }
+   ]
+  },
+  {
+   "id": "F18_SCINDER_LEDGE_CAMP",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_OrcSmallTentA",
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_OrcSmallTentB",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_TentWallLargeA",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_WoodWallCurved"
+   ],
+   "kind": "blueprint / static mesh (visual only)",
+   "zone": "MESA_NW east ledge (x66–69, y78–100), overlooking the Scinder plateau",
+   "density": {
+    "count": 4
+   },
+   "scale": [
+    0.9,
+    1.0
+   ],
+   "random_yaw": {
+    "random": false,
+    "yaw_deg": [
+     90
+    ]
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 300,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "Scinder camp dressing (NOT buildings, not selectable). Disable any BP collision/overlap.",
+   "instances": [
+    {
+     "x": 2700.0,
+     "y": 4900.0
+    },
+    {
+     "x": 2700.0,
+     "y": 6100.0
+    },
+    {
+     "x": 2700.0,
+     "y": 7300.0
+    },
+    {
+     "x": 2700.0,
+     "y": 8500.0
+    }
+   ]
+  },
+  {
+   "id": "F19_SCINDER_LEDGE_PROPS",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_TanningRack",
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_WeaponRack",
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_CampFire",
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_FirePit"
+   ],
+   "kind": "blueprint (visual only)",
+   "zone": "between the F18 tents",
+   "density": {
+    "count": 3
+   },
+   "scale": [
+    0.9,
+    1.0
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 150,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "",
+   "instances": [
+    {
+     "x": 2700.0,
+     "y": 5500.0
+    },
+    {
+     "x": 2700.0,
+     "y": 6700.0
+    },
+    {
+     "x": 2700.0,
+     "y": 7900.0
+    }
+   ]
+  },
+  {
+   "id": "F20_ENEMY_RAMP_TUSKS",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_LargeTuskA",
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_LargeTuskB",
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_LargeTuskC"
+   ],
+   "kind": "blueprint (visual only)",
+   "zone": "cliff cells flanking the top of RAMP_ENEMY_BASE",
+   "density": {
+    "count": 2
+   },
+   "scale": [
+    0.9,
+    1.1
+   ],
+   "random_yaw": {
+    "random": false,
+    "yaw_deg": [
+     0,
+     180
+    ]
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 150,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "Gate read for the final assault.",
+   "instances": [
+    {
+     "x": 4100.0,
+     "y": 3400
+    },
+    {
+     "x": 5500.0,
+     "y": 3400
+    }
+   ]
+  },
+  {
+   "id": "F21_ENEMY_SPIKES_FLAGS",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_MetalSpikeA",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_FlagA",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_FlagB"
+   ],
+   "kind": "static mesh (attached)",
+   "zone": "on KodEnemyBase footprints",
+   "density": {
+    "count": "2 per structure + 2 flags on the HQ"
+   },
+   "scale": [
+    0.8,
+    1.0
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 60,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": true,
+   "notes": "Hidden when the structure dies.",
+   "on": "KodEnemyBase",
+   "instances": [
+    {
+     "x": 7600.0,
+     "y": 7600.0
+    },
+    {
+     "x": 7800.0,
+     "y": 7800.0
+    },
+    {
+     "x": 6000.0,
+     "y": 7800.0
+    },
+    {
+     "x": 6200.0,
+     "y": 8000.0
+    },
+    {
+     "x": 7800.0,
+     "y": 6000.0
+    },
+    {
+     "x": 8000.0,
+     "y": 6200.0
+    },
+    {
+     "x": 5300.0,
+     "y": 4900.0
+    },
+    {
+     "x": 5500.0,
+     "y": 5100.0
+    },
+    {
+     "x": 6300.0,
+     "y": 5300.0
+    },
+    {
+     "x": 6500.0,
+     "y": 5500.0
+    },
+    {
+     "x": 7400.0,
+     "y": 8000.0
+    },
+    {
+     "x": 8000.0,
+     "y": 7400.0
+    }
+   ]
+  },
+  {
+   "id": "F22_ENEMY_FIRE_SMOKE",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/FX/NS_FireplaceFire",
+    "/Game/StylizedOrcWarcamp/FX/NS_BrazierSmoke"
+   ],
+   "kind": "niagara (attached)",
+   "zone": "ENEMY_TOWER_A/B (fire), ENEMY_HQ (smoke)",
+   "density": {
+    "count": 3
+   },
+   "scale": [
+    0.7,
+    1.0
+   ],
+   "random_yaw": {
+    "random": false
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 0,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "",
+   "on": "KodEnemyBase",
+   "instances": [
+    {
+     "x": 5400.0,
+     "y": 5000.0
+    },
+    {
+     "x": 6400.0,
+     "y": 5400.0
+    },
+    {
+     "x": 7700.0,
+     "y": 7700.0
+    }
+   ]
+  },
+  {
+   "id": "F23_LEDGE_FIRE_SMOKE",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/FX/NS_BrazierFire",
+    "/Game/StylizedOrcWarcamp/FX/NS_CampFireSmoke"
+   ],
+   "kind": "niagara",
+   "zone": "F19 camp fire points",
+   "density": {
+    "count": 2
+   },
+   "scale": [
+    0.8,
+    1.0
+   ],
+   "random_yaw": {
+    "random": false
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 0,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Thin smoke columns: check they never hide units or the enemy HQ from the camera.",
+   "instances": [
+    {
+     "x": 2700.0,
+     "y": 6700.0
+    },
+    {
+     "x": 2700.0,
+     "y": 5500.0
+    }
+   ]
+  },
+  {
+   "id": "F24_ENEMY_BONES",
+   "assets": [
+    "/Game/Fab/Props_Pack_-_Bones___Skulls/props_pack_bones_skulls/StaticMeshes/props_pack_bones_skulls",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_BoneRibCageFull"
+   ],
+   "kind": "static mesh",
+   "zone": "CLIFF_ENEMY_W cells (plateau rim)",
+   "density": {
+    "count": 3
+   },
+   "scale": [
+    0.8,
+    1.1
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": true,
+   "footprint_radius_uu": 120,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Sparingly.",
+   "instances": [
+    {
+     "x": 3400.0,
+     "y": 5700.0
+    },
+    {
+     "x": 3400.0,
+     "y": 7300.0
+    },
+    {
+     "x": 3400.0,
+     "y": 8900.0
+    }
+   ]
+  },
+  {
+   "id": "F25_ENEMY_SCORCH",
+   "assets": [
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark01",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark02",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark03",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark04",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark05",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark06",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark07",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark08",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BurntPaint01",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BurntPaint02"
+   ],
+   "kind": "decal",
+   "zone": "Scinder plateau floor, off KodRoute bands and footprints",
+   "density": {
+    "count": 4
+   },
+   "scale": [
+    1.5,
+    2.5
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 250,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Corruption / battle-scar read.",
+   "instances": [
+    {
+     "x": 3767.5,
+     "y": 5635.1
+    },
+    {
+     "x": 9515.9,
+     "y": 7336.3
+    },
+    {
+     "x": 4466.7,
+     "y": 7772.6
+    },
+    {
+     "x": 6688.1,
+     "y": 4206.2
+    }
+   ]
+  },
+  {
+   "id": "F26_BORDER_DUST",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/FX/NS_BlowingDustSmall",
+    "/Game/StylizedOrcWarcamp/FX/NS_BlowingDust"
+   ],
+   "kind": "niagara",
+   "zone": "border band midpoints",
+   "density": {
+    "count": 4
+   },
+   "scale": [
+    0.8,
+    1.0
+   ],
+   "random_yaw": {
+    "random": false
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 0,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "NS_DustParticles stays OFF (readability).",
+   "instances": [
+    {
+     "x": 0.0,
+     "y": -10700.0
+    },
+    {
+     "x": 0.0,
+     "y": 10700.0
+    },
+    {
+     "x": -10700.0,
+     "y": 0.0
+    },
+    {
+     "x": 10700.0,
+     "y": 0.0
+    }
+   ]
+  }
+ ],
+ "skipped": [
+  {
+   "what": "cloth banners + BP_Banner",
+   "why": "skeleton reassign needed"
+  },
+  {
+   "what": "BP_OrcTower / BP_OrcTowerSmall / BP_OrcLargeTent / BP_OrcKitchen / BP_HangingCage / BP_FenceShort / BP_WoodDoor",
+   "why": "read as buildings or walls"
+  },
+  {
+   "what": "NS_DustParticles",
+   "why": "screen motes hurt readability"
+  },
+  {
+   "what": "grass meshes (AdvancedVillagePack SM_GrassPatch_*, AAM SM_Grass_*)",
+   "why": "full scan only, not in the md — GAP"
+  }
+ ],
+ "validation": {
+  "instances_total": 413,
+  "per_row": {
+   "F01_GREYBOX_FLOOR": {
+    "instances": 0,
+    "violations": 0
+   },
+   "F02_BORDER_BG_CLIFF": {
+    "instances": 112,
+    "violations": 0
+   },
+   "F03_MAIN_PLATEAU_EDGE": {
+    "instances": 21,
+    "violations": 0
+   },
+   "F04_EXPANSION_WALL": {
+    "instances": 18,
+    "violations": 0
+   },
+   "F05_ENEMY_PLATEAU_EDGE": {
+    "instances": 19,
+    "violations": 0
+   },
+   "F06_MESA_FACES": {
+    "instances": 147,
+    "violations": 0
+   },
+   "F07_MESA_TOP_BOULDERS": {
+    "instances": 19,
+    "violations": 0
+   },
+   "F08_PLAYER_RAMP_CHEEKS": {
+    "instances": 2,
+    "violations": 0
+   },
+   "F09_CHOKE_SHOULDERS": {
+    "instances": 2,
+    "violations": 0
+   },
+   "F10_HOME_GREEN_CLUMPS": {
+    "instances": 20,
+    "violations": 0
+   },
+   "F11_PLATFORM_DECK": {
+    "instances": 0,
+    "violations": 0
+   },
+   "F13_OUTPOST_SPIKES": {
+    "instances": 6,
+    "violations": 0
+   },
+   "F14_OUTPOST_FLAG": {
+    "instances": 1,
+    "violations": 0
+   },
+   "F15_OUTPOST_FIRE": {
+    "instances": 3,
+    "violations": 0
+   },
+   "F16_OUTPOST_BONES": {
+    "instances": 3,
+    "violations": 0
+   },
+   "F17_OUTPOST_SCORCH": {
+    "instances": 3,
+    "violations": 0
+   },
+   "F18_SCINDER_LEDGE_CAMP": {
+    "instances": 4,
+    "violations": 0
+   },
+   "F19_SCINDER_LEDGE_PROPS": {
+    "instances": 3,
+    "violations": 0
+   },
+   "F20_ENEMY_RAMP_TUSKS": {
+    "instances": 2,
+    "violations": 0
+   },
+   "F21_ENEMY_SPIKES_FLAGS": {
+    "instances": 12,
+    "violations": 0
+   },
+   "F22_ENEMY_FIRE_SMOKE": {
+    "instances": 3,
+    "violations": 0
+   },
+   "F23_LEDGE_FIRE_SMOKE": {
+    "instances": 2,
+    "violations": 0
+   },
+   "F24_ENEMY_BONES": {
+    "instances": 3,
+    "violations": 0
+   },
+   "F25_ENEMY_SCORCH": {
+    "instances": 4,
+    "violations": 0
+   },
+   "F26_BORDER_DUST": {
+    "instances": 4,
+    "violations": 0
+   }
+  },
+  "floor_props": 23,
+  "floor_cap": 40.0,
+  "failures": [],
+  "result": "PASS"
+ }
+}

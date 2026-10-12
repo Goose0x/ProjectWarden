@@ -11,6 +11,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Sim/KodBuildTypes.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Slice0/KodFaultline.h"
 
 namespace
 {
@@ -19,9 +20,9 @@ namespace
 		return (static_cast<int64>(X) << 32) | static_cast<uint32>(Y);
 	}
 
-	bool LoadRoot(const TCHAR* FileName, TSharedPtr<FJsonObject>& OutRoot)
+	bool LoadRoot(const TCHAR* Folder, const TCHAR* FileName, TSharedPtr<FJsonObject>& OutRoot)
 	{
-		const FString Path = FPaths::Combine(FPaths::ProjectConfigDir(), TEXT("KodDress"), FileName);
+		const FString Path = FPaths::Combine(FPaths::ProjectConfigDir(), Folder, FileName);
 		FString Text;
 		if (!FFileHelper::LoadFileToString(Text, *Path))
 		{
@@ -126,8 +127,11 @@ void KodMapLayout::Load(UWorld* World)
 	{
 		return;
 	}
+	const bool bFaultline = KodFaultline::IsTrainingMap(World);
+	const TCHAR* Folder = bFaultline ? TEXT("KodDress/faultline_training") : TEXT("KodDress");
+	const int32 CellBias = bFaultline ? -56 : 0;
 	TSharedPtr<FJsonObject> Root;
-	if (!LoadRoot(TEXT("map_features.json"), Root))
+	if (!LoadRoot(Folder, TEXT("map_features.json"), Root))
 	{
 		return;
 	}
@@ -171,7 +175,7 @@ void KodMapLayout::Load(UWorld* World)
 			{
 				for (int32 X = CellX; X < CellX + CellW; ++X)
 				{
-					Cliffs.Add(PackCell(X, Y));
+					Cliffs.Add(PackCell(X + CellBias, Y + CellBias));
 				}
 			}
 			const FVector Center = BoxCenter(Feature, 250.f);
@@ -197,7 +201,7 @@ void KodMapLayout::Load(UWorld* World)
 			{
 				for (int32 X = CellX; X < CellX + CellW; ++X)
 				{
-					Vision.Add(PackCell(X, Y));
+					Vision.Add(PackCell(X + CellBias, Y + CellBias));
 				}
 			}
 			SpawnMarker(World, BoxCenter(Feature, 0.f), FVector(CellW * 2.f, CellH * 2.f, 1.f), Tag.IsEmpty() ? FString(TEXT("KodLOS")) : Tag, nullptr);
@@ -229,7 +233,7 @@ void KodMapLayout::Load(UWorld* World)
 			{
 				for (int32 X = CellX; X < CellX + CellW; ++X)
 				{
-					HighGround.Add(PackCell(X, Y));
+					HighGround.Add(PackCell(X + CellBias, Y + CellBias));
 				}
 			}
 			SpawnMarker(World, BoxCenter(Feature, 500.f), FVector::OneVector, Tag.IsEmpty() ? FString(TEXT("KodHighGround")) : Tag, nullptr);

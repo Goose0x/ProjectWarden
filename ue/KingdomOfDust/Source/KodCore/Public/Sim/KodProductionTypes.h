@@ -184,4 +184,68 @@ struct KODCORE_API FKodPendingUnitSpawn
 	int32 OrbitCenterY = 0;
 	int32 OrbitRadiusUU = 0;
 	int32 OrbitTicks = 0;
+	/** Attack-move to RallyPoint after the actor is registered. A plain rally uses IssueMove. */
+	bool bAttackMove = false;
+	FName ActorTag;
+	/** 0 is a normal train. 1 guard, 2 counter-wave, 3 dressing worker. */
+	uint8 ScriptRole = 0;
+	int32 ScriptHealth = 0;
+	int32 ScriptDamage = 0;
+	int32 ScriptRangeUU = 0;
+	int32 ScriptSpeed = 0;
+	int32 ScriptArmor = 0;
+	int32 ScriptCooldownTicks = 0;
+	int32 ScriptRegenMilli = 0;
+	int32 ScriptHomeX = 0;
+	int32 ScriptHomeY = 0;
+	int32 ScriptLeashUU = 0;
+	int32 ScriptAggroUU = 0;
+};
+
+/** Numbers copied out of Config/KodBalance/faultline_training_balance_v1.json. Hashed with the match. */
+struct KODCORE_API FKodFaultlineScript
+{
+	int32 OutpostCount = 0;
+	int32 SpawnX = 0;
+	int32 SpawnY = 0;
+	int32 SpawnZ = 0;
+	int32 OutpostX = 0;
+	int32 OutpostY = 0;
+	int32 OutpostZ = 0;
+	int32 LaneX = 0;
+	int32 LaneY = 0;
+	int32 LaneZ = 0;
+	uint8 bHasLane = 0;
+	int32 HomeX = 0;
+	int32 HomeY = 0;
+	int32 HomeZ = 0;
+	int32 GuardFighters = 0;
+	int32 GuardBlades = 0;
+	int32 GuardWorkers = 0;
+	int32 WaveFighters = 0;
+	int32 WaveBlades = 0;
+	int32 FighterLeashUU = 0;
+	int32 FighterAggroUU = 0;
+	int32 BladeLeashUU = 0;
+	int32 BladeAggroUU = 0;
+	int32 DelayTicks = 0;
+	int32 RetreatTicks = 0;
+	int32 HpPermille = 1000;
+	int32 FighterHp = 1;
+	int32 FighterDamage = 0;
+	int32 FighterRangeUU = 0;
+	int32 FighterSpeed = 0;
+	int32 FighterArmor = 0;
+	int32 FighterCooldownTicks = 1;
+	int32 FighterRegenMilli = 0;
+	int32 BladeHp = 1;
+	int32 BladeDamage = 0;
+	int32 BladeRangeUU = 0;
+	int32 BladeSpeed = 0;
+	int32 BladeArmor = 0;
+	int32 BladeCooldownTicks = 1;
+	int32 BladeRegenMilli = 0;
+	int32 WorkerHp = 1;
+	int32 WorkerSpeed = 0;
+	int32 WorkerRegenMilli = 0;
 };

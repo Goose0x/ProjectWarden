@@ -208,7 +208,7 @@ void AKodHUD::DrawMinimap()
 		return;
 	}
 
-	const FKodScreenRect MapRect = MapSpec(18.f, 780.f, 250.f, 250.f);
+	const FKodScreenRect MapRect = MapSpec(8.f, 792.f, 280.f, 280.f);
 	const float Scale = FrameScale;
 	const float MapSize = MapRect.W;
 	MapMinX = MapRect.X;
@@ -544,11 +544,11 @@ void AKodHUD::DrawMinimap()
 	const TCHAR* ChipLabels[] = { TEXT("Ping"), TEXT("Ter"), TEXT("Ally") };
 	const int32 ChipLayers[] = { 4, 0, 5 };
 	const bool ChipOn[] = { bMapAlerts, bMapTerrain, bMapOwnOnly };
-	const float ChipYSpec[] = { 780.f, 824.f, 868.f };
+	const float ChipYSpec[] = { 794.f, 842.f, 890.f };
 	UFont* LayerFont = HudFont();
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
-		const FKodScreenRect Chip = MapSpec(276.f, ChipYSpec[Index], 36.f, 36.f);
+		const FKodScreenRect Chip = MapSpec(298.f, ChipYSpec[Index], 40.f, 40.f);
 		DrawPlate(Chip.X, Chip.Y, Chip.W, Chip.H, ChipOn[Index] ? Tok(0x5C, 0x64, 0x6C) : Tok(0x3A, 0x3F, 0x45), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
 		DrawText(ChipLabels[Index], Tok(0xE6, 0xE6, 0xE0), Chip.X + 4.f * Scale, Chip.Y + 12.f * Scale, LayerFont, 0.65f * Scale, false);
 		RememberChrome(FName(TEXT("Layer")), ChipLayers[Index], FName(), Chip.X, Chip.Y, Chip.X + Chip.W, Chip.Y + Chip.H);
@@ -584,7 +584,7 @@ void AKodHUD::DrawIdleWorkerButton()
 		}
 	}
 
-	const FKodScreenRect Slot = MapSpec(136.f, 748.f, 40.f, 28.f);
+	const FKodScreenRect Slot = MapSpec(8.f, 762.f, 52.f, 26.f);
 	if (Idle <= 0)
 	{
 		return;
@@ -613,7 +613,7 @@ void AKodHUD::DrawControlGroupTabs()
 	{
 		const int32 Index = Order[Visual];
 		const int32 Count = PC->GetControlGroupCount(Index);
-		const FKodScreenRect Tab = MapSpec(332.f + 70.f * static_cast<float>(Visual), 786.f, 66.f, 26.f);
+		const FKodScreenRect Tab = MapSpec(519.f + 77.f * static_cast<float>(Visual), 834.f, 70.f, 28.f);
 		const float X = Tab.X;
 		const float TabY = Tab.Y;
 		const float TabW = Tab.W;
@@ -643,7 +643,7 @@ void AKodHUD::DrawPortrait()
 		return;
 	}
 	const float Scale = FrameScale;
-	const FKodScreenRect Art = MapSpec(1068.f, 792.f, 220.f, 220.f);
+	const FKodScreenRect Art = MapSpec(1301.f, 862.f, 173.f, 173.f);
 	const float Width = Art.W;
 	const float PanelH = Art.H;
 	const float X = Art.X;
@@ -721,8 +721,8 @@ void AKodHUD::DrawPortrait()
 		}
 	}
 	const float HpFraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
-	const FKodScreenRect HP = MapSpec(1068.f, 1012.f, 220.f, 14.f);
-	const FKodScreenRect EN = MapSpec(1068.f, 1028.f, 220.f, 10.f);
+	const FKodScreenRect HP = MapSpec(1301.f, 1035.f, 173.f, 16.f);
+	const FKodScreenRect EN = MapSpec(1301.f, 1055.f, 173.f, 12.f);
 	DrawRect(Tok(0x1F, 0x23, 0x27), HP.X, HP.Y, HP.W, HP.H);
 	DrawRect(PanelHealthInk(HpFraction), HP.X, HP.Y, HP.W * HpFraction, HP.H);
 	DrawText(FString::Printf(TEXT("%d/%d"), ShownHP, MaxHP), Tok(0xE6, 0xE6, 0xE0), HP.X + 4.f * Scale, HP.Y, HudFont(), 0.65f * Scale, false);
@@ -907,8 +907,8 @@ void AKodHUD::DrawSelectionPanel()
 	});
 
 	const float Scale = FrameScale;
-	const FKodScreenRect Grid = MapSpec(368.f, 820.f, 682.f, 222.f);
-	const FKodScreenRect Rail = MapSpec(332.f, 820.f, 28.f, 222.f);
+	const FKodScreenRect Grid = MapSpec(525.f, 872.f, 714.f, 198.f);
+	const FKodScreenRect Rail = MapSpec(1245.f, 872.f, 32.f, 198.f);
 	UFont* Font = HudFont();
 	bHasSelectionPanel = true;
 	PanelMinX = Rail.X;
@@ -1051,7 +1051,7 @@ void AKodHUD::DrawSelectionPanel()
 		const bool bFlash = HitUntil && *HitUntil > Now;
 		const int32 Col = Index % 8;
 		const int32 Row = Index / 8;
-		const FKodScreenRect Cell = MapSpec(368.f + 86.f * static_cast<float>(Col), 820.f + 76.f * static_cast<float>(Row), 80.f, 70.f);
+		const FKodScreenRect Cell = MapSpec(525.f + 90.f * static_cast<float>(Col), 872.f + 68.f * static_cast<float>(Row), 84.f, 62.f);
 		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(Tile.Health));
 		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(Tile.MaxHealth));
 		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);

@@ -56,6 +56,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Map")
 	int32 PlayableCells = 128;
 
+	/**
+	 * Short map names that run Faultline Training. A PIE prefix such as UEDPIE_0_ still matches.
+	 * AKodWorldSettings::bFaultlineTraining also turns the tutorial on.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Kod|Map")
+	TArray<FString> FaultlineMaps;
+
 private:
 	/**
 	 * NoCollision on greybox primitives. Tags win: KodGround keeps, KodGreybox mutes.
