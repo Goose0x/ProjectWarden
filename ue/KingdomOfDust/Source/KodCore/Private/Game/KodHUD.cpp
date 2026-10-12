@@ -1,5 +1,6 @@
 #include "Game/KodHUD.h"
 
+#include "Algo/Sort.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/Canvas.h"
@@ -149,7 +150,7 @@ void AKodHUD::DrawClickMarkers()
 			ClickMarkers.RemoveAt(Index);
 			continue;
 		}
-		FVector Screen;
+		FVector2D Screen;
 		if (!PC->ProjectWorldLocationToScreen(Marker.World, Screen, true))
 		{
 			continue;
@@ -187,7 +188,7 @@ void AKodHUD::DrawSelectionPulse()
 		return;
 	}
 	TArray<AActor*> Selected = PC->GetLocalSelection();
-	Selected.Sort([](const AActor* A, const AActor* B)
+	Algo::Sort(Selected, [](const AActor* A, const AActor* B)
 	{
 		const uint32 IdA = A ? A->GetUniqueID() : 0u;
 		const uint32 IdB = B ? B->GetUniqueID() : 0u;
@@ -220,7 +221,7 @@ void AKodHUD::DrawSelectionPulse()
 		{
 			continue;
 		}
-		FVector Screen;
+		FVector2D Screen;
 		if (!PC->ProjectWorldLocationToScreen(Actor->GetActorLocation(), Screen, true))
 		{
 			continue;
@@ -262,7 +263,7 @@ void AKodHUD::DrawJuiceFloaters()
 		{
 			continue;
 		}
-		FVector Screen;
+		FVector2D Screen;
 		if (!PC->ProjectWorldLocationToScreen(Floater.World + FVector(0.f, 0.f, 160.f), Screen, true))
 		{
 			continue;

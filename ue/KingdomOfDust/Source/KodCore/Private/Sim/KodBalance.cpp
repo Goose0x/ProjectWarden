@@ -160,14 +160,14 @@ void UKodSimSubsystem::EnsureBalanceTables()
 		{
 			AbilityTable->AddRow(FName(KodWardenPaths::Id_OrbitalGathererDrop), Drop);
 		}
-		FKodAbilityBalanceRow Supply;
-		Supply.EnergyCost = 50;
-		Supply.CooldownTicks = 0;
-		Supply.SupplyBonus = 8;
-		Supply.DurationTicks = 0;
+		FKodAbilityBalanceRow SupplyRow;
+		SupplyRow.EnergyCost = 50;
+		SupplyRow.CooldownTicks = 0;
+		SupplyRow.SupplyBonus = 8;
+		SupplyRow.DurationTicks = 0;
 		if (!AbilityTable->FindRow<FKodAbilityBalanceRow>(FName(KodWardenPaths::Id_SupplyBoost), TEXT("KodBalance"), false))
 		{
-			AbilityTable->AddRow(FName(KodWardenPaths::Id_SupplyBoost), Supply);
+			AbilityTable->AddRow(FName(KodWardenPaths::Id_SupplyBoost), SupplyRow);
 		}
 		FKodAbilityBalanceRow Isr;
 		Isr.EnergyCost = 50;
