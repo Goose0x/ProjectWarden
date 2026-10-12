@@ -30,7 +30,7 @@ void UKodSimSubsystem::StepSeparation()
 	for (int32 Index = 0; Index < Keys.Num(); ++Index)
 	{
 		FKodSimEntityState* Self = States.Find(Keys[Index]);
-		if (!Self || !Self->bMobile || Self->Health <= 0.f || Self->InsideBunker.IsValid())
+		if (!Self || !Self->bMobile || Self->Health <= 0.f || Self->InsideBunker.IsValid() || Self->OrbitRadiusUU > 0)
 		{
 			continue;
 		}

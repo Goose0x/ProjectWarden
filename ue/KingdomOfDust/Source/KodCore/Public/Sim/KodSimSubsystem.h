@@ -208,6 +208,26 @@ struct KODCORE_API FKodSimEntityState
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Ability")
 	int32 AbilityAttackPermille = 1000;
 
+	/** 1000 is one harvest tick per authored node tick. 2000 finishes the trip in half the ticks. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	int32 GatherRatePermille = 1000;
+
+	/** ISR platform orbit. Zero on every other entity. Hashed. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Orbital")
+	int32 OrbitAngle = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Orbital")
+	int32 OrbitCenterX = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Orbital")
+	int32 OrbitCenterY = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Orbital")
+	int32 OrbitRadiusUU = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Orbital")
+	int32 OrbitTicksRemaining = 0;
+
 	/** Collision radius from the unit definition, in uu. Hashed. */
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	int32 BodyRadiusUU = 34;
@@ -342,6 +362,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	void UnregisterEntity(FKodEntityId Id);
+	/** EndPlay passes the dying actor so a load respawn can keep the restored id. */
+	void UnregisterEntityIfActor(FKodEntityId Id, AActor* Actor);
+	bool IsTestIsolation() const { return bTestIsolation; }
+	bool IsLoadRespawn() const { return bLoadRespawn; }
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	AActor* ResolveEntity(FKodEntityId Id) const;
@@ -644,6 +668,11 @@ public:
 	/** SC2-style line. Refused while competitive is on. Any accepted cheat sets the match flag. */
 	bool ApplyCheatLine(const FString& Line);
 
+	void RegisterAbilitySpec(const FKodAbilitySpec& Spec);
+	bool UseOrbitalAbility(FKodEntityId CcId, FName AbilityId, FVector Target, FKodEntityId DepotId);
+	void FinishOrbitalSpawn(FKodEntityId Id, const FKodPendingUnitSpawn& Request);
+	bool TryGetOwnedIsr(int32 TeamId, FVector& OutCenter, int32& OutSight, int32& OutId) const;
+
 	void AttachRestoredActor(FKodEntityId Id, AActor* Actor);
 	void RestoreImportedState(FKodEntityId Id, const FKodSimEntityState& State);
 
@@ -745,6 +774,7 @@ protected:
 	void ChooseAiOpener();
 	void RememberAiMatch();
 	void StepTech();
+	void StepOrbital();
 	void StepExposed();
 	void ApplyExposedReveal();
 	void RecordMatchSample();
@@ -929,6 +959,8 @@ protected:
 	};
 	FKodMatchSnapshot TestStash;
 	bool bTestIsolation = false;
+	bool bLoadRespawn = false;
+	int32 LoadRespawnTicks = 0;
 
 	/** Cell -> sorted entity ids. Rebuilt at the start of each sim tick. */
 	TMap<int64, TArray<int32>> AcquireGrid;

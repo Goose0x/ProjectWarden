@@ -20,6 +20,7 @@ struct KODCORE_API FKodTrainSpec
 	int32 BaseArmor = 0;
 	int32 EnergyMax = 0;
 	int32 EnergyStart = 0;
+	int32 GatherRatePermille = 1000;
 };
 
 /** Researched at a building. Level 1 placeholders. The sim does not load an asset. */
@@ -33,12 +34,16 @@ struct KODCORE_API FKodUpgradeSpec
 	int32 BuildTicks = 0;
 	int32 WeaponBonus = 0;
 	int32 ArmorBonus = 0;
+	int32 SatelliteFeed = 0;
+	int32 EnergyMax = 0;
+	int32 EnergyStart = 0;
 };
 
 struct KODCORE_API FKodTeamTech
 {
 	int32 InfantryWeapons = 0;
 	int32 InfantryArmor = 0;
+	int32 SatelliteFeed = 0;
 };
 
 struct KODCORE_API FKodStructureSpec
@@ -112,6 +117,13 @@ struct KODCORE_API FKodStructureState
 	TArray<FKodProductionSlot> Research;
 	int32 ResearchTicksRemaining = 0;
 	int32 ResearchBuildTime = 0;
+	/** Extra supply from a Satellite Feed drop. 0 means none. */
+	int32 BonusSupply = 0;
+	/** -1 is permanent. Above 0 counts down in sim ticks. */
+	int32 BonusSupplyTicksRemaining = 0;
+	int32 GathererCd = 0;
+	int32 SupplyCd = 0;
+	int32 IsrCd = 0;
 };
 
 struct KODCORE_API FKodSupplyState
@@ -135,4 +147,9 @@ struct KODCORE_API FKodPendingUnitSpawn
 	FKodEntityId RallyUnit;
 	/** Nonzero when a save load is respawning this id. 0 is a normal train. */
 	int32 RestoreId = 0;
+	int32 GatherRatePermille = 0;
+	int32 OrbitCenterX = 0;
+	int32 OrbitCenterY = 0;
+	int32 OrbitRadiusUU = 0;
+	int32 OrbitTicks = 0;
 };

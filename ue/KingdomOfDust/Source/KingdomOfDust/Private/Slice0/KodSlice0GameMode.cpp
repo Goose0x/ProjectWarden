@@ -451,6 +451,42 @@ void AKodSlice0GameMode::StartPlay()
 			Armor.BuildTicks = 114 * 16;
 			Armor.ArmorBonus = 1;
 			Sim->RegisterUpgradeSpec(Armor);
+			FKodUpgradeSpec Feed;
+			Feed.UpgradeId = FName(KodWardenPaths::Id_SatelliteFeed);
+			Feed.DisplayId = FName(TEXT("Satellite Feed"));
+			Feed.BuildingId = FName(KodWardenPaths::Id_CommandCenter);
+			Feed.Credits = 150;
+			Feed.Luminene = 150;
+			Feed.BuildTicks = 80 * 16;
+			Feed.SatelliteFeed = 1;
+			Feed.EnergyMax = 200;
+			Feed.EnergyStart = 50;
+			Sim->RegisterUpgradeSpec(Feed);
+			auto AddOrbital = [Sim](FName Id, int32 Energy, int32 Cooldown, int32 Duration, int32 Supply, int32 GatherRate, int32 Sight, int32 Radius)
+			{
+				FKodAbilitySpec Spec;
+				Spec.AbilityId = Id;
+				Spec.DisplayName = Id;
+				Spec.EnergyCost = Energy;
+				Spec.CooldownTicks = Cooldown;
+				Spec.DurationTicks = Duration;
+				Spec.SupplyBonus = Supply;
+				Spec.GatherRatePermille = GatherRate;
+				Spec.SightUU = Sight;
+				Spec.OrbitRadiusUU = Radius;
+				Sim->RegisterAbilitySpec(Spec);
+			};
+			AddOrbital(FName(KodWardenPaths::Id_OrbitalGathererDrop), 50, 0, 0, 0, 2000, 0, 0);
+			AddOrbital(FName(KodWardenPaths::Id_SupplyBoost), 50, 0, 0, 8, 1000, 0, 0);
+			AddOrbital(FName(KodWardenPaths::Id_IsrView), 50, 16 * 4, 30 * 16, 0, 1000, 1200, 500);
+			if (const UKodUnitDefinition* Gatherer = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_OrbitalGatherer), this))
+			{
+				RegisterUnit(Gatherer, FName(KodWardenPaths::Id_OrbitalGatherer), FName(TEXT("Orbital Gatherer")));
+			}
+			if (const UKodUnitDefinition* Platform = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_IsrPlatform), this))
+			{
+				RegisterUnit(Platform, FName(KodWardenPaths::Id_IsrPlatform), FName(TEXT("ISR Platform")));
+			}
 		}
 	}
 

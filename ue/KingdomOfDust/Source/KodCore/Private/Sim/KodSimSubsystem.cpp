@@ -78,6 +78,8 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bAiRetreating = false;
 	bAiMemoryWritten = false;
 	bTestIsolation = false;
+	bLoadRespawn = false;
+	LoadRespawnTicks = 0;
 	EnsureBalanceTables();
 	SimHz = KodBuildTicks::SimHz;
 	MaxCatchUpSteps = KodBuildTicks::MaxCatchUpSteps;
@@ -142,6 +144,22 @@ TStatId UKodSimSubsystem::GetStatId() const
 
 void UKodSimSubsystem::Tick(float DeltaTime)
 {
+	if (bLoadRespawn)
+	{
+		if (PendingSpawns.Num() == 0 && PendingBuildingSpawns.Num() == 0)
+		{
+			++LoadRespawnTicks;
+			if (LoadRespawnTicks >= 3)
+			{
+				bLoadRespawn = false;
+				LoadRespawnTicks = 0;
+			}
+		}
+		else
+		{
+			LoadRespawnTicks = 0;
+		}
+	}
 	if (bSimPaused)
 	{
 		SyncActorPresentation(1.f);
@@ -271,6 +289,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 	EvaluateMatch();
 	StepAI();
 	StepTech();
+	StepOrbital();
 	StepExposed();
 	RecordMatchSample();
 }
@@ -496,7 +515,7 @@ FKodEntityId UKodSimSubsystem::FindNearestEnemyInRange(const FKodSimEntityState&
 			continue;
 		}
 		const FKodSimEntityState* Other = States.Find(Key);
-		if (!Other || Other->Health <= 0.f || Other->TeamId == State.TeamId)
+		if (!Other || Other->Health <= 0.f || Other->TeamId == State.TeamId || Other->bFlyer)
 		{
 			continue;
 		}
@@ -717,6 +736,24 @@ FKodEntityId UKodSimSubsystem::RegisterEntity(AActor* Actor)
 	PrevPositions.Add(Id.Value, State.Position);
 	PrevYaws.Add(Id.Value, State.YawDegrees);
 	return Id;
+}
+
+void UKodSimSubsystem::UnregisterEntityIfActor(FKodEntityId Id, AActor* Actor)
+{
+	if (bLoadRespawn)
+	{
+		AActor* Bound = ResolveEntity(Id);
+		if (!Bound || Bound == Actor)
+		{
+			return;
+		}
+	}
+	AActor* Bound = ResolveEntity(Id);
+	if (Actor && Bound && Bound != Actor)
+	{
+		return;
+	}
+	UnregisterEntity(Id);
 }
 
 void UKodSimSubsystem::UnregisterEntity(FKodEntityId Id)
@@ -1527,7 +1564,8 @@ void UKodSimSubsystem::StepEntityGather(FKodSimEntityState& State, float FixedDt
 			if (RecoverGatherStall(State, Dist, Stand))
 			{
 				BeginGatherLeg(State, EKodGatherPhase::Harvest);
-				State.HarvestTicksRemaining = FMath::Max(1, Node->HarvestTicks);
+				const int32 Rate = FMath::Max(1, State.GatherRatePermille > 0 ? State.GatherRatePermille : 1000);
+				State.HarvestTicksRemaining = FMath::Max(1, (Node->HarvestTicks * 1000) / Rate);
 			}
 			return;
 		}
@@ -1536,7 +1574,8 @@ void UKodSimSubsystem::StepEntityGather(FKodSimEntityState& State, float FixedDt
 			BeginGatherLeg(State, EKodGatherPhase::Harvest);
 			if (const FKodResourceNodeState* Arrived = ResourceNodes.Find(State.GatherNode.Value))
 			{
-				State.HarvestTicksRemaining = FMath::Max(1, Arrived->HarvestTicks);
+				const int32 Rate = FMath::Max(1, State.GatherRatePermille > 0 ? State.GatherRatePermille : 1000);
+				State.HarvestTicksRemaining = FMath::Max(1, (Arrived->HarvestTicks * 1000) / Rate);
 			}
 			else
 			{
@@ -2039,6 +2078,13 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&S.AbilityCooldownTicks, sizeof(S.AbilityCooldownTicks));
 		Append(&S.AbilityMovePermille, sizeof(S.AbilityMovePermille));
 		Append(&S.AbilityAttackPermille, sizeof(S.AbilityAttackPermille));
+		const int32 GatherRate = S.GatherRatePermille > 0 ? S.GatherRatePermille : 1000;
+		Append(&GatherRate, sizeof(GatherRate));
+		Append(&S.OrbitAngle, sizeof(S.OrbitAngle));
+		Append(&S.OrbitCenterX, sizeof(S.OrbitCenterX));
+		Append(&S.OrbitCenterY, sizeof(S.OrbitCenterY));
+		Append(&S.OrbitRadiusUU, sizeof(S.OrbitRadiusUU));
+		Append(&S.OrbitTicksRemaining, sizeof(S.OrbitTicksRemaining));
 	}
 
 	// Economy is integers only: team id + bank, then node id + type + remaining + quantized position,
@@ -2176,6 +2222,11 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&RQX, sizeof(RQX));
 		Append(&RQY, sizeof(RQY));
 		Append(&RQZ, sizeof(RQZ));
+		Append(&Structure.BonusSupply, sizeof(Structure.BonusSupply));
+		Append(&Structure.BonusSupplyTicksRemaining, sizeof(Structure.BonusSupplyTicksRemaining));
+		Append(&Structure.GathererCd, sizeof(Structure.GathererCd));
+		Append(&Structure.SupplyCd, sizeof(Structure.SupplyCd));
+		Append(&Structure.IsrCd, sizeof(Structure.IsrCd));
 	}
 
 	const uint8 Outcome = static_cast<uint8>(MatchOutcome);
@@ -2204,6 +2255,7 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&TeamId, sizeof(TeamId));
 		Append(&Tech.InfantryWeapons, sizeof(Tech.InfantryWeapons));
 		Append(&Tech.InfantryArmor, sizeof(Tech.InfantryArmor));
+		Append(&Tech.SatelliteFeed, sizeof(Tech.SatelliteFeed));
 	}
 	TArray<int32> FacingTeams;
 	TeamFacingYaw.GetKeys(FacingTeams);

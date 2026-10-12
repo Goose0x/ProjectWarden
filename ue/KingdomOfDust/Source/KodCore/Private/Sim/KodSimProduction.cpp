@@ -74,6 +74,7 @@ void UKodSimSubsystem::RecalcSupplyCap(int32 TeamId)
 		if (Structure && Structure->bComplete && Structure->TeamId == TeamId)
 		{
 			Sum += FMath::Max(0, Structure->SupplyProvided);
+			Sum += FMath::Max(0, Structure->BonusSupply);
 		}
 	}
 	Sum = FMath::Min(Sum, KodEconomyDefaults::SupplyHardCap);

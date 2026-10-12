@@ -131,6 +131,8 @@ public:
 
 	/** HUD reads this for the armed-order hint. */
 	virtual FName GetArmedOrderName() const { return FName(); }
+	virtual FName GetPlacementType() const { return FName(); }
+	virtual bool TryGetPlacementAim(FName& OutType, FVector& OutCenter) const { return false; }
 
 protected:
 	void HandleSelectStarted();

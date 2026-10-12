@@ -1,5 +1,7 @@
 #include "Sim/KodSimSubsystem.h"
 
+#include "Warden/KodWardenPaths.h"
+
 namespace
 {
 	constexpr int32 HealRangeUU = 4 * KodBuildGrid::CellUU;
@@ -12,7 +14,7 @@ namespace
 
 void UKodSimSubsystem::RaiseCue(FName CueId, FVector Location, bool bAtLocation)
 {
-	if (CueId.IsNone())
+	if (bTestIsolation || CueId.IsNone())
 	{
 		return;
 	}
@@ -103,6 +105,7 @@ void UKodSimSubsystem::ApplyRoster(FKodEntityId Id)
 		State->EnergyMax = FMath::Max(0, Spec->EnergyMax);
 		State->Energy = FMath::Clamp(Spec->EnergyStart, 0, State->EnergyMax);
 		State->bAutocastHeal = Spec->bHealer;
+		State->GatherRatePermille = FMath::Max(1, Spec->GatherRatePermille > 0 ? Spec->GatherRatePermille : 1000);
 	}
 	if (const FKodBuildSpec* Build = BuildSpecs.Find(State->DefinitionId))
 	{
@@ -145,6 +148,10 @@ bool UKodSimSubsystem::EnqueueResearch(FKodEntityId StructureId, FName UpgradeId
 	}
 	FKodTeamTech& Tech = TeamTech.FindOrAdd(Structure->TeamId);
 	if ((Spec->WeaponBonus > 0 && Tech.InfantryWeapons >= 1) || (Spec->ArmorBonus > 0 && Tech.InfantryArmor >= 1))
+	{
+		return false;
+	}
+	if (Spec->SatelliteFeed > 0 && Tech.SatelliteFeed >= 1)
 	{
 		return false;
 	}
@@ -473,6 +480,29 @@ void UKodSimSubsystem::StepTech()
 					FKodTeamTech& Tech = TeamTech.FindOrAdd(Structure->TeamId);
 					Tech.InfantryWeapons += FMath::Max(0, Spec->WeaponBonus);
 					Tech.InfantryArmor += FMath::Max(0, Spec->ArmorBonus);
+					if (Spec->SatelliteFeed > 0)
+					{
+						Tech.SatelliteFeed = 1;
+						const int32 EnergyMax = FMath::Max(1, Spec->EnergyMax);
+						const int32 EnergyStart = FMath::Clamp(Spec->EnergyStart, 0, EnergyMax);
+						TArray<int32> CcKeys;
+						Structures.GetKeys(CcKeys);
+						CcKeys.Sort();
+						for (int32 CcKey : CcKeys)
+						{
+							const FKodStructureState* Cc = Structures.Find(CcKey);
+							if (!Cc || Cc->TeamId != Structure->TeamId || Cc->DefinitionId != FName(KodWardenPaths::Id_CommandCenter))
+							{
+								continue;
+							}
+							if (FKodSimEntityState* Combat = States.Find(CcKey))
+							{
+								Combat->EnergyMax = EnergyMax;
+								Combat->Energy = EnergyStart;
+							}
+						}
+						UE_LOG(LogTemp, Log, TEXT("KodOrbital Research Team=%d"), Structure->TeamId);
+					}
 				}
 				RaiseCue(FName(TEXT("research_complete")), Structure->Position, false);
 				UE_LOG(LogTemp, Log, TEXT("KodResearch Complete Struct=%d Upgrade=%s"), Structure->Id.Value, *UpgradeId.ToString());

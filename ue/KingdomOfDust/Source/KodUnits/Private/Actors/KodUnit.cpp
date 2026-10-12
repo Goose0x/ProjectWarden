@@ -1659,7 +1659,7 @@ void AKodUnit::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
 		{
-			Sim->UnregisterEntity(EntityId);
+			Sim->UnregisterEntityIfActor(EntityId, this);
 		}
 	}
 	Super::EndPlay(EndPlayReason);

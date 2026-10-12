@@ -28,6 +28,8 @@ protected:
 	virtual void IssueFollowToSelection(AActor* Target, bool bGuard) override;
 	virtual bool ConsumeArmedOrderClick() override;
 	virtual FName GetArmedOrderName() const override;
+	virtual FName GetPlacementType() const override;
+	virtual bool TryGetPlacementAim(FName& OutType, FVector& OutCenter) const override;
 	virtual void IssueGatherToSelection_Implementation(AActor* Node, FVector NonGathererMovePoint) override;
 	virtual void PlayerTick(float DeltaTime) override;
 	virtual bool ApplySelectedStructureRally(const FKodCursorCommand& Cmd) override;
@@ -74,6 +76,7 @@ protected:
 
 	TArray<float> LastGroupTapSeconds;
 	FName ArmedOrder;
+	int32 ArmedStructureId = 0;
 	bool bBuildMenu = false;
 	bool bAdvancedMenu = false;
 	FName PlaceType;

@@ -147,6 +147,35 @@ void UKodSimSubsystem::EnsureBalanceTables()
 	};
 
 	AddAbility(KodWardenPaths::Id_CombatStim, 10, 11 * 16, 1500, 1500);
+	{
+		FKodAbilityBalanceRow Drop;
+		Drop.EnergyCost = 50;
+		Drop.CooldownTicks = 0;
+		Drop.GatherRatePermille = 2000;
+		if (!AbilityTable->FindRow<FKodAbilityBalanceRow>(FName(KodWardenPaths::Id_OrbitalGathererDrop), TEXT("KodBalance"), false))
+		{
+			AbilityTable->AddRow(FName(KodWardenPaths::Id_OrbitalGathererDrop), Drop);
+		}
+		FKodAbilityBalanceRow Supply;
+		Supply.EnergyCost = 50;
+		Supply.CooldownTicks = 0;
+		Supply.SupplyBonus = 8;
+		Supply.DurationTicks = 0;
+		if (!AbilityTable->FindRow<FKodAbilityBalanceRow>(FName(KodWardenPaths::Id_SupplyBoost), TEXT("KodBalance"), false))
+		{
+			AbilityTable->AddRow(FName(KodWardenPaths::Id_SupplyBoost), Supply);
+		}
+		FKodAbilityBalanceRow Isr;
+		Isr.EnergyCost = 50;
+		Isr.CooldownTicks = 16 * 4;
+		Isr.DurationTicks = 30 * 16;
+		Isr.SightUU = 1200;
+		Isr.OrbitRadiusUU = 500;
+		if (!AbilityTable->FindRow<FKodAbilityBalanceRow>(FName(KodWardenPaths::Id_IsrView), TEXT("KodBalance"), false))
+		{
+			AbilityTable->AddRow(FName(KodWardenPaths::Id_IsrView), Isr);
+		}
+	}
 	AddWeapon(KodWardenPaths::Id_RangerRifle, 12, 900, 13);
 
 	FKodUnitBalanceRow Dozer;
@@ -228,6 +257,36 @@ void UKodSimSubsystem::EnsureBalanceTables()
 
 	AddUpgrade(KodWardenPaths::Id_InfantryWeapons, 1, 0);
 	AddUpgrade(KodWardenPaths::Id_InfantryArmor, 0, 1);
+	if (!UpgradeTable->FindRow<FKodUpgradeBalanceRow>(FName(KodWardenPaths::Id_SatelliteFeed), TEXT("KodBalance"), false))
+	{
+		FKodUpgradeBalanceRow Feed;
+		Feed.Credits = 150;
+		Feed.Luminene = 150;
+		Feed.BuildTicks = 80 * 16;
+		Feed.SatelliteFeed = 1;
+		Feed.EnergyMax = 200;
+		Feed.EnergyStart = 50;
+		UpgradeTable->AddRow(FName(KodWardenPaths::Id_SatelliteFeed), Feed);
+	}
+	FKodUnitBalanceRow Gatherer;
+	Gatherer.MaxHealth = 60;
+	Gatherer.Armor = 0;
+	Gatherer.MoveSpeed = 400;
+	Gatherer.Sight = 1200;
+	Gatherer.Credits = 0;
+	Gatherer.Supply = 0;
+	Gatherer.BuildTicks = 0;
+	Gatherer.Biological = 1;
+	Gatherer.CanGather = 1;
+	Gatherer.GatherRatePermille = 2000;
+	AddUnit(KodWardenPaths::Id_OrbitalGatherer, Gatherer);
+	FKodUnitBalanceRow Platform;
+	Platform.MaxHealth = 200;
+	Platform.MoveSpeed = 180;
+	Platform.Sight = 1200;
+	Platform.Flyer = 1;
+	Platform.GatherRatePermille = 1000;
+	AddUnit(KodWardenPaths::Id_IsrPlatform, Platform);
 }
 
 void UKodSimSubsystem::ApplyBalance()
@@ -258,6 +317,7 @@ void UKodSimSubsystem::ApplyBalance()
 			Spec->BaseArmor = Row->Armor;
 			Spec->EnergyMax = Row->EnergyMax;
 			Spec->EnergyStart = Row->EnergyStart;
+			Spec->GatherRatePermille = Row->GatherRatePermille > 0 ? Row->GatherRatePermille : 1000;
 		}
 		const FKodWeaponBalanceRow* Weapon = nullptr;
 		if (Name == FName(KodWardenPaths::Id_Ranger))
@@ -287,6 +347,7 @@ void UKodSimSubsystem::ApplyBalance()
 			State->bHealer = Row->Healer != 0;
 			State->bCanGather = Row->CanGather != 0;
 			State->CargoSize = Row->CargoSize;
+			State->GatherRatePermille = Row->GatherRatePermille > 0 ? Row->GatherRatePermille : 1000;
 			if (State->EnergyMax <= 0)
 			{
 				State->EnergyMax = Row->EnergyMax;
@@ -381,6 +442,13 @@ void UKodSimSubsystem::ApplyBalance()
 		Spec->DurationTicks = Row->DurationTicks;
 		Spec->MovePermille = Row->MovePermille;
 		Spec->AttackPermille = Row->AttackPermille;
+		Spec->EnergyCost = Row->EnergyCost;
+		Spec->SupplyBonus = Row->SupplyBonus;
+		Spec->GatherRatePermille = Row->GatherRatePermille > 0 ? Row->GatherRatePermille : 1000;
+		Spec->SightUU = Row->SightUU;
+		Spec->OrbitRadiusUU = Row->OrbitRadiusUU;
+		Spec->DurationTicks = Row->DurationTicks;
+		Spec->CooldownTicks = Row->CooldownTicks;
 	}
 
 	TArray<FName> UpgradeNames;
@@ -399,6 +467,9 @@ void UKodSimSubsystem::ApplyBalance()
 		Spec->BuildTicks = Row->BuildTicks;
 		Spec->WeaponBonus = Row->WeaponBonus;
 		Spec->ArmorBonus = Row->ArmorBonus;
+		Spec->SatelliteFeed = Row->SatelliteFeed;
+		Spec->EnergyMax = Row->EnergyMax;
+		Spec->EnergyStart = Row->EnergyStart;
 	}
 
 	RecalcSupplyCap(0);
