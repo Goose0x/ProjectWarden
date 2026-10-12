@@ -64,6 +64,7 @@ protected:
 	void DrawCommandCard();
 	void DrawSelectionSummary();
 	void DrawResourceFlash();
+	void DrawMatchOutcome();
 	int32 ReadLocalTeamId() const;
 	bool ReadTeamBank(int32& OutJadeite, int32& OutLuminene) const;
 	void DrawUnitHealthBars();

@@ -191,6 +191,23 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	}
 
 	RecalcSupplyCap(Spec.TeamId);
+	if (!States.Contains(Id.Value))
+	{
+		FKodSimEntityState Combat;
+		Combat.Id = Id;
+		Combat.DefinitionId = Structure.DefinitionId;
+		Combat.Position = Structure.Position;
+		Combat.YawDegrees = Actor->GetActorRotation().Yaw;
+		Combat.MaxHealth = Structure.MaxHealth;
+		Combat.Health = Structure.MaxHealth;
+		Combat.bMobile = false;
+		Combat.MoveSpeed = 0.f;
+		Combat.TeamId = Structure.TeamId;
+		QuantizePose(Combat);
+		States.Add(Id.Value, Combat);
+		PrevPositions.Add(Id.Value, Combat.Position);
+		PrevYaws.Add(Id.Value, Combat.YawDegrees);
+	}
 	UE_LOG(LogTemp, Log, TEXT("KodProd Structure Id=%d Team=%d Supply=%d"),
 		Id.Value,
 		Spec.TeamId,

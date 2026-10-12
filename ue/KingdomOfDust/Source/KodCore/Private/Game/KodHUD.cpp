@@ -60,6 +60,7 @@ void AKodHUD::DrawHUD()
 	DrawCommandCard();
 	DrawSelectionSummary();
 	DrawResourceFlash();
+	DrawMatchOutcome();
 	DrawUnitHealthBars();
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
@@ -709,6 +710,38 @@ void AKodHUD::DrawSelectionSummary()
 	const float Y = Canvas->SizeY - 40.f;
 	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.82f), X - 10.f, Y - 6.f, Width + 20.f, Height + 12.f);
 	DrawText(Line, FLinearColor::White, X, Y, Font, 1.f, false);
+}
+
+void AKodHUD::DrawMatchOutcome()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	const UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim || !Sim->IsMatchOver())
+	{
+		return;
+	}
+	const bool bVictory = Sim->GetMatchOutcome() == EKodMatchOutcome::Victory;
+	const FString Line = bVictory ? TEXT("VICTORY") : TEXT("DEFEAT");
+	UFont* Font = GEngine ? GEngine->GetLargeFont() : nullptr;
+	if (!Font && GEngine)
+	{
+		Font = GEngine->GetMediumFont();
+	}
+	const float Scale = 2.f;
+	float Width = 0.f;
+	float Height = 0.f;
+	Canvas->TextSize(Font, Line, Width, Height);
+	Width *= Scale;
+	Height *= Scale;
+	const float X = (Canvas->SizeX - Width) * 0.5f;
+	const float Y = Canvas->SizeY * 0.38f;
+	const FLinearColor Ink = bVictory ? FLinearColor(0.55f, 0.9f, 0.45f, 1.f) : FLinearColor(0.95f, 0.28f, 0.22f, 1.f);
+	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.9f), X - 24.f, Y - 12.f, Width + 48.f, Height + 24.f);
+	DrawText(Line, Ink, X, Y, Font, Scale, false);
 }
 
 void AKodHUD::DrawResourceFlash()

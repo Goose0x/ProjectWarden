@@ -27,6 +27,14 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bHasPlayable = false;
 	TimeAccumulator = 0.f;
 	SimTickIndex = 0;
+	bAiEnabled = true;
+	AiDifficulty = 1;
+	bAiSeeded = false;
+	AiWavesLaunched = 0;
+	AiNextWaveTick = 0;
+	MatchOutcome = EKodMatchOutcome::None;
+	bTeam0HadStructure = false;
+	bTeam1HadStructure = false;
 	SimHz = KodBuildTicks::SimHz;
 	MaxCatchUpSteps = KodBuildTicks::MaxCatchUpSteps;
 	SetTeamBank(0, StartingJadeite, StartingLuminene);
@@ -54,6 +62,14 @@ void UKodSimSubsystem::Deinitialize()
 	bHasPlayable = false;
 	PrevPositions.Reset();
 	PrevYaws.Reset();
+	bAiEnabled = true;
+	AiDifficulty = 1;
+	bAiSeeded = false;
+	AiWavesLaunched = 0;
+	AiNextWaveTick = 0;
+	MatchOutcome = EKodMatchOutcome::None;
+	bTeam0HadStructure = false;
+	bTeam1HadStructure = false;
 	Super::Deinitialize();
 }
 
@@ -154,6 +170,8 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 	StepProduction();
 	StepConstruction();
 	StepAbilities();
+	EvaluateMatch();
+	StepAI();
 }
 
 void UKodSimSubsystem::StepEntityMove(FKodSimEntityState& State, float FixedDt)
@@ -251,6 +269,7 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 		const FString TargetName = NameOf(TargetActor);
 		const int32 TargetIdValue = Target->Id.Value;
 		const FKodEntityId DeadId = Target->Id;
+		const bool bStructureTarget = Structures.Contains(DeadId.Value);
 
 		const float Mitigated = FMath::Max(0.f, State.WeaponDamage);
 		Target->Health = FMath::Max(0.f, Target->Health - Mitigated);
@@ -294,6 +313,10 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 			// Do not touch Target or State after this; TMap::Remove can rehash.
 			UnregisterEntity(DeadId);
 			OnUnitKilled.Broadcast(TargetActor, TargetIdValue);
+			if (bStructureTarget && TargetActor && !TargetActor->IsActorBeingDestroyed())
+			{
+				TargetActor->Destroy();
+			}
 			return;
 		}
 	}
@@ -332,6 +355,11 @@ FKodEntityId UKodSimSubsystem::FindNearestEnemyInRange(const FKodSimEntityState&
 		}
 		const FKodSimEntityState* Other = States.Find(Key);
 		if (!Other || Other->Health <= 0.f || Other->TeamId == State.TeamId)
+		{
+			continue;
+		}
+		// Structures stay out of idle acquire. An explicit attack still damages them.
+		if (!Other->bMobile)
 		{
 			continue;
 		}
@@ -573,28 +601,43 @@ void UKodSimSubsystem::IssueMove(FKodEntityId Id, FVector WorldLocation)
 	}
 }
 
+bool UKodSimSubsystem::IsAttackable(FKodEntityId TargetId, int32 AttackerTeam) const
+{
+	if (!TargetId.IsValid() || IsResourceNode(TargetId))
+	{
+		return false;
+	}
+	const FKodSimEntityState* Target = States.Find(TargetId.Value);
+	if (!Target || Target->Health <= 0.f)
+	{
+		return false;
+	}
+	if (IsDropOff(TargetId) && Target->TeamId == AttackerTeam)
+	{
+		return false;
+	}
+	return true;
+}
+
 void UKodSimSubsystem::IssueAttack(FKodEntityId Id, FKodEntityId TargetId)
 {
-	// A node is a gather/move destination. A drop-off is not a target. Do not open an attack onto either.
-	if (IsResourceNode(TargetId) || IsDropOff(TargetId))
+	FKodSimEntityState* State = States.Find(Id.Value);
+	if (!State || !IsAttackable(TargetId, State->TeamId))
 	{
 		return;
 	}
-	if (FKodSimEntityState* State = States.Find(Id.Value))
+	if (State->GatherPhase != EKodGatherPhase::None || State->IsCarryingCargo())
 	{
-		if (State->GatherPhase != EKodGatherPhase::None || State->IsCarryingCargo())
-		{
-			RefundGatherCargo(*State);
-			ClearGatherFields(*State);
-		}
-		ClearBuildAssignment(*State);
-		State->Order = EKodSimOrderType::Attack;
-		State->AttackTarget = TargetId;
-		State->RetaliateTarget = FKodEntityId();
-		if (const FKodSimEntityState* TargetState = States.Find(TargetId.Value))
-		{
-			FaceStateToward(*State, TargetState->Position);
-		}
+		RefundGatherCargo(*State);
+		ClearGatherFields(*State);
+	}
+	ClearBuildAssignment(*State);
+	State->Order = EKodSimOrderType::Attack;
+	State->AttackTarget = TargetId;
+	State->RetaliateTarget = FKodEntityId();
+	if (const FKodSimEntityState* TargetState = States.Find(TargetId.Value))
+	{
+		FaceStateToward(*State, TargetState->Position);
 	}
 }
 
@@ -1824,6 +1867,16 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&RQY, sizeof(RQY));
 		Append(&RQZ, sizeof(RQZ));
 	}
+
+	const uint8 Outcome = static_cast<uint8>(MatchOutcome);
+	Append(&Outcome, sizeof(Outcome));
+	const uint8 AiOn = bAiEnabled ? 1 : 0;
+	Append(&AiOn, sizeof(AiOn));
+	Append(&AiDifficulty, sizeof(AiDifficulty));
+	Append(&AiWavesLaunched, sizeof(AiWavesLaunched));
+	Append(&AiNextWaveTick, sizeof(AiNextWaveTick));
+	const uint8 Seeded = bAiSeeded ? 1 : 0;
+	Append(&Seeded, sizeof(Seeded));
 
 	const uint64 Hash = Bytes.Num() > 0
 		? CityHash64(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num())

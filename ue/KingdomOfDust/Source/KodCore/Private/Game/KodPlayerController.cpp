@@ -117,6 +117,18 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 	{
 		return;
 	}
+	if (const UWorld* World = GetWorld())
+	{
+		if (const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			if (Sim->IsMatchOver())
+			{
+				bSelectPressed = false;
+				bMarqueeActive = false;
+				return;
+			}
+		}
+	}
 
 	const AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn());
 	const bool bAltDrag = CameraPawn && CameraPawn->ConsumesAltDrag();
@@ -376,13 +388,19 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 
 		const FKodEntityId Id = Sim ? Sim->FindIdForActor(HitActor) : FKodEntityId();
 		// A node is never an attack target. Stop here so a unit behind it is not acquired.
-		// A drop-off is not an attack target either. Workers gather the node.
-		if (Id.IsValid() && Sim && (Sim->IsResourceNode(Id) || Sim->IsDropOff(Id)))
+		// A friendly command center stays a rally. An enemy structure on that drop-off can be shot.
+		if (Id.IsValid() && Sim && Sim->IsResourceNode(Id))
 		{
-			if (Sim->IsResourceNode(Id))
+			Cmd.GatherActor = HitActor;
+			Cmd.GatherId = Id;
+			return Cmd;
+		}
+		if (Id.IsValid() && Sim && Sim->IsDropOff(Id))
+		{
+			if (Sim->IsAttackable(Id, GetLocalTeamId()) && !IsInLocalSelection(HitActor))
 			{
-				Cmd.GatherActor = HitActor;
-				Cmd.GatherId = Id;
+				Cmd.AttackActor = HitActor;
+				Cmd.AttackId = Id;
 			}
 			return Cmd;
 		}
@@ -419,7 +437,11 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 			}
 			else if (Id.IsValid() && Sim && Sim->IsDropOff(Id))
 			{
-				// Move to the impact. Do not attack the command center.
+				if (Sim->IsAttackable(Id, GetLocalTeamId()) && HitActor && !IsInLocalSelection(HitActor))
+				{
+					Cmd.AttackActor = HitActor;
+					Cmd.AttackId = Id;
+				}
 			}
 			else if (Id.IsValid() && HitActor && !IsInLocalSelection(HitActor))
 			{
@@ -576,7 +598,7 @@ void AKodPlayerController::IssueAttackToSelection_Implementation(AActor* Target)
 		UE_LOG(LogTemp, Log, TEXT("Attack Reject NonSim Target=%s"), *Target->GetName());
 		return;
 	}
-	if (Sim->IsResourceNode(TargetId) || Sim->IsDropOff(TargetId))
+	if (!Sim->IsAttackable(TargetId, GetLocalTeamId()))
 	{
 		UE_LOG(LogTemp, Log, TEXT("Attack Reject Node Target=%s Id=%d"), *Target->GetName(), TargetId.Value);
 		return;

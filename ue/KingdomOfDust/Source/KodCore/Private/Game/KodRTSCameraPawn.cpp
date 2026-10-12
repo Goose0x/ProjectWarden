@@ -111,21 +111,33 @@ void AKodRTSCameraPawn::Tick(float DeltaSeconds)
 	ApplyVerticalFov();
 	MaintainBoom();
 
-	bool bManualPan = false;
-	PollMoveInput(Dt, bManualPan);
-	PollZoom();
-	PollBookmarks();
-	PollAlert();
-	PollRotate();
-	if (bManualPan)
+	bool bMatchOver = false;
+	if (const UWorld* World = GetWorld())
 	{
-		bFollowUnit = false;
-		FollowTarget = nullptr;
+		if (const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			bMatchOver = Sim->IsMatchOver();
+		}
 	}
-	PollFollow();
-	if (bFollowUnit)
+
+	bool bManualPan = false;
+	if (!bMatchOver)
 	{
-		UpdateFollow(Dt);
+		PollMoveInput(Dt, bManualPan);
+		PollZoom();
+		PollBookmarks();
+		PollAlert();
+		PollRotate();
+		if (bManualPan)
+		{
+			bFollowUnit = false;
+			FollowTarget = nullptr;
+		}
+		PollFollow();
+		if (bFollowUnit)
+		{
+			UpdateFollow(Dt);
+		}
 	}
 
 	CurrentArmLength = FMath::FInterpTo(CurrentArmLength, TargetArmLength, Dt, ZoomInterpSpeed);

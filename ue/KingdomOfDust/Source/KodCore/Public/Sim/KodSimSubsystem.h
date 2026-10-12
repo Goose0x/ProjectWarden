@@ -178,6 +178,14 @@ struct KODCORE_API FKodSimEntityState
 	bool IsCarryingCargo() const { return CargoJadeite > 0 || CargoLuminene > 0; }
 };
 
+/** Local team 0. Victory means team 1's structures are gone. Defeat means team 0's are gone. */
+enum class EKodMatchOutcome : uint8
+{
+	None,
+	Victory,
+	Defeat
+};
+
 /**
  * Fixed-step sim authority (SimHz=16). Registry-only is NOT enough for Slice 0.
  * Owns pose + orders; presentation actors interpolate. NavMesh forbidden this slice.
@@ -227,6 +235,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	void IssueAttack(FKodEntityId Id, FKodEntityId TargetId);
+
+	/**
+	 * Resource nodes are never targets. A friendly drop-off is a rally, not a target.
+	 * Any other live combat state, including an enemy command center, can be shot.
+	 */
+	bool IsAttackable(FKodEntityId TargetId, int32 AttackerTeam) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	void IssueStop(FKodEntityId Id);
@@ -377,6 +391,7 @@ public:
 	bool CancelConstruction(FKodEntityId StructureId);
 	bool TryGetPrimaryTrain(FKodEntityId StructureId, FName& OutUnitId) const;
 	void SetPlayableWorldBox(const FBox& WorldBox);
+	bool TryGetPlayableCellBounds(int32& OutMinX, int32& OutMinY, int32& OutMaxX, int32& OutMaxY) const;
 	void BindStructureActor(FKodEntityId Id, AActor* Actor);
 	void ConsumePendingBuildingSpawns(TArray<FKodPendingBuildingSpawn>& OutSpawns);
 	bool IsCellBlocked(int32 CellX, int32 CellY) const;
@@ -390,6 +405,17 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Kod|Sim")
 	int64 GetSimTickIndex() const { return SimTickIndex; }
+
+	/** Team 1 opponent. Off stops new orders. Units already moving keep those orders. */
+	void SetAiEnabled(bool bEnabled);
+	bool IsAiEnabled() const { return bAiEnabled; }
+	/** 1 matches the player's 50 Credit start. Each step above 1 adds 100 starting Credits and grows waves faster. */
+	void SetAiDifficulty(int32 Difficulty);
+	int32 GetAiDifficulty() const { return AiDifficulty; }
+	void SetAiSeeded(bool bSeeded);
+	bool IsAiSeeded() const { return bAiSeeded; }
+	EKodMatchOutcome GetMatchOutcome() const { return MatchOutcome; }
+	bool IsMatchOver() const { return MatchOutcome != EKodMatchOutcome::None; }
 
 	/**
 	 * Presentation snapshot of combat entities (not resource nodes).
@@ -451,6 +477,8 @@ protected:
 	void DestroyResourceNodeActor(FKodEntityId Id);
 	void StepProduction();
 	void StepAbilities();
+	void StepAI();
+	void EvaluateMatch();
 	float EffectiveMoveSpeed(const FKodSimEntityState& State) const;
 	void TryStartProduction(FKodStructureState& Structure);
 	void FinishActiveProduction(FKodStructureState& Structure);
@@ -479,7 +507,7 @@ protected:
 	UPROPERTY()
 	TMap<int32, FKodResourceNodeState> ResourceNodes;
 
-	/** Drop-off buildings. Not combat. Included in ComputeIdleHash. */
+	/** Drop-off buildings. A structure drop-off also has combat HP. Included in ComputeIdleHash. */
 	UPROPERTY()
 	TMap<int32, FKodDropOffState> DropOffs;
 
@@ -504,4 +532,13 @@ protected:
 	int32 NextId = 1;
 	float TimeAccumulator = 0.f;
 	int64 SimTickIndex = 0;
+
+	bool bAiEnabled = true;
+	int32 AiDifficulty = 1;
+	bool bAiSeeded = false;
+	int32 AiWavesLaunched = 0;
+	int64 AiNextWaveTick = 0;
+	EKodMatchOutcome MatchOutcome = EKodMatchOutcome::None;
+	bool bTeam0HadStructure = false;
+	bool bTeam1HadStructure = false;
 };

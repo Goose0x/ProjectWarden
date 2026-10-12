@@ -4,6 +4,7 @@
 #include "Game/KodRTSCameraPawn.h"
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "Actors/KodUnit.h"
+#include "Actors/KodBuilding.h"
 #include "Actors/KodResourceNode.h"
 #include "Data/KodResourceNodeDefinition.h"
 #include "Data/KodAbilityDefinition.h"
@@ -20,6 +21,8 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -349,6 +352,7 @@ void AKodSlice0GameMode::StartPlay()
 	SpawnResourceField();
 	SpawnWorkersIfNeeded();
 	PublishPlayableBounds();
+	SpawnAiOpponent();
 }
 
 void AKodSlice0GameMode::PublishPlayableBounds()
@@ -1007,4 +1011,210 @@ void AKodSlice0GameMode::SpawnWorkersIfNeeded()
 	UE_LOG(LogTemp, Log, TEXT("KodEcon Workers Spawned=%d Anchor=%s"),
 		Spawned,
 		Anchor ? *Anchor->GetActorNameOrLabel() : TEXT("fallback"));
+}
+
+void AKodSlice0GameMode::SpawnAiOpponent()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Sim || !Sim->IsAiEnabled())
+	{
+		return;
+	}
+
+	int32 CmdAi = 1;
+	if (FParse::Value(FCommandLine::Get(), TEXT("kod.AI="), CmdAi) && CmdAi == 0)
+	{
+		Sim->SetAiEnabled(false);
+		UE_LOG(LogTemp, Log, TEXT("KodAI Enabled=0"));
+		return;
+	}
+	int32 CmdDiff = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("kod.AIDifficulty="), CmdDiff))
+	{
+		Sim->SetAiDifficulty(CmdDiff);
+	}
+
+	AActor* PlayerCc = nullptr;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!IsSlice0CommandCenter(Actor))
+		{
+			continue;
+		}
+		if (!PlayerCc || Actor->GetName() < PlayerCc->GetName())
+		{
+			PlayerCc = Actor;
+		}
+	}
+	const FVector PlayerLoc = PlayerCc ? PlayerCc->GetActorLocation() : SmokeRangerOffset;
+
+	FVector Seed = FVector::ZeroVector;
+	const TCHAR* How = TEXT("Corner");
+	bool bHave = false;
+	FString StartArg;
+	if (FParse::Value(FCommandLine::Get(), TEXT("KodAIStart="), StartArg))
+	{
+		TArray<FString> Parts;
+		StartArg.ParseIntoArray(Parts, TEXT(","), true);
+		if (Parts.Num() >= 2)
+		{
+			Seed.X = FCString::Atof(*Parts[0]);
+			Seed.Y = FCString::Atof(*Parts[1]);
+			Seed.Z = Parts.Num() >= 3 ? FCString::Atof(*Parts[2]) : PlayerLoc.Z;
+			bHave = true;
+			How = TEXT("Arg");
+		}
+	}
+	if (!bHave)
+	{
+		AActor* Tagged = nullptr;
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			AActor* Actor = *It;
+			if (!Actor || !Actor->ActorHasTag(FName(TEXT("KodAIStart"))))
+			{
+				continue;
+			}
+			if (!Tagged || Actor->GetName() < Tagged->GetName())
+			{
+				Tagged = Actor;
+			}
+		}
+		if (Tagged)
+		{
+			Seed = Tagged->GetActorLocation();
+			bHave = true;
+			How = TEXT("Tag");
+		}
+	}
+	if (!bHave)
+	{
+		int32 MinX = 0;
+		int32 MinY = 0;
+		int32 MaxX = 0;
+		int32 MaxY = 0;
+		if (Sim->TryGetPlayableCellBounds(MinX, MinY, MaxX, MaxY))
+		{
+			const int32 Inset = 3;
+			const int32 Left = MinX + Inset;
+			const int32 Right = FMath::Max(Left, MaxX - Inset);
+			const int32 Bottom = MinY + Inset;
+			const int32 Top = FMath::Max(Bottom, MaxY - Inset);
+			const int32 Corners[4][2] = {
+				{Left, Bottom},
+				{Left, Top},
+				{Right, Bottom},
+				{Right, Top}
+			};
+			int32 BestX = Right;
+			int32 BestY = Top;
+			int64 BestDist = -1;
+			for (int32 CornerIndex = 0; CornerIndex < 4; ++CornerIndex)
+			{
+				const int32 CellX = Corners[CornerIndex][0];
+				const int32 CellY = Corners[CornerIndex][1];
+				const float X = KodBuildGrid::CellCenter(CellX);
+				const float Y = KodBuildGrid::CellCenter(CellY);
+				const int64 DX = static_cast<int64>(FMath::RoundToInt(X - PlayerLoc.X));
+				const int64 DY = static_cast<int64>(FMath::RoundToInt(Y - PlayerLoc.Y));
+				const int64 Dist = DX * DX + DY * DY;
+				const bool bCloserTie = Dist == BestDist && (CellX < BestX || (CellX == BestX && CellY < BestY));
+				if (Dist > BestDist || bCloserTie)
+				{
+					BestDist = Dist;
+					BestX = CellX;
+					BestY = CellY;
+				}
+			}
+			Seed = FVector(KodBuildGrid::CellCenter(BestX), KodBuildGrid::CellCenter(BestY), PlayerLoc.Z);
+		}
+		else
+		{
+			Seed = PlayerLoc + FVector(8000.f, 8000.f, 0.f);
+		}
+	}
+
+	TArray<AActor*> Ignored;
+	const float FloorZ = ResolveResourceFloorZ(World, Sim, Seed.X, Seed.Y, Seed.Z, Ignored);
+	Seed.Z = FloorZ;
+
+	UKodBuildingDefinition* CCDef = UKodSlice0Bootstrap::ResolveBuilding(FName(KodWardenPaths::Id_CommandCenter), this);
+	const FTransform Xform(FRotator::ZeroRotator, Seed);
+	AKodBuilding* Building = World->SpawnActorDeferred<AKodBuilding>(
+		AKodBuilding::StaticClass(),
+		Xform,
+		nullptr,
+		nullptr,
+		ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (!Building)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodAI Seed Miss"));
+		return;
+	}
+	Building->SetActorLocation(Seed);
+	Building->TeamId = 1;
+	if (CCDef)
+	{
+		Building->Definition = CCDef;
+	}
+
+	FKodStructureSpec Spec;
+	Spec.DefinitionId = FName(KodWardenPaths::Id_CommandCenter);
+	Spec.TeamId = 1;
+	Spec.SupplyProvided = CCDef ? CCDef->SupplyProvided : KodEconomyDefaults::SupplyPerHq;
+	Spec.bIsDropOff = true;
+	Spec.DisplayId = FName(TEXT("CC"));
+	Spec.FootprintX = CCDef ? FMath::Max(1, CCDef->FootprintX) : 5;
+	Spec.FootprintY = CCDef ? FMath::Max(1, CCDef->FootprintY) : 5;
+	Spec.MaxHealth = CCDef ? CCDef->MaxHealth : 2500.f;
+	Spec.Trains.Add(FName(KodWardenPaths::Id_Dozer));
+	Spec.DropOffStandUU = DropOffStandUU > 0 ? DropOffStandUU : KodEconomyDefaults::DropOffStandUU;
+	const FKodEntityId Id = Sim->RegisterStructure(Building, Spec);
+	if (!Id.IsValid())
+	{
+		Building->Destroy();
+		UE_LOG(LogTemp, Warning, TEXT("KodAI Seed Miss"));
+		return;
+	}
+	Building->EntityId = Id;
+	Building->FinishSpawning(Xform);
+
+	const int32 Difficulty = FMath::Max(1, Sim->GetAiDifficulty());
+	const int32 Credits = 50 + (Difficulty - 1) * 100;
+	Sim->SetTeamBank(1, Credits, 0);
+
+	const int32 HalfSpan = (FMath::Max(Spec.FootprintX, Spec.FootprintY) * KodBuildGrid::CellUU) / 2;
+	int32 Spawned = 0;
+	for (int32 Index = 0; Index < 6; ++Index)
+	{
+		const float Angle = static_cast<float>(Index) * 60.f;
+		const FVector Dir = FVector(1.f, 0.f, 0.f).RotateAngleAxis(Angle, FVector::UpVector);
+		float Radius = static_cast<float>(HalfSpan + KodBuildGrid::CellUU);
+		FVector Spot = FVector(Seed.X, Seed.Y, Seed.Z) + Dir * Radius;
+		for (int32 Step = 0; Step < 8 && Sim->IsCellBlocked(KodBuildGrid::CellOf(Spot.X), KodBuildGrid::CellOf(Spot.Y)); ++Step)
+		{
+			Radius += static_cast<float>(KodBuildGrid::CellUU);
+			Spot = FVector(Seed.X, Seed.Y, Seed.Z) + Dir * Radius;
+		}
+		const float WorkerZ = ResolveResourceFloorZ(World, Sim, Spot.X, Spot.Y, Seed.Z, Ignored);
+		const FTransform WorkerXform(FRotator::ZeroRotator, FVector(Spot.X, Spot.Y, WorkerZ + 100.f));
+		AKodUnit* Worker = UKodSlice0Bootstrap::SpawnDozer(World, WorkerXform, /*TeamId*/ 1);
+		if (!Worker)
+		{
+			continue;
+		}
+		Ignored.Add(Worker);
+		++Spawned;
+	}
+
+	Sim->SetAiSeeded(true);
+	UE_LOG(LogTemp, Log, TEXT("KodAI Seed How=%s Loc=%.0f,%.0f,%.0f Workers=%d Credits=%d"),
+		How,
+		Seed.X,
+		Seed.Y,
+		Seed.Z,
+		Spawned,
+		Credits);
 }

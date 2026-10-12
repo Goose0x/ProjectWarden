@@ -37,6 +37,19 @@ void UKodSimSubsystem::SetPlayableWorldBox(const FBox& WorldBox)
 	bHasPlayable = PlayMinX <= PlayMaxX && PlayMinY <= PlayMaxY;
 }
 
+bool UKodSimSubsystem::TryGetPlayableCellBounds(int32& OutMinX, int32& OutMinY, int32& OutMaxX, int32& OutMaxY) const
+{
+	if (!bHasPlayable)
+	{
+		return false;
+	}
+	OutMinX = PlayMinX;
+	OutMinY = PlayMinY;
+	OutMaxX = PlayMaxX;
+	OutMaxY = PlayMaxY;
+	return true;
+}
+
 bool UKodSimSubsystem::IsCellBlocked(int32 CellX, int32 CellY) const
 {
 	TArray<int32> Keys;
@@ -625,6 +638,7 @@ void UKodSimSubsystem::ReleaseStructureRecord(FKodEntityId Id)
 		}
 	}
 	Structures.Remove(Id.Value);
+	DropOffs.Remove(Id.Value);
 	if (bWasComplete)
 	{
 		RecalcSupplyCap(TeamId);
