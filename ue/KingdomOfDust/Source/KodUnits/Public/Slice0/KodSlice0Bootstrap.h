@@ -70,11 +70,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
 	static class AKodUnit* SpawnDozer(UWorld* World, const FTransform& Transform, int32 TeamId = 0);
 
+	/** Placeholder Combat Stim. Public so match start can register it when the Marine asset has none. */
+	static class UKodAbilityDefinition* MakeCombatStim(UObject* Outer);
+
 protected:
 	static UKodDataCatalog* BuildCatalog(UObject* Outer);
 	static UKodWeaponDefinition* MakeRangerRifle(UObject* Outer);
 	static UKodUnitDefinition* MakeRanger(UObject* Outer, UKodWeaponDefinition* Rifle);
-	static class UKodAbilityDefinition* MakeCombatStim(UObject* Outer);
 	static UKodUnitDefinition* MakeDozer(UObject* Outer);
 	static UKodBuildingDefinition* MakeCommandCenter(UObject* Outer, UKodUnitDefinition* Dozer);
 	static UKodBuildingDefinition* MakeBarracks(UObject* Outer, UKodUnitDefinition* Ranger);

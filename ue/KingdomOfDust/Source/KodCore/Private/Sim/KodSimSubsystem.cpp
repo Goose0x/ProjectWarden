@@ -108,9 +108,14 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 		{
 			continue;
 		}
-		if (State->CooldownRemaining > 0.f)
+		if (State->CooldownTicksRemaining > 0)
 		{
-			State->CooldownRemaining = FMath::Max(0.f, State->CooldownRemaining - FixedDt);
+			--State->CooldownTicksRemaining;
+			State->CooldownRemaining = static_cast<float>(State->CooldownTicksRemaining) * FixedDt;
+		}
+		else
+		{
+			State->CooldownRemaining = 0.f;
 		}
 		if (State->bMobile
 			&& State->Order == EKodSimOrderType::None
@@ -224,7 +229,7 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 		State.YawDegrees = FMath::RadiansToDegrees(FMath::Atan2(ToTarget.Y, ToTarget.X));
 	}
 
-	if (State.CooldownRemaining <= 0.f && State.WeaponDamage > 0.f)
+	if (State.CooldownTicksRemaining <= 0 && State.WeaponDamage > 0.f)
 	{
 		// Hitscan — no actor bullets. Slice 0: raw Damage only; target Armor is not applied yet.
 		auto ActorOf = [this](int32 IdValue) -> AActor*
@@ -250,8 +255,9 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 		const float Mitigated = FMath::Max(0.f, State.WeaponDamage);
 		Target->Health = FMath::Max(0.f, Target->Health - Mitigated);
 		const int32 AttackPermille = FMath::Clamp(State.AbilityAttackPermille, 1, 10000);
-		const float ScaledCooldown = State.WeaponCooldownSeconds * (1000.f / static_cast<float>(AttackPermille));
-		State.CooldownRemaining = FMath::Max(0.01f, ScaledCooldown);
+		const int32 ScaledTicks = FMath::Max(1, (FMath::Max(1, State.WeaponCooldownTicks) * 1000) / AttackPermille);
+		State.CooldownTicksRemaining = ScaledTicks;
+		State.CooldownRemaining = static_cast<float>(ScaledTicks) * KodBuildTicks::SimDt;
 		const float HealthLeft = Target->Health;
 
 		// Hit while idle: retaliate next acquire, even if the attacker is outside range.
@@ -528,6 +534,9 @@ void UKodSimSubsystem::ConfigureEntity(
 	State->WeaponDamage = WeaponDamage;
 	State->WeaponRange = WeaponRange;
 	State->WeaponCooldownSeconds = WeaponCooldownSeconds;
+	State->WeaponCooldownTicks = FMath::Max(0, FMath::RoundToInt(WeaponCooldownSeconds * static_cast<float>(KodBuildTicks::SimHz)));
+	State->CooldownTicksRemaining = 0;
+	State->CooldownRemaining = 0.f;
 	State->TeamId = TeamId;
 	State->bCanGather = bCanGather;
 }
@@ -1683,6 +1692,8 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		const uint8 StallRetarget = S.bGatherStallRetargeted ? 1 : 0;
 		Append(&StallRetarget, sizeof(StallRetarget));
 		Append(&S.SupplyCost, sizeof(S.SupplyCost));
+		Append(&S.WeaponCooldownTicks, sizeof(S.WeaponCooldownTicks));
+		Append(&S.CooldownTicksRemaining, sizeof(S.CooldownTicksRemaining));
 		const uint8 SupplyCounted = S.bSupplyCounted ? 1 : 0;
 		Append(&SupplyCounted, sizeof(SupplyCounted));
 		Append(&S.BuildSite.Value, sizeof(S.BuildSite.Value));
