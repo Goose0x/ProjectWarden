@@ -7,6 +7,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Data/KodBuildingDefinition.h"
 #include "Data/KodResourceNodeDefinition.h"
+#include "Data/KodUnitDefinition.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
@@ -218,15 +219,8 @@ namespace
 
 	void RememberUnit(UKodSimSubsystem* Sim, const TCHAR* UnitId, const TCHAR* Display, int32 Hp, int32 Armor, int32 Speed, int32 Supply, bool bInfantry)
 	{
-		if (UKodUnitDefinition* Def = UKodSlice0Bootstrap::ResolveUnit(FName(UnitId), Sim))
-		{
-			Def->MaxHealth = static_cast<float>(Hp);
-			Def->Armor = static_cast<float>(Armor);
-			Def->MoveSpeed = static_cast<float>(Speed);
-			Def->Cost.Supply = Supply;
-			Def->bBiological = true;
-			Def->bInfantry = bInfantry;
-		}
+		(void)Hp;
+		(void)Speed;
 		FKodTrainSpec Spec;
 		Spec.UnitId = FName(UnitId);
 		Spec.DisplayId = FName(Display);
