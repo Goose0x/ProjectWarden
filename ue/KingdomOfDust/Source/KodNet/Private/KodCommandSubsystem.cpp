@@ -73,6 +73,7 @@ void UKodCommandSubsystem::ExecuteCommand(const FKodCommand& Command)
 	case EKodCommandType::ResumeBuild: ExecuteResumeBuild(Command); break;
 	case EKodCommandType::CancelBuild: ExecuteCancelBuild(Command); break;
 	case EKodCommandType::UseAbility:  ExecuteUseAbility(Command); break;
+	case EKodCommandType::AttackMove: ExecuteAttackMove(Command); break;
 	default: break;
 	}
 }
@@ -294,6 +295,20 @@ void UKodCommandSubsystem::ExecuteUseAbility(const FKodCommand& Command)
 	for (const FKodEntityId& Id : Command.SourceEntities)
 	{
 		Sim->UseAbility(Id, Command.PayloadName);
+	}
+}
+
+void UKodCommandSubsystem::ExecuteAttackMove(const FKodCommand& Command)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : Command.SourceEntities)
+	{
+		Sim->IssueAttackMove(Id, Command.TargetLocation);
 	}
 }
 

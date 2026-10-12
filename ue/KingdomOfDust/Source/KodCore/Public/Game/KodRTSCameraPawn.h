@@ -46,6 +46,12 @@ public:
 	/** Last alert (unit hit or train complete). Space jumps here. */
 	void NoteAlert(FVector WorldLocation);
 
+	/** Recent alert for the minimap ping. Space still uses the last alert after the ping fades. */
+	bool GetActiveAlert(FVector& OutLocation) const;
+
+	/** Four ground corners of the view, near-left, near-right, far-right, far-left. */
+	bool GetGroundViewCorners(FVector& OutNearLeft, FVector& OutNearRight, FVector& OutFarRight, FVector& OutFarLeft) const;
+
 	/** Match location, yaw, and zoom. Used when entering spectator. */
 	void CopyViewFrom(const AKodRTSCameraPawn* Other);
 
@@ -176,6 +182,7 @@ protected:
 	float TargetGroundZ = 0.f;
 	bool bHasAlert = false;
 	FVector AlertLocation = FVector::ZeroVector;
+	float AlertNotedSeconds = -1.f;
 	bool bFollowUnit = false;
 	TWeakObjectPtr<AActor> FollowTarget;
 	bool bLoggedInit = false;

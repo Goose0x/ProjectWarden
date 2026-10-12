@@ -61,6 +61,7 @@ protected:
 	void ExecuteResumeBuild(const FKodCommand& Command);
 	void ExecuteCancelBuild(const FKodCommand& Command);
 	void ExecuteUseAbility(const FKodCommand& Command);
+	void ExecuteAttackMove(const FKodCommand& Command);
 
 	UPROPERTY()
 	TArray<FKodCommand> Pending;

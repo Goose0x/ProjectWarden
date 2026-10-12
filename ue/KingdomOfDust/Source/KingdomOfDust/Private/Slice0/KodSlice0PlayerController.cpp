@@ -239,11 +239,9 @@ void AKodSlice0PlayerController::TryCenterControlGroup()
 	{
 		return;
 	}
-	if (IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl))
-	{
-		return;
-	}
 
+	const bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
+	const bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
 	const FKey Keys[10] = {
 		EKeys::Zero, EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four,
 		EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine
@@ -256,18 +254,26 @@ void AKodSlice0PlayerController::TryCenterControlGroup()
 		{
 			continue;
 		}
+		if (bCtrl)
+		{
+			AssignControlGroup(Index);
+			continue;
+		}
+		if (bShift)
+		{
+			AddToControlGroup(Index);
+			continue;
+		}
+
+		const TArray<FKodEntityId> Ids = Store->GetGroup(Index);
+		SetLocalSelectionFromIds(Ids, false);
 		const float Previous = LastGroupTapSeconds[Index];
 		LastGroupTapSeconds[Index] = Now;
-		if (Previous < 0.f || (Now - Previous) > DoubleTapSeconds)
+		if (Previous < 0.f || (Now - Previous) > DoubleTapSeconds || Ids.Num() == 0)
 		{
 			continue;
 		}
 		LastGroupTapSeconds[Index] = -1.f;
-		const TArray<FKodEntityId> Ids = Store->GetGroup(Index);
-		if (Ids.Num() == 0)
-		{
-			continue;
-		}
 		FVector Sum = FVector::ZeroVector;
 		int32 Count = 0;
 		for (const FKodEntityId& Id : Ids)
@@ -283,6 +289,104 @@ void AKodSlice0PlayerController::TryCenterControlGroup()
 			CameraPawn->JumpTo(Sum / static_cast<float>(Count));
 		}
 	}
+}
+
+int32 AKodSlice0PlayerController::GetControlGroupCount(int32 GroupIndex) const
+{
+	return GetControlGroupIds(GroupIndex).Num();
+}
+
+TArray<FKodEntityId> AKodSlice0PlayerController::GetControlGroupIds(int32 GroupIndex) const
+{
+	const ULocalPlayer* LocalPlayer = GetLocalPlayer();
+	const UKodControlGroupStore* Store = LocalPlayer ? LocalPlayer->GetSubsystem<UKodControlGroupStore>() : nullptr;
+	if (!Store)
+	{
+		return TArray<FKodEntityId>();
+	}
+	return Store->GetGroup(GroupIndex);
+}
+
+void AKodSlice0PlayerController::AssignControlGroup(int32 GroupIndex)
+{
+	ULocalPlayer* LocalPlayer = GetLocalPlayer();
+	UKodControlGroupStore* Store = LocalPlayer ? LocalPlayer->GetSubsystem<UKodControlGroupStore>() : nullptr;
+	if (!Store)
+	{
+		return;
+	}
+	Store->AssignGroup(GroupIndex, GetLocalSelectedEntityIds());
+}
+
+void AKodSlice0PlayerController::AddToControlGroup(int32 GroupIndex)
+{
+	ULocalPlayer* LocalPlayer = GetLocalPlayer();
+	UKodControlGroupStore* Store = LocalPlayer ? LocalPlayer->GetSubsystem<UKodControlGroupStore>() : nullptr;
+	if (!Store)
+	{
+		return;
+	}
+	Store->AddToGroup(GroupIndex, GetLocalSelectedEntityIds());
+}
+
+void AKodSlice0PlayerController::IssueMinimapGroundOrder(FVector WorldLocation)
+{
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Commands || !Sim)
+	{
+		Super::IssueMinimapGroundOrder(WorldLocation);
+		return;
+	}
+
+	FKodCommand MoveCmd;
+	MoveCmd.Type = EKodCommandType::Move;
+	MoveCmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	MoveCmd.TargetLocation = WorldLocation;
+	FKodCommand AttackCmd;
+	AttackCmd.Type = EKodCommandType::AttackMove;
+	AttackCmd.IssuerPlayerId = MoveCmd.IssuerPlayerId;
+	AttackCmd.TargetLocation = WorldLocation;
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodSimEntityState State;
+		if (!Sim->TryGetState(Id, State) || !State.bMobile || State.Health <= 0.f)
+		{
+			continue;
+		}
+		if (State.WeaponDamage > 0.f)
+		{
+			AttackCmd.SourceEntities.Add(Id);
+		}
+		else
+		{
+			MoveCmd.SourceEntities.Add(Id);
+		}
+	}
+	if (MoveCmd.SourceEntities.Num() > 0)
+	{
+		Commands->Enqueue(MoveCmd);
+	}
+	if (AttackCmd.SourceEntities.Num() > 0)
+	{
+		Commands->Enqueue(AttackCmd);
+	}
+	UE_LOG(LogTemp, Log, TEXT("Minimap Order Move=%d AttackMove=%d Dest=%.0f,%.0f"),
+		MoveCmd.SourceEntities.Num(),
+		AttackCmd.SourceEntities.Num(),
+		WorldLocation.X,
+		WorldLocation.Y);
+}
+
+bool AKodSlice0PlayerController::IsActiveCommandSubgroup(FName DefinitionId) const
+{
+	const AKodHUD* HUD = Cast<AKodHUD>(GetHUD());
+	if (!HUD || HUD->GetCommandSubgroupCount() <= 1)
+	{
+		return true;
+	}
+	return DefinitionId == HUD->GetActiveCommandSubgroup();
 }
 
 bool AKodSlice0PlayerController::ApplySelectedStructureRally(const FKodCursorCommand& Cmd)
@@ -346,6 +450,11 @@ void AKodSlice0PlayerController::EnqueueTrainOnSelectedStructures()
 	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
 	{
 		FName TrainId;
+		FKodStructureState Structure;
+		if (Sim->IsStructure(Id) && Sim->TryGetStructure(Id, Structure) && !IsActiveCommandSubgroup(Structure.DefinitionId))
+		{
+			continue;
+		}
 		if (Sim->IsStructure(Id) && Sim->TryGetPrimaryTrain(Id, TrainId))
 		{
 			if (!AllowTrain(TrainId))
@@ -374,7 +483,8 @@ void AKodSlice0PlayerController::CancelTrainOnSelectedStructures()
 	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
 	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
 	{
-		if (Sim->IsStructure(Id))
+		FKodStructureState Structure;
+		if (Sim->IsStructure(Id) && Sim->TryGetStructure(Id, Structure) && IsActiveCommandSubgroup(Structure.DefinitionId))
 		{
 			Cmd.SourceEntities.Add(Id);
 		}
@@ -402,7 +512,7 @@ FKodEntityId AKodSlice0PlayerController::FirstSelectedWorker() const
 	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
 	{
 		FKodSimEntityState State;
-		if (Sim->TryGetState(Id, State) && State.bCanGather && State.Health > 0.f)
+		if (Sim->TryGetState(Id, State) && State.bCanGather && State.Health > 0.f && IsActiveCommandSubgroup(State.DefinitionId))
 		{
 			return Id;
 		}
@@ -523,6 +633,20 @@ FString AKodSlice0PlayerController::GetBuildMenuHint() const
 
 void AKodSlice0PlayerController::HandleRightClickCommand()
 {
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (GetMousePosition(MouseX, MouseY))
+	{
+		if (const AKodHUD* HUD = Cast<AKodHUD>(GetHUD()))
+		{
+			FVector WorldPoint;
+			if (HUD->MinimapPixelToWorld(MouseX, MouseY, WorldPoint, false) || HUD->IsPassiveHudChrome(MouseX, MouseY))
+			{
+				Super::HandleRightClickCommand();
+				return;
+			}
+		}
+	}
 	if (TryResumeBuildUnderCursor())
 	{
 		return;
@@ -751,7 +875,9 @@ void AKodSlice0PlayerController::IssueAbility(FName AbilityId)
 	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
 	{
 		FKodSimEntityState State;
-		if (Sim->TryGetState(Id, State) && Sim->UnitHasAbility(State.DefinitionId, AbilityId))
+		if (Sim->TryGetState(Id, State)
+			&& IsActiveCommandSubgroup(State.DefinitionId)
+			&& Sim->UnitHasAbility(State.DefinitionId, AbilityId))
 		{
 			Cmd.SourceEntities.Add(Id);
 		}

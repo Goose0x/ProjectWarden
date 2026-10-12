@@ -546,8 +546,10 @@ void UKodUnitAnimInstance::ReadSimPresentation(AKodUnit* UnitPawn)
 				FKodSimEntityState SimState;
 				if (UnitPawn->EntityId.IsValid() && Sim->TryGetState(UnitPawn->EntityId, SimState))
 				{
-					bAim = SimState.Order == EKodSimOrderType::Attack && SimState.AttackTarget.IsValid();
-					if (SimState.Order == EKodSimOrderType::Move)
+					bAim = (SimState.Order == EKodSimOrderType::Attack || SimState.Order == EKodSimOrderType::AttackMove)
+						&& SimState.AttackTarget.IsValid();
+					if (SimState.Order == EKodSimOrderType::Move
+						|| (SimState.Order == EKodSimOrderType::AttackMove && !bAim))
 					{
 						const float Accept = FMath::Max(1.f, SimState.AcceptanceRadius * 0.5f);
 						const float DistSq = FVector::DistSquared2D(SimState.Position, SimState.MoveTarget);

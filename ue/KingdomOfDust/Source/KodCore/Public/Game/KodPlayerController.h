@@ -110,6 +110,21 @@ public:
 	/** True after B, until the ghost is cancelled. */
 	virtual bool IsWorkerBuildMenuOpen() const { return false; }
 
+	/** Tab index for a mixed selection. The command card shows that subgroup. */
+	int32 GetCommandSubgroupIndex() const { return CommandSubgroupIndex; }
+
+	/** Canvas control-group tabs. Slice 0 fills these from the local group store. */
+	virtual int32 GetControlGroupCount(int32 GroupIndex) const;
+	virtual TArray<FKodEntityId> GetControlGroupIds(int32 GroupIndex) const;
+	virtual void AssignControlGroup(int32 GroupIndex);
+	virtual void AddToControlGroup(int32 GroupIndex);
+
+	void SetLocalSelectionFromIds(const TArray<FKodEntityId>& Ids, bool bAdd);
+	void SelectIdleWorker();
+
+	/** Ground order from the minimap. Combat units attack-move. Others move. */
+	virtual void IssueMinimapGroundOrder(FVector WorldLocation);
+
 protected:
 	void HandleSelectStarted();
 	void HandleSelectCompleted();
@@ -123,6 +138,11 @@ protected:
 
 	/** Right-click on the card must not order the world. */
 	bool IsCursorOverCommandCard() const;
+
+	bool ConsumeMinimapClick();
+	bool ConsumeChromeClick();
+	void JumpCameraToMinimap(bool bClampToMap);
+	void SyncCommandSubgroup();
 
 	/** True when a build ghost consumed the click. */
 	virtual bool ConsumePlacementLeftClick() { return false; }
@@ -210,6 +230,10 @@ protected:
 
 	bool bSelectPressed = false;
 	bool bMarqueeActive = false;
+	bool bMinimapDrag = false;
+	int32 CommandSubgroupIndex = 0;
+	int32 LastIdleWorkerId = 0;
+	TArray<int32> CommandSelectionIds;
 	FVector2D MarqueeStart = FVector2D::ZeroVector;
 	FVector2D MarqueeEnd = FVector2D::ZeroVector;
 };
