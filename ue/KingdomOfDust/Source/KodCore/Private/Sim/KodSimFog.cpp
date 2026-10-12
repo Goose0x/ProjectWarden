@@ -321,4 +321,5 @@ void UKodSimSubsystem::StepVision()
 			return A.Id < B.Id;
 		});
 	}
+	ApplyExposedReveal();
 }

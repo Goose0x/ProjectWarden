@@ -88,6 +88,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
 	float ScrollSpeed = 4800.f;
 
+	/** Viewport-edge pan, world units per second. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Camera")
+	float EdgeScrollSpeed = 4800.f;
+
+	/** Arrow-key pan, world units per second. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Camera")
+	float KeyboardScrollSpeed = 4800.f;
+
+	/** Scales middle-mouse grab. 1 matches the ground under the cursor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Camera")
+	float MouseSensitivity = 1.f;
+
 	/** How fast pan speed catches the target. High is snappy. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
 	float PanAccelSpeed = 24.f;
@@ -160,7 +172,7 @@ protected:
 	void PollAlert();
 	void PollRotate();
 	void PollFollow();
-	void ApplyPan(float DeltaSeconds, const FVector2D& PlanarInput);
+	void ApplyPan(float DeltaSeconds, const FVector2D& UnitsPerSecond);
 	void UpdateTerrain(float DeltaSeconds, bool bInstant);
 	void ClampToPlayable();
 	void UpdateFollow(float DeltaSeconds);

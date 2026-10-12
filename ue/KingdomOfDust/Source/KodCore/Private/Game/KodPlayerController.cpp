@@ -1,5 +1,7 @@
 #include "Game/KodPlayerController.h"
+#include "Components/PrimitiveComponent.h"
 #include "Game/KodHUD.h"
+#include "Game/KodPortraitStage.h"
 #include "Game/KodRTSCameraPawn.h"
 #include "Game/KodSpectatorPawn.h"
 #include "Engine/LocalPlayer.h"
@@ -108,9 +110,32 @@ void AKodPlayerController::SetupInputComponent()
 	// Fallback: PlayerTick polls mouse buttons for Slice 0 greybox PIE.
 }
 
+void AKodPlayerController::BuildHiddenComponentList(const FVector& ViewLocation, TSet<FPrimitiveComponentId>& HiddenComponents)
+{
+	Super::BuildHiddenComponentList(ViewLocation, HiddenComponents);
+	if (const AKodHUD* HUD = Cast<AKodHUD>(GetHUD()))
+	{
+		if (const AKodPortraitStage* Stage = HUD->GetPortraitStage())
+		{
+			Stage->AppendHiddenPrimitives(HiddenComponents);
+		}
+	}
+}
+
 void AKodPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
+	if (WasInputKeyJustPressed(EKeys::F10) || WasInputKeyJustPressed(EKeys::Escape))
+	{
+		if (AKodHUD* MenuHUD = Cast<AKodHUD>(GetHUD()))
+		{
+			MenuHUD->TogglePauseMenu();
+			if (MenuHUD->IsMenuOpen())
+			{
+				return;
+			}
+		}
+	}
 
 	// A swapped-away controller must not keep selecting. A spectator pawn keeps the camera and drops orders.
 	if (!IsLocalPlayerController() || Cast<AKodSpectatorPawn>(GetPawn()))
@@ -1439,6 +1464,14 @@ bool AKodPlayerController::ConsumeChromeClick()
 	}
 	const bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
 	const bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
+	if (Hit.Kind == FName(TEXT("Menu")))
+	{
+		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))
+		{
+			MutableHUD->HandleMenuChoice(Hit.IntParam);
+		}
+		return true;
+	}
 	if (Hit.Kind == FName(TEXT("Page")))
 	{
 		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))

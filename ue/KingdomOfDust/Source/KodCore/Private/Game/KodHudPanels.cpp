@@ -638,12 +638,6 @@ void AKodHUD::DrawPortrait()
 	DrawRect(FLinearColor(0.03f, 0.04f, 0.05f, 0.94f), X, Y, Width, PanelH);
 	DrawRect(FLinearColor(0.45f, 0.38f, 0.22f, 1.f), X, Y, Width, 3.f * Scale);
 	AActor* PortraitActor = PC->GetLocalSelection().Num() > 0 ? PC->GetLocalSelection()[0] : nullptr;
-	if (!PortraitStage && World)
-	{
-		FActorSpawnParameters Params;
-		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		PortraitStage = World->SpawnActor<AKodPortraitStage>(AKodPortraitStage::StaticClass(), FVector(0.f, 0.f, -200000.f), FRotator::ZeroRotator, Params);
-	}
 	if (PortraitStage && PortraitActor)
 	{
 		int32 TeamId = 0;
@@ -652,7 +646,18 @@ void AKodHUD::DrawPortrait()
 		{
 			TeamId = PortraitState->TeamId;
 		}
-		PortraitStage->ShowSubject(PortraitActor, TeamId);
+		if (PortraitSubject.Get() != PortraitActor)
+		{
+			PortraitStage->ShowSubject(PortraitActor, TeamId);
+			PortraitSubject = PortraitActor;
+			PortraitCaptureAccum = 1.f;
+		}
+		PortraitCaptureAccum += World ? World->GetDeltaSeconds() : 0.f;
+		if (PortraitCaptureAccum >= 1.f / 12.f)
+		{
+			PortraitCaptureAccum = 0.f;
+			PortraitStage->CapturePortrait();
+		}
 		if (UTextureRenderTarget2D* Target = PortraitStage->GetRenderTarget())
 		{
 			DrawTexture(Target, X + 4.f * Scale, Y + 8.f * Scale, Width - 8.f * Scale, PanelH - 36.f * Scale, 0.f, 0.f, 1.f, 1.f);
@@ -1009,6 +1014,10 @@ const FKodStructureState* AKodHUD::FindFrameStructure(int32 EntityId) const
 
 bool AKodHUD::BlocksWorldSelect(float MouseX, float MouseY) const
 {
+	if (MenuPage != 0)
+	{
+		return true;
+	}
 	if (bHasMinimap && PointIn(MouseX, MouseY, MapMinX, MapMinY, MapMaxX, MapMaxY))
 	{
 		return true;

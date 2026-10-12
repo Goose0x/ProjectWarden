@@ -146,7 +146,7 @@ void AKodRTSCameraPawn::Pan(FVector2D AxisValue)
 		return;
 	}
 	const float Dt = GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.f;
-	AddActorWorldOffset((PlanarForward() * AxisValue.Y + PlanarRight() * AxisValue.X) * ScrollSpeed * Dt);
+	AddActorWorldOffset((PlanarForward() * AxisValue.Y + PlanarRight() * AxisValue.X) * KeyboardScrollSpeed * Dt);
 }
 
 void AKodRTSCameraPawn::Zoom(float AxisValue)
@@ -426,29 +426,31 @@ void AKodRTSCameraPawn::PollMoveInput(float DeltaSeconds, bool& bOutManualPan)
 		FVector CursorGround;
 		if (CursorOnPlane(GrabWorld.Z, CursorGround))
 		{
-			AddActorWorldOffset(FVector(GrabWorld.X - CursorGround.X, GrabWorld.Y - CursorGround.Y, 0.f));
+			const float Sens = FMath::Max(0.05f, MouseSensitivity);
+			AddActorWorldOffset(FVector(GrabWorld.X - CursorGround.X, GrabWorld.Y - CursorGround.Y, 0.f) * Sens);
 		}
 		PanVelocity = FVector::ZeroVector;
 		bOutManualPan = true;
 		return;
 	}
 
-	FVector2D Input = FVector2D::ZeroVector;
+	FVector2D KeysInput = FVector2D::ZeroVector;
+	FVector2D EdgeInput = FVector2D::ZeroVector;
 	if (PC->IsInputKeyDown(EKeys::Up))
 	{
-		Input.Y += 1.f;
+		KeysInput.Y += 1.f;
 	}
 	if (PC->IsInputKeyDown(EKeys::Down))
 	{
-		Input.Y -= 1.f;
+		KeysInput.Y -= 1.f;
 	}
 	if (PC->IsInputKeyDown(EKeys::Right))
 	{
-		Input.X += 1.f;
+		KeysInput.X += 1.f;
 	}
 	if (PC->IsInputKeyDown(EKeys::Left))
 	{
-		Input.X -= 1.f;
+		KeysInput.X -= 1.f;
 	}
 
 	if (IsViewportFocused())
@@ -463,27 +465,32 @@ void AKodRTSCameraPawn::PollMoveInput(float DeltaSeconds, bool& bOutManualPan)
 			const float Margin = FMath::Max(0.f, EdgeScrollMarginPx);
 			if (MouseX <= Margin)
 			{
-				Input.X -= 1.f;
+				EdgeInput.X -= 1.f;
 			}
 			else if (MouseX >= static_cast<float>(SizeX - 1) - Margin)
 			{
-				Input.X += 1.f;
+				EdgeInput.X += 1.f;
 			}
 			if (MouseY <= Margin)
 			{
-				Input.Y += 1.f;
+				EdgeInput.Y += 1.f;
 			}
 			else if (MouseY >= static_cast<float>(SizeY - 1) - Margin)
 			{
-				Input.Y -= 1.f;
+				EdgeInput.Y -= 1.f;
 			}
 		}
 	}
 
-	if (Input.SizeSquared() > 1.f)
+	if (KeysInput.SizeSquared() > 1.f)
 	{
-		Input.Normalize();
+		KeysInput.Normalize();
 	}
+	if (EdgeInput.SizeSquared() > 1.f)
+	{
+		EdgeInput.Normalize();
+	}
+	const FVector2D Input = KeysInput * KeyboardScrollSpeed + EdgeInput * EdgeScrollSpeed;
 	if (!Input.IsNearlyZero())
 	{
 		bOutManualPan = true;
@@ -491,9 +498,9 @@ void AKodRTSCameraPawn::PollMoveInput(float DeltaSeconds, bool& bOutManualPan)
 	ApplyPan(DeltaSeconds, Input);
 }
 
-void AKodRTSCameraPawn::ApplyPan(float DeltaSeconds, const FVector2D& PlanarInput)
+void AKodRTSCameraPawn::ApplyPan(float DeltaSeconds, const FVector2D& UnitsPerSecond)
 {
-	const FVector Desired = (PlanarRight() * PlanarInput.X + PlanarForward() * PlanarInput.Y) * ScrollSpeed;
+	const FVector Desired = PlanarRight() * UnitsPerSecond.X + PlanarForward() * UnitsPerSecond.Y;
 	PanVelocity = FMath::VInterpTo(PanVelocity, Desired, DeltaSeconds, PanAccelSpeed);
 	if (!PanVelocity.IsNearlyZero())
 	{

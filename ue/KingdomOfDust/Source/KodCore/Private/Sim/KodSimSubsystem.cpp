@@ -118,6 +118,11 @@ TStatId UKodSimSubsystem::GetStatId() const
 
 void UKodSimSubsystem::Tick(float DeltaTime)
 {
+	if (bSimPaused)
+	{
+		SyncActorPresentation(1.f);
+		return;
+	}
 	const float FixedDt = (SimHz > 0) ? (1.f / static_cast<float>(SimHz)) : KodBuildTicks::SimDt;
 	TimeAccumulator += DeltaTime;
 
@@ -237,6 +242,8 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 	EvaluateMatch();
 	StepAI();
 	StepTech();
+	StepExposed();
+	RecordMatchSample();
 }
 
 void UKodSimSubsystem::StepEntityMove(FKodSimEntityState& State, float FixedDt)
@@ -911,6 +918,7 @@ bool UKodSimSubsystem::Spend(int32 TeamId, FKodResourceCost Cost)
 
 void UKodSimSubsystem::Deposit(int32 TeamId, FKodResourceCost Amount)
 {
+	NoteResources(TeamId, FMath::Max(0, Amount.Jadeite) + FMath::Max(0, Amount.Luminene));
 	const int32 AddJadeite = FMath::Max(0, Amount.Jadeite);
 	const int32 AddLuminene = FMath::Max(0, Amount.Luminene);
 	FKodResourceCost& Bank = Banks.FindOrAdd(TeamId);
@@ -2235,6 +2243,46 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 			}
 		}
 	}
+
+	const uint8 ExposedRuleByte = bExposedRule ? 1 : 0;
+	Append(&ExposedRuleByte, sizeof(ExposedRuleByte));
+	Append(&ExposedTicks, sizeof(ExposedTicks));
+	const uint8 Ex0 = bTeam0Exposed ? 1 : 0;
+	const uint8 Ex1 = bTeam1Exposed ? 1 : 0;
+	const uint8 Warn0 = bTeam0ExposedWarned ? 1 : 0;
+	const uint8 Warn1 = bTeam1ExposedWarned ? 1 : 0;
+	Append(&Ex0, sizeof(Ex0));
+	Append(&Ex1, sizeof(Ex1));
+	Append(&Warn0, sizeof(Warn0));
+	Append(&Warn1, sizeof(Warn1));
+	auto AppendTotals = [&](const FKodTeamTotals& Totals)
+	{
+		Append(&Totals.Collected, sizeof(Totals.Collected));
+		Append(&Totals.Trained, sizeof(Totals.Trained));
+		Append(&Totals.Killed, sizeof(Totals.Killed));
+		Append(&Totals.Built, sizeof(Totals.Built));
+		Append(&Totals.Razed, sizeof(Totals.Razed));
+	};
+	AppendTotals(Totals0);
+	AppendTotals(Totals1);
+	auto AppendSamples = [&](const TArray<FKodStatSample>& Samples)
+	{
+		const int32 Count = Samples.Num();
+		Append(&Count, sizeof(Count));
+		for (const FKodStatSample& Sample : Samples)
+		{
+			Append(&Sample.Tick, sizeof(Sample.Tick));
+			Append(&Sample.Collected, sizeof(Sample.Collected));
+			Append(&Sample.Trained, sizeof(Sample.Trained));
+			Append(&Sample.ArmyValue, sizeof(Sample.ArmyValue));
+			Append(&Sample.Income, sizeof(Sample.Income));
+			Append(&Sample.Killed, sizeof(Sample.Killed));
+			Append(&Sample.Built, sizeof(Sample.Built));
+			Append(&Sample.Razed, sizeof(Sample.Razed));
+		}
+	};
+	AppendSamples(Samples0);
+	AppendSamples(Samples1);
 
 	const uint64 Hash = Bytes.Num() > 0
 		? CityHash64(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num())

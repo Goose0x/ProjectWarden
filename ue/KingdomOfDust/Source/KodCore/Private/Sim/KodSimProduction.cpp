@@ -401,6 +401,7 @@ void UKodSimSubsystem::FinishActiveProduction(FKodStructureState& Structure)
 	Spawn.bRallyNode = Structure.bRallyNode;
 	Spawn.RallyUnit = Structure.RallyUnit;
 	PendingSpawns.Add(Spawn);
+	NoteUnitTrained(Structure.TeamId);
 	OnTrainCompleted.Broadcast(Spawn.Location, Spawn.TeamId);
 	FName ReadyId;
 	if (Slot.UnitId == FName(TEXT("Dozer")))

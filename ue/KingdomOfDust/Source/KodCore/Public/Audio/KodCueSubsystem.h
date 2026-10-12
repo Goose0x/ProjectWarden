@@ -44,6 +44,7 @@ class KODCORE_API UKodCueSubsystem : public UWorldSubsystem
 
 public:
 	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
+	virtual void Deinitialize() override;
 
 	UFUNCTION()
 	void HandleCue(FName CueId, FVector Location, bool bAtLocation);

@@ -6,6 +6,7 @@
 #include "Data/KodUnitDefinition.h"
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
+#include "Game/KodApmTracker.h"
 
 void UKodCommandSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -38,6 +39,13 @@ int32 UKodCommandSubsystem::Enqueue(FKodCommand Command)
 {
 	Command.CommandId = NextCommandId++;
 	Pending.Add(Command);
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodApmTracker* Apm = World->GetSubsystem<UKodApmTracker>())
+		{
+			Apm->NoteCommand();
+		}
+	}
 	OnCommandEnqueued.Broadcast(Command);
 	return Command.CommandId;
 }

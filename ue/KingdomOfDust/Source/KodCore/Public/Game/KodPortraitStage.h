@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Components/PrimitiveComponent.h"
 #include "GameFramework/Actor.h"
 #include "KodPortraitStage.generated.h"
 
@@ -25,6 +26,11 @@ public:
 
 	/** Frames the head and upper torso. PortraitMesh wins over the body mesh. */
 	void ShowSubject(AActor* Subject, int32 TeamId);
+
+	/** One capture. The HUD calls this at 12 Hz while the portrait is on screen. */
+	void CapturePortrait();
+
+	void AppendHiddenPrimitives(TSet<FPrimitiveComponentId>& Out) const;
 
 	UTextureRenderTarget2D* GetRenderTarget() const { return RenderTarget; }
 

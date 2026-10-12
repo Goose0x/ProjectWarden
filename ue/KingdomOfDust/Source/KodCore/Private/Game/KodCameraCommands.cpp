@@ -2,6 +2,7 @@
 #include "Engine/Player.h"
 #include "Engine/World.h"
 #include "Game/KodGameMode.h"
+#include "Sim/KodSimSubsystem.h"
 #include "Game/KodPlayerController.h"
 #include "Game/KodRTSCameraPawn.h"
 #include "Game/KodSpectatorController.h"
@@ -175,4 +176,35 @@ namespace
 		TEXT("kod.Spectate"),
 		TEXT("Spectator camera. Usage: kod.Spectate 1 or kod.Spectate 0"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodSpectate));
+
+	void KodExposed(const TArray<FString>& Args, UWorld* World)
+	{
+		UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+		if (!Sim)
+		{
+			return;
+		}
+		const int32 Value = Args.Num() > 0 ? FCString::Atoi(*Args[0]) : 1;
+		Sim->SetExposedRule(Value != 0);
+	}
+
+	void KodExposedTime(const TArray<FString>& Args, UWorld* World)
+	{
+		UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+		if (!Sim || Args.Num() == 0)
+		{
+			return;
+		}
+		Sim->SetExposedTimeSeconds(FCString::Atoi(*Args[0]));
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs GKodExposed(
+		TEXT("kod.Exposed"),
+		TEXT("Exposed rule. Usage: kod.Exposed 0 or kod.Exposed 1"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodExposed));
+
+	FAutoConsoleCommandWithWorldAndArgs GKodExposedTime(
+		TEXT("kod.ExposedTime"),
+		TEXT("Sim seconds before a one-CC player is exposed. Usage: kod.ExposedTime 360"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodExposedTime));
 }

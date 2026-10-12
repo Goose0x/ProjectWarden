@@ -336,6 +336,17 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 		State.AttackTarget = FKodEntityId();
 		QuantizePose(State);
 		const FVector DeathAt = Target.Position;
+		NoteUnitKilled(AttackerTeam);
+		if (bStructureTarget)
+		{
+			if (const FKodStructureState* DeadStructure = Structures.Find(DeadId.Value))
+			{
+				if (DeadStructure->bComplete)
+				{
+					NoteStructureRazed(AttackerTeam);
+				}
+			}
+		}
 		UnregisterEntity(DeadId);
 		OnUnitKilled.Broadcast(TargetActor, TargetIdValue);
 		RaiseCue(FName(TEXT("unit_death")), DeathAt, true);

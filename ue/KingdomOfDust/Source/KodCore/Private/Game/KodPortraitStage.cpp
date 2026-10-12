@@ -31,7 +31,7 @@ AKodPortraitStage::AKodPortraitStage()
 	RimLight->SetupAttachment(Root);
 	FillLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("Fill"));
 	FillLight->SetupAttachment(Root);
-	SetActorHiddenInGame(true);
+	SetActorLocation(FVector(0.f, 0.f, -200000.f));
 }
 
 void AKodPortraitStage::EnsureCapture()
@@ -46,8 +46,8 @@ void AKodPortraitStage::EnsureCapture()
 	RenderTarget->UpdateResourceImmediate(true);
 	Capture->TextureTarget = RenderTarget;
 	Capture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
-	Capture->bCaptureEveryFrame = true;
-	Capture->bCaptureOnMovement = true;
+	Capture->bCaptureEveryFrame = false;
+	Capture->bCaptureOnMovement = false;
 	Capture->FOVAngle = 28.f;
 	Capture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
 	Capture->ShowOnlyActors.Add(this);
@@ -144,6 +144,28 @@ void AKodPortraitStage::ShowSubject(AActor* Subject, int32 TeamId)
 			: FLinearColor(0.28f, 0.1f, 0.08f, 1.f);
 		BackdropMid->SetVectorParameterValue(TEXT("Color"), Ink);
 		BackdropMid->SetVectorParameterValue(TEXT("BaseColor"), Ink);
+	}
+}
+
+void AKodPortraitStage::CapturePortrait()
+{
+	EnsureCapture();
+	if (Capture)
+	{
+		Capture->CaptureScene();
+	}
+}
+
+void AKodPortraitStage::AppendHiddenPrimitives(TSet<FPrimitiveComponentId>& Out) const
+{
+	TInlineComponentArray<UPrimitiveComponent*> Prims;
+	GetComponents(Prims);
+	for (UPrimitiveComponent* Prim : Prims)
+	{
+		if (Prim)
+		{
+			Out.Add(Prim->ComponentId);
+		}
 	}
 }
 
