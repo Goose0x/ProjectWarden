@@ -80,9 +80,17 @@ namespace
 
 bool AKodHUD::IsMinimapWorldRevealed(float WorldX, float WorldY) const
 {
-	(void)WorldX;
-	(void)WorldY;
-	return true;
+	if (!bMapFog)
+	{
+		return true;
+	}
+	const UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return true;
+	}
+	return Sim->GetTeamVision(ReadLocalTeamId(), WorldX, WorldY) != 0;
 }
 
 bool AKodHUD::DrawUnitPortrait(FName DisplayName, float X, float Y, float Width, float Height)
@@ -241,7 +249,7 @@ void AKodHUD::DrawMinimap()
 	bHasMinimap = true;
 
 	DrawRect(FLinearColor(0.02f, 0.025f, 0.03f, 0.94f), MapMinX, MapMinY, MapSize, MapSize);
-	if (bHave)
+	if (bHave && bMapTerrain)
 	{
 		float Left = 0.f;
 		float Top = 0.f;
@@ -261,9 +269,49 @@ void AKodHUD::DrawMinimap()
 	}
 
 	const int32 LocalTeam = ReadLocalTeamId();
+	if (bMapFog)
+	{
+		const int32 Cell = KodBuildGrid::CellUU;
+		const int32 FogX0 = KodBuildGrid::CellOf(MapWorldMinX);
+		const int32 FogX1 = KodBuildGrid::CellOf(MapWorldMaxX);
+		const int32 FogY0 = KodBuildGrid::CellOf(MapWorldMinY);
+		const int32 FogY1 = KodBuildGrid::CellOf(MapWorldMaxY);
+		for (int32 CellY = FogY0; CellY <= FogY1; ++CellY)
+		{
+			for (int32 CellX = FogX0; CellX <= FogX1; ++CellX)
+			{
+				const uint8 Vision = Sim->GetTeamVision(
+					LocalTeam,
+					KodBuildGrid::CellCenter(CellX),
+					KodBuildGrid::CellCenter(CellY));
+				if (Vision == 2)
+				{
+					continue;
+				}
+				float Left = 0.f;
+				float Top = 0.f;
+				float Right = 0.f;
+				float Bottom = 0.f;
+				WorldToMinimap(static_cast<float>(CellX * Cell), static_cast<float>((CellY + 1) * Cell), Left, Top);
+				WorldToMinimap(static_cast<float>((CellX + 1) * Cell), static_cast<float>(CellY * Cell), Right, Bottom);
+				const float Alpha = Vision == 0 ? 0.72f : 0.38f;
+				DrawRect(
+					FLinearColor(0.01f, 0.012f, 0.02f, Alpha),
+					Left,
+					Top,
+					FMath::Max(1.f, Right - Left),
+					FMath::Max(1.f, Bottom - Top));
+			}
+		}
+	}
+
 	for (const FKodResourceNodeState& Node : Nodes)
 	{
-		if (!IsMinimapWorldRevealed(Node.Position.X, Node.Position.Y))
+		if (!bMapResources)
+		{
+			break;
+		}
+		if (bMapFog && Sim->GetTeamVision(LocalTeam, Node.Position.X, Node.Position.Y) == 0)
 		{
 			continue;
 		}
@@ -282,7 +330,16 @@ void AKodHUD::DrawMinimap()
 
 	for (const FKodStructureState& Structure : Structures)
 	{
-		if (!IsMinimapWorldRevealed(Structure.Position.X, Structure.Position.Y))
+		if (!bMapUnits)
+		{
+			break;
+		}
+		if (bMapOwnOnly && Structure.TeamId != LocalTeam)
+		{
+			continue;
+		}
+		const uint8 Vision = Sim->GetTeamVision(LocalTeam, Structure.Position.X, Structure.Position.Y);
+		if (bMapFog && Structure.TeamId != LocalTeam && Vision != 2)
 		{
 			continue;
 		}
@@ -299,9 +356,47 @@ void AKodHUD::DrawMinimap()
 		DrawRect(TeamInk(Structure.TeamId, LocalTeam), X - Width * 0.5f, Y - Height * 0.5f, Width, Height);
 	}
 
+	if (bMapUnits && bMapFog && !bMapOwnOnly)
+	{
+		TArray<int32> SeenTeam;
+		TArray<int32> SeenX;
+		TArray<int32> SeenY;
+		TArray<int32> SeenFootX;
+		TArray<int32> SeenFootY;
+		Sim->CopySeenStructureBlips(LocalTeam, SeenTeam, SeenX, SeenY, SeenFootX, SeenFootY);
+		for (int32 Index = 0; Index < SeenX.Num(); ++Index)
+		{
+			if (Sim->GetTeamVision(LocalTeam, static_cast<float>(SeenX[Index]), static_cast<float>(SeenY[Index])) == 2)
+			{
+				continue;
+			}
+			float X = 0.f;
+			float Y = 0.f;
+			if (!WorldToMinimap(static_cast<float>(SeenX[Index]), static_cast<float>(SeenY[Index]), X, Y))
+			{
+				continue;
+			}
+			const float SpanX = FMath::Max(1.f, MapWorldMaxX - MapWorldMinX);
+			const float Px = (MapMaxX - MapMinX) / SpanX;
+			const float Width = FMath::Max(4.f * Scale, static_cast<float>(FMath::Max(1, SeenFootX[Index]) * KodBuildGrid::CellUU) * Px);
+			const float Height = FMath::Max(4.f * Scale, static_cast<float>(FMath::Max(1, SeenFootY[Index]) * KodBuildGrid::CellUU) * Px);
+			FLinearColor Ink = TeamInk(SeenTeam[Index], LocalTeam);
+			Ink.A = 0.45f;
+			DrawRect(Ink, X - Width * 0.5f, Y - Height * 0.5f, Width, Height);
+		}
+	}
+
 	for (const FKodSimEntityState& State : States)
 	{
-		if (!State.bMobile || !IsMinimapWorldRevealed(State.Position.X, State.Position.Y))
+		if (!bMapUnits || !State.bMobile)
+		{
+			continue;
+		}
+		if (bMapOwnOnly && State.TeamId != LocalTeam)
+		{
+			continue;
+		}
+		if (bMapFog && State.TeamId != LocalTeam && Sim->GetTeamVision(LocalTeam, State.Position.X, State.Position.Y) != 2)
 		{
 			continue;
 		}
@@ -342,7 +437,7 @@ void AKodHUD::DrawMinimap()
 			DrawLine(X3, Y3, X0, Y0, White, 1.5f);
 		}
 		FVector Alert;
-		if (CameraPawn->GetActiveAlert(Alert) && IsMinimapWorldRevealed(Alert.X, Alert.Y))
+		if (bMapAlerts && CameraPawn->GetActiveAlert(Alert) && IsMinimapWorldRevealed(Alert.X, Alert.Y))
 		{
 			float X = 0.f;
 			float Y = 0.f;
@@ -355,6 +450,61 @@ void AKodHUD::DrawMinimap()
 				DrawLine(X, Y - R, X, Y + R, Ping, 2.f);
 			}
 		}
+	}
+
+	if (bMapAlerts)
+	{
+		const float Now = World->GetTimeSeconds();
+		for (int32 Index = MinimapPings.Num() - 1; Index >= 0; --Index)
+		{
+			if (Index >= MinimapPingUntil.Num() || MinimapPingUntil[Index] < Now)
+			{
+				MinimapPings.RemoveAt(Index);
+				if (Index < MinimapPingUntil.Num())
+				{
+					MinimapPingUntil.RemoveAt(Index);
+				}
+				continue;
+			}
+			float X = 0.f;
+			float Y = 0.f;
+			if (!WorldToMinimap(MinimapPings[Index].X, MinimapPings[Index].Y, X, Y))
+			{
+				continue;
+			}
+			const FLinearColor Ping(0.35f, 0.82f, 1.f, 0.95f);
+			const float R = 8.f * Scale;
+			DrawLine(X - R, Y - R, X + R, Y + R, Ping, 2.f);
+			DrawLine(X - R, Y + R, X + R, Y - R, Ping, 2.f);
+		}
+	}
+
+	const TCHAR* LayerLabels[] = { TEXT("Ter"), TEXT("Unit"), TEXT("Res"), TEXT("Fog"), TEXT("Alrt"), TEXT("Own") };
+	const bool LayerOn[] = { bMapTerrain, bMapUnits, bMapResources, bMapFog, bMapAlerts, bMapOwnOnly };
+	const float ButtonW = 36.f * Scale;
+	const float ButtonGap = 2.f * Scale;
+	const float ButtonH = (MapSize - ButtonGap * 5.f) / 6.f;
+	const float ButtonX = MapMaxX + 4.f * Scale;
+	UFont* LayerFont = HudFont();
+	for (int32 Index = 0; Index < 6; ++Index)
+	{
+		const float ButtonY = MapMinY + Index * (ButtonH + ButtonGap);
+		const bool bOn = LayerOn[Index];
+		DrawRect(
+			bOn ? FLinearColor(0.14f, 0.2f, 0.14f, 0.95f) : FLinearColor(0.06f, 0.06f, 0.07f, 0.85f),
+			ButtonX,
+			ButtonY,
+			ButtonW,
+			ButtonH);
+		DrawText(
+			LayerLabels[Index],
+			bOn ? FLinearColor::White : FLinearColor(0.45f, 0.45f, 0.45f, 1.f),
+			ButtonX + 2.f * Scale,
+			ButtonY + 2.f * Scale,
+			LayerFont,
+			0.65f * Scale,
+			false);
+		RememberChrome(FName(TEXT("Layer")), Index, FName(), ButtonX, ButtonY, ButtonX + ButtonW, ButtonY + ButtonH);
 	}
 }
 
@@ -758,7 +908,8 @@ bool AKodHUD::BlocksWorldSelect(float MouseX, float MouseY) const
 	{
 		return true;
 	}
-	return false;
+	FKodHudChromeHit Chrome;
+	return GetChromeHit(MouseX, MouseY, Chrome);
 }
 
 void AKodHUD::ToggleHotkeyLegend()
@@ -777,7 +928,7 @@ void AKodHUD::DrawHotkeyLegend()
 		TEXT("LMB  Select    Shift+LMB  Add    Drag  Box"),
 		TEXT("RMB  Move / Attack / Follow / Gather"),
 		TEXT("M Move  A Attack  H Hold  P Patrol  G Guard"),
-		TEXT("S  Stop units, or Train on a structure"),
+		TEXT("S  Stop units and Train on a structure"),
 		TEXT("Shift+click  Queue the next order"),
 		TEXT("B  Build    D Depot    R Barracks    E Rig"),
 		TEXT("T Stim    Backspace  Cancel    Tab  Subgroup"),
@@ -785,9 +936,11 @@ void AKodHUD::DrawHotkeyLegend()
 		TEXT("1-0  Select group    Double-tap  Centre"),
 		TEXT("Ctrl+1-0  Set    Shift+1-0  Add"),
 		TEXT("F5-F8  Recall    Ctrl+F5-F8  Save    Space  Alert"),
+		TEXT("Alt  Show all health bars"),
+		TEXT("Alt+click minimap  Ping"),
 		TEXT("F12 or ?  Hide this list")
 	};
-	constexpr int32 LineCount = 12;
+	constexpr int32 LineCount = 14;
 	UFont* Font = HudFont();
 	const float Width = 560.f * Scale;
 	const float LineH = 22.f * Scale;

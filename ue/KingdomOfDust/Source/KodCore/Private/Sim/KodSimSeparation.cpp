@@ -97,8 +97,7 @@ void UKodSimSubsystem::StepSeparation()
 		}
 		if (IsWorldCellBlocked(State->Position))
 		{
-			const FVector Out = SteerAroundBuildings(*State, FVector(static_cast<float>(FMath::Max(State->BodyRadiusUU, 16)), 0.f, 0.f));
-			State->Position += Out;
+			SnapOutOfFootprint(*State);
 		}
 		if (bHasPlayable)
 		{
@@ -112,4 +111,64 @@ void UKodSimSubsystem::StepSeparation()
 		}
 		QuantizePose(*State);
 	}
+}
+
+bool UKodSimSubsystem::SnapOutOfFootprint(FKodSimEntityState& State) const
+{
+	const int32 CellX = KodBuildGrid::CellOf(State.Position.X);
+	const int32 CellY = KodBuildGrid::CellOf(State.Position.Y);
+	if (!IsCellBlocked(CellX, CellY))
+	{
+		return false;
+	}
+	const FKodStructureState* Blocker = nullptr;
+	TArray<int32> Keys;
+	Structures.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		const FKodStructureState* Structure = Structures.Find(Key);
+		if (!Structure)
+		{
+			continue;
+		}
+		const int32 MaxX = Structure->CellX + FMath::Max(1, Structure->FootprintX);
+		const int32 MaxY = Structure->CellY + FMath::Max(1, Structure->FootprintY);
+		if (CellX >= Structure->CellX && CellX < MaxX && CellY >= Structure->CellY && CellY < MaxY)
+		{
+			Blocker = Structure;
+			break;
+		}
+	}
+	if (!Blocker)
+	{
+		return false;
+	}
+	const float Radius = static_cast<float>(FMath::Max(8, State.BodyRadiusUU));
+	const float Left = static_cast<float>(Blocker->CellX * KodBuildGrid::CellUU) - Radius - 1.f;
+	const float Right = static_cast<float>((Blocker->CellX + FMath::Max(1, Blocker->FootprintX)) * KodBuildGrid::CellUU) + Radius + 1.f;
+	const float Bottom = static_cast<float>(Blocker->CellY * KodBuildGrid::CellUU) - Radius - 1.f;
+	const float Top = static_cast<float>((Blocker->CellY + FMath::Max(1, Blocker->FootprintY)) * KodBuildGrid::CellUU) + Radius + 1.f;
+	float Best = MAX_flt;
+	float BestX = State.Position.X;
+	float BestY = State.Position.Y;
+	auto Consider = [&Best, &BestX, &BestY, &State](float X, float Y)
+	{
+		const float DX = X - State.Position.X;
+		const float DY = Y - State.Position.Y;
+		const float Dist = DX * DX + DY * DY;
+		if (Dist < Best)
+		{
+			Best = Dist;
+			BestX = X;
+			BestY = Y;
+		}
+	};
+	Consider(Left, State.Position.Y);
+	Consider(Right, State.Position.Y);
+	Consider(State.Position.X, Bottom);
+	Consider(State.Position.X, Top);
+	State.Position.X = BestX;
+	State.Position.Y = BestY;
+	return true;
 }

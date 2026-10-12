@@ -1049,6 +1049,7 @@ void AKodSlice0GameMode::SpawnAiOpponent()
 		}
 	}
 	const FVector PlayerLoc = PlayerCc ? PlayerCc->GetActorLocation() : SmokeRangerOffset;
+	Sim->SetEnemyStart(PlayerLoc);
 
 	FVector Seed = FVector::ZeroVector;
 	const TCHAR* How = TEXT("Corner");

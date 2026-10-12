@@ -239,9 +239,20 @@ struct KODCORE_API FKodSimEntityState
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	int32 PathOffsetY = 0;
 
-	/** Shift-queued steps. Hashed in order. */
-	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	/** Shift-queued steps. Hashed in order. Plain property: FKodQueuedOrder is not BlueprintType. */
+	UPROPERTY()
 	TArray<FKodQueuedOrder> OrderQueue;
+
+	/** Sight radius in uu. Hashed. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	int32 SightRadiusUU = 1600;
+
+	/**
+	 * True when IssueOrder started this Attack. Auto-acquire leaves it false.
+	 * An explicit attack that loses sight becomes an attack-move. Hashed.
+	 */
+	UPROPERTY()
+	bool bExplicitAttack = false;
 
 	bool IsMoving() const
 	{
@@ -306,7 +317,8 @@ public:
 		float WeaponCooldownSeconds,
 		int32 TeamId = 0,
 		bool bCanGather = false,
-		int32 BodyRadiusUU = 34);
+		int32 BodyRadiusUU = 34,
+		int32 SightRadiusUU = 1600);
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	void IssueMove(FKodEntityId Id, FVector WorldLocation);
@@ -337,6 +349,19 @@ public:
 
 	/** Grid A* around structure footprints. 0 means go straight. */
 	int32 PlanMovePath(FVector From, FVector To);
+
+	/** 0 unexplored, 1 explored, 2 visible. Local and AI teams share this grid. */
+	uint8 GetTeamVision(int32 TeamId, float WorldX, float WorldY) const;
+
+	bool CanTeamSeeWorld(int32 TeamId, float WorldX, float WorldY) const;
+
+	void CopySeenStructureBlips(int32 TeamId, TArray<int32>& OutTeam, TArray<int32>& OutX, TArray<int32>& OutY, TArray<int32>& OutFootX, TArray<int32>& OutFootY) const;
+
+	/** Height layer hook. Returns 0 until a map writes cell heights. */
+	int32 GetMapCellHeight(int32 /*CellX*/, int32 /*CellY*/) const { return 0; }
+
+	void SetAiCheatVision(bool bEnabled) { bAiCheatVision = bEnabled; }
+	bool HasAiCheatVision() const { return bAiCheatVision; }
 
 	bool IsPathCellClear(int32 X0, int32 Y0, int32 X1, int32 Y1) const;
 
@@ -518,6 +543,8 @@ public:
 	int32 GetAiDifficulty() const { return AiDifficulty; }
 	void SetAiSeeded(bool bSeeded);
 	bool IsAiSeeded() const { return bAiSeeded; }
+	/** Player spawn. Waves and the scout attack-move here when nothing has been seen. Hashed. */
+	void SetEnemyStart(FVector WorldLocation);
 	EKodMatchOutcome GetMatchOutcome() const { return MatchOutcome; }
 	bool IsMatchOver() const { return MatchOutcome != EKodMatchOutcome::None; }
 
@@ -566,9 +593,15 @@ protected:
 	void StepPatrol(FKodSimEntityState& State, float FixedDt);
 	void StepFollow(FKodSimEntityState& State, float FixedDt, bool bGuard);
 	void StepSeparation();
+	bool SnapOutOfFootprint(FKodSimEntityState& State) const;
+	void StepVision();
+	void EnsureVisionStorage();
+	int32 VisionCellIndex(int32 CellX, int32 CellY) const;
+	bool TryGetLastSeenPoint(int32 TeamId, int32 EntityId, FVector& OutPoint) const;
+	bool TryGetEnemyStart(FVector& OutPoint) const;
 	void CompleteCurrentOrder(FKodSimEntityState& State, float FixedDt);
 	bool TryApplyWeapon(FKodSimEntityState& State, FKodSimEntityState& Target);
-	FVector GetSteeredGoal(FKodSimEntityState& State) const;
+	FVector GetSteeredGoal(FKodSimEntityState& State);
 	void StepEntityGather(FKodSimEntityState& State, float FixedDt);
 	/** Move toward Target and stop at AcceptUU. True when the worker is inside that radius. */
 	bool AdvanceGatherMove(FKodSimEntityState& State, const FVector& Target, float AcceptUU, float FixedDt);
@@ -656,6 +689,10 @@ protected:
 	bool bAiEnabled = true;
 	int32 AiDifficulty = 1;
 	bool bAiSeeded = false;
+	bool bAiScoutSent = false;
+	bool bHasEnemyStart = false;
+	int32 EnemyStartX = 0;
+	int32 EnemyStartY = 0;
 	int32 AiWavesLaunched = 0;
 	int64 AiNextWaveTick = 0;
 	EKodMatchOutcome MatchOutcome = EKodMatchOutcome::None;
@@ -668,10 +705,41 @@ protected:
 	struct FKodStoredPath
 	{
 		int32 Id = 0;
+		int64 LastUsedTick = 0;
 		TArray<int32> CellX;
 		TArray<int32> CellY;
 	};
 
+	struct FKodSeenStructure
+	{
+		int32 Id = 0;
+		int32 TeamId = 0;
+		FName DefinitionId;
+		int32 PosX = 0;
+		int32 PosY = 0;
+		int32 FootprintX = 1;
+		int32 FootprintY = 1;
+		int32 Health = 0;
+		int32 MaxHealth = 1;
+	};
+
+	struct FKodSeenUnit
+	{
+		int32 Id = 0;
+		int32 TeamId = 0;
+		int32 PosX = 0;
+		int32 PosY = 0;
+	};
+
 	TArray<FKodStoredPath> StoredPaths;
 	int32 NextPathId = 1;
+	bool bAiCheatVision = false;
+	/** Playable build grid. Each team array is Width * Height, row-major. 0 unexplored, 1 explored, 2 visible. */
+	int32 VisionOriginX = 0;
+	int32 VisionOriginY = 0;
+	int32 VisionWidth = 0;
+	int32 VisionHeight = 0;
+	TMap<int32, TArray<uint8>> TeamVision;
+	TMap<int32, TArray<FKodSeenStructure>> SeenStructures;
+	TMap<int32, TArray<FKodSeenUnit>> SeenUnits;
 };

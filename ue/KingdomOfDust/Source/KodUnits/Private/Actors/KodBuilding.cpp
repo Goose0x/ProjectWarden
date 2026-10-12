@@ -142,7 +142,10 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 				0.f,
 				0.f,
 				0.f,
-				TeamId);
+				TeamId,
+				false,
+				34,
+				FMath::Max(0, FMath::RoundToInt(Def->SightRadius)));
 		}
 	}
 

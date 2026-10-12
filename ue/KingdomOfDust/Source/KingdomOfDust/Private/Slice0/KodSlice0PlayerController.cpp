@@ -231,10 +231,8 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 	}
 	if (WasInputKeyJustPressed(EKeys::S))
 	{
-		if (!EnqueueTrainOnSelectedStructures())
-		{
-			IssueStopOnSelectedUnits();
-		}
+		EnqueueTrainOnSelectedStructures();
+		IssueStopOnSelectedUnits();
 	}
 	if (WasInputKeyJustPressed(EKeys::T))
 	{

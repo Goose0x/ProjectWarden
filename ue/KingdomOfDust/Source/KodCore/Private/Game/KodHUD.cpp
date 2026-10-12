@@ -7,10 +7,12 @@
 #include "Engine/Font.h"
 #include "Engine/HitResult.h"
 #include "Engine/World.h"
+#include "InputCoreTypes.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
 #include "Game/KodPlayerController.h"
 #include "Game/KodPlayerState.h"
+#include "Game/KodRTSCameraPawn.h"
 #include "Sim/KodResourceTypes.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Warden/KodWardenPaths.h"
@@ -56,7 +58,9 @@ void AKodHUD::DrawHUD()
 	}
 
 	CacheSimSnapshot();
+	DrawWorldFog();
 	RefreshReadout();
+	DrawGameClock();
 	DrawProductionPanel();
 	DrawCommandCard();
 	DrawBuildHint();
@@ -71,6 +75,195 @@ void AKodHUD::DrawHUD()
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
 	DrawHotkeyLegend();
+}
+
+void AKodHUD::AddMinimapPing(const FVector& WorldPoint)
+{
+	const UWorld* World = GetWorld();
+	const float Until = World ? World->GetTimeSeconds() + 6.f : 0.f;
+	MinimapPings.Add(WorldPoint);
+	MinimapPingUntil.Add(Until);
+	UE_LOG(LogTemp, Log, TEXT("KodMap Ping X=%.0f Y=%.0f"), WorldPoint.X, WorldPoint.Y);
+}
+
+void AKodHUD::ToggleMinimapLayer(int32 LayerIndex)
+{
+	switch (LayerIndex)
+	{
+	case 0:
+		bMapTerrain = !bMapTerrain;
+		break;
+	case 1:
+		bMapUnits = !bMapUnits;
+		break;
+	case 2:
+		bMapResources = !bMapResources;
+		break;
+	case 3:
+		bMapFog = !bMapFog;
+		break;
+	case 4:
+		bMapAlerts = !bMapAlerts;
+		break;
+	case 5:
+		bMapOwnOnly = !bMapOwnOnly;
+		break;
+	default:
+		return;
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodMap Layer=%d"), LayerIndex);
+}
+
+void AKodHUD::DrawWorldFog()
+{
+	if (!Canvas || !bMapFog)
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	APlayerController* PC = GetOwningPlayerController();
+	const AKodRTSCameraPawn* Camera = Cast<AKodRTSCameraPawn>(GetOwningPawn());
+	if (!Sim || !PC || !Camera)
+	{
+		return;
+	}
+	FVector NearLeft;
+	FVector NearRight;
+	FVector FarRight;
+	FVector FarLeft;
+	if (!Camera->GetGroundViewCorners(NearLeft, NearRight, FarRight, FarLeft))
+	{
+		return;
+	}
+	const int32 LocalTeam = ReadLocalTeamId();
+	const float GroundZ = (NearLeft.Z + NearRight.Z + FarRight.Z + FarLeft.Z) * 0.25f;
+	const float MinX = FMath::Min(FMath::Min(NearLeft.X, NearRight.X), FMath::Min(FarRight.X, FarLeft.X));
+	const float MaxX = FMath::Max(FMath::Max(NearLeft.X, NearRight.X), FMath::Max(FarRight.X, FarLeft.X));
+	const float MinY = FMath::Min(FMath::Min(NearLeft.Y, NearRight.Y), FMath::Min(FarRight.Y, FarLeft.Y));
+	const float MaxY = FMath::Max(FMath::Max(NearLeft.Y, NearRight.Y), FMath::Max(FarRight.Y, FarLeft.Y));
+	const int32 Cell = KodBuildGrid::CellUU;
+	const int32 X0 = KodBuildGrid::CellOf(MinX);
+	const int32 X1 = KodBuildGrid::CellOf(MaxX);
+	const int32 Y0 = KodBuildGrid::CellOf(MinY);
+	const int32 Y1 = KodBuildGrid::CellOf(MaxY);
+	for (int32 CellY = Y0; CellY <= Y1; ++CellY)
+	{
+		for (int32 CellX = X0; CellX <= X1; ++CellX)
+		{
+			const uint8 Vision = Sim->GetTeamVision(
+				LocalTeam,
+				KodBuildGrid::CellCenter(CellX),
+				KodBuildGrid::CellCenter(CellY));
+			if (Vision == 2)
+			{
+				continue;
+			}
+			const float Alpha = Vision == 0 ? 0.72f : 0.4f;
+			const FVector Corners[4] = {
+				FVector(static_cast<float>(CellX * Cell), static_cast<float>(CellY * Cell), GroundZ),
+				FVector(static_cast<float>((CellX + 1) * Cell), static_cast<float>(CellY * Cell), GroundZ),
+				FVector(static_cast<float>((CellX + 1) * Cell), static_cast<float>((CellY + 1) * Cell), GroundZ),
+				FVector(static_cast<float>(CellX * Cell), static_cast<float>((CellY + 1) * Cell), GroundZ)
+			};
+			float MinSX = MAX_flt;
+			float MinSY = MAX_flt;
+			float MaxSX = -MAX_flt;
+			float MaxSY = -MAX_flt;
+			bool bAny = false;
+			for (const FVector& Corner : Corners)
+			{
+				FVector2D Screen;
+				if (!PC->ProjectWorldLocationToScreen(Corner, Screen, true))
+				{
+					continue;
+				}
+				bAny = true;
+				MinSX = FMath::Min(MinSX, static_cast<float>(Screen.X));
+				MinSY = FMath::Min(MinSY, static_cast<float>(Screen.Y));
+				MaxSX = FMath::Max(MaxSX, static_cast<float>(Screen.X));
+				MaxSY = FMath::Max(MaxSY, static_cast<float>(Screen.Y));
+			}
+			if (!bAny || MaxSX <= MinSX || MaxSY <= MinSY)
+			{
+				continue;
+			}
+			DrawRect(FLinearColor(0.f, 0.f, 0.02f, Alpha), MinSX, MinSY, MaxSX - MinSX, MaxSY - MinSY);
+		}
+	}
+
+	TArray<int32> SeenTeam;
+	TArray<int32> SeenX;
+	TArray<int32> SeenY;
+	TArray<int32> SeenFootX;
+	TArray<int32> SeenFootY;
+	Sim->CopySeenStructureBlips(LocalTeam, SeenTeam, SeenX, SeenY, SeenFootX, SeenFootY);
+	for (int32 Index = 0; Index < SeenX.Num(); ++Index)
+	{
+		const float CenterX = static_cast<float>(SeenX[Index]);
+		const float CenterY = static_cast<float>(SeenY[Index]);
+		if (Sim->GetTeamVision(LocalTeam, CenterX, CenterY) != 1)
+		{
+			continue;
+		}
+		const float HalfX = 0.5f * static_cast<float>(FMath::Max(1, SeenFootX[Index]) * Cell);
+		const float HalfY = 0.5f * static_cast<float>(FMath::Max(1, SeenFootY[Index]) * Cell);
+		const FVector Foot[2] = {
+			FVector(CenterX - HalfX, CenterY - HalfY, GroundZ),
+			FVector(CenterX + HalfX, CenterY + HalfY, GroundZ)
+		};
+		float BoxMinX = MAX_flt;
+		float BoxMinY = MAX_flt;
+		float BoxMaxX = -MAX_flt;
+		float BoxMaxY = -MAX_flt;
+		bool bProjected = false;
+		for (const FVector& Corner : Foot)
+		{
+			FVector2D Screen;
+			if (!PC->ProjectWorldLocationToScreen(Corner, Screen, true))
+			{
+				continue;
+			}
+			bProjected = true;
+			BoxMinX = FMath::Min(BoxMinX, static_cast<float>(Screen.X));
+			BoxMinY = FMath::Min(BoxMinY, static_cast<float>(Screen.Y));
+			BoxMaxX = FMath::Max(BoxMaxX, static_cast<float>(Screen.X));
+			BoxMaxY = FMath::Max(BoxMaxY, static_cast<float>(Screen.Y));
+		}
+		if (!bProjected || BoxMaxX <= BoxMinX || BoxMaxY <= BoxMinY)
+		{
+			continue;
+		}
+		const FLinearColor Ink = SeenTeam[Index] == LocalTeam
+			? FLinearColor(0.3f, 0.9f, 0.38f, 0.55f)
+			: FLinearColor(0.92f, 0.22f, 0.16f, 0.55f);
+		DrawRect(Ink, BoxMinX, BoxMinY, BoxMaxX - BoxMinX, BoxMaxY - BoxMinY);
+	}
+}
+
+void AKodHUD::DrawGameClock()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	const UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	const int32 Seconds = static_cast<int32>(Sim->GetSimTickIndex() / 16);
+	const int32 Minutes = Seconds / 60;
+	const int32 Remain = Seconds % 60;
+	const FString Label = FString::Printf(TEXT("%02d:%02d"), Minutes, Remain);
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	if (!Font && GEngine)
+	{
+		Font = GEngine->GetSmallFont();
+	}
+	const float Width = 12.f * static_cast<float>(Label.Len());
+	DrawText(Label, FLinearColor(0.92f, 0.9f, 0.82f, 1.f), (Canvas->SizeX - Width) * 0.5f, 16.f, Font, 1.f, false);
 }
 
 bool AKodHUD::ReadTeamBank(int32& OutJadeite, int32& OutLuminene) const
@@ -894,12 +1087,17 @@ void AKodHUD::DrawUnitHealthBars()
 			continue;
 		}
 
-		const bool bFull = HpState.Health >= HpState.MaxHealth - 0.5f;
-		const bool bSelected = Selected.Contains(BarActor);
-		if (bFull && !bSelected)
+		const int32 LocalTeam = ReadLocalTeamId();
+		if (HpState.TeamId != LocalTeam && Sim->GetTeamVision(LocalTeam, HpState.Position.X, HpState.Position.Y) != 2)
 		{
 			continue;
 		}
+		const bool bFull = HpState.Health >= HpState.MaxHealth - 0.5f;
+		const bool bSelected = Selected.Contains(BarActor);
+		const bool bShowAll = OwningPC->IsInputKeyDown(EKeys::LeftAlt) || OwningPC->IsInputKeyDown(EKeys::RightAlt);
+		float MouseX = 0.f;
+		float MouseY = 0.f;
+		const bool bHaveMouse = OwningPC->GetMousePosition(MouseX, MouseY);
 
 		float ExtraZ = 120.f;
 		if (const UCapsuleComponent* Capsule = BarActor->FindComponentByClass<UCapsuleComponent>())
@@ -913,16 +1111,32 @@ void AKodHUD::DrawUnitHealthBars()
 		{
 			continue;
 		}
+		const bool bHover = bHaveMouse && FMath::Abs(MouseX - Screen.X) <= 42.f && FMath::Abs(MouseY - Screen.Y) <= 28.f;
+		if (bFull && !bSelected && !bHover && !bShowAll)
+		{
+			continue;
+		}
 
 		const float Fraction = FMath::Clamp(HpState.Health / HpState.MaxHealth, 0.f, 1.f);
+		const FLinearColor Fill = Fraction >= 0.66f
+			? FLinearColor(0.2f, 0.85f, 0.28f, 0.95f)
+			: (Fraction >= 0.33f ? FLinearColor(0.92f, 0.78f, 0.16f, 0.95f) : FLinearColor(0.9f, 0.18f, 0.14f, 0.95f));
 		const float Left = Screen.X - (BarWidth * 0.5f);
 		const float Top = Screen.Y - BarHeight;
-		const FLinearColor Background(0.04f, 0.04f, 0.04f, 0.85f);
-		const FLinearColor Fill = (HpState.TeamId == 0)
-			? FLinearColor(0.15f, 0.82f, 0.28f, 0.95f)
-			: FLinearColor(0.86f, 0.12f, 0.1f, 0.95f);
-		DrawRect(Background, Left, Top, BarWidth, BarHeight);
+		DrawRect(FLinearColor(0.04f, 0.04f, 0.04f, 0.85f), Left, Top, BarWidth, BarHeight);
 		DrawRect(Fill, Left, Top, BarWidth * Fraction, BarHeight);
+		int32 Step = 10;
+		const int32 MaxHP = FMath::Max(1, FMath::RoundToInt(HpState.MaxHealth));
+		while (Step < MaxHP && MaxHP / Step > 16)
+		{
+			Step *= 2;
+		}
+		const int32 Segments = FMath::Max(1, MaxHP / Step);
+		for (int32 Segment = 1; Segment < Segments; ++Segment)
+		{
+			const float X = Left + BarWidth * (static_cast<float>(Segment) / static_cast<float>(Segments));
+			DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.9f), X, Top, 1.f, BarHeight);
+		}
 	}
 }
 
