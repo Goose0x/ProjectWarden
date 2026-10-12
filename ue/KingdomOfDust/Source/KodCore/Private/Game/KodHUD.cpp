@@ -50,6 +50,29 @@ namespace
 		}
 		return Label;
 	}
+
+	/** SC2 bar colour. Cuts are multiples of 1/7 of max HP. */
+	FLinearColor HealthBarInk(float Fraction)
+	{
+		const float Clamped = FMath::Clamp(Fraction, 0.f, 1.f);
+		if (Clamped > 6.f / 7.f)
+		{
+			return FLinearColor(0.15f, 0.95f, 0.2f, 0.95f);
+		}
+		if (Clamped > 5.f / 7.f)
+		{
+			return FLinearColor(0.7f, 0.95f, 0.15f, 0.95f);
+		}
+		if (Clamped > 4.f / 7.f)
+		{
+			return FLinearColor(0.95f, 0.85f, 0.12f, 0.95f);
+		}
+		if (Clamped > 2.f / 7.f)
+		{
+			return FLinearColor(0.95f, 0.48f, 0.08f, 0.95f);
+		}
+		return FLinearColor(0.9f, 0.12f, 0.1f, 0.95f);
+	}
 }
 
 AKodHUD::AKodHUD()
@@ -723,7 +746,7 @@ void AKodHUD::DrawProductionPanel()
 	FKodSimEntityState Combat;
 	if (Sim->TryGetState(Structure.Id, Combat) && Combat.MaxHealth > 0.f)
 	{
-		Status += FString::Printf(TEXT("   HP %.0f/%.0f"), Combat.Health, Combat.MaxHealth);
+		Status += FString::Printf(TEXT("   HP %d/%d"), FMath::FloorToInt(Combat.Health), FMath::FloorToInt(Combat.MaxHealth));
 	}
 	if (!Structure.bComplete && Structure.BuildTimeTotal > 0)
 	{
@@ -2320,8 +2343,6 @@ void AKodHUD::DrawUnitHealthBars()
 	const TArray<FKodSimEntityState>& States = FrameStates;
 	const TArray<AActor*>& BarActors = FrameActors;
 
-	constexpr float BarWidth = 60.f;
-	constexpr float BarHeight = 7.f;
 	const int32 Count = FMath::Min(States.Num(), BarActors.Num());
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
@@ -2337,7 +2358,9 @@ void AKodHUD::DrawUnitHealthBars()
 		{
 			continue;
 		}
-		const bool bFull = HpState.Health >= HpState.MaxHealth - 0.5f;
+		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(HpState.Health));
+		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(HpState.MaxHealth));
+		const bool bFull = ShownHP >= MaxHP;
 		const bool bSelected = Selected.Contains(BarActor);
 		const bool bShowAll = HealthBarMode == 2 || OwningPC->IsInputKeyDown(EKeys::LeftAlt) || OwningPC->IsInputKeyDown(EKeys::RightAlt);
 		if (HealthBarMode == 0 && !bSelected && !bShowAll)
@@ -2360,31 +2383,65 @@ void AKodHUD::DrawUnitHealthBars()
 		{
 			continue;
 		}
-		const bool bHover = bHaveMouse && FMath::Abs(MouseX - Screen.X) <= 42.f && FMath::Abs(MouseY - Screen.Y) <= 28.f;
+		float SpanUU = static_cast<float>(FMath::Max(16, HpState.BodyRadiusUU) * 2);
+		if (const FKodStructureState* Structure = FindFrameStructure(HpState.Id.Value))
+		{
+			const int32 Cells = FMath::Max(Structure->FootprintX, Structure->FootprintY);
+			SpanUU = static_cast<float>(FMath::Max(1, Cells)) * static_cast<float>(KodBuildGrid::CellUU);
+		}
+		constexpr float BarHeight = 7.f;
+		constexpr float Outline = 1.f;
+		constexpr float Gap = 1.f;
+		constexpr int32 HpPerSegment = 25;
+		const int32 Segments = FMath::Clamp(FMath::DivideAndRoundUp(MaxHP, HpPerSegment), 1, 16);
+		const float Needed = static_cast<float>(Segments) * 5.f + Gap * static_cast<float>(Segments - 1);
+		const float BarWidth = FMath::Clamp(FMath::Max(32.f + SpanUU * 0.18f, Needed), 40.f, 180.f);
+		const bool bHover = bHaveMouse && FMath::Abs(MouseX - Screen.X) <= BarWidth * 0.5f + 8.f && FMath::Abs(MouseY - Screen.Y) <= 28.f;
 		if (HealthBarMode != 2 && bFull && !bSelected && !bHover && !bShowAll)
 		{
 			continue;
 		}
 
-		const float Fraction = FMath::Clamp(HpState.Health / HpState.MaxHealth, 0.f, 1.f);
-		const FLinearColor Fill = Fraction >= 0.66f
-			? FLinearColor(0.2f, 0.85f, 0.28f, 0.95f)
-			: (Fraction >= 0.33f ? FLinearColor(0.92f, 0.78f, 0.16f, 0.95f) : FLinearColor(0.9f, 0.18f, 0.14f, 0.95f));
+		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
+		const FLinearColor Fill = HealthBarInk(Fraction);
+		const FLinearColor Black(0.f, 0.f, 0.f, 0.95f);
 		const float Left = Screen.X - (BarWidth * 0.5f);
 		const float Top = Screen.Y - BarHeight;
-		DrawRect(FLinearColor(0.04f, 0.04f, 0.04f, 0.85f), Left, Top, BarWidth, BarHeight);
-		DrawRect(Fill, Left, Top, BarWidth * Fraction, BarHeight);
-		int32 Step = 10;
-		const int32 MaxHP = FMath::Max(1, FMath::RoundToInt(HpState.MaxHealth));
-		while (Step < MaxHP && MaxHP / Step > 16)
+		const float TotalGaps = Gap * static_cast<float>(Segments - 1);
+		const float SegOuter = (BarWidth - TotalGaps) / static_cast<float>(Segments);
+		const float SegInner = FMath::Max(1.f, SegOuter - Outline * 2.f);
+		const float InnerH = FMath::Max(1.f, BarHeight - Outline * 2.f);
+		const float Filled = Fraction * static_cast<float>(Segments);
+
+		// Shield bar slot, one gap above the health bar. Nothing draws it yet.
+		const float ShieldTop = Top - Gap - BarHeight;
+		auto DrawOutlined = [&](float LayerTop, float LayerHeight, float LayerFraction, const FLinearColor& Ink, bool bDraw)
 		{
-			Step *= 2;
+			if (!bDraw)
+			{
+				return;
+			}
+			DrawRect(Black, Left, LayerTop, BarWidth, LayerHeight);
+			const float InnerW = FMath::Max(1.f, BarWidth - Outline * 2.f);
+			DrawRect(Ink, Left + Outline, LayerTop + Outline, InnerW * FMath::Clamp(LayerFraction, 0.f, 1.f), FMath::Max(1.f, LayerHeight - Outline * 2.f));
+		};
+		DrawOutlined(ShieldTop, BarHeight, 0.f, FLinearColor(0.55f, 0.85f, 1.f, 0.95f), false);
+
+		for (int32 Segment = 0; Segment < Segments; ++Segment)
+		{
+			const float X = Left + static_cast<float>(Segment) * (SegOuter + Gap);
+			DrawRect(Black, X, Top, SegOuter, BarHeight);
+			const float SegFill = FMath::Clamp(Filled - static_cast<float>(Segment), 0.f, 1.f);
+			if (SegFill > 0.f)
+			{
+				DrawRect(Fill, X + Outline, Top + Outline, SegInner * SegFill, InnerH);
+			}
 		}
-		const int32 Segments = FMath::Max(1, MaxHP / Step);
-		for (int32 Segment = 1; Segment < Segments; ++Segment)
+
+		if (HpState.EnergyMax > 0)
 		{
-			const float X = Left + BarWidth * (static_cast<float>(Segment) / static_cast<float>(Segments));
-			DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.9f), X, Top, 1.f, BarHeight);
+			const float EnergyFrac = FMath::Clamp(static_cast<float>(HpState.Energy) / static_cast<float>(HpState.EnergyMax), 0.f, 1.f);
+			DrawOutlined(Top + BarHeight + Gap, 4.f, EnergyFrac, FLinearColor(0.58f, 0.22f, 0.95f, 0.95f), true);
 		}
 	}
 }

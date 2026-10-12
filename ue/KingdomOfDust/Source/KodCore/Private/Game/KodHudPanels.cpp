@@ -867,10 +867,12 @@ void AKodHUD::DrawSelectionPanel()
 		const float BarX = X + 14.f * Scale;
 		const float BarY = Y + 42.f * Scale;
 		const float BarW = PanelW - 28.f * Scale;
-		const float Fraction = FMath::Clamp(Tile.Health / FMath::Max(1.f, Tile.MaxHealth), 0.f, 1.f);
+		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(Tile.Health));
+		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(Tile.MaxHealth));
+		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
 		DrawRect(FLinearColor(0.12f, 0.12f, 0.12f, 1.f), BarX, BarY, BarW, 12.f * Scale);
 		DrawRect(TeamInk(Tile.TeamId, LocalTeam), BarX, BarY, BarW * Fraction, 12.f * Scale);
-		DrawText(FString::Printf(TEXT("%.0f / %.0f"), Tile.Health, Tile.MaxHealth), FLinearColor::White, BarX, BarY + 16.f * Scale, Font, 0.85f * Scale, false);
+		DrawText(FString::Printf(TEXT("%d / %d"), ShownHP, MaxHP), FLinearColor::White, BarX, BarY + 16.f * Scale, Font, 0.85f * Scale, false);
 		float TextY = BarY + 40.f * Scale;
 		if (!Tile.Stim.IsEmpty())
 		{
@@ -906,7 +908,7 @@ void AKodHUD::DrawSelectionPanel()
 		const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 		const float* HitUntil = WireHitUntil.Find(Tile.EntityId);
 		const bool bFlash = HitUntil && *HitUntil > Now;
-		DrawWireHeat(X + PanelW - 90.f * Scale, Y + 16.f * Scale, 70.f * Scale, 130.f * Scale, Tile.EntityId, FMath::RoundToInt(Tile.Health), FMath::RoundToInt(Tile.MaxHealth), Tile.bStructure, bFlash);
+		DrawWireHeat(X + PanelW - 90.f * Scale, Y + 16.f * Scale, 70.f * Scale, 130.f * Scale, Tile.EntityId, ShownHP, MaxHP, Tile.bStructure, bFlash);
 		return;
 	}
 
@@ -950,10 +952,12 @@ void AKodHUD::DrawSelectionPanel()
 		DrawRect(Ink, TileX, TileY + BoxH - Edge, Box, Edge);
 		DrawRect(Ink, TileX, TileY, Edge, BoxH);
 		DrawRect(Ink, TileX + Box - Edge, TileY, Edge, BoxH);
-		const float Fraction = FMath::Clamp(Tile.Health / FMath::Max(1.f, Tile.MaxHealth), 0.f, 1.f);
+		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(Tile.Health));
+		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(Tile.MaxHealth));
+		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
 		DrawRect(FLinearColor(0.1f, 0.1f, 0.1f, 1.f), TileX, TileY + BoxH - 4.f * Scale, Box, 3.f * Scale);
 		DrawRect(Ink, TileX, TileY + BoxH - 4.f * Scale, Box * Fraction, 3.f * Scale);
-		DrawWireHeat(TileX + 4.f * Scale, TileY + 2.f * Scale, Box - 8.f * Scale, BoxH - 10.f * Scale, Tile.EntityId, FMath::RoundToInt(Tile.Health), FMath::RoundToInt(Tile.MaxHealth), Tile.bStructure, bFlash);
+		DrawWireHeat(TileX + 4.f * Scale, TileY + 2.f * Scale, Box - 8.f * Scale, BoxH - 10.f * Scale, Tile.EntityId, ShownHP, MaxHP, Tile.bStructure, bFlash);
 		RememberChrome(FName(TEXT("Tile")), Tile.EntityId, Tile.TypeId, TileX, TileY, TileX + Box, TileY + BoxH);
 	}
 }
