@@ -562,6 +562,10 @@ Minimap Order Move=2 AttackMove=4 Dest=…
 KodAI Orders Cleared Count=6
 ```
 
+## M6.1 — click swallow, snapshot, acquire grid, hotkey list
+
+A left click inside the minimap square, the selection panel, or the portrait does not start a world box select. The HUD copies units and structures once per draw and reuses that sorted snapshot for the minimap, the selection panel, and the supply-blocked check. Structure auto-acquire and attack-move look up a uniform grid of 1024 uu cells, rebuilt at the start of each sim tick from sorted entity ids. The grid is not hashed. F12 or Shift+/ toggles a canvas hotkey list.
+
 ## Camera — SC2 player view
 
 `AKodRTSCameraPawn` is the player camera. Pitch **-56°**, yaw **0** (looks north), vertical FOV **42** (horizontal FOV follows the window). The pawn is the ground look-at point. Default arm length **3600** (about 20 SC2 cells of ground at 200 uu, zoom clamped **2400–5200**). All of those are `Config` on the class.

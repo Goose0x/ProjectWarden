@@ -481,6 +481,9 @@ protected:
 	bool TryAutoAcquire(FKodSimEntityState& State, float FixedDt);
 	FKodEntityId FindNearestEnemyInRange(const FKodSimEntityState& State) const;
 	FKodEntityId FindNearestEnemyStructureInRange(const FKodSimEntityState& State) const;
+	/** Uniform grid for acquire scans. Rebuilt once per sim tick from sorted entity ids. Not hashed. */
+	void RebuildAcquireGrid();
+	void CollectAcquireCandidates(float OriginX, float OriginY, float Range, TArray<int32>& OutIds) const;
 	FString GetEntityActorName(int32 IdValue) const;
 	void QuantizePose(FKodSimEntityState& State) const;
 	void QuantizeResourcePosition(FVector& Position) const;
@@ -552,4 +555,7 @@ protected:
 	EKodMatchOutcome MatchOutcome = EKodMatchOutcome::None;
 	bool bTeam0HadStructure = false;
 	bool bTeam1HadStructure = false;
+
+	/** Cell -> sorted entity ids. Rebuilt at the start of each sim tick. */
+	TMap<int64, TArray<int32>> AcquireGrid;
 };

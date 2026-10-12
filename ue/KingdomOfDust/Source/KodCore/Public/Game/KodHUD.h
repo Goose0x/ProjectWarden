@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
+#include "Sim/KodSimSubsystem.h"
 #include "KodHUD.generated.h"
 
 class UUserWidget;
@@ -64,6 +65,11 @@ public:
 	/** True when the pixel is inside the minimap square from the last draw. */
 	bool MinimapPixelToWorld(float MouseX, float MouseY, FVector& OutWorld, bool bClampToMap) const;
 
+	/** Minimap, selection panel, or portrait. A left click here must not start a world box. */
+	bool BlocksWorldSelect(float MouseX, float MouseY) const;
+
+	void ToggleHotkeyLegend();
+
 	/** Selection panel, portrait, tabs, and the idle button. The minimap is separate. */
 	bool IsPassiveHudChrome(float MouseX, float MouseY) const;
 
@@ -111,6 +117,10 @@ protected:
 	void DrawPortrait();
 	void DrawSelectionPanel();
 	void DrawControlGroupTabs();
+	void DrawHotkeyLegend();
+	void CacheSimSnapshot();
+	const FKodSimEntityState* FindFrameState(int32 EntityId) const;
+	const FKodStructureState* FindFrameStructure(int32 EntityId) const;
 	void RememberChrome(FName Kind, int32 IntParam, FName NameParam, float MinX, float MinY, float MaxX, float MaxY);
 	bool WorldToMinimap(float WorldX, float WorldY, float& OutX, float& OutY) const;
 
@@ -124,6 +134,20 @@ protected:
 	TArray<FKodHudChromeHit> ChromeHits;
 	bool bCommandChrome = false;
 	bool bHasMinimap = false;
+	bool bHasSelectionPanel = false;
+	bool bHasPortrait = false;
+	float PanelMinX = 0.f;
+	float PanelMinY = 0.f;
+	float PanelMaxX = 0.f;
+	float PanelMaxY = 0.f;
+	float PortraitMinX = 0.f;
+	float PortraitMinY = 0.f;
+	float PortraitMaxX = 0.f;
+	float PortraitMaxY = 0.f;
+	bool bHotkeyLegend = false;
+	TArray<FKodSimEntityState> FrameStates;
+	TArray<AActor*> FrameActors;
+	TArray<FKodStructureState> FrameStructures;
 	float MapMinX = 0.f;
 	float MapMinY = 0.f;
 	float MapMaxX = 0.f;

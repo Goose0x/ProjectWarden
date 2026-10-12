@@ -55,6 +55,7 @@ void AKodHUD::DrawHUD()
 		UE_LOG(LogTemp, Log, TEXT("KodHUD DrawHUD First SizeX=%.0f SizeY=%.0f"), SizeX, SizeY);
 	}
 
+	CacheSimSnapshot();
 	RefreshReadout();
 	DrawProductionPanel();
 	DrawCommandCard();
@@ -68,6 +69,7 @@ void AKodHUD::DrawHUD()
 	DrawUnitHealthBars();
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
+	DrawHotkeyLegend();
 }
 
 bool AKodHUD::ReadTeamBank(int32& OutJadeite, int32& OutLuminene) const
@@ -166,21 +168,13 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed,
 	bool bSupplyBlocked = SupplyCap > 0 && SupplyUsed >= SupplyCap;
 	if (!bSupplyBlocked)
 	{
-		if (const UWorld* World = GetWorld())
+		const int32 TeamId = ReadLocalTeamId();
+		for (const FKodStructureState& Structure : FrameStructures)
 		{
-			if (const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+			if (Structure.TeamId == TeamId && Structure.bSupplyBlocked)
 			{
-				TArray<FKodStructureState> Structures;
-				Sim->CopyStructures(Structures);
-				const int32 TeamId = ReadLocalTeamId();
-				for (const FKodStructureState& Structure : Structures)
-				{
-					if (Structure.TeamId == TeamId && Structure.bSupplyBlocked)
-					{
-						bSupplyBlocked = true;
-						break;
-					}
-				}
+				bSupplyBlocked = true;
+				break;
 			}
 		}
 	}
@@ -870,9 +864,8 @@ void AKodHUD::DrawUnitHealthBars()
 		}
 	}
 
-	TArray<FKodSimEntityState> States;
-	TArray<AActor*> BarActors;
-	Sim->CopyEntitySnapshot(States, BarActors);
+	const TArray<FKodSimEntityState>& States = FrameStates;
+	const TArray<AActor*>& BarActors = FrameActors;
 
 	constexpr float BarWidth = 60.f;
 	constexpr float BarHeight = 7.f;

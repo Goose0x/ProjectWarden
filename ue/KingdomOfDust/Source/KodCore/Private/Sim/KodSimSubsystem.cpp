@@ -35,6 +35,7 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	MatchOutcome = EKodMatchOutcome::None;
 	bTeam0HadStructure = false;
 	bTeam1HadStructure = false;
+	AcquireGrid.Reset();
 	SimHz = KodBuildTicks::SimHz;
 	MaxCatchUpSteps = KodBuildTicks::MaxCatchUpSteps;
 	SetTeamBank(0, StartingJadeite, StartingLuminene);
@@ -59,6 +60,7 @@ void UKodSimSubsystem::Deinitialize()
 	UnitAbilities.Reset();
 	PendingSpawns.Reset();
 	PendingBuildingSpawns.Reset();
+	AcquireGrid.Reset();
 	bHasPlayable = false;
 	PrevPositions.Reset();
 	PrevYaws.Reset();
@@ -113,6 +115,8 @@ void UKodSimSubsystem::Tick(float DeltaTime)
 
 void UKodSimSubsystem::StepSim(float FixedDt)
 {
+	RebuildAcquireGrid();
+
 	TArray<int32> Keys;
 	States.GetKeys(Keys);
 	Keys.Sort();
@@ -339,17 +343,67 @@ FString UKodSimSubsystem::GetEntityActorName(int32 IdValue) const
 	return FString(TEXT("None"));
 }
 
+namespace
+{
+	constexpr int32 AcquireCellUU = 1024;
+
+	int64 PackAcquireCell(int32 X, int32 Y)
+	{
+		return (static_cast<int64>(static_cast<uint32>(X)) << 32) | static_cast<uint32>(Y);
+	}
+}
+
+void UKodSimSubsystem::RebuildAcquireGrid()
+{
+	AcquireGrid.Reset();
+	TArray<int32> Keys;
+	States.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		const FKodSimEntityState* State = States.Find(Key);
+		if (!State || State->Health <= 0.f)
+		{
+			continue;
+		}
+		const int32 CellX = FMath::FloorToInt(State->Position.X / static_cast<float>(AcquireCellUU));
+		const int32 CellY = FMath::FloorToInt(State->Position.Y / static_cast<float>(AcquireCellUU));
+		AcquireGrid.FindOrAdd(PackAcquireCell(CellX, CellY)).Add(Key);
+	}
+}
+
+void UKodSimSubsystem::CollectAcquireCandidates(float OriginX, float OriginY, float Range, TArray<int32>& OutIds) const
+{
+	OutIds.Reset();
+	const float SafeRange = FMath::Max(0.f, Range);
+	const int32 MinX = FMath::FloorToInt((OriginX - SafeRange) / static_cast<float>(AcquireCellUU));
+	const int32 MaxX = FMath::FloorToInt((OriginX + SafeRange) / static_cast<float>(AcquireCellUU));
+	const int32 MinY = FMath::FloorToInt((OriginY - SafeRange) / static_cast<float>(AcquireCellUU));
+	const int32 MaxY = FMath::FloorToInt((OriginY + SafeRange) / static_cast<float>(AcquireCellUU));
+	for (int32 X = MinX; X <= MaxX; ++X)
+	{
+		for (int32 Y = MinY; Y <= MaxY; ++Y)
+		{
+			if (const TArray<int32>* Cell = AcquireGrid.Find(PackAcquireCell(X, Y)))
+			{
+				OutIds.Append(*Cell);
+			}
+		}
+	}
+	OutIds.Sort();
+}
+
 FKodEntityId UKodSimSubsystem::FindNearestEnemyInRange(const FKodSimEntityState& State) const
 {
 	// Resource nodes are not in States, so they are not enemies and do not auto-acquire.
 	FKodEntityId BestId;
 	float BestDistSq = 0.f;
 	bool bFound = false;
-	const float RangeSq = FMath::Square(FMath::Max(0.f, State.WeaponRange));
+	const float Range = FMath::Max(0.f, State.WeaponRange);
+	const float RangeSq = FMath::Square(Range);
 
 	TArray<int32> Keys;
-	States.GetKeys(Keys);
-	Keys.Sort();
+	CollectAcquireCandidates(State.Position.X, State.Position.Y, Range, Keys);
 	for (int32 Key : Keys)
 	{
 		if (Key == State.Id.Value)
@@ -393,11 +447,11 @@ FKodEntityId UKodSimSubsystem::FindNearestEnemyStructureInRange(const FKodSimEnt
 	FKodEntityId BestId;
 	float BestDistSq = 0.f;
 	bool bFound = false;
-	const float RangeSq = FMath::Square(FMath::Max(0.f, State.WeaponRange));
+	const float Range = FMath::Max(0.f, State.WeaponRange);
+	const float RangeSq = FMath::Square(Range);
 
 	TArray<int32> Keys;
-	States.GetKeys(Keys);
-	Keys.Sort();
+	CollectAcquireCandidates(State.Position.X, State.Position.Y, Range, Keys);
 	for (int32 Key : Keys)
 	{
 		if (Key == State.Id.Value)

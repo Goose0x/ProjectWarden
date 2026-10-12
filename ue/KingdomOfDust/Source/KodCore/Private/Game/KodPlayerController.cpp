@@ -117,6 +117,15 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 	{
 		return;
 	}
+	const bool bQuestion = WasInputKeyJustPressed(EKeys::Slash)
+		&& (IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift));
+	if (WasInputKeyJustPressed(EKeys::F12) || bQuestion)
+	{
+		if (AKodHUD* LegendHUD = Cast<AKodHUD>(GetHUD()))
+		{
+			LegendHUD->ToggleHotkeyLegend();
+		}
+	}
 	if (const UWorld* World = GetWorld())
 	{
 		if (const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
@@ -162,9 +171,24 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 	}
 
 	// Greybox mouse fallback until Enhanced Input assets exist.
-	if (WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bAltDrag
-		&& !ConsumeMinimapClick()
-		&& !ConsumeChromeClick()
+	bool bBlockWorldSelect = false;
+	float PressX = 0.f;
+	float PressY = 0.f;
+	if (GetMousePosition(PressX, PressY))
+	{
+		if (const AKodHUD* BlockHUD = Cast<AKodHUD>(GetHUD()))
+		{
+			bBlockWorldSelect = BlockHUD->BlocksWorldSelect(PressX, PressY);
+		}
+	}
+	if (WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bAltDrag && bBlockWorldSelect)
+	{
+		ConsumeMinimapClick();
+		ConsumeChromeClick();
+		bSelectPressed = false;
+		bMarqueeActive = false;
+	}
+	else if (WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bAltDrag
 		&& !ConsumeHudCommandClick()
 		&& !ConsumePlacementLeftClick())
 	{
