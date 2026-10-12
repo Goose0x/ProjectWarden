@@ -54,6 +54,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
 	int32 DropOffStandUU = 360;
 
+	/** Playable box in build cells, centred on the origin. KodGround wins only when it is larger. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Map")
+	int32 PlayableCells = 128;
+
 private:
 	/**
 	 * NoCollision on greybox primitives. Tags win: KodGround keeps, KodGreybox mutes.
@@ -87,9 +91,18 @@ private:
 	/** Eight Dozers between the CC and the field when no team-0 Dozer is already placed. */
 	void SpawnWorkersIfNeeded();
 
-	/** KodGround / PROXY_GROUND box becomes the sim placement limit. */
+	/** Code box of PlayableCells, widened only when a placed KodGround is larger. Spawns the runtime floor. */
 	void PublishPlayableBounds();
 
-	/** Team 1 command center and six AMPs. Skipped when kod.AI is 0. */
+	/** Move the player command center onto the southwest base point. */
+	void SeatPlayerBase();
+
+	/** Mineral and gas sets for the two natural expansions. */
+	void PlaceExpansionFields();
+
+	/** Look-at the player command center after the bases have moved. */
+	void FocusOpeningCamera();
+
+	/** Team 1 command center and eight AMPs. Skipped when kod.AI is 0. */
 	void SpawnAiOpponent();
 };

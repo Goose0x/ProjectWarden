@@ -200,7 +200,7 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To, int32 TeamId)
 	HeapPush(0);
 	BestG.Add(PackCell(StartX, StartY), 0);
 
-	constexpr int32 MaxExpand = 2048;
+	constexpr int32 MaxExpand = 16384;
 	int32 Expanded = 0;
 	int32 Found = INDEX_NONE;
 	const int32 Neighbors[8][3] = {

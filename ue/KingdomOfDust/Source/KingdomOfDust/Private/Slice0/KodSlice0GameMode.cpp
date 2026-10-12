@@ -1,4 +1,5 @@
 #include "Slice0/KodSlice0GameMode.h"
+#include "Slice0/KodMapLife.h"
 #include "Slice0/KodSlice0PlayerController.h"
 #include "Game/KodHUD.h"
 #include "Game/KodRTSCameraPawn.h"
@@ -16,7 +17,11 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Game/KodSpectatorPawn.h"
 #include "UObject/SoftObjectPath.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -203,6 +208,7 @@ AKodSlice0GameMode::AKodSlice0GameMode()
 	// Parent sets this too. Repeat it here so a map or config cannot leave Slice 0 without AKodHUD.
 	HUDClass = AKodHUD::StaticClass();
 	WorkerSpawnCount = KodEconomyDefaults::WorkerSpawnCount;
+	PlayableCells = KodEconomyDefaults::PlayableCells;
 }
 
 void AKodSlice0GameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
@@ -519,10 +525,28 @@ void AKodSlice0GameMode::StartPlay()
 	SpawnHostileTestTarget();
 	// After both Marines so combat entity ids stay 1 then 2. Nodes are not attackable.
 	// The drop-off is registered at the end of the field, then the workers.
+	PublishPlayableBounds();
+	SeatPlayerBase();
 	SpawnResourceField();
 	SpawnWorkersIfNeeded();
-	PublishPlayableBounds();
 	SpawnAiOpponent();
+	PlaceExpansionFields();
+	if (UWorld* InsetWorld = GetWorld())
+	{
+		if (UKodSimSubsystem* InsetSim = InsetWorld->GetSubsystem<UKodSimSubsystem>())
+		{
+			const bool bInset = InsetSim->AreResourcePointsInset(2);
+			UE_LOG(LogTemp, Log, TEXT("KodPlayable Inset=2 OK=%d"), bInset ? 1 : 0);
+			checkf(bInset, TEXT("Resource node or stand is closer than 2 cells to the playable edge"));
+		}
+	}
+	FocusOpeningCamera();
+	if (UWorld* DressWorld = GetWorld())
+	{
+		FActorSpawnParameters DressParams;
+		DressParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		DressWorld->SpawnActor<AKodMapLife>(AKodMapLife::StaticClass(), FTransform::Identity, DressParams);
+	}
 	if (UWorld* World = GetWorld())
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
@@ -541,12 +565,17 @@ void AKodSlice0GameMode::PublishPlayableBounds()
 	{
 		return;
 	}
-	FBox Combined(ForceInit);
-	bool bAny = false;
+
+	const int32 Cells = FMath::Clamp(PlayableCells, 16, 512);
+	const float Half = static_cast<float>(Cells * KodBuildGrid::CellUU) * 0.5f;
+	FBox Chosen(FVector(-Half, -Half, -200.f), FVector(Half - 1.f, Half - 1.f, 400.f));
+
+	FBox Placed(ForceInit);
+	bool bPlaced = false;
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
 		AActor* Actor = *It;
-		if (!Actor)
+		if (!Actor || Actor->ActorHasTag(FName(TEXT("KodGeneratedGround"))))
 		{
 			continue;
 		}
@@ -560,12 +589,171 @@ void AKodSlice0GameMode::PublishPlayableBounds()
 		{
 			continue;
 		}
-		Combined += Bounds;
-		bAny = true;
+		Placed += Bounds;
+		bPlaced = true;
 	}
-	if (bAny)
+	if (bPlaced && Placed.GetSize().X > Chosen.GetSize().X && Placed.GetSize().Y > Chosen.GetSize().Y)
 	{
-		Sim->SetPlayableWorldBox(Combined);
+		Chosen = Placed;
+	}
+
+	bool bHavePlane = false;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (*It && (*It)->ActorHasTag(FName(TEXT("KodGeneratedGround"))))
+		{
+			bHavePlane = true;
+			break;
+		}
+	}
+	if (!bHavePlane)
+	{
+		UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
+		UMaterialInterface* GroundMat = nullptr;
+		if (FModuleManager::Get().ModuleExists(TEXT("AssetRegistry")))
+		{
+			FAssetRegistryModule& Assets = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+			IAssetRegistry& Registry = Assets.Get();
+			Registry.WaitForCompletion();
+			const TCHAR* Paths[] = {
+				TEXT("/Game/FancyDev/Materials/MI_fancy_grid_dark.MI_fancy_grid_dark"),
+				TEXT("/Game/Advanced_Auto_Material/Landscape_Material_Instances/MI_Adv_MM_Landscape_28_Desert_Tutorial.MI_Adv_MM_Landscape_28_Desert_Tutorial")
+			};
+			for (const TCHAR* Path : Paths)
+			{
+				const FSoftObjectPath Soft(Path);
+				if (!Registry.GetAssetByObjectPath(Soft).IsValid())
+				{
+					continue;
+				}
+				GroundMat = Cast<UMaterialInterface>(Soft.TryLoad());
+				if (GroundMat)
+				{
+					break;
+				}
+			}
+		}
+		if (!GroundMat)
+		{
+			GroundMat = UMaterial::GetDefaultMaterial(MD_Surface);
+		}
+		if (PlaneMesh)
+		{
+			const FVector Center = Chosen.GetCenter();
+			const FVector Extent = Chosen.GetExtent();
+			const FTransform Xform(FRotator::ZeroRotator, FVector(Center.X, Center.Y, -2.f));
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			AStaticMeshActor* Plane = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), Xform, Params);
+			if (Plane)
+			{
+				Plane->Tags.Add(FName(TEXT("KodGround")));
+				Plane->Tags.Add(FName(TEXT("KodGeneratedGround")));
+				UStaticMeshComponent* Mesh = Plane->GetStaticMeshComponent();
+				if (Mesh)
+				{
+					Mesh->SetMobility(EComponentMobility::Movable);
+					Mesh->SetStaticMesh(PlaneMesh);
+					Plane->SetActorScale3D(FVector(FMath::Max(1.f, Extent.X * 2.f / 100.f), FMath::Max(1.f, Extent.Y * 2.f / 100.f), 1.f));
+					Mesh->SetMobility(EComponentMobility::Static);
+					if (GroundMat)
+					{
+						Mesh->SetMaterial(0, GroundMat);
+					}
+					Mesh->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+					Mesh->SetCanEverAffectNavigation(false);
+				}
+			}
+		}
+	}
+
+	Sim->SetPlayableWorldBox(Chosen);
+	UE_LOG(LogTemp, Log, TEXT("KodPlayable Min=%.0f,%.0f Max=%.0f,%.0f"), Chosen.Min.X, Chosen.Min.Y, Chosen.Max.X, Chosen.Max.Y);
+}
+
+void AKodSlice0GameMode::SeatPlayerBase()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Sim)
+	{
+		return;
+	}
+	AActor* Anchor = nullptr;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!IsSlice0CommandCenter(Actor))
+		{
+			continue;
+		}
+		if (!Anchor || Actor->GetName() < Anchor->GetName())
+		{
+			Anchor = Actor;
+		}
+	}
+	if (!Anchor)
+	{
+		return;
+	}
+	constexpr float Base = 8400.f;
+	TArray<AActor*> Ignored;
+	Ignored.Add(Anchor);
+	const float FloorZ = ResolveResourceFloorZ(World, Sim, -Base, -Base, Anchor->GetActorLocation().Z, Ignored);
+	Anchor->SetActorLocation(FVector(-Base, -Base, FloorZ));
+	UE_LOG(LogTemp, Log, TEXT("KodBase Player Loc=%.0f,%.0f,%.0f"), -Base, -Base, FloorZ);
+}
+
+void AKodSlice0GameMode::PlaceExpansionFields()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Sim)
+	{
+		return;
+	}
+	const FVector Sites[2] = { FVector(-8400.f, -3000.f, 0.f), FVector(8400.f, 3000.f, 0.f) };
+	const FVector Facing[2] = { FVector(-1.f, 0.f, 0.f), FVector(1.f, 0.f, 0.f) };
+	TArray<AActor*> Ignored;
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		const float FloorZ = ResolveResourceFloorZ(World, Sim, Sites[Index].X, Sites[Index].Y, 0.f, Ignored);
+		PlaceFieldAt(FVector(Sites[Index].X, Sites[Index].Y, FloorZ), Facing[Index]);
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Expand Loc=%.0f,%.0f"), Sites[Index].X, Sites[Index].Y);
+	}
+}
+
+void AKodSlice0GameMode::FocusOpeningCamera()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	AActor* Anchor = nullptr;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!IsSlice0CommandCenter(Actor))
+		{
+			continue;
+		}
+		if (!Anchor || Actor->GetName() < Anchor->GetName())
+		{
+			Anchor = Actor;
+		}
+	}
+	if (!Anchor)
+	{
+		return;
+	}
+	for (TActorIterator<AKodRTSCameraPawn> It(World); It; ++It)
+	{
+		if (It->IsA(AKodSpectatorPawn::StaticClass()))
+		{
+			continue;
+		}
+		It->JumpTo(Anchor->GetActorLocation());
 	}
 }
 
@@ -1066,6 +1254,10 @@ void AKodSlice0GameMode::SpawnResourceField()
 	{
 		FieldDir = FVector(1.f, 0.f, 0.f);
 	}
+	if (FMath::Abs(AnchorLocation.X) + FMath::Abs(AnchorLocation.Y) > 4000.f)
+	{
+		FieldDir = FVector(AnchorLocation.X >= 0.f ? 1.f : -1.f, AnchorLocation.Y >= 0.f ? 1.f : -1.f, 0.f).GetSafeNormal2D();
+	}
 
 	const float FacingDeg = FMath::RadiansToDegrees(FMath::Atan2(FieldDir.Y, FieldDir.X));
 	UE_LOG(LogTemp, Log, TEXT("KodEcon Field Anchor=%s Loc=%.0f,%.0f,%.0f Facing=%.0f"),
@@ -1351,49 +1543,9 @@ void AKodSlice0GameMode::SpawnAiOpponent()
 	}
 	if (!bHave)
 	{
-		int32 MinX = 0;
-		int32 MinY = 0;
-		int32 MaxX = 0;
-		int32 MaxY = 0;
-		if (Sim->TryGetPlayableCellBounds(MinX, MinY, MaxX, MaxY))
-		{
-			const int32 Inset = 3;
-			const int32 Left = MinX + Inset;
-			const int32 Right = FMath::Max(Left, MaxX - Inset);
-			const int32 Bottom = MinY + Inset;
-			const int32 Top = FMath::Max(Bottom, MaxY - Inset);
-			const int32 Corners[4][2] = {
-				{Left, Bottom},
-				{Left, Top},
-				{Right, Bottom},
-				{Right, Top}
-			};
-			int32 BestX = Right;
-			int32 BestY = Top;
-			int64 BestDist = -1;
-			for (int32 CornerIndex = 0; CornerIndex < 4; ++CornerIndex)
-			{
-				const int32 CellX = Corners[CornerIndex][0];
-				const int32 CellY = Corners[CornerIndex][1];
-				const float X = KodBuildGrid::CellCenter(CellX);
-				const float Y = KodBuildGrid::CellCenter(CellY);
-				const int64 DX = static_cast<int64>(FMath::RoundToInt(X - PlayerLoc.X));
-				const int64 DY = static_cast<int64>(FMath::RoundToInt(Y - PlayerLoc.Y));
-				const int64 Dist = DX * DX + DY * DY;
-				const bool bCloserTie = Dist == BestDist && (CellX < BestX || (CellX == BestX && CellY < BestY));
-				if (Dist > BestDist || bCloserTie)
-				{
-					BestDist = Dist;
-					BestX = CellX;
-					BestY = CellY;
-				}
-			}
-			Seed = FVector(KodBuildGrid::CellCenter(BestX), KodBuildGrid::CellCenter(BestY), PlayerLoc.Z);
-		}
-		else
-		{
-			Seed = PlayerLoc + FVector(8000.f, 8000.f, 0.f);
-		}
+		Seed = FVector(8400.f, 8400.f, PlayerLoc.Z);
+		bHave = true;
+		How = TEXT("Script");
 	}
 
 	TArray<AActor*> Ignored;

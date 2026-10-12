@@ -502,23 +502,23 @@ void AKodHUD::DrawWorldFog()
 			const FCanvasUVTri& Second = Tris[Index + 1];
 			const float Xs[] = { First.V0_Pos.X, First.V1_Pos.X, First.V2_Pos.X, Second.V0_Pos.X, Second.V1_Pos.X, Second.V2_Pos.X };
 			const float Ys[] = { First.V0_Pos.Y, First.V1_Pos.Y, First.V2_Pos.Y, Second.V0_Pos.Y, Second.V1_Pos.Y, Second.V2_Pos.Y };
-			float MinX = Xs[0];
-			float MaxX = Xs[0];
-			float MinY = Ys[0];
-			float MaxY = Ys[0];
+			float QuadMinX = Xs[0];
+			float QuadMaxX = Xs[0];
+			float QuadMinY = Ys[0];
+			float QuadMaxY = Ys[0];
 			for (int32 Corner = 1; Corner < 6; ++Corner)
 			{
-				MinX = FMath::Min(MinX, Xs[Corner]);
-				MaxX = FMath::Max(MaxX, Xs[Corner]);
-				MinY = FMath::Min(MinY, Ys[Corner]);
-				MaxY = FMath::Max(MaxY, Ys[Corner]);
+				QuadMinX = FMath::Min(QuadMinX, Xs[Corner]);
+				QuadMaxX = FMath::Max(QuadMaxX, Xs[Corner]);
+				QuadMinY = FMath::Min(QuadMinY, Ys[Corner]);
+				QuadMaxY = FMath::Max(QuadMaxY, Ys[Corner]);
 			}
 			const float Alpha = FMath::Max(
 				FMath::Max3(First.V0_Color.A, First.V1_Color.A, First.V2_Color.A),
 				FMath::Max3(Second.V0_Color.A, Second.V1_Color.A, Second.V2_Color.A));
-			if (MaxX > MinX && MaxY > MinY && Alpha > 0.01f)
+			if (QuadMaxX > QuadMinX && QuadMaxY > QuadMinY && Alpha > 0.01f)
 			{
-				DrawRect(FLinearColor(0.f, 0.f, 0.02f, Alpha), MinX, MinY, MaxX - MinX, MaxY - MinY);
+				DrawRect(FLinearColor(0.f, 0.f, 0.02f, Alpha), QuadMinX, QuadMinY, QuadMaxX - QuadMinX, QuadMaxY - QuadMinY);
 			}
 		}
 	}
