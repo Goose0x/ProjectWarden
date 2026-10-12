@@ -405,6 +405,39 @@ void AKodHUD::DrawMinimap()
 		}
 	}
 
+	const FName EnemyCcId(KodWardenPaths::Id_CommandCenter);
+	for (const FKodStructureState& StartBase : Structures)
+	{
+		if (StartBase.TeamId == LocalTeam || StartBase.DefinitionId != EnemyCcId)
+		{
+			continue;
+		}
+		const uint8 StartVision = Sim->GetTeamVision(LocalTeam, StartBase.Position.X, StartBase.Position.Y);
+		if (!bMapFog || StartVision == 2)
+		{
+			continue;
+		}
+		float MarkerX = 0.f;
+		float MarkerY = 0.f;
+		if (!WorldToMinimap(StartBase.Position.X, StartBase.Position.Y, MarkerX, MarkerY))
+		{
+			continue;
+		}
+		const FLinearColor MarkerInk(FColor(0xE5, 0x38, 0x3B));
+		const float MarkerR = 6.f * Scale;
+		constexpr int32 MarkerSteps = 12;
+		FVector2D MarkerPrev(MarkerX + MarkerR, MarkerY);
+		for (int32 MarkerStep = 1; MarkerStep <= MarkerSteps; ++MarkerStep)
+		{
+			const float MarkerAngle = (static_cast<float>(MarkerStep) / static_cast<float>(MarkerSteps)) * 2.f * PI;
+			const FVector2D MarkerNext(MarkerX + FMath::Cos(MarkerAngle) * MarkerR, MarkerY + FMath::Sin(MarkerAngle) * MarkerR);
+			DrawLine(MarkerPrev.X, MarkerPrev.Y, MarkerNext.X, MarkerNext.Y, MarkerInk, 1.5f);
+			MarkerPrev = MarkerNext;
+		}
+		const float MarkerDot = 3.f * Scale;
+		DrawRect(MarkerInk, MarkerX - MarkerDot * 0.5f, MarkerY - MarkerDot * 0.5f, MarkerDot, MarkerDot);
+	}
+
 	for (const FKodSimEntityState& State : States)
 	{
 		if (!bMapUnits || !State.bMobile)
@@ -494,7 +527,8 @@ void AKodHUD::DrawMinimap()
 			const float Life = FMath::Clamp((MinimapPingUntil[Index] - Now) / 6.f, 0.f, 1.f);
 			const float Grow = 1.f - Life;
 			const float R = (4.f + 16.f * Grow) * Scale;
-			const FLinearColor Ping = Tok(0xFF, 0xD2, 0x3F, Life);
+			const float Flash = 0.35f + 0.65f * FMath::Abs(FMath::Sin(Now * 8.f));
+			const FLinearColor Ping = Tok(0xFF, 0xD2, 0x3F, Flash);
 			const int32 Steps = 10;
 			FVector2D Prev(X + R, Y);
 			for (int32 Step = 1; Step <= Steps; ++Step)

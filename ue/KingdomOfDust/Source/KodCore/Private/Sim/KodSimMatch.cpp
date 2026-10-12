@@ -721,6 +721,14 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 		Blob.WU8(Use.bEnabled);
 	}
 	Blob.WU8(bPowerStartGranted ? 1 : 0);
+	Blob.WInt(AttackAlerts.Num());
+	for (const FKodAttackAlert& Alert : AttackAlerts)
+	{
+		Blob.WInt(Alert.TeamId);
+		Blob.WInt(Alert.X);
+		Blob.WInt(Alert.Y);
+		Blob.W(&Alert.Tick, sizeof(Alert.Tick));
+	}
 	return Blob.Bytes;
 }
 
@@ -1547,6 +1555,23 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	else
 	{
 		bPowerStartGranted = false;
+	}
+	AttackAlerts.Reset();
+	if (Version >= 8)
+	{
+		int32 AlertCount = 0;
+		if (Blob.RInt(AlertCount) && AlertCount >= 0 && AlertCount <= 64)
+		{
+			for (int32 Index = 0; Index < AlertCount; ++Index)
+			{
+				FKodAttackAlert Alert;
+				if (!Blob.RInt(Alert.TeamId) || !Blob.RInt(Alert.X) || !Blob.RInt(Alert.Y) || !Blob.R(&Alert.Tick, sizeof(Alert.Tick)))
+				{
+					break;
+				}
+				AttackAlerts.Add(Alert);
+			}
+		}
 	}
 	GrantStartingPowerIncome();
 	int32 MaxId = 0;

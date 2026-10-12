@@ -15,6 +15,15 @@
 
 class UKodWeaponDefinition;
 
+/** Auto: infantry, biological units, and workers. Mechanical units and buildings explode. */
+UENUM(BlueprintType)
+enum class EKodDeathStyle : uint8
+{
+	Auto,
+	Organic,
+	Mechanical
+};
+
 /**
  * Primary data asset for a unit archetype.
  * Runtime MUST load MaxHealth / MoveSpeed / BuildTicks from this DA —
@@ -64,6 +73,26 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
 	bool bInfantry = false;
+
+	/**
+	 * Auto treats infantry, biological units, and workers as organic.
+	 * Organic deaths sink or play a body clip. Mechanical deaths explode.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Combat")
+	EKodDeathStyle DeathStyle = EKodDeathStyle::Auto;
+
+	bool UsesOrganicDeath() const
+	{
+		if (DeathStyle == EKodDeathStyle::Organic)
+		{
+			return true;
+		}
+		if (DeathStyle == EKodDeathStyle::Mechanical)
+		{
+			return false;
+		}
+		return bInfantry || bBiological || bCanGather;
+	}
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
 	bool bFlyer = false;

@@ -49,6 +49,8 @@ public:
 	UFUNCTION()
 	void HandleCue(FName CueId, FVector Location, bool bAtLocation);
 
+	void PlayCueNow(FName CueId, FVector Location, bool bAtLocation, bool bSkipAnnouncerGap);
+
 	/** Announcer lines and ids that start with vo_. Portrait talk uses this. */
 	static bool IsVoiceCue(FName CueId);
 

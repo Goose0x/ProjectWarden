@@ -661,6 +661,8 @@ public:
 	void RaiseCue(FName CueId, FVector Location, bool bAtLocation);
 	/** Armour and optional gun on a structure that is already registered. */
 	void TuneStructureCombat(FKodEntityId Id, int32 Armor, float WeaponDamage, float WeaponRange);
+	/** Team 0 damage. Area-throttled under-attack alert. Hashed. */
+	void NotifyOwnedDamage(const FKodSimEntityState& Target);
 
 	/** Broadcasts a floater. Nothing is stored on the sim, hashed, or saved. */
 	void PushJuiceText(const FVector& Position, int32 Amount, uint8 Kind);
@@ -991,6 +993,15 @@ protected:
 	bool bGeneralPowers = true;
 	/** Starting PowerIncome has been added. Hashed and saved so load does not grant twice. */
 	bool bPowerStartGranted = false;
+	/** Recent team-0 attack alerts. Hashed. 20s and 1500 uu throttle. */
+	struct FKodAttackAlert
+	{
+		int32 TeamId = 0;
+		int32 X = 0;
+		int32 Y = 0;
+		int64 Tick = 0;
+	};
+	TArray<FKodAttackAlert> AttackAlerts;
 	int32 PowerPoints0 = 0;
 	int32 PowerPoints1 = 0;
 	int32 ArtilleryCd0 = 0;
