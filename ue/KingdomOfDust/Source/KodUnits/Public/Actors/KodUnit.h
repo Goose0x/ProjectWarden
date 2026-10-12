@@ -138,6 +138,7 @@ protected:
 
 	/** Small mesh while the sim says this worker is carrying. Presentation only. */
 	void UpdateCargoPresentation();
+	void UpdateStimCue();
 	float GetScaledBobAmplitudeCm() const;
 
 	void BindSimEvents(UKodSimSubsystem* Sim);
@@ -230,6 +231,7 @@ protected:
 
 	FLinearColor BodyRestColor = FLinearColor::White;
 	bool bTeamColorApplied = false;
+	bool bStimCue = false;
 	float HitReactRemaining = 0.f;
 	FVector HitJiggleLocal = FVector::ZeroVector;
 

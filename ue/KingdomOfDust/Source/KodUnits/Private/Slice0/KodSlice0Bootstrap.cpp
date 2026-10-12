@@ -1,6 +1,7 @@
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "GameplayTagContainer.h"
 #include "Slice0/KodDataCatalog.h"
+#include "Data/KodAbilityDefinition.h"
 #include "Data/KodWeaponDefinition.h"
 #include "Data/KodUnitDefinition.h"
 #include "Data/KodBuildingDefinition.h"
@@ -72,6 +73,10 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	UKodResourceNodeDefinition* LumineneVent = MakeLumineneVent(Catalog);
 
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_RangerRifle), Rifle);
+	if (Ranger && Ranger->Abilities.Num() > 0)
+	{
+		Catalog->RegisterAsset(FName(KodWardenPaths::Id_CombatStim), MakeCombatStim(Catalog));
+	}
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Ranger), Ranger);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Dozer), Dozer);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_CommandCenter), CC);
@@ -186,6 +191,23 @@ UKodWeaponDefinition* UKodSlice0Bootstrap::MakeRangerRifle(UObject* Outer)
 	return W;
 }
 
+UKodAbilityDefinition* UKodSlice0Bootstrap::MakeCombatStim(UObject* Outer)
+{
+	UKodAbilityDefinition* Ability = NewObject<UKodAbilityDefinition>(Outer, FName(KodWardenPaths::Id_CombatStim), RF_Public | RF_Transient);
+	Ability->AbilityId = FName(KodWardenPaths::Id_CombatStim);
+	Ability->DisplayName = NSLOCTEXT("Kod", "Ability_CombatStim", "Stim");
+	Ability->Hotkey = FName(TEXT("T"));
+	Ability->Credits = 0;
+	Ability->Luminene = 0;
+	Ability->HealthCost = 10;
+	Ability->CooldownTicks = 0;
+	Ability->DurationTicks = 11 * 16;
+	Ability->Effect = EKodAbilityEffect::CombatStim;
+	Ability->MovePermille = 1500;
+	Ability->AttackPermille = 1500;
+	return Ability;
+}
+
 UKodUnitDefinition* UKodSlice0Bootstrap::MakeRanger(UObject* Outer, UKodWeaponDefinition* Rifle)
 {
 	UKodUnitDefinition* U = NewObject<UKodUnitDefinition>(Outer, FName(KodWardenPaths::Id_Ranger), RF_Public | RF_Transient);
@@ -212,6 +234,10 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeRanger(UObject* Outer, UKodWeaponDe
 	// here — the uasset is local, and a miss would log a load error on every spawn.
 	U->SkeletalMesh.Reset();
 	U->StaticMesh.Reset();
+	if (UKodAbilityDefinition* Stim = MakeCombatStim(U))
+	{
+		U->Abilities.Add(Stim->ToSpec());
+	}
 	return U;
 }
 

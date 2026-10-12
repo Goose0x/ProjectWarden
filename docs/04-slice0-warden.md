@@ -519,6 +519,16 @@ Placeholder Rig: 75 Credits, 30 s, 3×3, HP 500, greybox until a static mesh is 
 
 `AKodHUD::DrawHUD` paints a placeholder SC2 command card in the bottom right: a 5×3 button grid. A selected Command Center shows **AMP** (hotkey S). A selected Barracks shows **Marine** (hotkey S). A selected AMP shows **Build** (B), then **Depot** (D), **Barracks** (R), and **Rig** (E). Buttons are left-clickable and use the same command path as the keys. A button is grey when the sim bank cannot pay, or when supply used plus the unit's supply would pass the cap, and the tooltip lists the definition's Credits, Luminene, supply, and build time. The five queue slots sit under the card. The first slot has a progress bar. Clicking a filled slot cancels that slot and refunds it. The bottom centre lists the selection counts by display name. A failed pay or supply check flashes `Not enough Credits`, `Not enough Luminene`, or `Not enough supply` in the centre. AMP and Marine costs stay on the unit definitions (50 Credits / 1 supply / 12 s, and 75 Credits / 1 supply / 80 ticks).
 
+## M4 — sim abilities
+
+Unit abilities are `FKodAbilitySpec` data on `UKodUnitDefinition` (and `UKodAbilityDefinition` when authored as its own asset). The sim stores cooldown and duration as integer ticks and hashes them. `UseAbility` goes through `UKodCommandSubsystem`. It is not GAS.
+
+Marine **Combat Stim** (hotkey **T**) costs 10 HP, lasts 11 s (176 ticks), and grants +50% move speed and +50% attack rate. There is no cooldown beyond having more than 10 HP. It applies to every selected Marine. Those numbers are not in a Strategy sheet in this repo, so they are the placeholder above. The command card shows **Stim** when Marines are selected, with an orange overlay while it is active. A stimmed Marine pulses orange on its existing material. Right-click inside the command card does not order the world. Player-facing unit text says **AMP**, never Dozer.
+
+```
+KodAbility Use Id=CombatStim Unit=2
+```
+
 ## Camera — SC2 player view
 
 `AKodRTSCameraPawn` is the player camera. Pitch **-56°**, yaw **0** (looks north), vertical FOV **42** (horizontal FOV follows the window). The pawn is the ground look-at point. Default arm length **3600** (about 20 SC2 cells of ground at 200 uu, zoom clamped **2400–5200**). All of those are `Config` on the class.

@@ -8,6 +8,7 @@
 #include "Sim/KodResourceTypes.h"
 #include "Sim/KodProductionTypes.h"
 #include "Sim/KodBuildTypes.h"
+#include "Sim/KodAbilityTypes.h"
 #include "KodSimSubsystem.generated.h"
 
 class AActor;
@@ -146,6 +147,22 @@ struct KODCORE_API FKodSimEntityState
 	/** Incomplete structure this worker is constructing. Cleared by any other order. */
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
 	FKodEntityId BuildSite;
+
+	/** Active sim ability. Empty when no buff is running. Hashed as the id string plus integer ticks. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Ability")
+	FName ActiveAbilityId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Ability")
+	int32 AbilityTicksRemaining = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Ability")
+	int32 AbilityCooldownTicks = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Ability")
+	int32 AbilityMovePermille = 1000;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Ability")
+	int32 AbilityAttackPermille = 1000;
 
 	bool IsMoving() const { return Order == EKodSimOrderType::Move; }
 	bool HasPendingOrder() const { return Order != EKodSimOrderType::None; }
@@ -335,6 +352,10 @@ public:
 	bool CancelTrainAt(FKodEntityId StructureId, int32 SlotIndex);
 	bool TryGetTrainSpec(FName UnitId, FKodTrainSpec& OutSpec) const;
 	bool TryGetBuildSpec(FName TypeId, FKodBuildSpec& OutSpec) const;
+	void RegisterUnitAbility(FName UnitDefinitionId, const FKodAbilitySpec& Spec);
+	bool TryGetAbilitySpec(FName AbilityId, FKodAbilitySpec& OutSpec) const;
+	bool UnitHasAbility(FName UnitDefinitionId, FName AbilityId) const;
+	bool UseAbility(FKodEntityId UnitId, FName AbilityId);
 	void SetStructureRally(FKodEntityId StructureId, FVector GroundPoint, FKodEntityId NodeId);
 	void ConsumePendingSpawns(TArray<FKodPendingUnitSpawn>& OutSpawns);
 	/** Presentation hook. Does not start the next slot or change supply. */
@@ -420,6 +441,8 @@ protected:
 	void SyncActorPresentation(float Alpha) const;
 	void DestroyResourceNodeActor(FKodEntityId Id);
 	void StepProduction();
+	void StepAbilities();
+	float EffectiveMoveSpeed(const FKodSimEntityState& State) const;
 	void TryStartProduction(FKodStructureState& Structure);
 	void FinishActiveProduction(FKodStructureState& Structure);
 	void RecalcSupplyCap(int32 TeamId);
@@ -455,6 +478,8 @@ protected:
 	TMap<int32, FKodStructureState> Structures;
 	TMap<FName, FKodTrainSpec> TrainSpecs;
 	TMap<FName, FKodBuildSpec> BuildSpecs;
+	TMap<FName, FKodAbilitySpec> AbilitySpecs;
+	TMap<FName, TArray<FName>> UnitAbilities;
 	TArray<FKodPendingUnitSpawn> PendingSpawns;
 	TArray<FKodPendingBuildingSpawn> PendingBuildingSpawns;
 	bool bHasPlayable = false;

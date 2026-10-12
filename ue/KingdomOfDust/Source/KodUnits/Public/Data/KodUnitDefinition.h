@@ -6,6 +6,7 @@
 #include "Engine/StaticMesh.h"
 #include "GameplayTagContainer.h"
 #include "Sim/KodBuildTicks.h"
+#include "Sim/KodAbilityTypes.h"
 #include "Sim/KodResourceTypes.h"
 #include "Materials/MaterialInterface.h"
 #include "Animation/AnimSequence.h"
@@ -57,6 +58,10 @@ public:
 	/** Dozer. Copied onto the sim entity. Rangers stay false. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
 	bool bCanGather = false;
+
+	/** Sim abilities. Combat Stim lives on the Marine. Not GAS. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Ability")
+	TArray<FKodAbilitySpec> Abilities;
 
 	/**
 	 * Authoritative build duration in sim ticks (SimHz=16).

@@ -49,6 +49,7 @@ protected:
 	void TryBeginPlace(FName TypeId);
 	void IssueTrain(FName UnitId, int32 StructureId);
 	void IssueCancelSlot(int32 StructureId, int32 SlotIndex);
+	void IssueAbility(FName AbilityId);
 
 	TArray<float> LastGroupTapSeconds;
 	bool bBuildMenu = false;
