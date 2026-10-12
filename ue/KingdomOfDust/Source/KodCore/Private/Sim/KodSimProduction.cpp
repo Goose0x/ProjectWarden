@@ -351,7 +351,7 @@ bool UKodSimSubsystem::CancelTrainAt(FKodEntityId StructureId, int32 SlotIndex)
 	return true;
 }
 
-void UKodSimSubsystem::SetStructureRally(FKodEntityId StructureId, FVector GroundPoint, FKodEntityId NodeId)
+void UKodSimSubsystem::SetStructureRally(FKodEntityId StructureId, FVector GroundPoint, FKodEntityId NodeId, FKodEntityId UnitId)
 {
 	FKodStructureState* Structure = Structures.Find(StructureId.Value);
 	if (!Structure)
@@ -359,13 +359,16 @@ void UKodSimSubsystem::SetStructureRally(FKodEntityId StructureId, FVector Groun
 		return;
 	}
 	const bool bNode = NodeId.IsValid() && IsResourceNode(NodeId);
+	const bool bUnit = !bNode && UnitId.IsValid() && States.Contains(UnitId.Value);
 	Structure->bRallyNode = bNode;
 	Structure->RallyNode = bNode ? NodeId : FKodEntityId();
+	Structure->RallyUnit = bUnit ? UnitId : FKodEntityId();
 	Structure->RallyPoint = GroundPoint;
 	QuantizeResourcePosition(Structure->RallyPoint);
-	UE_LOG(LogTemp, Log, TEXT("KodProd Rally Struct=%d Target=%s"),
+	UE_LOG(LogTemp, Log, TEXT("KodProd Rally Struct=%d Node=%d Unit=%d"),
 		StructureId.Value,
-		bNode ? *FString::FromInt(NodeId.Value) : TEXT("Ground"));
+		Structure->RallyNode.Value,
+		Structure->RallyUnit.Value);
 }
 
 void UKodSimSubsystem::FinishActiveProduction(FKodStructureState& Structure)
@@ -390,6 +393,7 @@ void UKodSimSubsystem::FinishActiveProduction(FKodStructureState& Structure)
 	Spawn.RallyPoint = Structure.RallyPoint;
 	Spawn.RallyNode = Structure.RallyNode;
 	Spawn.bRallyNode = Structure.bRallyNode;
+	Spawn.RallyUnit = Structure.RallyUnit;
 	PendingSpawns.Add(Spawn);
 	OnTrainCompleted.Broadcast(Spawn.Location, Spawn.TeamId);
 

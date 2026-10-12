@@ -26,7 +26,39 @@ enum class EKodSimOrderType : uint8
 	Move,
 	Attack,
 	Gather,
-	AttackMove
+	AttackMove,
+	Hold,
+	Patrol,
+	Follow,
+	Guard
+};
+
+/** One shift-queued order. Integers only so the idle hash stays stable. */
+USTRUCT()
+struct KODCORE_API FKodQueuedOrder
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	EKodSimOrderType Order = EKodSimOrderType::None;
+
+	UPROPERTY()
+	int32 X = 0;
+
+	UPROPERTY()
+	int32 Y = 0;
+
+	UPROPERTY()
+	int32 TargetId = 0;
+
+	UPROPERTY()
+	int32 PathId = 0;
+
+	UPROPERTY()
+	int32 OffsetX = 0;
+
+	UPROPERTY()
+	int32 OffsetY = 0;
 };
 
 /** Sim-owned entity state. Actors interpolate presentation from this — not CharacterMovement. */
@@ -174,7 +206,51 @@ struct KODCORE_API FKodSimEntityState
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Ability")
 	int32 AbilityAttackPermille = 1000;
 
-	bool IsMoving() const { return Order == EKodSimOrderType::Move; }
+	/** Collision radius from the unit definition, in uu. Hashed. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	int32 BodyRadiusUU = 34;
+
+	/** Ticks after the shot starts before damage lands. Hashed. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	int32 WeaponBackswingTicks = 2;
+
+	/** Windup left. A move order clears this without dealing damage. Hashed. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	int32 BackswingTicksRemaining = 0;
+
+	/** Follow or guard subject. Hashed. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	FKodEntityId FollowTarget;
+
+	/** Other end of a patrol. Hashed as quantized XY. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	FVector PatrolAnchor = FVector::ZeroVector;
+
+	/** Shared path id. 0 means steer straight at MoveTarget. Not a world position. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	int32 PathId = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	int32 PathCursor = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	int32 PathOffsetX = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	int32 PathOffsetY = 0;
+
+	/** Shift-queued steps. Hashed in order. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	TArray<FKodQueuedOrder> OrderQueue;
+
+	bool IsMoving() const
+	{
+		return Order == EKodSimOrderType::Move
+			|| Order == EKodSimOrderType::AttackMove
+			|| Order == EKodSimOrderType::Patrol
+			|| Order == EKodSimOrderType::Follow
+			|| Order == EKodSimOrderType::Guard;
+	}
 	bool HasPendingOrder() const { return Order != EKodSimOrderType::None; }
 	bool IsCarryingCargo() const { return CargoJadeite > 0 || CargoLuminene > 0; }
 };
@@ -229,7 +305,8 @@ public:
 		float WeaponRange,
 		float WeaponCooldownSeconds,
 		int32 TeamId = 0,
-		bool bCanGather = false);
+		bool bCanGather = false,
+		int32 BodyRadiusUU = 34);
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	void IssueMove(FKodEntityId Id, FVector WorldLocation);
@@ -240,6 +317,28 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	void IssueAttack(FKodEntityId Id, FKodEntityId TargetId);
+
+	/** bForced allows a friendly target, including a friendly structure. */
+	void IssueAttackForced(FKodEntityId Id, FKodEntityId TargetId, bool bForced);
+
+	/**
+	 * Replace the current order, or append it when bQueued and an order is already running.
+	 * SharedPathId 0 plans a path for this unit. A positive id is one path shared by the group.
+	 */
+	void IssueOrder(
+		FKodEntityId Id,
+		EKodSimOrderType Kind,
+		FVector Point,
+		FKodEntityId Target,
+		bool bQueued,
+		int32 SharedPathId = 0,
+		int32 OffsetX = 0,
+		int32 OffsetY = 0);
+
+	/** Grid A* around structure footprints. 0 means go straight. */
+	int32 PlanMovePath(FVector From, FVector To);
+
+	bool IsPathCellClear(int32 X0, int32 Y0, int32 X1, int32 Y1) const;
 
 	/**
 	 * Resource nodes are never targets. A friendly drop-off is a rally, not a target.
@@ -384,7 +483,7 @@ public:
 	bool TryGetAbilitySpec(FName AbilityId, FKodAbilitySpec& OutSpec) const;
 	bool UnitHasAbility(FName UnitDefinitionId, FName AbilityId) const;
 	bool UseAbility(FKodEntityId UnitId, FName AbilityId);
-	void SetStructureRally(FKodEntityId StructureId, FVector GroundPoint, FKodEntityId NodeId);
+	void SetStructureRally(FKodEntityId StructureId, FVector GroundPoint, FKodEntityId NodeId, FKodEntityId UnitId = FKodEntityId());
 	void ConsumePendingSpawns(TArray<FKodPendingUnitSpawn>& OutSpawns);
 	/** Presentation hook. Does not start the next slot or change supply. */
 	void NotifyTrainSpawned(int32 StructureId);
@@ -463,6 +562,13 @@ protected:
 	void StepEntityMove(FKodSimEntityState& State, float FixedDt);
 	void StepEntityAttack(FKodSimEntityState& State, float FixedDt);
 	void StepAttackMove(FKodSimEntityState& State, float FixedDt);
+	void StepHold(FKodSimEntityState& State, float FixedDt);
+	void StepPatrol(FKodSimEntityState& State, float FixedDt);
+	void StepFollow(FKodSimEntityState& State, float FixedDt, bool bGuard);
+	void StepSeparation();
+	void CompleteCurrentOrder(FKodSimEntityState& State, float FixedDt);
+	bool TryApplyWeapon(FKodSimEntityState& State, FKodSimEntityState& Target);
+	FVector GetSteeredGoal(FKodSimEntityState& State) const;
 	void StepEntityGather(FKodSimEntityState& State, float FixedDt);
 	/** Move toward Target and stop at AcceptUU. True when the worker is inside that radius. */
 	bool AdvanceGatherMove(FKodSimEntityState& State, const FVector& Target, float AcceptUU, float FixedDt);
@@ -558,4 +664,14 @@ protected:
 
 	/** Cell -> sorted entity ids. Rebuilt at the start of each sim tick. */
 	TMap<int64, TArray<int32>> AcquireGrid;
+
+	struct FKodStoredPath
+	{
+		int32 Id = 0;
+		TArray<int32> CellX;
+		TArray<int32> CellY;
+	};
+
+	TArray<FKodStoredPath> StoredPaths;
+	int32 NextPathId = 1;
 };

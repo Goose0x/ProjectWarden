@@ -54,6 +54,7 @@ struct KODCORE_API FKodStructureState
 	FVector RallyPoint = FVector::ZeroVector;
 	FKodEntityId RallyNode;
 	bool bRallyNode = false;
+	FKodEntityId RallyUnit;
 
 	int32 CellX = 0;
 	int32 CellY = 0;
@@ -93,4 +94,5 @@ struct KODCORE_API FKodPendingUnitSpawn
 	FVector RallyPoint = FVector::ZeroVector;
 	FKodEntityId RallyNode;
 	bool bRallyNode = false;
+	FKodEntityId RallyUnit;
 };

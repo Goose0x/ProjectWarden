@@ -189,6 +189,7 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 		bMarqueeActive = false;
 	}
 	else if (WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bAltDrag
+		&& !ConsumeArmedOrderClick()
 		&& !ConsumeHudCommandClick()
 		&& !ConsumePlacementLeftClick())
 	{
@@ -453,6 +454,8 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 		}
 		if (Id.IsValid() && Sim && Sim->IsDropOff(Id))
 		{
+			Cmd.ClickedActor = HitActor;
+			Cmd.ClickedId = Id;
 			if (Sim->IsAttackable(Id, GetLocalTeamId()) && !IsInLocalSelection(HitActor))
 			{
 				Cmd.AttackActor = HitActor;
@@ -460,8 +463,20 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 			}
 			return Cmd;
 		}
-		if (Id.IsValid() && !IsInLocalSelection(HitActor))
+		if (Id.IsValid() && Sim && !IsInLocalSelection(HitActor))
 		{
+			Cmd.ClickedActor = HitActor;
+			Cmd.ClickedId = Id;
+			FKodSimEntityState HitState;
+			if (Sim->TryGetState(Id, HitState) && HitState.TeamId == GetLocalTeamId())
+			{
+				if (HitState.bMobile)
+				{
+					Cmd.FollowActor = HitActor;
+					Cmd.FollowId = Id;
+				}
+				return Cmd;
+			}
 			Cmd.AttackActor = HitActor;
 			Cmd.AttackId = Id;
 			return Cmd;
@@ -499,10 +514,22 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 					Cmd.AttackId = Id;
 				}
 			}
-			else if (Id.IsValid() && HitActor && !IsInLocalSelection(HitActor))
+			else if (Id.IsValid() && Sim && HitActor && !IsInLocalSelection(HitActor))
 			{
-				Cmd.AttackActor = HitActor;
-				Cmd.AttackId = Id;
+				FKodSimEntityState HitState;
+				if (Sim->TryGetState(Id, HitState) && HitState.TeamId == GetLocalTeamId())
+				{
+					if (HitState.bMobile)
+					{
+						Cmd.FollowActor = HitActor;
+						Cmd.FollowId = Id;
+					}
+				}
+				else
+				{
+					Cmd.AttackActor = HitActor;
+					Cmd.AttackId = Id;
+				}
 			}
 		}
 	}
@@ -545,14 +572,20 @@ bool AKodPlayerController::ApplySelectedStructureRally(const FKodCursorCommand& 
 	}
 	FKodEntityId NodeId;
 	FVector Point = Cmd.bHasMovePoint ? Cmd.MovePoint : FVector::ZeroVector;
+	FKodEntityId RallyUnit;
 	if (Cmd.GatherActor)
 	{
 		NodeId = Cmd.GatherId;
 		Point = Cmd.GatherActor->GetActorLocation();
 	}
+	else if (Cmd.FollowActor)
+	{
+		RallyUnit = Cmd.FollowId;
+		Point = Cmd.FollowActor->GetActorLocation();
+	}
 	for (const FKodEntityId& Id : Structures)
 	{
-		Sim->SetStructureRally(Id, Point, NodeId);
+		Sim->SetStructureRally(Id, Point, NodeId, RallyUnit);
 	}
 	return !bHasUnits;
 }
@@ -581,6 +614,15 @@ void AKodPlayerController::HandleRightClickCommand()
 	const FKodCursorCommand Cmd = TraceCursorCommand();
 	if (ApplySelectedStructureRally(Cmd))
 	{
+		return;
+	}
+	if (Cmd.FollowActor)
+	{
+		UE_LOG(LogTemp, Log, TEXT("RMB Follow LocalSelection=%d Target=%s Id=%d"),
+			LocalSelection.Num(),
+			*Cmd.FollowActor->GetName(),
+			Cmd.FollowId.Value);
+		IssueFollowToSelection(Cmd.FollowActor, false);
 		return;
 	}
 	if (Cmd.AttackActor)
@@ -634,6 +676,25 @@ void AKodPlayerController::HandleRightClickCommand()
 		return;
 	}
 	UE_LOG(LogTemp, Log, TEXT("RMB Miss %s"), Cmd.HitName.IsEmpty() ? TEXT("none") : *Cmd.HitName);
+}
+
+void AKodPlayerController::IssueFollowToSelection(AActor* Target, bool bGuard)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim || !Target)
+	{
+		return;
+	}
+	const FKodEntityId TargetId = Sim->FindIdForActor(Target);
+	const EKodSimOrderType Kind = bGuard ? EKodSimOrderType::Guard : EKodSimOrderType::Follow;
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		if (Id != TargetId)
+		{
+			Sim->IssueOrder(Id, Kind, Target->GetActorLocation(), TargetId, false);
+		}
+	}
 }
 
 void AKodPlayerController::IssueMoveToSelection_Implementation(FVector WorldLocation)

@@ -74,6 +74,10 @@ void UKodCommandSubsystem::ExecuteCommand(const FKodCommand& Command)
 	case EKodCommandType::CancelBuild: ExecuteCancelBuild(Command); break;
 	case EKodCommandType::UseAbility:  ExecuteUseAbility(Command); break;
 	case EKodCommandType::AttackMove: ExecuteAttackMove(Command); break;
+	case EKodCommandType::Hold: ExecuteHold(Command); break;
+	case EKodCommandType::Patrol: ExecutePatrol(Command); break;
+	case EKodCommandType::Follow: ExecuteFollow(Command); break;
+	case EKodCommandType::Guard: ExecuteGuard(Command); break;
 	default: break;
 	}
 }
@@ -86,23 +90,7 @@ void UKodCommandSubsystem::ExecuteMove(const FKodCommand& Command)
 	{
 		return;
 	}
-	for (const FKodEntityId& Id : Command.SourceEntities)
-	{
-		AActor* Actor = Sim->ResolveEntity(Id);
-		if (!Actor)
-		{
-			continue;
-		}
-		if (UKodMoveComponent* Move = Actor->FindComponentByClass<UKodMoveComponent>())
-		{
-			Move->RequestMoveTo(Command.TargetLocation);
-		}
-		else
-		{
-			// Direct sim seek — no NavMesh / AI MoveTo
-			Sim->IssueMove(Id, Command.TargetLocation);
-		}
-	}
+	IssueGroundOrders(Command, EKodSimOrderType::Move);
 }
 
 void UKodCommandSubsystem::ExecuteAttack(const FKodCommand& Command)
@@ -114,23 +102,10 @@ void UKodCommandSubsystem::ExecuteAttack(const FKodCommand& Command)
 		return;
 	}
 	AActor* Target = Sim->ResolveEntity(Command.TargetEntity);
+	const FVector Point = Target ? Target->GetActorLocation() : Command.TargetLocation;
 	for (const FKodEntityId& Id : Command.SourceEntities)
 	{
-		AActor* Actor = Sim->ResolveEntity(Id);
-		if (!Actor)
-		{
-			continue;
-		}
-		// Hitscan seek-into-range lives on UKodSimSubsystem via AttackComponent.
-		// Do NOT also IssueMove — that would overwrite the Attack order.
-		if (UKodAttackComponent* Attack = Actor->FindComponentByClass<UKodAttackComponent>())
-		{
-			Attack->RequestAttack(Target);
-		}
-		else if (Target)
-		{
-			Sim->IssueAttack(Id, Command.TargetEntity);
-		}
+		Sim->IssueOrder(Id, EKodSimOrderType::Attack, Point, Command.TargetEntity, Command.bQueued);
 	}
 }
 
@@ -144,19 +119,7 @@ void UKodCommandSubsystem::ExecuteStop(const FKodCommand& Command)
 	}
 	for (const FKodEntityId& Id : Command.SourceEntities)
 	{
-		AActor* Actor = Sim->ResolveEntity(Id);
-		if (!Actor)
-		{
-			continue;
-		}
-		if (UKodMoveComponent* Move = Actor->FindComponentByClass<UKodMoveComponent>())
-		{
-			Move->StopMovement();
-		}
-		if (UKodAttackComponent* Attack = Actor->FindComponentByClass<UKodAttackComponent>())
-		{
-			Attack->ClearTarget();
-		}
+		Sim->IssueStop(Id);
 	}
 }
 
@@ -306,9 +269,90 @@ void UKodCommandSubsystem::ExecuteAttackMove(const FKodCommand& Command)
 	{
 		return;
 	}
+	IssueGroundOrders(Command, EKodSimOrderType::AttackMove);
+}
+
+void UKodCommandSubsystem::IssueGroundOrders(const FKodCommand& Command, EKodSimOrderType Kind)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	int32 SharedPath = 0;
+	if (Command.SourceEntities.Num() > 1)
+	{
+		FVector Sum = FVector::ZeroVector;
+		int32 Count = 0;
+		for (const FKodEntityId& Id : Command.SourceEntities)
+		{
+			FKodSimEntityState State;
+			if (Sim->TryGetState(Id, State))
+			{
+				Sum += State.Position;
+				++Count;
+			}
+		}
+		if (Count > 0)
+		{
+			SharedPath = Sim->PlanMovePath(Sum / static_cast<float>(Count), Command.TargetLocation);
+		}
+	}
+	const int32 Total = Command.SourceEntities.Num();
+	int32 Slot = 0;
 	for (const FKodEntityId& Id : Command.SourceEntities)
 	{
-		Sim->IssueAttackMove(Id, Command.TargetLocation);
+		const int32 Offset = (Slot - (Total - 1) / 2) * 80;
+		Sim->IssueOrder(Id, Kind, Command.TargetLocation, FKodEntityId(), Command.bQueued, SharedPath, 0, Offset);
+		++Slot;
+	}
+}
+
+void UKodCommandSubsystem::ExecuteHold(const FKodCommand& Command)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : Command.SourceEntities)
+	{
+		Sim->IssueOrder(Id, EKodSimOrderType::Hold, FVector::ZeroVector, FKodEntityId(), Command.bQueued);
+	}
+}
+
+void UKodCommandSubsystem::ExecutePatrol(const FKodCommand& Command)
+{
+	IssueGroundOrders(Command, EKodSimOrderType::Patrol);
+}
+
+void UKodCommandSubsystem::ExecuteFollow(const FKodCommand& Command)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : Command.SourceEntities)
+	{
+		Sim->IssueOrder(Id, EKodSimOrderType::Follow, Command.TargetLocation, Command.TargetEntity, Command.bQueued);
+	}
+}
+
+void UKodCommandSubsystem::ExecuteGuard(const FKodCommand& Command)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : Command.SourceEntities)
+	{
+		Sim->IssueOrder(Id, EKodSimOrderType::Guard, Command.TargetLocation, Command.TargetEntity, Command.bQueued);
 	}
 }
 
@@ -322,6 +366,13 @@ void UKodCommandSubsystem::ExecuteGather(const FKodCommand& Command)
 	}
 	for (const FKodEntityId& Id : Command.SourceEntities)
 	{
-		Sim->IssueGather(Id, Command.TargetEntity);
+		if (Command.bQueued)
+		{
+			Sim->IssueOrder(Id, EKodSimOrderType::Gather, Command.TargetLocation, Command.TargetEntity, true);
+		}
+		else
+		{
+			Sim->IssueGather(Id, Command.TargetEntity);
+		}
 	}
 }

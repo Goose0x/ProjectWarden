@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "KodCommandTypes.h"
+#include "Sim/KodSimSubsystem.h"
 #include "KodCommandSubsystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FKodCommandEnqueuedSignature, const FKodCommand&, Command);
@@ -62,6 +63,11 @@ protected:
 	void ExecuteCancelBuild(const FKodCommand& Command);
 	void ExecuteUseAbility(const FKodCommand& Command);
 	void ExecuteAttackMove(const FKodCommand& Command);
+	void ExecuteHold(const FKodCommand& Command);
+	void ExecutePatrol(const FKodCommand& Command);
+	void ExecuteFollow(const FKodCommand& Command);
+	void ExecuteGuard(const FKodCommand& Command);
+	void IssueGroundOrders(const FKodCommand& Command, EKodSimOrderType Kind);
 
 	UPROPERTY()
 	TArray<FKodCommand> Pending;

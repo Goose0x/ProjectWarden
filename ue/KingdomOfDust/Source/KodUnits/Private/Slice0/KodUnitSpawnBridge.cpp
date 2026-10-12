@@ -66,7 +66,12 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 	Unit->ApplyDefinition(Def);
 	UE_LOG(LogTemp, Log, TEXT("KodProd Complete Spawned=%s"), *Unit->GetName());
 
-	if (Request.bRallyNode && Request.RallyNode.IsValid())
+	if (Request.RallyUnit.IsValid())
+	{
+		const FVector At = Unit->GetActorLocation();
+		Sim->IssueOrder(Unit->EntityId, EKodSimOrderType::Follow, At, Request.RallyUnit, false);
+	}
+	else if (Request.bRallyNode && Request.RallyNode.IsValid())
 	{
 		Sim->IssueGather(Unit->EntityId, Request.RallyNode);
 	}

@@ -775,16 +775,16 @@ void AKodHUD::DrawHotkeyLegend()
 	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
 	const TCHAR* Lines[] = {
 		TEXT("LMB  Select    Shift+LMB  Add    Drag  Box"),
-		TEXT("RMB  Move / Attack / Gather"),
-		TEXT("Minimap LMB  Camera    RMB  Move or Attack-move"),
+		TEXT("RMB  Move / Attack / Follow / Gather"),
+		TEXT("M Move  A Attack  H Hold  P Patrol  G Guard"),
+		TEXT("S  Stop units, or Train on a structure"),
+		TEXT("Shift+click  Queue the next order"),
 		TEXT("B  Build    D Depot    R Barracks    E Rig"),
-		TEXT("S  Train    T Stim    Backspace  Cancel"),
-		TEXT("Tab  Command subgroup"),
+		TEXT("T Stim    Backspace  Cancel    Tab  Subgroup"),
 		TEXT("F1  Next idle AMP"),
 		TEXT("1-0  Select group    Double-tap  Centre"),
 		TEXT("Ctrl+1-0  Set    Shift+1-0  Add"),
 		TEXT("F5-F8  Recall    Ctrl+F5-F8  Save    Space  Alert"),
-		TEXT("Arrows / edge / MMB  Pan    Wheel  Zoom"),
 		TEXT("F12 or ?  Hide this list")
 	};
 	constexpr int32 LineCount = 12;

@@ -549,6 +549,9 @@ void UKodUnitAnimInstance::ReadSimPresentation(AKodUnit* UnitPawn)
 					bAim = (SimState.Order == EKodSimOrderType::Attack || SimState.Order == EKodSimOrderType::AttackMove)
 						&& SimState.AttackTarget.IsValid();
 					if (SimState.Order == EKodSimOrderType::Move
+						|| SimState.Order == EKodSimOrderType::Patrol
+						|| SimState.Order == EKodSimOrderType::Follow
+						|| SimState.Order == EKodSimOrderType::Guard
 						|| (SimState.Order == EKodSimOrderType::AttackMove && !bAim))
 					{
 						const float Accept = FMath::Max(1.f, SimState.AcceptanceRadius * 0.5f);

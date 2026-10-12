@@ -25,11 +25,14 @@ public:
 protected:
 	virtual void IssueMoveToSelection_Implementation(FVector WorldLocation) override;
 	virtual void IssueAttackToSelection_Implementation(AActor* Target) override;
+	virtual void IssueFollowToSelection(AActor* Target, bool bGuard) override;
+	virtual bool ConsumeArmedOrderClick() override;
+	virtual FName GetArmedOrderName() const override;
 	virtual void IssueGatherToSelection_Implementation(AActor* Node, FVector NonGathererMovePoint) override;
 	virtual void PlayerTick(float DeltaTime) override;
 	virtual bool ApplySelectedStructureRally(const FKodCursorCommand& Cmd) override;
 
-	void EnqueueTrainOnSelectedStructures();
+	bool EnqueueTrainOnSelectedStructures();
 	void CancelTrainOnSelectedStructures();
 	void TryCenterControlGroup();
 	virtual bool ConsumeHudCommandClick() override;
@@ -58,7 +61,13 @@ protected:
 	void IssueCancelSlot(int32 StructureId, int32 SlotIndex);
 	void IssueAbility(FName AbilityId);
 
+	void ArmOrder(FName OrderName);
+	void IssueStopOnSelectedUnits();
+	void IssueHoldOnSelectedUnits();
+	bool ShiftQueued() const;
+
 	TArray<float> LastGroupTapSeconds;
+	FName ArmedOrder;
 	bool bBuildMenu = false;
 	FName PlaceType;
 	TWeakObjectPtr<AKodBuildGhost> BuildGhost;
