@@ -782,7 +782,27 @@ void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
 				}
 			}
 			Platform->Mips[0].BulkData.Unlock();
-			FogSheetTexture->UpdateResource();
+			struct FKodFogUpload
+			{
+				TArray<uint8> Bytes;
+				FUpdateTextureRegion2D Region;
+			};
+			FKodFogUpload* Upload = new FKodFogUpload();
+			const int32 ByteCount = GridW * GridH * 4;
+			Upload->Bytes.SetNumUninitialized(ByteCount);
+			FMemory::Memcpy(Upload->Bytes.GetData(), Bits, ByteCount);
+			Upload->Region = FUpdateTextureRegion2D(0, 0, 0, 0, static_cast<uint32>(GridW), static_cast<uint32>(GridH));
+			FogSheetTexture->UpdateTextureRegions(
+				0,
+				1,
+				&Upload->Region,
+				static_cast<uint32>(GridW * 4),
+				4,
+				Upload->Bytes.GetData(),
+				[Upload](uint8*, const FUpdateTextureRegion2D*)
+				{
+					delete Upload;
+				});
 		}
 		FogSheetTick = Sim->GetSimTickIndex();
 	}
@@ -3508,6 +3528,11 @@ void AKodHUD::BeginPlay()
 
 void AKodHUD::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (AStaticMeshActor* Sheet = FogSheetActor.Get())
+	{
+		Sheet->Destroy();
+		FogSheetActor = nullptr;
+	}
 	if (UWorld* World = GetWorld())
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())

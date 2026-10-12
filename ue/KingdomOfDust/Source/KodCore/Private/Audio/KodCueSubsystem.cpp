@@ -212,6 +212,17 @@ void UKodCueSubsystem::PlayCueNow(FName CueId, FVector Location, bool bAtLocatio
 	}
 
 	FKodCachedCue* Cached = CueCache.Find(CueId);
+	if (CueId == FName(TEXT("alert_ping")) && (!Cached || !Cached->Sound))
+	{
+		if (FKodCachedCue* Click = CueCache.Find(FName(TEXT("ui_click"))))
+		{
+			if (Click->Sound)
+			{
+				UGameplayStatics::PlaySound2D(this, Click->Sound);
+			}
+		}
+		return;
+	}
 	if (!Cached)
 	{
 		const FString Fallback = FString::Printf(TEXT("/Game/Audio/TEMP/CoreLoop/%s.%s"), *CueId.ToString(), *CueId.ToString());
