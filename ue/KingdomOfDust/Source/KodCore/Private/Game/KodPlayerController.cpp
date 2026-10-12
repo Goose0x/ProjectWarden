@@ -277,11 +277,11 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 	{
 		if (PressHUD->ConsumePortraitClick())
 		{
-			if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn()))
+			if (AKodRTSCameraPawn* FocusPawn = Cast<AKodRTSCameraPawn>(GetPawn()))
 			{
 				if (GetLocalSelection().Num() > 0 && GetLocalSelection()[0])
 				{
-					CameraPawn->JumpTo(GetLocalSelection()[0]->GetActorLocation());
+					FocusPawn->JumpTo(GetLocalSelection()[0]->GetActorLocation());
 				}
 			}
 		}
