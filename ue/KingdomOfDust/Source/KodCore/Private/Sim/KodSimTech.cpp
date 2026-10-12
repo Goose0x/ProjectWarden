@@ -201,6 +201,7 @@ bool UKodSimSubsystem::ToggleDepot(FKodEntityId StructureId)
 			}
 		}
 		Structure->bLowered = false;
+		InvalidatePathsOverFootprint(Structure->CellX, Structure->CellY, Structure->FootprintX, Structure->FootprintY);
 	}
 	else
 	{
@@ -345,7 +346,8 @@ bool UKodSimSubsystem::CastHeal(FKodEntityId UnitId)
 		return false;
 	}
 	const FKodSimEntityState* Best = nullptr;
-	float Worst = 2.f;
+	int32 BestHp = 1;
+	int32 BestMax = 1;
 	TArray<int32> Keys;
 	States.GetKeys(Keys);
 	Keys.Sort();
@@ -364,11 +366,15 @@ bool UKodSimSubsystem::CastHeal(FKodEntityId UnitId)
 		{
 			continue;
 		}
-		const float Fraction = Other->MaxHealth > 0.f ? Other->Health / Other->MaxHealth : 1.f;
-		if (!Best || Fraction < Worst || (Fraction == Worst && Other->Id.Value < Best->Id.Value))
+		const int32 Hp = FMath::Max(0, FMath::RoundToInt(Other->Health));
+		const int32 MaxHp = FMath::Max(1, FMath::RoundToInt(Other->MaxHealth));
+		const int64 Left = static_cast<int64>(Hp) * static_cast<int64>(BestMax);
+		const int64 Right = static_cast<int64>(BestHp) * static_cast<int64>(MaxHp);
+		if (!Best || Left < Right || (Left == Right && Other->Id.Value < Best->Id.Value))
 		{
 			Best = Other;
-			Worst = Fraction;
+			BestHp = Hp;
+			BestMax = MaxHp;
 		}
 	}
 	if (!Best)
@@ -488,7 +494,9 @@ void UKodSimSubsystem::StepTech()
 		FKodEntityId Best;
 		float BestDist = 0.f;
 		bool bFound = false;
-		for (int32 UnitKey : Keys)
+		TArray<int32> Nearby;
+		CollectAcquireCandidates(Structure->Position.X, Structure->Position.Y, Range, Nearby);
+		for (int32 UnitKey : Nearby)
 		{
 			const FKodSimEntityState* Other = States.Find(UnitKey);
 			if (!Other || Other->Health <= 0.f || Other->TeamId == Structure->TeamId || Other->InsideBunker.IsValid())
@@ -536,7 +544,9 @@ void UKodSimSubsystem::StepTech()
 			FKodEntityId Shot;
 			float ShotDist = 0.f;
 			bool bShot = false;
-			for (int32 UnitKey : Keys)
+			TArray<int32> RiderNearby;
+			CollectAcquireCandidates(Structure->Position.X, Structure->Position.Y, RiderRange, RiderNearby);
+			for (int32 UnitKey : RiderNearby)
 			{
 				const FKodSimEntityState* Other = States.Find(UnitKey);
 				if (!Other || Other->Health <= 0.f || Other->TeamId == Rider->TeamId || Other->InsideBunker.IsValid())

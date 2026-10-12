@@ -699,6 +699,7 @@ protected:
 	void EjectBunker(FKodEntityId BunkerId);
 	bool CellHasUnit(int32 CellX, int32 CellY) const;
 	bool IsCellTerrainBlocked(int32 CellX, int32 CellY) const;
+	void InvalidatePathsOverFootprint(int32 CellX, int32 CellY, int32 SizeX, int32 SizeY);
 	void EvaluateMatch();
 	float EffectiveMoveSpeed(const FKodSimEntityState& State) const;
 	void TryStartProduction(FKodStructureState& Structure);

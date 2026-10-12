@@ -92,6 +92,21 @@ public:
 	/** Centre flash. Reason is Credits, Luminene, or Supply. */
 	void ShowResourceFlash(FName Reason);
 	void ShowCenterMessage(const FString& Text);
+	void SetSelectionPage(int32 Page);
+	/** True on the second click inside 0.3 seconds. */
+	bool ConsumePortraitClick();
+
+	/**
+	 * How much of one wireframe zone is still intact, 0 to 1.
+	 * Zones take damage in an order seeded by UnitId.
+	 */
+	static float WireZoneRemain(int32 UnitId, int32 ZoneIndex, int32 ZoneCount, int32 Health, int32 MaxHealth);
+
+	UFUNCTION()
+	void HandleAlertCue(FName CueId, FVector Location, bool bAtLocation);
+
+	UFUNCTION()
+	void HandleWireHit(AActor* Attacker, AActor* Target, float Health, int32 TargetId);
 
 	/** Credits, Luminene, Supply, or None. Reads the local team's sim bank and supply. */
 	FName PeekResourceFail(int32 Credits, int32 Luminene, int32 Supply) const;
@@ -123,6 +138,10 @@ protected:
 	void DrawWorldFog();
 	void DrawGameClock();
 	void DrawScaffolds();
+	void DrawAlertFeed();
+	void DrawSpectatorPanel();
+	void DrawWireHeat(float X, float Y, float W, float H, int32 UnitId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash);
+	void BindAlertFeed();
 	bool TryDrawIcon(FName IconId, float X, float Y, float SizeX, float SizeY);
 	void CacheSimSnapshot();
 	const FKodSimEntityState* FindFrameState(int32 EntityId) const;
@@ -177,6 +196,22 @@ protected:
 	float PassiveMaxY = 0.f;
 	bool bHasPassiveChrome = false;
 	int32 CommandSubgroupCount = 0;
+	int32 SelectionPage = 0;
+	float PortraitClickSeconds = -1.f;
+	TMap<int32, float> WireHitUntil;
+
+	struct FKodAlertLine
+	{
+		FString Text;
+		FName CueId;
+		FVector World = FVector::ZeroVector;
+		float Until = 0.f;
+	};
+	TArray<FKodAlertLine> AlertLines;
+	TMap<FName, float> AlertThrottleUntil;
+
+	UPROPERTY()
+	TObjectPtr<class AKodPortraitStage> PortraitStage;
 	FName ActiveCommandSubgroup;
 	float ChromeMinX = 0.f;
 	float ChromeMinY = 0.f;

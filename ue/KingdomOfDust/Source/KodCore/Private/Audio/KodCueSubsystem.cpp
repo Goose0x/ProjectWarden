@@ -2,7 +2,6 @@
 
 #include "Kismet/GameplayStatics.h"
 #include "Sim/KodSimSubsystem.h"
-#include "Sound/SoundBase.h"
 
 namespace
 {
@@ -18,19 +17,109 @@ namespace
 			|| CueId == FName(TEXT("defeat"))
 			|| CueId == FName(TEXT("structure_complete"));
 	}
+
+	const TCHAR* KnownCueIds[] = {
+		TEXT("unit_ready_amp"),
+		TEXT("unit_ready_marine"),
+		TEXT("unit_ready_medic"),
+		TEXT("structure_complete"),
+		TEXT("not_enough_credits"),
+		TEXT("not_enough_luminene"),
+		TEXT("not_enough_supply"),
+		TEXT("base_under_attack"),
+		TEXT("units_under_attack"),
+		TEXT("research_complete"),
+		TEXT("combat_stim"),
+		TEXT("marine_fire"),
+		TEXT("unit_death"),
+		TEXT("building_placed"),
+		TEXT("building_destroyed"),
+		TEXT("victory"),
+		TEXT("defeat"),
+		TEXT("ui_click"),
+		TEXT("cant_build")
+	};
+}
+
+void UKodCueSubsystem::RememberCue(FName CueId, const FString& Path)
+{
+	if (CueId.IsNone() || CueCache.Contains(CueId))
+	{
+		return;
+	}
+	FKodCachedCue Entry;
+	const FString UsePath = Path.IsEmpty()
+		? FString::Printf(TEXT("/Game/Audio/TEMP/CoreLoop/%s.%s"), *CueId.ToString(), *CueId.ToString())
+		: Path;
+	Entry.Path = FSoftObjectPath(UsePath);
+	CueCache.Add(CueId, Entry);
+}
+
+void UKodCueSubsystem::NoteMissing(FName CueId, const FSoftObjectPath& Path)
+{
+	FKodCachedCue& Entry = CueCache.FindOrAdd(CueId);
+	Entry.Path = Path;
+	Entry.bFailed = true;
+	if (!Entry.bLogged)
+	{
+		Entry.bLogged = true;
+		UE_LOG(LogTemp, Warning, TEXT("KodCue Missing Id=%s Path=%s"), *CueId.ToString(), *Path.ToString());
+	}
 }
 
 void UKodCueSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
-	if (bBound)
+	if (!bBound)
+	{
+		if (UKodSimSubsystem* Sim = InWorld.GetSubsystem<UKodSimSubsystem>())
+		{
+			Sim->OnCue.AddDynamic(this, &UKodCueSubsystem::HandleCue);
+			bBound = true;
+		}
+	}
+	if (CueHandle.IsValid())
 	{
 		return;
 	}
-	if (UKodSimSubsystem* Sim = InWorld.GetSubsystem<UKodSimSubsystem>())
+	for (const FKodCueBinding& Binding : CuePaths)
 	{
-		Sim->OnCue.AddDynamic(this, &UKodCueSubsystem::HandleCue);
-		bBound = true;
+		RememberCue(Binding.CueId, Binding.Path);
+	}
+	for (const TCHAR* Id : KnownCueIds)
+	{
+		RememberCue(FName(Id), FString());
+	}
+	TArray<FSoftObjectPath> Paths;
+	for (const TPair<FName, FKodCachedCue>& Pair : CueCache)
+	{
+		Paths.Add(Pair.Value.Path);
+	}
+	if (Paths.Num() == 0)
+	{
+		bPreloadFinished = true;
+		return;
+	}
+	CueHandle = CueStream.RequestAsyncLoad(
+		Paths,
+		FStreamableDelegate::CreateUObject(this, &UKodCueSubsystem::OnCuesPreloaded),
+		0,
+		false,
+		false,
+		TEXT("KodCues"));
+}
+
+void UKodCueSubsystem::OnCuesPreloaded()
+{
+	bPreloadFinished = true;
+	for (TPair<FName, FKodCachedCue>& Pair : CueCache)
+	{
+		UObject* Loaded = Pair.Value.Path.ResolveObject();
+		Pair.Value.Sound = Cast<USoundBase>(Loaded);
+		if (!Pair.Value.Sound)
+		{
+			NoteMissing(Pair.Key, Pair.Value.Path);
+		}
 	}
 }
 
@@ -62,30 +151,27 @@ void UKodCueSubsystem::HandleCue(FName CueId, FVector Location, bool bAtLocation
 		AnnouncerUntil.Add(CueId, Now + FMath::Max(0.1f, AnnouncerGapSeconds));
 	}
 
-	FString Path;
-	for (const FKodCueBinding& Binding : CuePaths)
+	FKodCachedCue* Cached = CueCache.Find(CueId);
+	if (!Cached)
 	{
-		if (Binding.CueId == CueId)
+		const FString Fallback = FString::Printf(TEXT("/Game/Audio/TEMP/CoreLoop/%s.%s"), *CueId.ToString(), *CueId.ToString());
+		NoteMissing(CueId, FSoftObjectPath(Fallback));
+		return;
+	}
+	if (!Cached->Sound)
+	{
+		if (bPreloadFinished)
 		{
-			Path = Binding.Path;
-			break;
+			NoteMissing(CueId, Cached->Path);
 		}
-	}
-	if (Path.IsEmpty())
-	{
-		Path = FString::Printf(TEXT("/Game/Audio/TEMP/CoreLoop/%s.%s"), *CueId.ToString(), *CueId.ToString());
-	}
-	USoundBase* Sound = Cast<USoundBase>(FSoftObjectPath(Path).TryLoad());
-	if (!Sound)
-	{
 		return;
 	}
 	if (bAtLocation)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, Sound, Location);
+		UGameplayStatics::PlaySoundAtLocation(this, Cached->Sound, Location);
 	}
 	else
 	{
-		UGameplayStatics::PlaySound2D(this, Sound);
+		UGameplayStatics::PlaySound2D(this, Cached->Sound);
 	}
 }

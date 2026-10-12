@@ -1439,6 +1439,31 @@ bool AKodPlayerController::ConsumeChromeClick()
 	}
 	const bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
 	const bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
+	if (Hit.Kind == FName(TEXT("Page")))
+	{
+		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))
+		{
+			MutableHUD->SetSelectionPage(Hit.IntParam);
+		}
+		return true;
+	}
+	if (Hit.Kind == FName(TEXT("Portrait")))
+	{
+		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))
+		{
+			if (MutableHUD->ConsumePortraitClick())
+			{
+				if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn()))
+				{
+					if (GetLocalSelection().Num() > 0 && GetLocalSelection()[0])
+					{
+						CameraPawn->JumpTo(GetLocalSelection()[0]->GetActorLocation());
+					}
+				}
+			}
+		}
+		return true;
+	}
 	if (Hit.Kind == FName(TEXT("Unload")) || Hit.Kind == FName(TEXT("UnloadAll")))
 	{
 		if (UWorld* World = GetWorld())

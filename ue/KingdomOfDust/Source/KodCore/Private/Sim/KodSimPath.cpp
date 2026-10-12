@@ -333,6 +333,30 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 	return Path.Id;
 }
 
+void UKodSimSubsystem::InvalidatePathsOverFootprint(int32 CellX, int32 CellY, int32 SizeX, int32 SizeY)
+{
+	for (int32 Index = StoredPaths.Num() - 1; Index >= 0; --Index)
+	{
+		const FKodStoredPath& Path = StoredPaths[Index];
+		bool bCrosses = false;
+		for (int32 Step = 0; Step < Path.CellX.Num(); ++Step)
+		{
+			const int32 X = Path.CellX[Step];
+			const int32 Y = Path.CellY[Step];
+			if (X >= CellX && X < CellX + SizeX && Y >= CellY && Y < CellY + SizeY)
+			{
+				bCrosses = true;
+				break;
+			}
+		}
+		if (bCrosses)
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodPath Invalidate Id=%d"), Path.Id);
+			StoredPaths.RemoveAt(Index);
+		}
+	}
+}
+
 FVector UKodSimSubsystem::GetSteeredGoal(FKodSimEntityState& State)
 {
 	if (State.PathId == 0)

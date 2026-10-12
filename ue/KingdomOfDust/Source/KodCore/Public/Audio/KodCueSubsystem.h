@@ -1,6 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/StreamableManager.h"
+#include "Sound/SoundBase.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "KodCueSubsystem.generated.h"
 
@@ -17,10 +19,23 @@ struct KODCORE_API FKodCueBinding
 	FString Path;
 };
 
+/** Loaded sound or a recorded miss. The hot path only reads this map. */
+USTRUCT()
+struct FKodCachedCue
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TObjectPtr<USoundBase> Sound;
+
+	FSoftObjectPath Path;
+	bool bFailed = false;
+	bool bLogged = false;
+};
+
 /**
  * Plays soft sound paths for sim cue ids.
- * 2D for UI and announcer, 3D when the sim passes a world location.
- * Announcer lines are throttled. A missing asset plays nothing.
+ * Paths are async-preloaded at BeginPlay. A missing asset is logged once and then stays silent.
  */
 UCLASS(Config = Game)
 class KODCORE_API UKodCueSubsystem : public UWorldSubsystem
@@ -33,6 +48,9 @@ public:
 	UFUNCTION()
 	void HandleCue(FName CueId, FVector Location, bool bAtLocation);
 
+	UFUNCTION()
+	void OnCuesPreloaded();
+
 	UPROPERTY(Config, EditAnywhere, Category = "Kod|Audio")
 	TArray<FKodCueBinding> CuePaths;
 
@@ -40,6 +58,16 @@ public:
 	float AnnouncerGapSeconds = 2.5f;
 
 private:
+	void RememberCue(FName CueId, const FString& Path);
+	void NoteMissing(FName CueId, const FSoftObjectPath& Path);
+
 	bool bBound = false;
+	bool bPreloadFinished = false;
 	TMap<FName, float> AnnouncerUntil;
+
+	UPROPERTY()
+	TMap<FName, FKodCachedCue> CueCache;
+
+	FStreamableManager CueStream;
+	TSharedPtr<FStreamableHandle> CueHandle;
 };
