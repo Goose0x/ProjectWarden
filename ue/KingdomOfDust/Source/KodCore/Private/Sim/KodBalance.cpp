@@ -539,6 +539,7 @@ void UKodSimSubsystem::ApplyBalance()
 
 	RecalcSupplyCap(0);
 	RecalcSupplyCap(1);
+	GrantStartingPowerIncome();
 }
 
 bool UKodSimSubsystem::SetBalanceField(FName TableName, FName RowName, FName Field, int32 Value)

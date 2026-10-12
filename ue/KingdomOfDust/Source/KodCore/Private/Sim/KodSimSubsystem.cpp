@@ -46,6 +46,7 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bTeam0HadStructure = false;
 	bTeam1HadStructure = false;
 	AcquireGrid.Reset();
+	MeleeAttackersByTarget.Reset();
 	StoredPaths.Reset();
 	TeamVision.Reset();
 	SeenStructures.Reset();
@@ -68,6 +69,7 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	CheatUses.Reset();
 	LastCheatLine.Reset();
 	bGeneralPowers = true;
+	bPowerStartGranted = false;
 	PowerPoints0 = 0;
 	PowerPoints1 = 0;
 	ArtilleryCd0 = 0;
@@ -129,6 +131,7 @@ void UKodSimSubsystem::Deinitialize()
 	PendingSpawns.Reset();
 	PendingBuildingSpawns.Reset();
 	AcquireGrid.Reset();
+	MeleeAttackersByTarget.Reset();
 	StoredPaths.Reset();
 	TeamVision.Reset();
 	SeenStructures.Reset();
@@ -499,6 +502,7 @@ void UKodSimSubsystem::RebuildAcquireGrid()
 		const int32 CellY = FMath::FloorToInt(State->Position.Y / static_cast<float>(AcquireCellUU));
 		AcquireGrid.FindOrAdd(PackAcquireCell(CellX, CellY)).Add(Key);
 	}
+	MeleeAttackersByTarget.Reset();
 }
 
 void UKodSimSubsystem::CollectAcquireCandidates(float OriginX, float OriginY, float Range, TArray<int32>& OutIds) const
@@ -882,36 +886,37 @@ namespace
 	}
 }
 
-FVector UKodSimSubsystem::MeleeSlotPoint(const FKodSimEntityState& State, const FKodSimEntityState& Target) const
+FVector UKodSimSubsystem::MeleeSlotPoint(const FKodSimEntityState& State, const FKodSimEntityState& Target)
 {
 	constexpr int32 SlotCount = 8;
+	constexpr float MeleeLimit = static_cast<float>(KodBuildGrid::CellUU) * 0.5f + 1.f;
 	const float Radius = FMath::Max(48.f, State.WeaponRange - 16.f);
-	TArray<int32> Attackers;
-	TArray<int32> Keys;
-	States.GetKeys(Keys);
-	Keys.Sort();
-	for (int32 Key : Keys)
+	TArray<int32>* Cached = MeleeAttackersByTarget.Find(Target.Id.Value);
+	if (!Cached)
 	{
-		const FKodSimEntityState* Other = States.Find(Key);
-		if (!Other || Other->Health <= 0.f || Other->AttackTarget != Target.Id)
+		TArray<int32> Candidates;
+		CollectAcquireCandidates(Target.Position.X, Target.Position.Y, 1600.f, Candidates);
+		TArray<int32> Attackers;
+		for (int32 Key : Candidates)
 		{
-			continue;
+			const FKodSimEntityState* Other = States.Find(Key);
+			if (!Other || Other->Health <= 0.f || Other->AttackTarget != Target.Id)
+			{
+				continue;
+			}
+			if (Other->WeaponRange > MeleeLimit)
+			{
+				continue;
+			}
+			if (Other->Order != EKodSimOrderType::Attack && Other->Order != EKodSimOrderType::AttackMove)
+			{
+				continue;
+			}
+			Attackers.Add(Key);
 		}
-		if (Other->WeaponRange > static_cast<float>(KodBuildGrid::CellUU) * 0.5f + 1.f)
-		{
-			continue;
-		}
-		if (Other->Order != EKodSimOrderType::Attack && Other->Order != EKodSimOrderType::AttackMove)
-		{
-			continue;
-		}
-		Attackers.Add(Key);
+		Cached = &MeleeAttackersByTarget.Add(Target.Id.Value, MoveTemp(Attackers));
 	}
-	if (!Attackers.Contains(State.Id.Value))
-	{
-		Attackers.Add(State.Id.Value);
-		Attackers.Sort();
-	}
+	const TArray<int32>& Attackers = *Cached;
 
 	bool Taken[SlotCount] = {};
 	int32 MySlot = 0;
@@ -2540,6 +2545,8 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	Append(&PowersOn, sizeof(PowersOn));
 	Append(&PowerPoints0, sizeof(PowerPoints0));
 	Append(&PowerPoints1, sizeof(PowerPoints1));
+	const uint8 PowerStartGranted = bPowerStartGranted ? 1 : 0;
+	Append(&PowerStartGranted, sizeof(PowerStartGranted));
 	Append(&ArtilleryCd0, sizeof(ArtilleryCd0));
 	Append(&ArtilleryCd1, sizeof(ArtilleryCd1));
 	Append(&ReconCd0, sizeof(ReconCd0));

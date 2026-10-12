@@ -335,7 +335,7 @@ void UKodSimSubsystem::ResyncActors() const
 TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 {
 	FBlob Blob;
-	const int32 Version = 6;
+	const int32 Version = 7;
 	Blob.WInt(Version);
 	Blob.W(&SimTickIndex, sizeof(SimTickIndex));
 	TArray<int32> Keys;
@@ -701,6 +701,7 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 		Blob.WInt(Use.Count);
 		Blob.WU8(Use.bEnabled);
 	}
+	Blob.WU8(bPowerStartGranted ? 1 : 0);
 	return Blob.Bytes;
 }
 
@@ -709,7 +710,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version != 6)
+	if (!Blob.RInt(Version) || (Version != 6 && Version != 7))
 	{
 		return;
 	}
@@ -1440,6 +1441,21 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	{
 		return A.Effect < B.Effect;
 	});
+	uint8 PowerStart = 0;
+	if (Version >= 7)
+	{
+		Blob.RU8(PowerStart);
+		bPowerStartGranted = PowerStart != 0;
+	}
+	else if (SimTickIndex > 0 || PowerPoints0 > 0 || PowerPoints1 > 0)
+	{
+		bPowerStartGranted = true;
+	}
+	else
+	{
+		bPowerStartGranted = false;
+	}
+	GrantStartingPowerIncome();
 	int32 MaxId = 0;
 	TArray<int32> LiveKeys;
 	States.GetKeys(LiveKeys);
@@ -1469,7 +1485,7 @@ bool UKodSimSubsystem::CollectSavedEntityIds(const TArray<uint8>& Bytes, TSet<in
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version != 6)
+	if (!Blob.RInt(Version) || (Version != 6 && Version != 7))
 	{
 		return false;
 	}
