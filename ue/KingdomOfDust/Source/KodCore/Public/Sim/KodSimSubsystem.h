@@ -81,9 +81,18 @@ struct KODCORE_API FKodSimEntityState
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	float WeaponRange = 0.f;
 
+	/** Authored seconds. The sim fires from WeaponCooldownTicks. */
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	float WeaponCooldownSeconds = 0.f;
 
+	/** Integer shot cadence. Stim scales this. Hashed. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	int32 WeaponCooldownTicks = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
+	int32 CooldownTicksRemaining = 0;
+
+	/** Legacy seconds mirror. The fire gate is CooldownTicksRemaining. */
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	float CooldownRemaining = 0.f;
 

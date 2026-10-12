@@ -372,31 +372,39 @@ void AKodUnit::UpdateStimCue()
 	const bool bStim = Sim && Sim->TryGetState(EntityId, State) && State.AbilityTicksRemaining > 0;
 	if (!bStim)
 	{
-		if (bStimCue)
+		if (bStimCue && BodyTintMID)
 		{
-			bStimCue = false;
-			ApplyTeamColor();
+			if (bTeamColorApplied)
+			{
+				BodyTintMID->SetVectorParameterValue(TEXT("TeamColor"), BodyRestColor);
+			}
+			else
+			{
+				BodyTintMID->SetVectorParameterValue(TEXT("Color"), BodyRestColor);
+				BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), BodyRestColor);
+			}
 		}
+		bStimCue = false;
 		return;
 	}
-	bStimCue = true;
-	UMeshComponent* VisualBody = bSkeletalBody ? static_cast<UMeshComponent*>(GetMesh()) : static_cast<UMeshComponent*>(UnitMesh);
-	if (!BodyTintMID && VisualBody)
-	{
-		const FLinearColor Rest = (TeamId == 0) ? FriendlyTeamColor : HostileTeamColor;
-		ApplyColorTintFallback(VisualBody, Rest);
-	}
+	// Team 0 keeps its authored material when no dynamic tint exists. Never create one here.
 	if (!BodyTintMID || !World)
 	{
 		return;
 	}
+	bStimCue = true;
 	const float Pulse = 0.5f + 0.5f * FMath::Sin(World->GetTimeSeconds() * 10.f);
-	const FLinearColor Rest = (TeamId == 0) ? FriendlyTeamColor : HostileTeamColor;
 	const FLinearColor Stim(1.f, 0.42f, 0.08f);
-	const FLinearColor Mix = FMath::Lerp(Rest, Stim, 0.35f + 0.5f * Pulse);
-	BodyTintMID->SetVectorParameterValue(TEXT("Color"), Mix);
-	BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), Mix);
-	BodyTintMID->SetVectorParameterValue(TEXT("TeamColor"), Mix);
+	const FLinearColor Mix = FMath::Lerp(BodyRestColor, Stim, 0.35f + 0.5f * Pulse);
+	if (bTeamColorApplied)
+	{
+		BodyTintMID->SetVectorParameterValue(TEXT("TeamColor"), Mix);
+	}
+	else
+	{
+		BodyTintMID->SetVectorParameterValue(TEXT("Color"), Mix);
+		BodyTintMID->SetVectorParameterValue(TEXT("BaseColor"), Mix);
+	}
 }
 
 void AKodUnit::ApplyTeamColor()

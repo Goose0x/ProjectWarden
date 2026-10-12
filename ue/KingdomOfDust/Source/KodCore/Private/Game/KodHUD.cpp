@@ -512,7 +512,7 @@ void AKodHUD::DrawCommandCard()
 			const int32 Luminene = bHaveSpec ? Spec.Cost.Luminene : 0;
 			const int32 Supply = bHaveSpec ? Spec.Cost.Supply : 0;
 			const int32 Ticks = bHaveSpec ? Spec.Cost.BuildTime : 0;
-			FName Fail = bHaveSpec ? PeekResourceFail(Credits, Luminene, Supply) : NAME_None;
+			FName Fail = bHaveSpec ? PeekResourceFail(Credits, Luminene, Supply) : FName();
 			if (Fail.IsNone() && Trainer->bSupplyBlocked)
 			{
 				Fail = TEXT("Supply");
@@ -572,7 +572,7 @@ void AKodHUD::DrawCommandCard()
 			const FString Hotkey = (bHave && !Ability.Hotkey.IsNone()) ? Ability.Hotkey.ToString() : TEXT("T");
 			const int32 Seconds = (bHave ? Ability.DurationTicks : StimDuration) / 16;
 			const FString Tooltip = FString::Printf(TEXT("%s\n%d HP\n%ds\n+50%% speed"), *Label, bHave ? Ability.HealthCost : 10, Seconds);
-			const FName Fail = bStimReady ? NAME_None : TEXT("Health");
+			const FName Fail = bStimReady ? FName() : FName(TEXT("Health"));
 			AddButton(0, 0, OriginX, OriginY, Label, Hotkey, TEXT("Ability"), FName(KodWardenPaths::Id_CombatStim), 0, INDEX_NONE, bStimReady, Fail, Tooltip);
 			if (StimRemaining > 0)
 			{
@@ -603,7 +603,7 @@ void AKodHUD::DrawCommandCard()
 				const int32 Credits = bHave ? Spec.Cost.Credits : 0;
 				const int32 Luminene = bHave ? Spec.Cost.Luminene : 0;
 				const int32 Ticks = bHave ? Spec.Cost.BuildTime : 0;
-				const FName Fail = bHave ? PeekResourceFail(Credits, Luminene, 0) : NAME_None;
+				const FName Fail = bHave ? PeekResourceFail(Credits, Luminene, 0) : FName();
 				const FString Tooltip = FString::Printf(TEXT("%s\n%d Credits\n%d Luminene\n%ds"),
 					Labels[Index], Credits, Luminene, FMath::Max(0, Ticks) / 16);
 				AddButton(FirstCol + Index, 0, OriginX, OriginY, Labels[Index], Keys[Index], TEXT("Place"), Types[Index], 0, INDEX_NONE, Fail.IsNone(), Fail, Tooltip);

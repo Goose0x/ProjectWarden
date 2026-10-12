@@ -474,5 +474,5 @@ FName AKodResourceNode::ApplyTint(UStaticMeshComponent* Mesh, const FLinearColor
 #endif
 	}
 
-	return bApplied ? Param : NAME_None;
+	return bApplied ? Param : FName();
 }
