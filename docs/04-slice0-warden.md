@@ -482,7 +482,7 @@ Train and cancel spend the sim bank only. `FKodTrainCost` on the unit and buildi
 
 Supply cap is the sum of registered structures, hard-capped at **200**. HQ contributes 15, a depot would contribute 8. Used supply is counted when the unit actor applies its definition, and released on death. A train checks supply when the slot **starts**, not when it is queued. Five slots. Cost is spent on enqueue and refunded in full on cancel (last slot). Cancel does not change supply.
 
-`PROXY_CC` is the team-0 structure. Select it and press **S** to queue an AMP (`KodProd Enqueue Struct=… Unit=AMP Slot=…`, then `KodProd Start`). **Backspace** cancels the last slot (`KodProd Cancel Refund=C50,L0`). Escape does the same but PIE often treats Escape as stop, so Backspace is the reliable cancel. The canvas panel under the readout lists the slots and a progress bar, and turns red with `Supply blocked` when the cap is full (`KodProd SupplyBlocked Used=… Cap=…`).
+`PROXY_CC` is the team-0 structure. Select it and press **S** to queue an AMP (`KodProd Enqueue Struct=… Unit=AMP Slot=…`, then `KodProd Start`). **Backspace** cancels the last slot (`KodProd Cancel Refund=C50,L0`). Escape is not bound — PIE uses it to stop play. When a train finishes, that step counts the supply and starts the next slot. The actor spawns afterwards and does not add supply again. The canvas panel under the readout lists the slots and a progress bar, and turns red with `Supply blocked` when the cap is full (`KodProd SupplyBlocked Used=… Cap=…`). The hint reads `S Train AMP  Backspace Cancel`.
 
 RMB with only the CC selected sets the rally (`KodProd Rally Struct=… Target=<node id>` or `Target=Ground`) and does not move workers. A rally on a node makes the new AMP gather that node. A ground rally is a move. The spawn happens after the sim step (`KodProd Complete Spawned=<actor>`).
 
@@ -491,7 +491,7 @@ Soft mesh refs, placeholder if the load fails. Data assets stay editable and win
 ### PIE — train an AMP
 
 1. Fresh PIE on `L_Slice0`. Readout shows `Credits 50`, `Luminene 0`, supply `4/15` (one Marine + three AMPs). Log `KodEcon Supply Team=0 Used=… Cap=15` when the CC registers, and `KodEcon Workers Spawned=3`.
-2. Left-click `PROXY_CC`. The lower-left panel reads `CC   S Train AMP    Esc Cancel`. If `SM_general` loads, the CC mesh swaps; if it does not, the greybox stays.
+2. Left-click `PROXY_CC`. The lower-left panel reads `S Train AMP  Backspace Cancel`. If `SM_general` loads, the CC mesh swaps; if it does not, the greybox stays.
 3. Press **S**. Expect `KodEcon Spend Team=0 J=50 L=0` and `KodProd Enqueue Struct=… Unit=AMP Slot=0`, then `KodProd Start`. Credits becomes 0. Press **S** again. Expect `KodEcon Spend Reject` and no second slot.
 4. Press **Backspace**. Expect `KodProd Cancel Refund=C50,L0` and `KodEcon Deposit Team=0 J=50 L=0`. Credits returns to 50.
 5. Press **S** again and wait about 12 seconds. Expect `KodProd Complete Spawned=KodUnit_…`. Supply becomes `5/15`. The new AMP is the tan cube, not the truck.

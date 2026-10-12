@@ -45,6 +45,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Kod|Team")
 	int32 TeamId = 0;
 
+	/**
+	 * Train completion already added this unit's supply inside the sim step.
+	 * ApplyDefinition passes it through so the actor only records the cost for death.
+	 */
+	bool bSupplyPrepaid = false;
+
 	/** USA sand #D2C4B1. TeamColor on large armour. Palette is pending Art. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Team")
 	FLinearColor FriendlyTeamColor;

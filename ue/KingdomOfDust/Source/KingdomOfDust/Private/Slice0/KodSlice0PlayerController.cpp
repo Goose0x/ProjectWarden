@@ -152,7 +152,7 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 	{
 		EnqueueTrainOnSelectedStructures();
 	}
-	if (WasInputKeyJustPressed(EKeys::Escape) || WasInputKeyJustPressed(EKeys::BackSpace))
+	if (WasInputKeyJustPressed(EKeys::BackSpace))
 	{
 		CancelTrainOnSelectedStructures();
 	}

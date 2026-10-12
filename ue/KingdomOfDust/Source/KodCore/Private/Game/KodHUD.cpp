@@ -196,7 +196,7 @@ void AKodHUD::DrawProductionPanel()
 	}
 	const float X = 24.f;
 	float Y = 80.f;
-	const FString Title = FString::Printf(TEXT("CC   S Train AMP    Esc Cancel"));
+	const FString Title = FString::Printf(TEXT("S Train AMP  Backspace Cancel"));
 	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.82f), X - 8.f, Y - 8.f, 280.f, 36.f + 22.f * 5.f);
 	DrawText(Title, FLinearColor::White, X, Y, Font, 1.f, false);
 	Y += 22.f;
