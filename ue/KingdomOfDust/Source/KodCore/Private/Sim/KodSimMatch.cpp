@@ -1468,16 +1468,16 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 			}
 			DressBlockCells.Sort();
 		}
-		int32 VisionCount = 0;
-		if (Blob.RInt(VisionCount) && VisionCount >= 0)
+		int32 VisionBlockCount = 0;
+		if (Blob.RInt(VisionBlockCount) && VisionBlockCount >= 0)
 		{
-			if (VisionCount > LosCap)
+			if (VisionBlockCount > LosCap)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("KodSave LOS cap truncate Count=%d Cap=%d"), VisionCount, LosCap);
+				UE_LOG(LogTemp, Warning, TEXT("KodSave LOS cap truncate Count=%d Cap=%d"), VisionBlockCount, LosCap);
 			}
 			VisionBlockCells.Reset();
-			const int32 VisionKeep = FMath::Min(VisionCount, LosCap);
-			for (int32 Index = 0; Index < VisionCount; ++Index)
+			const int32 VisionKeep = FMath::Min(VisionBlockCount, LosCap);
+			for (int32 Index = 0; Index < VisionBlockCount; ++Index)
 			{
 				int64 VisionCell = 0;
 				if (!Blob.R(&VisionCell, sizeof(VisionCell)))
