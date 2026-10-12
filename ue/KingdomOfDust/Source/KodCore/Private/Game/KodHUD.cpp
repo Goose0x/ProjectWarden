@@ -1058,6 +1058,17 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 	else if (CueId == FName(TEXT("cheat_enabled")))
 	{
 		Text = TEXT("Cheat enabled");
+		if (const UWorld* CueWorld = GetWorld())
+		{
+			if (const UKodSimSubsystem* CueSim = CueWorld->GetSubsystem<UKodSimSubsystem>())
+			{
+				const FString Named = CueSim->GetCheatFeedbackLine();
+				if (!Named.IsEmpty())
+				{
+					Text = Named;
+				}
+			}
+		}
 	}
 	else
 	{
@@ -1176,7 +1187,8 @@ void AKodHUD::DrawAlertFeed()
 		const FLinearColor Ink = bCheatLine
 			? FLinearColor(0.95f, 0.82f, 0.28f, Alpha)
 			: FLinearColor(0.92f, 0.9f, 0.82f, Alpha);
-		DrawRect(Plate, 16.f * Scale, Y, 280.f * Scale, 28.f * Scale);
+		const float PlateW = bCheatLine ? 560.f * Scale : 280.f * Scale;
+		DrawRect(Plate, 16.f * Scale, Y, PlateW, 28.f * Scale);
 		DrawRect(bCheatLine ? FLinearColor(0.72f, 0.58f, 0.12f, Alpha) : FLinearColor(0.25f, 0.45f, 0.32f, Alpha), 20.f * Scale, Y + 4.f * Scale, 22.f * Scale, 20.f * Scale);
 		DrawText(Glyph, FLinearColor(1.f, 1.f, 1.f, Alpha), 22.f * Scale, Y + 6.f * Scale, Font, 0.55f * Scale, false);
 		DrawText(Line.Text, Ink, 48.f * Scale, Y + 6.f * Scale, Font, 0.8f * Scale, false);
@@ -2010,6 +2022,42 @@ void AKodHUD::DrawSelectionSummary()
 	DrawText(Line, FLinearColor::White, X, Y, Font, 1.f, false);
 }
 
+float AKodHUD::DrawCheatSummary(const UKodSimSubsystem* Sim, float X, float Y, float MaxWidth, float Scale, UFont* Font)
+{
+	if (!Sim || !Canvas)
+	{
+		return Y;
+	}
+	FString Rest = Sim->GetCheatResultLine();
+	if (Rest.IsEmpty())
+	{
+		return Y;
+	}
+	const FLinearColor Gold(0.95f, 0.75f, 0.2f, 1.f);
+	while (!Rest.IsEmpty())
+	{
+		FString Line = Rest;
+		float Width = 0.f;
+		float Height = 0.f;
+		Canvas->TextSize(Font, Line, Width, Height);
+		while (Line.Len() > 1 && Width * Scale > MaxWidth)
+		{
+			int32 Cut = Line.Find(TEXT(", "), ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			if (Cut <= 0)
+			{
+				Cut = FMath::Max(1, Line.Len() / 2);
+			}
+			Line.LeftInline(Cut);
+			Canvas->TextSize(Font, Line, Width, Height);
+		}
+		DrawText(Line, Gold, X, Y, Font, Scale, false);
+		Y += FMath::Max(16.f, Height) * Scale + 4.f;
+		Rest.RightChopInline(Line.Len());
+		Rest.TrimStartInline();
+	}
+	return Y;
+}
+
 void AKodHUD::DrawMatchOutcome()
 {
 	if (!Canvas)
@@ -2042,7 +2090,8 @@ void AKodHUD::DrawMatchOutcome()
 	DrawText(Line, Ink, X, Y, Font, Scale, false);
 	if (Sim->IsMatchCheated())
 	{
-		DrawText(TEXT("CHEATED"), FLinearColor(0.95f, 0.75f, 0.2f, 1.f), X, Y + Height + 8.f, Font, 1.f, false);
+		UFont* SummaryFont = GEngine ? GEngine->GetMediumFont() : Font;
+		DrawCheatSummary(Sim, 24.f, Y + Height + 16.f, Canvas->SizeX - 48.f, 1.f, SummaryFont);
 	}
 }
 
@@ -2625,8 +2674,8 @@ void AKodHUD::DrawShellMenus()
 		Y += 56.f * Scale;
 		if (Sim && Sim->IsMatchCheated())
 		{
-			DrawText(TEXT("CHEATED"), FLinearColor(0.95f, 0.75f, 0.2f, 1.f), X, Y, Font, Scale, false);
-			Y += 36.f * Scale;
+			Y = DrawCheatSummary(Sim, X, Y, W, Scale, Font);
+			Y += 8.f * Scale;
 		}
 		Button(X, Y, W, TEXT("Continue Watching"), 6); Y += 44.f * Scale;
 		Button(X, Y, W, TEXT("Score Screen"), 7); Y += 44.f * Scale;
@@ -2648,8 +2697,8 @@ void AKodHUD::DrawShellMenus()
 		Y += 40.f * Scale;
 		if (Sim->IsMatchCheated())
 		{
-			DrawText(TEXT("CHEATED"), FLinearColor(0.95f, 0.75f, 0.2f, 1.f), X, Y, Font, Scale, false);
-			Y += 32.f * Scale;
+			Y = DrawCheatSummary(Sim, X, Y, W, Scale, Font);
+			Y += 8.f * Scale;
 		}
 		for (int32 Tab = 0; Tab < 4; ++Tab)
 		{

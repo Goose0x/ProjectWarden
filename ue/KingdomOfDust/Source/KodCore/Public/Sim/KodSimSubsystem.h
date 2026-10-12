@@ -678,6 +678,10 @@ public:
 	void GetTeamTotals(int32 TeamId, int32& Collected, int32& Trained, int32& Killed, int32& Built, int32& Razed) const;
 
 	bool IsMatchCheated() const { return bMatchCheated; }
+	/** Last gold line, for the alert feed. Presentation only. Not hashed. */
+	FString GetCheatFeedbackLine() const { return LastCheatLine; }
+	/** Results line, for example "Cheats: Invincible (disabled), Show Me The Jade x2". */
+	FString GetCheatResultLine() const;
 	bool IsCompetitive() const { return bCompetitive; }
 	void SetCompetitive(bool bEnabled);
 
@@ -787,7 +791,7 @@ protected:
 	void EnsureCheatPhrases();
 	bool FindCheatPhrase(const FString& Line, EKodCheatEffect& OutEffect) const;
 	void ApplyCheatEffect(EKodCheatEffect Effect);
-	void NoteCheatAccepted();
+	void NoteCheatUse(EKodCheatEffect Effect, bool bEnabled, const FString& Detail);
 	void GrantAllUpgrades(int32 TeamId);
 	void KillEnemyUnitsOnScreen();
 	void StripDeadFromCargo(int32 DeadId);
@@ -951,6 +955,9 @@ protected:
 	bool bMatchCheated = false;
 	bool bCompetitive = false;
 	EKodMatchMode MatchMode = EKodMatchMode::OfflineSkirmish;
+	TArray<FKodCheatUse> CheatUses;
+	/** Alert text for the cheat just applied. Not hashed and not saved. */
+	FString LastCheatLine;
 	bool bGeneralPowers = true;
 	int32 PowerPoints0 = 0;
 	int32 PowerPoints1 = 0;

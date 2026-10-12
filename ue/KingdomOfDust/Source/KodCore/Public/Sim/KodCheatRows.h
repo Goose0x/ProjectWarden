@@ -29,7 +29,17 @@ enum class EKodCheatEffect : uint8
 	AllUpgrades,
 	Victory,
 	Defeat,
-	DustToDust
+	DustToDust,
+	/** Dev console `add credits`. Not a chat phrase. */
+	Credits
+};
+
+/** One cheat used this match. Sorted by Effect. Hashed and saved. */
+struct KODCORE_API FKodCheatUse
+{
+	uint8 Effect = 0;
+	int32 Count = 0;
+	uint8 bEnabled = 0;
 };
 
 /** One renameable phrase. Effect is the stable id. */

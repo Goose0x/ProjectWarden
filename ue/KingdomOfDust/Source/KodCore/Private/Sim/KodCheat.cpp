@@ -228,6 +228,48 @@ namespace
 		const bool bPos = AB > 0 || BC > 0 || CA > 0;
 		return !(bNeg && bPos);
 	}
+
+	bool IsCheatToggle(EKodCheatEffect Effect)
+	{
+		return Effect == EKodCheatEffect::Invincible
+			|| Effect == EKodCheatEffect::InstantBuild
+			|| Effect == EKodCheatEffect::NoSupply
+			|| Effect == EKodCheatEffect::Reveal
+			|| Effect == EKodCheatEffect::NoCooldown;
+	}
+
+	const TCHAR* CheatListName(EKodCheatEffect Effect)
+	{
+		switch (Effect)
+		{
+		case EKodCheatEffect::Jade:
+			return TEXT("Show Me The Jade");
+		case EKodCheatEffect::Luminene:
+			return TEXT("Glow In The Dark");
+		case EKodCheatEffect::Invincible:
+			return TEXT("Invincible");
+		case EKodCheatEffect::InstantBuild:
+			return TEXT("Instant Build");
+		case EKodCheatEffect::NoSupply:
+			return TEXT("No Supply Cap");
+		case EKodCheatEffect::Reveal:
+			return TEXT("Reveal Map");
+		case EKodCheatEffect::NoCooldown:
+			return TEXT("No Cooldown");
+		case EKodCheatEffect::AllUpgrades:
+			return TEXT("All Upgrades");
+		case EKodCheatEffect::Victory:
+			return TEXT("Victory");
+		case EKodCheatEffect::Defeat:
+			return TEXT("Defeat");
+		case EKodCheatEffect::DustToDust:
+			return TEXT("Dust to Dust");
+		case EKodCheatEffect::Credits:
+			return TEXT("Credits");
+		default:
+			return TEXT("Cheat");
+		}
+	}
 }
 
 void UKodSimSubsystem::SetMatchMode(EKodMatchMode Mode)
@@ -332,11 +374,76 @@ bool UKodSimSubsystem::FindCheatPhrase(const FString& Line, EKodCheatEffect& Out
 	return false;
 }
 
-void UKodSimSubsystem::NoteCheatAccepted()
+void UKodSimSubsystem::NoteCheatUse(EKodCheatEffect Effect, bool bEnabled, const FString& Detail)
 {
+	const uint8 Key = static_cast<uint8>(Effect);
+	int32 Index = INDEX_NONE;
+	for (int32 UseIndex = 0; UseIndex < CheatUses.Num(); ++UseIndex)
+	{
+		if (CheatUses[UseIndex].Effect == Key)
+		{
+			Index = UseIndex;
+			break;
+		}
+	}
+	if (Index == INDEX_NONE)
+	{
+		FKodCheatUse Added;
+		Added.Effect = Key;
+		CheatUses.Add(Added);
+		CheatUses.Sort([](const FKodCheatUse& A, const FKodCheatUse& B)
+		{
+			return A.Effect < B.Effect;
+		});
+		for (int32 UseIndex = 0; UseIndex < CheatUses.Num(); ++UseIndex)
+		{
+			if (CheatUses[UseIndex].Effect == Key)
+			{
+				Index = UseIndex;
+				break;
+			}
+		}
+	}
+	if (Index == INDEX_NONE)
+	{
+		return;
+	}
+	FKodCheatUse& Use = CheatUses[Index];
+	Use.Count += 1;
+	Use.bEnabled = bEnabled ? 1 : 0;
 	bMatchCheated = true;
+	const TCHAR* Verb = (IsCheatToggle(Effect) && !bEnabled) ? TEXT("disabled") : TEXT("enabled");
+	LastCheatLine = FString::Printf(TEXT("Cheat %s: %s"), Verb, *Detail);
 	RaiseCue(FName(TEXT("cheat_enabled")), FVector::ZeroVector, false);
-	UE_LOG(LogTemp, Log, TEXT("KodCheat Enabled"));
+	UE_LOG(LogTemp, Log, TEXT("KodCheat Line=%s"), *LastCheatLine);
+}
+
+FString UKodSimSubsystem::GetCheatResultLine() const
+{
+	if (CheatUses.Num() == 0)
+	{
+		return FString();
+	}
+	FString Line = TEXT("Cheats: ");
+	for (int32 Index = 0; Index < CheatUses.Num(); ++Index)
+	{
+		if (Index > 0)
+		{
+			Line += TEXT(", ");
+		}
+		const FKodCheatUse& Use = CheatUses[Index];
+		const EKodCheatEffect Effect = static_cast<EKodCheatEffect>(Use.Effect);
+		Line += CheatListName(Effect);
+		if (IsCheatToggle(Effect))
+		{
+			Line += Use.bEnabled ? TEXT(" (enabled)") : TEXT(" (disabled)");
+		}
+		else if (Use.Count > 1)
+		{
+			Line += FString::Printf(TEXT(" x%d"), Use.Count);
+		}
+	}
+	return Line;
 }
 
 void UKodSimSubsystem::GrantAllUpgrades(int32 TeamId)
@@ -444,6 +551,7 @@ void UKodSimSubsystem::ApplyCheatEffect(EKodCheatEffect Effect)
 		Gain.Luminene = 5000;
 		Deposit(0, Gain);
 		UE_LOG(LogTemp, Log, TEXT("KodCheat Jade=10000 Luminene=5000"));
+		NoteCheatUse(Effect, true, TEXT("+10000 Credits, +5000 Luminene"));
 		break;
 	}
 	case EKodCheatEffect::Luminene:
@@ -452,46 +560,59 @@ void UKodSimSubsystem::ApplyCheatEffect(EKodCheatEffect Effect)
 		Gain.Luminene = 5000;
 		Deposit(0, Gain);
 		UE_LOG(LogTemp, Log, TEXT("KodCheat Luminene=5000"));
+		NoteCheatUse(Effect, true, TEXT("+5000 Luminene"));
 		break;
 	}
 	case EKodCheatEffect::Invincible:
 		bCheatInvincible = !bCheatInvincible;
 		UE_LOG(LogTemp, Log, TEXT("KodCheat Invincible=%d"), bCheatInvincible ? 1 : 0);
+		NoteCheatUse(Effect, bCheatInvincible, TEXT("Invincible"));
 		break;
 	case EKodCheatEffect::InstantBuild:
 		bCheatInstantBuild = !bCheatInstantBuild;
 		UE_LOG(LogTemp, Log, TEXT("KodCheat InstantBuild=%d"), bCheatInstantBuild ? 1 : 0);
+		NoteCheatUse(Effect, bCheatInstantBuild, TEXT("Instant Build"));
 		break;
 	case EKodCheatEffect::NoSupply:
 		bCheatNoSupply = !bCheatNoSupply;
 		UE_LOG(LogTemp, Log, TEXT("KodCheat NoSupply=%d"), bCheatNoSupply ? 1 : 0);
+		NoteCheatUse(Effect, bCheatNoSupply, TEXT("No Supply Cap"));
 		break;
 	case EKodCheatEffect::Reveal:
 		bCheatReveal = !bCheatReveal;
 		UE_LOG(LogTemp, Log, TEXT("KodCheat Reveal=%d"), bCheatReveal ? 1 : 0);
+		NoteCheatUse(Effect, bCheatReveal, TEXT("Reveal Map"));
 		break;
 	case EKodCheatEffect::NoCooldown:
 		bCheatNoCooldown = !bCheatNoCooldown;
 		UE_LOG(LogTemp, Log, TEXT("KodCheat NoCooldown=%d"), bCheatNoCooldown ? 1 : 0);
+		NoteCheatUse(Effect, bCheatNoCooldown, TEXT("No Cooldown"));
 		break;
 	case EKodCheatEffect::AllUpgrades:
 		GrantAllUpgrades(0);
+		NoteCheatUse(Effect, true, TEXT("All Upgrades"));
 		break;
 	case EKodCheatEffect::Victory:
 		MatchOutcome = EKodMatchOutcome::Victory;
 		UE_LOG(LogTemp, Log, TEXT("KodAI Match Victory"));
 		RaiseCue(FName(TEXT("victory")), FVector::ZeroVector, false);
 		RememberAiMatch();
+		NoteCheatUse(Effect, true, TEXT("Victory"));
 		break;
 	case EKodCheatEffect::Defeat:
 		MatchOutcome = EKodMatchOutcome::Defeat;
 		UE_LOG(LogTemp, Log, TEXT("KodAI Match Defeat"));
 		RaiseCue(FName(TEXT("defeat")), FVector::ZeroVector, false);
 		RememberAiMatch();
+		NoteCheatUse(Effect, true, TEXT("Defeat"));
 		break;
 	case EKodCheatEffect::DustToDust:
 		KillEnemyUnitsOnScreen();
 		UE_LOG(LogTemp, Log, TEXT("KodCheat Dust"));
+		NoteCheatUse(Effect, true, TEXT("Dust to Dust"));
+		break;
+	case EKodCheatEffect::Credits:
+		NoteCheatUse(Effect, true, TEXT("Credits"));
 		break;
 	default:
 		break;
@@ -512,7 +633,6 @@ EKodCheatSubmit UKodSimSubsystem::SubmitCheatPhrase(const FString& Line)
 		return EKodCheatSubmit::Refused;
 	}
 	ApplyCheatEffect(Effect);
-	NoteCheatAccepted();
 	return EKodCheatSubmit::Applied;
 }
 
@@ -538,7 +658,6 @@ bool UKodSimSubsystem::ApplyCheatLine(const FString& Line)
 	if (FindCheatPhrase(Text, PhraseEffect))
 	{
 		ApplyCheatEffect(PhraseEffect);
-		NoteCheatAccepted();
 		return true;
 	}
 
@@ -562,70 +681,66 @@ bool UKodSimSubsystem::ApplyCheatLine(const FString& Line)
 		return DefaultValue;
 	};
 
-	bool bUsed = false;
 	if (Head == TEXT("invincible"))
 	{
 		bCheatInvincible = !bCheatInvincible;
-		bUsed = true;
 		UE_LOG(LogTemp, Log, TEXT("KodCheat Invincible=%d"), bCheatInvincible ? 1 : 0);
+		NoteCheatUse(EKodCheatEffect::Invincible, bCheatInvincible, TEXT("Invincible"));
+		return true;
 	}
-	else if (Head == TEXT("add") && Second == TEXT("credits"))
+	if (Head == TEXT("add") && Second == TEXT("credits"))
 	{
 		FKodResourceCost Gain;
 		Gain.Jadeite = Amount(5000);
 		Deposit(0, Gain);
-		bUsed = true;
 		UE_LOG(LogTemp, Log, TEXT("KodCheat Credits=%d"), Gain.Jadeite);
+		NoteCheatUse(EKodCheatEffect::Credits, true, FString::Printf(TEXT("+%d Credits"), Gain.Jadeite));
+		return true;
 	}
-	else if (Head == TEXT("add") && Second == TEXT("luminene"))
+	if (Head == TEXT("add") && Second == TEXT("luminene"))
 	{
 		FKodResourceCost Gain;
 		Gain.Luminene = Amount(5000);
 		Deposit(0, Gain);
-		bUsed = true;
 		UE_LOG(LogTemp, Log, TEXT("KodCheat Luminene=%d"), Gain.Luminene);
+		NoteCheatUse(EKodCheatEffect::Luminene, true, FString::Printf(TEXT("+%d Luminene"), Gain.Luminene));
+		return true;
 	}
-	else if (Head == TEXT("instant"))
+	if (Head == TEXT("instant"))
 	{
 		bCheatInstantBuild = !bCheatInstantBuild;
-		bUsed = true;
 		UE_LOG(LogTemp, Log, TEXT("KodCheat InstantBuild=%d"), bCheatInstantBuild ? 1 : 0);
+		NoteCheatUse(EKodCheatEffect::InstantBuild, bCheatInstantBuild, TEXT("Instant Build"));
+		return true;
 	}
-	else if (Head == TEXT("no") && (Second == TEXT("supply") || Second == TEXT("cooldown")))
+	if (Head == TEXT("no") && Second == TEXT("supply"))
 	{
-		if (Second == TEXT("supply"))
-		{
-			bCheatNoSupply = !bCheatNoSupply;
-			UE_LOG(LogTemp, Log, TEXT("KodCheat NoSupply=%d"), bCheatNoSupply ? 1 : 0);
-		}
-		else
-		{
-			bCheatNoCooldown = !bCheatNoCooldown;
-			UE_LOG(LogTemp, Log, TEXT("KodCheat NoCooldown=%d"), bCheatNoCooldown ? 1 : 0);
-		}
-		bUsed = true;
+		bCheatNoSupply = !bCheatNoSupply;
+		UE_LOG(LogTemp, Log, TEXT("KodCheat NoSupply=%d"), bCheatNoSupply ? 1 : 0);
+		NoteCheatUse(EKodCheatEffect::NoSupply, bCheatNoSupply, TEXT("No Supply Cap"));
+		return true;
 	}
-	else if (Head == TEXT("reveal"))
-	{
-		bCheatReveal = !bCheatReveal;
-		bUsed = true;
-		UE_LOG(LogTemp, Log, TEXT("KodCheat Reveal=%d"), bCheatReveal ? 1 : 0);
-	}
-	else if (Head == TEXT("nocooldown") || Head == TEXT("nocool"))
+	if (Head == TEXT("no") && Second == TEXT("cooldown"))
 	{
 		bCheatNoCooldown = !bCheatNoCooldown;
-		bUsed = true;
 		UE_LOG(LogTemp, Log, TEXT("KodCheat NoCooldown=%d"), bCheatNoCooldown ? 1 : 0);
+		NoteCheatUse(EKodCheatEffect::NoCooldown, bCheatNoCooldown, TEXT("No Cooldown"));
+		return true;
 	}
-	else
+	if (Head == TEXT("reveal"))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("KodCheat Unknown Line=%s"), *Text);
-		return false;
+		bCheatReveal = !bCheatReveal;
+		UE_LOG(LogTemp, Log, TEXT("KodCheat Reveal=%d"), bCheatReveal ? 1 : 0);
+		NoteCheatUse(EKodCheatEffect::Reveal, bCheatReveal, TEXT("Reveal Map"));
+		return true;
 	}
-
-	if (bUsed)
+	if (Head == TEXT("nocooldown") || Head == TEXT("nocool"))
 	{
-		NoteCheatAccepted();
+		bCheatNoCooldown = !bCheatNoCooldown;
+		UE_LOG(LogTemp, Log, TEXT("KodCheat NoCooldown=%d"), bCheatNoCooldown ? 1 : 0);
+		NoteCheatUse(EKodCheatEffect::NoCooldown, bCheatNoCooldown, TEXT("No Cooldown"));
+		return true;
 	}
-	return bUsed;
+	UE_LOG(LogTemp, Warning, TEXT("KodCheat Unknown Line=%s"), *Text);
+	return false;
 }

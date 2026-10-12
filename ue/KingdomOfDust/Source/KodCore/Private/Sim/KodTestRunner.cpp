@@ -175,6 +175,8 @@ bool UKodSimSubsystem::RunScriptedTest(FName Scenario, int32 Runs, int32 Seed)
 		DamageTaken0 = 0;
 		DamageTaken1 = 0;
 		bMatchCheated = false;
+		CheatUses.Reset();
+		LastCheatLine.Reset();
 		bCheatInvincible = false;
 		bCheatInstantBuild = false;
 		bCheatNoSupply = false;

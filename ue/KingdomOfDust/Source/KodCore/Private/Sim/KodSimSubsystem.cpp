@@ -64,6 +64,8 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bMatchCheated = false;
 	bCompetitive = false;
 	MatchMode = EKodMatchMode::OfflineSkirmish;
+	CheatUses.Reset();
+	LastCheatLine.Reset();
 	bGeneralPowers = true;
 	PowerPoints0 = 0;
 	PowerPoints1 = 0;
@@ -2450,6 +2452,14 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	}
 	const uint8 ModeByte = static_cast<uint8>(MatchMode);
 	Append(&ModeByte, sizeof(ModeByte));
+	const int32 CheatCount = CheatUses.Num();
+	Append(&CheatCount, sizeof(CheatCount));
+	for (const FKodCheatUse& Use : CheatUses)
+	{
+		Append(&Use.Effect, sizeof(Use.Effect));
+		Append(&Use.Count, sizeof(Use.Count));
+		Append(&Use.bEnabled, sizeof(Use.bEnabled));
+	}
 
 	const uint64 Hash = Bytes.Num() > 0
 		? CityHash64(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num())

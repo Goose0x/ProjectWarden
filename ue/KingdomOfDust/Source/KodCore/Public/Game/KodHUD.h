@@ -168,6 +168,7 @@ protected:
 	void DrawGameClock();
 	void DrawScaffolds();
 	void DrawAlertFeed();
+	float DrawCheatSummary(const class UKodSimSubsystem* Sim, float X, float Y, float MaxWidth, float Scale, class UFont* Font);
 	void DrawSpectatorPanel();
 	void DrawShellMenus();
 	void DrawWireHeat(float X, float Y, float W, float H, int32 UnitId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash);
