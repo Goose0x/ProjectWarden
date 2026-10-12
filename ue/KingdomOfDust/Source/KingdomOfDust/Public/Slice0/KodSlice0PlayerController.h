@@ -40,6 +40,7 @@ protected:
 	virtual bool ConsumePlacementRightClick() override;
 	virtual FString GetBuildMenuHint() const override;
 	virtual bool IsWorkerBuildMenuOpen() const override;
+	virtual int32 GetBuildMenuTier() const override;
 	virtual void HandleRightClickCommand() override;
 	virtual int32 GetControlGroupCount(int32 GroupIndex) const override;
 	virtual TArray<FKodEntityId> GetControlGroupIds(int32 GroupIndex) const override;
@@ -60,6 +61,11 @@ protected:
 	void IssueTrain(FName UnitId, int32 StructureId);
 	void IssueCancelSlot(int32 StructureId, int32 SlotIndex);
 	void IssueAbility(FName AbilityId);
+	void ToggleSelectedDepots();
+	void CastSelectedHeal();
+	void ToggleSelectedHeal();
+	void LoadSelectedInfantry();
+	bool TryLoadBunkerUnderCursor();
 
 	void ArmOrder(FName OrderName);
 	void IssueStopOnSelectedUnits();
@@ -69,6 +75,7 @@ protected:
 	TArray<float> LastGroupTapSeconds;
 	FName ArmedOrder;
 	bool bBuildMenu = false;
+	bool bAdvancedMenu = false;
 	FName PlaceType;
 	TWeakObjectPtr<AKodBuildGhost> BuildGhost;
 };

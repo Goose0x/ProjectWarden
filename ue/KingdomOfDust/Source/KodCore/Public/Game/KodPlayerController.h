@@ -110,6 +110,9 @@ public:
 	/** True after B, until the ghost is cancelled. */
 	virtual bool IsWorkerBuildMenuOpen() const { return false; }
 
+	/** 0 closed, 1 basic (B), 2 advanced (V). The HUD reads this. */
+	virtual int32 GetBuildMenuTier() const { return 0; }
+
 	/** Tab index for a mixed selection. The command card shows that subgroup. */
 	int32 GetCommandSubgroupIndex() const { return CommandSubgroupIndex; }
 

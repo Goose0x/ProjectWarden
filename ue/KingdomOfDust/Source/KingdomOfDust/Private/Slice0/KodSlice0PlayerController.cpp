@@ -179,15 +179,36 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 	if (WasInputKeyJustPressed(EKeys::B) && HasSelectedWorker())
 	{
 		bBuildMenu = !bBuildMenu;
+		bAdvancedMenu = false;
 		if (!bBuildMenu)
 		{
 			CancelPlacement();
 		}
 	}
-	if (bBuildMenu && HasSelectedWorker())
+	if (WasInputKeyJustPressed(EKeys::V) && HasSelectedWorker())
 	{
-		FName HotkeyPlace = NAME_None;
-		if (WasInputKeyJustPressed(EKeys::D))
+		bAdvancedMenu = !bAdvancedMenu;
+		bBuildMenu = false;
+		if (!bAdvancedMenu)
+		{
+			CancelPlacement();
+		}
+	}
+	if ((bBuildMenu || bAdvancedMenu) && HasSelectedWorker())
+	{
+		FName HotkeyPlace;
+		if (bAdvancedMenu)
+		{
+			if (WasInputKeyJustPressed(EKeys::T))
+			{
+				HotkeyPlace = FName(KodWardenPaths::Id_Turret);
+			}
+		}
+		else if (WasInputKeyJustPressed(EKeys::C))
+		{
+			HotkeyPlace = FName(KodWardenPaths::Id_CommandCenter);
+		}
+		else if (WasInputKeyJustPressed(EKeys::D))
 		{
 			HotkeyPlace = FName(KodWardenPaths::Id_SupplyDepot);
 		}
@@ -199,14 +220,30 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 		{
 			HotkeyPlace = FName(KodWardenPaths::Id_Rig);
 		}
+		else if (WasInputKeyJustPressed(EKeys::Y))
+		{
+			HotkeyPlace = FName(KodWardenPaths::Id_EngineeringBay);
+		}
+		else if (WasInputKeyJustPressed(EKeys::N))
+		{
+			HotkeyPlace = FName(KodWardenPaths::Id_Bunker);
+		}
 		if (!HotkeyPlace.IsNone())
 		{
 			TryBeginPlace(HotkeyPlace);
 		}
 	}
-	else if (!bBuildMenu)
+	else if (!bBuildMenu && !bAdvancedMenu)
 	{
-		PlaceType = NAME_None;
+		PlaceType = FName();
+	}
+	if (!bBuildMenu && !bAdvancedMenu && WasInputKeyJustPressed(EKeys::R))
+	{
+		ToggleSelectedDepots();
+	}
+	if (!bBuildMenu && !bAdvancedMenu && WasInputKeyJustPressed(EKeys::C))
+	{
+		CastSelectedHeal();
 	}
 	UpdateBuildGhost();
 	if (WasInputKeyJustPressed(EKeys::M))
@@ -593,11 +630,14 @@ void AKodSlice0PlayerController::UpdateBuildGhost()
 	}
 	Ghost->SetActorHiddenInGame(false);
 	Ghost->SetActorLocation(Placement.WorldCenter);
+	int32 CellsX = 1;
+	int32 CellsY = 1;
 	if (const UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(PlaceType, this))
 	{
-		Ghost->SetFootprint(Def->FootprintX, Def->FootprintY);
+		CellsX = Def->FootprintX;
+		CellsY = Def->FootprintY;
 	}
-	Ghost->SetValidTint(Placement.bValid);
+	Ghost->SetCells(CellsX, CellsY, Placement.CellOk);
 }
 
 bool AKodSlice0PlayerController::ConsumePlacementLeftClick()
@@ -619,6 +659,24 @@ bool AKodSlice0PlayerController::ConsumePlacementLeftClick()
 		return true;
 	}
 	const FKodPlacementResult Placement = Sim->QueryPlacement(0, PlaceType, Hit.ImpactPoint);
+	if (!Placement.bValid)
+	{
+		if (AKodHUD* HUD = Cast<AKodHUD>(GetHUD()))
+		{
+			if (Placement.Reason == FName(TEXT("Requires")))
+			{
+				HUD->ShowCenterMessage(FString::Printf(TEXT("Requires %s"), *Placement.RequiredId.ToString()));
+			}
+			else if (Placement.Reason == FName(TEXT("Afford")))
+			{
+				HUD->ShowResourceFlash(FName(TEXT("Credits")));
+			}
+			else
+			{
+				HUD->ShowCenterMessage(TEXT("Can't build here, location is blocked"));
+			}
+		}
+	}
 	FKodCommand Cmd;
 	Cmd.Type = EKodCommandType::PlaceBuild;
 	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
@@ -648,13 +706,15 @@ bool AKodSlice0PlayerController::ConsumePlacementRightClick()
 
 FString AKodSlice0PlayerController::GetBuildMenuHint() const
 {
-	if (!bBuildMenu && PlaceType.IsNone())
+	if (!bBuildMenu && !bAdvancedMenu && PlaceType.IsNone())
 	{
 		return FString();
 	}
 	if (PlaceType.IsNone())
 	{
-		return TEXT("Build   D Depot   R Barracks   E Rig   RMB Cancel");
+		return bAdvancedMenu
+			? FString(TEXT("Advanced   T Turret   V Close"))
+			: FString(TEXT("Build   C CC   D Depot   R Barracks   E Rig   Y Bay   N Bunker   V Advanced"));
 	}
 	return FString::Printf(TEXT("Place %s   LMB Build   RMB Cancel   Shift Queues"), *PlaceType.ToString());
 }
@@ -676,6 +736,22 @@ void AKodSlice0PlayerController::HandleRightClickCommand()
 		}
 	}
 	if (TryResumeBuildUnderCursor())
+	{
+		return;
+	}
+	if (GetMousePosition(MouseX, MouseY))
+	{
+		if (AKodHUD* HUD = Cast<AKodHUD>(GetHUD()))
+		{
+			FKodHudCommandHit Hit;
+			if (HUD->GetCommandHit(MouseX, MouseY, Hit) && Hit.Action == FName(TEXT("Heal")))
+			{
+				ToggleSelectedHeal();
+				return;
+			}
+		}
+	}
+	if (TryLoadBunkerUnderCursor())
 	{
 		return;
 	}
@@ -746,7 +822,20 @@ bool AKodSlice0PlayerController::CancelSelectedConstruction()
 
 bool AKodSlice0PlayerController::IsWorkerBuildMenuOpen() const
 {
-	return bBuildMenu || !PlaceType.IsNone();
+	return bBuildMenu || bAdvancedMenu || !PlaceType.IsNone();
+}
+
+int32 AKodSlice0PlayerController::GetBuildMenuTier() const
+{
+	if (bAdvancedMenu)
+	{
+		return 2;
+	}
+	if (bBuildMenu || !PlaceType.IsNone())
+	{
+		return 1;
+	}
+	return 0;
 }
 
 bool AKodSlice0PlayerController::AllowTrain(FName UnitId)
@@ -856,11 +945,22 @@ bool AKodSlice0PlayerController::ConsumeHudCommandClick()
 	{
 		return true;
 	}
+	if (UWorld* CueWorld = GetWorld())
+	{
+		if (UKodSimSubsystem* CueSim = CueWorld->GetSubsystem<UKodSimSubsystem>())
+		{
+			CueSim->RaiseCue(FName(TEXT("ui_click")), FVector::ZeroVector, false);
+		}
+	}
 	if (!Hit.bEnabled)
 	{
 		if (Hit.FailReason == TEXT("Credits") || Hit.FailReason == TEXT("Luminene") || Hit.FailReason == TEXT("Supply"))
 		{
 			HUD->ShowResourceFlash(Hit.FailReason);
+		}
+		else if (Hit.FailReason == FName(TEXT("Requires")))
+		{
+			HUD->ShowCenterMessage(Hit.Tooltip.IsEmpty() ? FString(TEXT("Requires a building")) : Hit.Tooltip);
 		}
 		return true;
 	}
@@ -883,6 +983,48 @@ bool AKodSlice0PlayerController::ConsumeHudCommandClick()
 	else if (Hit.Action == TEXT("Ability"))
 	{
 		IssueAbility(Hit.Payload);
+	}
+	else if (Hit.Action == TEXT("Heal"))
+	{
+		CastSelectedHeal();
+	}
+	else if (Hit.Action == TEXT("Depot"))
+	{
+		ToggleSelectedDepots();
+	}
+	else if (Hit.Action == TEXT("Research"))
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+			{
+				FKodEntityId Id;
+				Id.Value = Hit.StructureId;
+				if (!Sim->EnqueueResearch(Id, Hit.Payload))
+				{
+					if (!Hit.FailReason.IsNone())
+					{
+						HUD->ShowResourceFlash(Hit.FailReason);
+					}
+				}
+			}
+		}
+	}
+	else if (Hit.Action == TEXT("UnloadAll"))
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+			{
+				FKodEntityId Id;
+				Id.Value = Hit.StructureId;
+				Sim->UnloadAll(Id);
+			}
+		}
+	}
+	else if (Hit.Action == TEXT("Load"))
+	{
+		LoadSelectedInfantry();
 	}
 	else if (Hit.Action == TEXT("OrderStop") || Hit.Action == TEXT("Stop"))
 	{
@@ -1110,4 +1252,136 @@ void AKodSlice0PlayerController::IssueAbility(FName AbilityId)
 	{
 		Commands->Enqueue(Cmd);
 	}
+}
+
+void AKodSlice0PlayerController::ToggleSelectedDepots()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodStructureState Structure;
+		if (Sim->TryGetStructure(Id, Structure) && Structure.bCanLower)
+		{
+			if (!Sim->ToggleDepot(Id))
+			{
+				if (AKodHUD* HUD = Cast<AKodHUD>(GetHUD()))
+				{
+					HUD->ShowCenterMessage(TEXT("Can't build here, location is blocked"));
+				}
+			}
+		}
+	}
+}
+
+void AKodSlice0PlayerController::CastSelectedHeal()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodSimEntityState State;
+		if (Sim->TryGetState(Id, State) && State.bHealer)
+		{
+			Sim->CastHeal(Id);
+		}
+	}
+}
+
+void AKodSlice0PlayerController::ToggleSelectedHeal()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodSimEntityState State;
+		if (Sim->TryGetState(Id, State) && State.bHealer)
+		{
+			Sim->SetHealAutocast(Id, !State.bAutocastHeal);
+		}
+	}
+}
+
+void AKodSlice0PlayerController::LoadSelectedInfantry()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	TArray<FKodStructureState> Structures;
+	Sim->CopyStructures(Structures);
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodSimEntityState State;
+		if (!Sim->TryGetState(Id, State) || !State.bInfantry || State.CargoSize <= 0)
+		{
+			continue;
+		}
+		FKodEntityId Best;
+		float BestDist = 0.f;
+		bool bFound = false;
+		for (const FKodStructureState& Structure : Structures)
+		{
+			if (Structure.TeamId != State.TeamId || Structure.CargoCap <= 0 || !Structure.bComplete)
+			{
+				continue;
+			}
+			const float Dist = FVector::DistSquared2D(State.Position, Structure.Position);
+			if (!bFound || Dist < BestDist)
+			{
+				bFound = true;
+				BestDist = Dist;
+				Best = Structure.Id;
+			}
+		}
+		if (bFound)
+		{
+			Sim->LoadUnitIntoBunker(Id, Best);
+		}
+	}
+}
+
+bool AKodSlice0PlayerController::TryLoadBunkerUnderCursor()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return false;
+	}
+	FHitResult Hit;
+	if (!GetHitResultUnderCursor(ECC_Pawn, true, Hit) || !Hit.GetActor())
+	{
+		return false;
+	}
+	const FKodEntityId HitId = Sim->FindIdForActor(Hit.GetActor());
+	FKodStructureState Structure;
+	if (!Sim->TryGetStructure(HitId, Structure) || Structure.CargoCap <= 0 || !Structure.bComplete)
+	{
+		return false;
+	}
+	bool bAny = false;
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodSimEntityState State;
+		if (Sim->TryGetState(Id, State) && State.bInfantry && State.CargoSize > 0 && State.TeamId == Structure.TeamId)
+		{
+			bAny = Sim->LoadUnitIntoBunker(Id, HitId) || bAny;
+		}
+	}
+	return bAny;
 }

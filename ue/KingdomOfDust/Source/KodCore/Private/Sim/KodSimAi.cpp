@@ -173,11 +173,13 @@ void UKodSimSubsystem::EvaluateMatch()
 	{
 		MatchOutcome = EKodMatchOutcome::Defeat;
 		UE_LOG(LogTemp, Log, TEXT("KodAI Match Defeat"));
+		RaiseCue(FName(TEXT("defeat")), FVector::ZeroVector, false);
 	}
 	else if (bTeam1HadStructure && Team1 == 0)
 	{
 		MatchOutcome = EKodMatchOutcome::Victory;
 		UE_LOG(LogTemp, Log, TEXT("KodAI Match Victory"));
+		RaiseCue(FName(TEXT("victory")), FVector::ZeroVector, false);
 	}
 }
 

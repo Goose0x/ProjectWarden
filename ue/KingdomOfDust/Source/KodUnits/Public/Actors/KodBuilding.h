@@ -46,4 +46,8 @@ public:
 private:
 	bool bBoundStructure = false;
 	FVector BaseScale = FVector(3.f, 3.f, 2.f);
+	bool bSawIncomplete = false;
+	bool bSawComplete = false;
+	bool bCompletionFlash = false;
+	float FlashLeft = 0.f;
 };

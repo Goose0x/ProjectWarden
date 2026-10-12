@@ -3,6 +3,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/Canvas.h"
+#include "Engine/Texture2D.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "Engine/HitResult.h"
@@ -59,6 +60,7 @@ void AKodHUD::DrawHUD()
 
 	CacheSimSnapshot();
 	DrawWorldFog();
+	DrawScaffolds();
 	RefreshReadout();
 	DrawGameClock();
 	DrawProductionPanel();
@@ -558,25 +560,119 @@ FName AKodHUD::PeekResourceFail(int32 Credits, int32 Luminene, int32 Supply) con
 	return NAME_None;
 }
 
+void AKodHUD::ShowCenterMessage(const FString& Text)
+{
+	FlashText = Text;
+	FlashUntilSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() + 1.6f : 0.f;
+}
+
 void AKodHUD::ShowResourceFlash(FName Reason)
 {
+	FName CueId;
 	if (Reason == TEXT("Credits"))
 	{
 		FlashText = TEXT("Not enough Credits");
+		CueId = FName(TEXT("not_enough_credits"));
 	}
 	else if (Reason == TEXT("Luminene"))
 	{
 		FlashText = TEXT("Not enough Luminene");
+		CueId = FName(TEXT("not_enough_luminene"));
 	}
 	else if (Reason == TEXT("Supply"))
 	{
 		FlashText = TEXT("Not enough supply");
+		CueId = FName(TEXT("not_enough_supply"));
 	}
 	else
 	{
 		return;
 	}
 	FlashUntilSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() + 1.6f : 0.f;
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			Sim->RaiseCue(CueId, FVector::ZeroVector, false);
+		}
+	}
+}
+
+bool AKodHUD::TryDrawIcon(FName IconId, float X, float Y, float SizeX, float SizeY)
+{
+	if (IconId.IsNone() || IconMiss.Contains(IconId))
+	{
+		return false;
+	}
+	if (const TObjectPtr<UTexture2D>* Found = IconHits.Find(IconId))
+	{
+		if (*Found)
+		{
+			DrawTexture(*Found, X, Y, SizeX, SizeY, 0.f, 0.f, 1.f, 1.f);
+			return true;
+		}
+	}
+	const FString Path = FString::Printf(TEXT("/Game/UI/Icons/%s.%s"), *IconId.ToString(), *IconId.ToString());
+	UTexture2D* Texture = Cast<UTexture2D>(FSoftObjectPath(Path).TryLoad());
+	if (!Texture)
+	{
+		IconMiss.Add(IconId);
+		return false;
+	}
+	IconHits.Add(IconId, Texture);
+	DrawTexture(Texture, X, Y, SizeX, SizeY, 0.f, 0.f, 1.f, 1.f);
+	return true;
+}
+
+void AKodHUD::DrawScaffolds()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	APlayerController* PC = GetOwningPlayerController();
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!PC || !Sim)
+	{
+		return;
+	}
+	for (const FKodStructureState& Structure : FrameStructures)
+	{
+		if (Structure.bComplete || Structure.BuildTimeTotal <= 0)
+		{
+			continue;
+		}
+		const float Alpha = FMath::Clamp(static_cast<float>(Structure.BuildTicksDone) / static_cast<float>(Structure.BuildTimeTotal), 0.f, 1.f);
+		const float SpanX = static_cast<float>(FMath::Max(1, Structure.FootprintX)) * static_cast<float>(KodBuildGrid::CellUU);
+		const float SpanY = static_cast<float>(FMath::Max(1, Structure.FootprintY)) * static_cast<float>(KodBuildGrid::CellUU);
+		const FVector Center = Structure.Position;
+		const FVector Corners[4] = {
+			Center + FVector(-SpanX * 0.5f, -SpanY * 0.5f, 40.f * Alpha),
+			Center + FVector(SpanX * 0.5f, -SpanY * 0.5f, 40.f * Alpha),
+			Center + FVector(SpanX * 0.5f, SpanY * 0.5f, 40.f * Alpha),
+			Center + FVector(-SpanX * 0.5f, SpanY * 0.5f, 40.f * Alpha)
+		};
+		FVector2D Screen[4];
+		bool bAll = true;
+		for (int32 Index = 0; Index < 4; ++Index)
+		{
+			if (!PC->ProjectWorldLocationToScreen(Corners[Index], Screen[Index], true))
+			{
+				bAll = false;
+				break;
+			}
+		}
+		if (!bAll)
+		{
+			continue;
+		}
+		const FLinearColor Frame(0.6f, 0.85f, 0.7f, 0.35f + 0.4f * Alpha);
+		DrawLine(Screen[0].X, Screen[0].Y, Screen[1].X, Screen[1].Y, Frame, 2.f);
+		DrawLine(Screen[1].X, Screen[1].Y, Screen[2].X, Screen[2].Y, Frame, 2.f);
+		DrawLine(Screen[2].X, Screen[2].Y, Screen[3].X, Screen[3].Y, Frame, 2.f);
+		DrawLine(Screen[3].X, Screen[3].Y, Screen[0].X, Screen[0].Y, Frame, 2.f);
+	}
 }
 
 bool AKodHUD::GetCommandHit(float MouseX, float MouseY, FKodHudCommandHit& Out) const
@@ -655,6 +751,10 @@ void AKodHUD::DrawCommandCard()
 	FKodStructureState TrainerState;
 	bool bWorker = false;
 	bool bMarine = false;
+	bool bMedic = false;
+	bool bInfantry = false;
+	FKodStructureState SelectedBuilding;
+	bool bHaveBuilding = false;
 	bool bStimReady = false;
 	int32 StimRemaining = 0;
 	int32 StimDuration = 1;
@@ -675,6 +775,11 @@ void AKodHUD::DrawCommandCard()
 			TrainerState = Structure;
 			Trainer = &TrainerState;
 		}
+		if (!bHaveBuilding && Sim->TryGetStructure(Id, Structure) && Structure.bComplete)
+		{
+			SelectedBuilding = Structure;
+			bHaveBuilding = true;
+		}
 		FKodSimEntityState State;
 		if (!Sim->TryGetState(Id, State) || State.Health <= 0.f)
 		{
@@ -683,6 +788,14 @@ void AKodHUD::DrawCommandCard()
 		if (State.bCanGather)
 		{
 			bWorker = true;
+		}
+		if (State.bHealer)
+		{
+			bMedic = true;
+		}
+		if (State.bInfantry && State.CargoSize > 0)
+		{
+			bInfantry = true;
 		}
 		if (Sim->UnitHasAbility(State.DefinitionId, FName(KodWardenPaths::Id_CombatStim)))
 		{
@@ -704,7 +817,10 @@ void AKodHUD::DrawCommandCard()
 	const bool bTrainCard = Trainer != nullptr;
 	const bool bBuildCard = !bTrainCard && bWorker;
 	const bool bMarineCard = !bTrainCard && bMarine;
-	if (!bTrainCard && !bBuildCard && !bMarineCard)
+	const bool bBay = bHaveBuilding && SelectedBuilding.DefinitionId == FName(KodWardenPaths::Id_EngineeringBay);
+	const bool bDepot = bHaveBuilding && SelectedBuilding.bCanLower;
+	const bool bBunker = bHaveBuilding && SelectedBuilding.CargoCap > 0;
+	if (!bTrainCard && !bBuildCard && !bMarineCard && !bMedic && !bBay && !bDepot && !bBunker)
 	{
 		return;
 	}
@@ -735,12 +851,21 @@ void AKodHUD::DrawCommandCard()
 	{
 		const float X = OriginXIn + Col * (Button + Gap);
 		const float Y = OriginYIn + Row * (Button + Gap);
+		const bool bRequires = Fail == FName(TEXT("Requires"));
 		const FLinearColor Plate = bEnabled
 			? FLinearColor(0.08f, 0.16f, 0.1f, 1.f)
-			: FLinearColor(0.12f, 0.12f, 0.12f, 1.f);
-		const FLinearColor Ink = bEnabled ? FLinearColor::White : FLinearColor(0.45f, 0.45f, 0.45f, 1.f);
+			: (bRequires ? FLinearColor(0.14f, 0.14f, 0.14f, 1.f) : FLinearColor(0.06f, 0.09f, 0.07f, 0.85f));
+		const FLinearColor Ink = bEnabled
+			? FLinearColor::White
+			: (bRequires ? FLinearColor(0.45f, 0.45f, 0.45f, 1.f) : FLinearColor(0.62f, 0.66f, 0.6f, 0.8f));
 		DrawRect(Plate, X, Y, Button, Button);
-		DrawText(Label, Ink, X + 6.f, Y + 8.f, Font, 0.8f, false);
+		if (!TryDrawIcon(Payload.IsNone() ? FName(*Label) : Payload, X + 4.f, Y + 4.f, 18.f, 18.f))
+		{
+			const FString Glyph = Label.Left(2).ToUpper();
+			DrawRect(FLinearColor(0.2f, 0.35f, 0.28f, 1.f), X + 4.f, Y + 4.f, 18.f, 18.f);
+			DrawText(Glyph, FLinearColor::White, X + 5.f, Y + 5.f, Font, 0.55f, false);
+		}
+		DrawText(Label, Ink, X + 6.f, Y + 24.f, Font, 0.65f, false);
 		DrawText(Hotkey, KodResourceColors::LumineneCore(), X + Button - 16.f, Y + Button - 18.f, Font, 0.75f, false);
 		FKodHudCommandHit Hit;
 		Hit.bInsideChrome = true;
@@ -775,6 +900,12 @@ void AKodHUD::DrawCommandCard()
 			const int32 Supply = bHaveSpec ? Spec.Cost.Supply : 0;
 			const int32 Ticks = bHaveSpec ? Spec.Cost.BuildTime : 0;
 			FName Fail = bHaveSpec ? PeekResourceFail(Credits, Luminene, Supply) : FName();
+			FString RequireLine;
+			if (bHaveSpec && !Spec.RequiresId.IsNone() && !Sim->HasCompletedStructure(ReadLocalTeamId(), Spec.RequiresId))
+			{
+				Fail = FName(TEXT("Requires"));
+				RequireLine = FString::Printf(TEXT("\nRequires %s"), *Spec.RequiresId.ToString());
+			}
 			if (Fail.IsNone() && Trainer->bSupplyBlocked)
 			{
 				Fail = TEXT("Supply");
@@ -784,8 +915,8 @@ void AKodHUD::DrawCommandCard()
 				Fail = TEXT("Full");
 			}
 			const int32 Seconds = FMath::Max(0, Ticks) / 16;
-			const FString Tooltip = FString::Printf(TEXT("%s\n%d Credits\n%d Luminene\n%d supply\n%ds"),
-				*Label, Credits, Luminene, Supply, Seconds);
+			const FString Tooltip = FString::Printf(TEXT("%s\n%d Credits\n%d Luminene\n%d supply\n%ds%s"),
+				*Label, Credits, Luminene, Supply, Seconds, *RequireLine);
 			AddButton(Shown, 0, OriginX, OriginY, Label, TEXT("S"), TEXT("Train"), UnitId, Trainer->Id.Value, INDEX_NONE, Fail.IsNone(), Fail, Tooltip);
 			++Shown;
 		}
@@ -859,27 +990,85 @@ void AKodHUD::DrawCommandCard()
 		}
 		else if (bWorker)
 		{
-			const FName Types[3] = {
+			const int32 Tier = PC->GetBuildMenuTier();
+			const FName BasicTypes[] = {
+				FName(KodWardenPaths::Id_CommandCenter),
 				FName(KodWardenPaths::Id_SupplyDepot),
 				FName(KodWardenPaths::Id_Barracks),
-				FName(KodWardenPaths::Id_Rig)
+				FName(KodWardenPaths::Id_Rig),
+				FName(KodWardenPaths::Id_EngineeringBay),
+				FName(KodWardenPaths::Id_Bunker)
 			};
-			const TCHAR* Keys[3] = { TEXT("D"), TEXT("R"), TEXT("E") };
-			const TCHAR* Labels[3] = { TEXT("Depot"), TEXT("Barracks"), TEXT("Rig") };
+			const TCHAR* BasicKeys[] = { TEXT("C"), TEXT("D"), TEXT("R"), TEXT("E"), TEXT("Y"), TEXT("N") };
+			const TCHAR* BasicLabels[] = { TEXT("CC"), TEXT("Depot"), TEXT("Barracks"), TEXT("Rig"), TEXT("Bay"), TEXT("Bunker") };
+			const FName AdvancedTypes[] = { FName(KodWardenPaths::Id_Turret) };
+			const TCHAR* AdvancedKeys[] = { TEXT("T") };
+			const TCHAR* AdvancedLabels[] = { TEXT("Turret") };
+			const int32 TypeCount = Tier == 2 ? 1 : 6;
 			const int32 FirstCol = bMarineCard ? 1 : 0;
-			for (int32 Index = 0; Index < 3; ++Index)
+			for (int32 Index = 0; Index < TypeCount; ++Index)
 			{
+				const FName TypeId = Tier == 2 ? AdvancedTypes[Index] : BasicTypes[Index];
+				const FString Label = Tier == 2 ? AdvancedLabels[Index] : BasicLabels[Index];
+				const FString Hotkey = Tier == 2 ? AdvancedKeys[Index] : BasicKeys[Index];
 				FKodBuildSpec Spec;
-				const bool bHave = Sim->TryGetBuildSpec(Types[Index], Spec);
+				const bool bHave = Sim->TryGetBuildSpec(TypeId, Spec);
 				const int32 Credits = bHave ? Spec.Cost.Credits : 0;
 				const int32 Luminene = bHave ? Spec.Cost.Luminene : 0;
 				const int32 Ticks = bHave ? Spec.Cost.BuildTime : 0;
-				const FName Fail = bHave ? PeekResourceFail(Credits, Luminene, 0) : FName();
-				const FString Tooltip = FString::Printf(TEXT("%s\n%d Credits\n%d Luminene\n%ds"),
-					Labels[Index], Credits, Luminene, FMath::Max(0, Ticks) / 16);
-				AddButton(FirstCol + Index, 0, OriginX, OriginY, Labels[Index], Keys[Index], TEXT("Place"), Types[Index], 0, INDEX_NONE, Fail.IsNone(), Fail, Tooltip);
+				FName Fail = bHave ? PeekResourceFail(Credits, Luminene, 0) : FName();
+				FString RequireLine;
+				if (bHave && !Spec.RequiresId.IsNone() && !Sim->HasCompletedStructure(ReadLocalTeamId(), Spec.RequiresId))
+				{
+					Fail = FName(TEXT("Requires"));
+					RequireLine = FString::Printf(TEXT("\nRequires %s"), *Spec.RequiresId.ToString());
+				}
+				const FString Tooltip = FString::Printf(TEXT("%s\n%d Credits\n%d Luminene\n%ds%s"),
+					*Label, Credits, Luminene, FMath::Max(0, Ticks) / 16, *RequireLine);
+				const int32 Col = (FirstCol + Index) % Cols;
+				const int32 Row = (FirstCol + Index) / Cols;
+				AddButton(Col, Row, OriginX, OriginY, Label, Hotkey, TEXT("Place"), TypeId, 0, INDEX_NONE, Fail.IsNone(), Fail, Tooltip);
+			}
+			if (Tier == 2)
+			{
+				AddButton(2, 0, OriginX, OriginY, TEXT("Soon"), TEXT(""), TEXT("Place"), FName(), 0, INDEX_NONE, false, FName(TEXT("Requires")), TEXT("Requires a later tech"));
+				AddButton(3, 0, OriginX, OriginY, TEXT("Soon"), TEXT(""), TEXT("Place"), FName(), 0, INDEX_NONE, false, FName(TEXT("Requires")), TEXT("Requires a later tech"));
 			}
 		}
+	}
+
+	if (bMedic && !bTrainCard)
+	{
+		AddButton(1, 0, OriginX, OriginY, TEXT("Heal"), TEXT("C"), TEXT("Heal"), FName(TEXT("Heal")), 0, INDEX_NONE, true, FName(), TEXT("Heal\nRight-click toggles autocast"));
+	}
+	if (bInfantry && !bTrainCard && !bBuildCard)
+	{
+		AddButton(2, 0, OriginX, OriginY, TEXT("Load"), TEXT("L"), TEXT("Load"), FName(), 0, INDEX_NONE, true, FName(), TEXT("Load into a bunker"));
+	}
+	if (bDepot && !bTrainCard)
+	{
+		const FString Label = SelectedBuilding.bLowered ? TEXT("Raise") : TEXT("Lower");
+		AddButton(0, 0, OriginX, OriginY, Label, TEXT("R"), TEXT("Depot"), FName(), SelectedBuilding.Id.Value, INDEX_NONE, true, FName(), Label);
+	}
+	if (bBay && !bTrainCard)
+	{
+		const FName Upgrades[2] = { FName(KodWardenPaths::Id_InfantryWeapons), FName(KodWardenPaths::Id_InfantryArmor) };
+		const TCHAR* Labels[2] = { TEXT("Weapons"), TEXT("Armor") };
+		for (int32 Index = 0; Index < 2; ++Index)
+		{
+			FKodUpgradeSpec Spec;
+			const bool bHave = Sim->TryGetUpgradeSpec(Upgrades[Index], Spec);
+			const int32 Credits = bHave ? Spec.Credits : 0;
+			const int32 Luminene = bHave ? Spec.Luminene : 0;
+			FName Fail = bHave ? PeekResourceFail(Credits, Luminene, 0) : FName();
+			const FString Tooltip = FString::Printf(TEXT("%s\n%d Credits\n%d Luminene\n%ds"),
+				Labels[Index], Credits, Luminene, (bHave ? Spec.BuildTicks : 0) / 16);
+			AddButton(Index, 0, OriginX, OriginY, Labels[Index], Index == 0 ? TEXT("W") : TEXT("A"), TEXT("Research"), Upgrades[Index], SelectedBuilding.Id.Value, INDEX_NONE, Fail.IsNone(), Fail, Tooltip);
+		}
+	}
+	if (bBunker && !bTrainCard)
+	{
+		AddButton(0, 0, OriginX, OriginY, TEXT("Unload"), TEXT("U"), TEXT("UnloadAll"), FName(), SelectedBuilding.Id.Value, INDEX_NONE, SelectedBuilding.Cargo.Num() > 0, FName(), TEXT("Unload all"));
 	}
 
 	float MouseX = 0.f;

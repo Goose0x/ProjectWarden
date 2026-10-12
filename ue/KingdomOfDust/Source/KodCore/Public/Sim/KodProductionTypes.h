@@ -11,6 +11,34 @@ struct KODCORE_API FKodTrainSpec
 	FName DisplayId;
 	FKodTrainCost Cost;
 	bool bCanGather = false;
+	FName RequiresId;
+	bool bBiological = false;
+	bool bInfantry = false;
+	bool bFlyer = false;
+	bool bHealer = false;
+	int32 CargoSize = 0;
+	int32 BaseArmor = 0;
+	int32 EnergyMax = 0;
+	int32 EnergyStart = 0;
+};
+
+/** Researched at a building. Level 1 placeholders. The sim does not load an asset. */
+struct KODCORE_API FKodUpgradeSpec
+{
+	FName UpgradeId;
+	FName DisplayId;
+	FName BuildingId;
+	int32 Credits = 0;
+	int32 Luminene = 0;
+	int32 BuildTicks = 0;
+	int32 WeaponBonus = 0;
+	int32 ArmorBonus = 0;
+};
+
+struct KODCORE_API FKodTeamTech
+{
+	int32 InfantryWeapons = 0;
+	int32 InfantryArmor = 0;
 };
 
 struct KODCORE_API FKodStructureSpec
@@ -74,6 +102,16 @@ struct KODCORE_API FKodStructureState
 	FName DisplayId;
 	TArray<FName> Trains;
 	FVector StandPoint = FVector::ZeroVector;
+	bool bLowered = false;
+	bool bCanLower = false;
+	int32 CargoCap = 0;
+	TArray<int32> Cargo;
+	int32 AttackDamage = 0;
+	int32 AttackRangeUU = 0;
+	bool bAttacksAir = false;
+	TArray<FKodProductionSlot> Research;
+	int32 ResearchTicksRemaining = 0;
+	int32 ResearchBuildTime = 0;
 };
 
 struct KODCORE_API FKodSupplyState

@@ -23,6 +23,9 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	TrainSpecs.Reset();
 	BuildSpecs.Reset();
 	AbilitySpecs.Reset();
+	UpgradeSpecs.Reset();
+	TeamTech.Reset();
+	TeamFacingYaw.Reset();
 	UnitAbilities.Reset();
 	PendingSpawns.Reset();
 	PendingBuildingSpawns.Reset();
@@ -63,6 +66,7 @@ void UKodSimSubsystem::Deinitialize()
 	OnUnitHit.Clear();
 	OnUnitKilled.Clear();
 	OnTrainCompleted.Clear();
+	OnCue.Clear();
 	Entities.Reset();
 	States.Reset();
 	Banks.Reset();
@@ -73,6 +77,9 @@ void UKodSimSubsystem::Deinitialize()
 	TrainSpecs.Reset();
 	BuildSpecs.Reset();
 	AbilitySpecs.Reset();
+	UpgradeSpecs.Reset();
+	TeamTech.Reset();
+	TeamFacingYaw.Reset();
 	UnitAbilities.Reset();
 	PendingSpawns.Reset();
 	PendingBuildingSpawns.Reset();
@@ -178,6 +185,11 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 			QuantizePose(*State);
 		}
 
+		if (State->InsideBunker.IsValid())
+		{
+			continue;
+		}
+
 		if (State->GatherPhase != EKodGatherPhase::None || State->Order == EKodSimOrderType::Gather)
 		{
 			// Do not use State after this if a later unregister rehashes. Gather does not unregister workers.
@@ -224,6 +236,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 	StepAbilities();
 	EvaluateMatch();
 	StepAI();
+	StepTech();
 }
 
 void UKodSimSubsystem::StepEntityMove(FKodSimEntityState& State, float FixedDt)
@@ -631,6 +644,11 @@ void UKodSimSubsystem::SyncActorPresentation(float Alpha) const
 		// TeleportPhysics would zero them and smear the skinned mesh under TAA.
 		Actor->SetActorRotation(Rot, ETeleportType::None);
 
+		if (Pair.Value.InsideBunker.IsValid())
+		{
+			Actor->SetActorHiddenInGame(true);
+			continue;
+		}
 		if (Pair.Value.TeamId == LocalTeam)
 		{
 			Actor->SetActorHiddenInGame(false);
@@ -739,6 +757,7 @@ void UKodSimSubsystem::ConfigureEntity(
 	State->BodyRadiusUU = FMath::Clamp(BodyRadiusUU, 8, 256);
 	State->SightRadiusUU = FMath::Clamp(SightRadiusUU, 0, 10000);
 	State->WeaponBackswingTicks = 2;
+	ApplyRoster(Id);
 }
 
 namespace
@@ -1927,6 +1946,24 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&S.CooldownTicksRemaining, sizeof(S.CooldownTicksRemaining));
 		Append(&S.BodyRadiusUU, sizeof(S.BodyRadiusUU));
 		Append(&S.SightRadiusUU, sizeof(S.SightRadiusUU));
+		Append(&S.ArmorPoints, sizeof(S.ArmorPoints));
+		Append(&S.Energy, sizeof(S.Energy));
+		Append(&S.EnergyMax, sizeof(S.EnergyMax));
+		Append(&S.EnergyRegenAcc, sizeof(S.EnergyRegenAcc));
+		Append(&S.HealAcc, sizeof(S.HealAcc));
+		const uint8 Autocast = S.bAutocastHeal ? 1 : 0;
+		Append(&Autocast, sizeof(Autocast));
+		const uint8 Biological = S.bBiological ? 1 : 0;
+		Append(&Biological, sizeof(Biological));
+		const uint8 Infantry = S.bInfantry ? 1 : 0;
+		Append(&Infantry, sizeof(Infantry));
+		const uint8 Healer = S.bHealer ? 1 : 0;
+		Append(&Healer, sizeof(Healer));
+		const uint8 Flyer = S.bFlyer ? 1 : 0;
+		Append(&Flyer, sizeof(Flyer));
+		Append(&S.CargoSize, sizeof(S.CargoSize));
+		Append(&S.InsideBunker.Value, sizeof(S.InsideBunker.Value));
+		Append(&S.LoadTarget.Value, sizeof(S.LoadTarget.Value));
 		Append(&S.WeaponBackswingTicks, sizeof(S.WeaponBackswingTicks));
 		Append(&S.BackswingTicksRemaining, sizeof(S.BackswingTicksRemaining));
 		Append(&S.FollowTarget.Value, sizeof(S.FollowTarget.Value));
@@ -2075,6 +2112,27 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		const int32 RallyNode = Structure.bRallyNode ? Structure.RallyNode.Value : 0;
 		Append(&RallyNode, sizeof(RallyNode));
 		Append(&Structure.RallyUnit.Value, sizeof(Structure.RallyUnit.Value));
+		const uint8 Lowered = Structure.bLowered ? 1 : 0;
+		Append(&Lowered, sizeof(Lowered));
+		Append(&Structure.CargoCap, sizeof(Structure.CargoCap));
+		TArray<int32> Cargo = Structure.Cargo;
+		Cargo.Sort();
+		const int32 CargoCount = Cargo.Num();
+		Append(&CargoCount, sizeof(CargoCount));
+		for (int32 Rider : Cargo)
+		{
+			Append(&Rider, sizeof(Rider));
+		}
+		const int32 ResearchCount = Structure.Research.Num();
+		Append(&ResearchCount, sizeof(ResearchCount));
+		Append(&Structure.ResearchTicksRemaining, sizeof(Structure.ResearchTicksRemaining));
+		for (const FKodProductionSlot& Job : Structure.Research)
+		{
+			const FString UpgradeName = Job.UnitId.ToString();
+			const int32 UpgradeCrc = static_cast<int32>(FCrc::StrCrc32(*UpgradeName));
+			Append(&UpgradeCrc, sizeof(UpgradeCrc));
+			Append(&Job.BuildTime, sizeof(Job.BuildTime));
+		}
 		const int32 RQX = FMath::RoundToInt(Structure.RallyPoint.X / NodeQ);
 		const int32 RQY = FMath::RoundToInt(Structure.RallyPoint.Y / NodeQ);
 		const int32 RQZ = FMath::RoundToInt(Structure.RallyPoint.Z / NodeQ);
@@ -2098,6 +2156,29 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	Append(&HasEnemyStart, sizeof(HasEnemyStart));
 	Append(&EnemyStartX, sizeof(EnemyStartX));
 	Append(&EnemyStartY, sizeof(EnemyStartY));
+	TArray<int32> TechTeams;
+	TeamTech.GetKeys(TechTeams);
+	TechTeams.Sort();
+	const int32 TechCount = TechTeams.Num();
+	Append(&TechCount, sizeof(TechCount));
+	for (int32 TeamId : TechTeams)
+	{
+		const FKodTeamTech& Tech = TeamTech.FindChecked(TeamId);
+		Append(&TeamId, sizeof(TeamId));
+		Append(&Tech.InfantryWeapons, sizeof(Tech.InfantryWeapons));
+		Append(&Tech.InfantryArmor, sizeof(Tech.InfantryArmor));
+	}
+	TArray<int32> FacingTeams;
+	TeamFacingYaw.GetKeys(FacingTeams);
+	FacingTeams.Sort();
+	const int32 FacingCount = FacingTeams.Num();
+	Append(&FacingCount, sizeof(FacingCount));
+	for (int32 TeamId : FacingTeams)
+	{
+		const int32 Yaw = TeamFacingYaw.FindChecked(TeamId);
+		Append(&TeamId, sizeof(TeamId));
+		Append(&Yaw, sizeof(Yaw));
+	}
 	const uint8 Cheat = bAiCheatVision ? 1 : 0;
 	Append(&Cheat, sizeof(Cheat));
 

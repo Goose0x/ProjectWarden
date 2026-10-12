@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Engine/StaticMesh.h"
 #include "KodFactionDefinition.generated.h"
 
 class UKodBuildingDefinition;
@@ -29,6 +30,14 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Start")
 	TArray<TSoftObjectPtr<UKodUnitDefinition>> StartingUnits;
+
+	/** Soft hook. Empty keeps the engine cube while a worker holds crystals. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Carry")
+	TSoftObjectPtr<UStaticMesh> CarryMeshCrystal;
+
+	/** Soft hook. Empty keeps an engine cylinder while a worker holds Luminene. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Carry")
+	TSoftObjectPtr<UStaticMesh> CarryMeshGas;
 
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override
 	{

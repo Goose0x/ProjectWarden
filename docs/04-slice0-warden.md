@@ -600,6 +600,33 @@ KodMap Ping X=1200 Y=800
 KodMap Layer=3
 ```
 
+## B9 — structures and tech
+
+Basic build menu (**B**): CC, Depot, Barracks, Rig, Engineering Bay, Bunker. Advanced menu (**V**): Turret, plus grey future slots. Barracks requires a Depot. The turret is anti-air and requires an Engineering Bay. A missing requirement greys the button and says `Requires X`. A price the player cannot pay is only subdued. Each button is a coloured tile and a two-letter glyph until `/Game/UI/Icons/<Id>` exists.
+
+Medic trains at the Barracks and requires an Engineering Bay. Heal is autocast at 4 build cells, 12.6 HP/s, energy 200 max / 50 start / 0.7875 per second, all in integer tick accumulators. Right-click the Heal button toggles autocast. The selection panel draws an energy bar.
+
+Engineering Bay researches Infantry Weapons 1 and Infantry Armor 1. Damage is `max(0.5, weapon + weapons level - armour)`. Build times come from the unit, structure, and upgrade definitions.
+
+A placement ghost colours each cell green or red. Buildings do not rotate; facing is the team's start facing. A CC cannot sit within 3 cells of a mineral or vent. `IsCellTerrainBlocked` is the height hook. Friendly units in the footprint are pushed out. An enemy in the footprint fails with `Can't build here, location is blocked`, a centre flash, and `cant_build`.
+
+Construction rises out of the ground under a canvas frame. HP tracks build percent. Completion flashes and plays `structure_complete`. The builder faces the site.
+
+**R** or the depot card lowers it so units can walk the footprint. It stays down while a unit is on it, and will not rise until the footprint is clear.
+
+A bunker holds 4 cargo. Marine and Medic take 1. Right-click or Load puts them in. Unload All and per-rider unload are on the panel. Riders shoot from inside at +1 cell of range. Medics do not shoot. The bunker has 400 HP. Riders pop out when it dies.
+
+A worker carrying crystals shows an engine cube, or the faction `CarryMeshCrystal` when that soft mesh loads. Luminene uses a cylinder, or `CarryMeshGas`. The mesh attaches to `hand_r` or `back` when that socket exists.
+
+`UKodCueSubsystem` reads cue ids from `DefaultGame.ini` and plays `/Game/Audio/TEMP/CoreLoop/<cue_id>`. A missing sound is silent. Announcer lines wait 2.5 seconds before repeating.
+
+```
+KodBuild Depot Id=4 Lowered=1
+KodResearch Complete Struct=6 Upgrade=InfantryWeapons
+KodBunker Load Bunker=8 Unit=12
+KodHeal Unit=12 Target=9 HP=40 Energy=49
+```
+
 ## Camera — SC2 player view
 
 `AKodRTSCameraPawn` is the player camera. Pitch **-56°**, yaw **0** (looks north), vertical FOV **42** (horizontal FOV follows the window). The pawn is the ground look-at point. Default arm length **3600** (about 20 SC2 cells of ground at 200 uu, zoom clamped **2400–5200**). All of those are `Config` on the class.
@@ -636,6 +663,7 @@ KodCam Spectate=1
 - [ ] M1 train (section above). Select `PROXY_CC`, **S** queues an AMP and spends 50 Credits, **Backspace** refunds it, a finished train logs `KodProd Complete` and raises supply to `5/15`. CC-only RMB sets `KodProd Rally`. The AMP body stays the tan cube.
 - [ ] M5 opponent. PIE logs `KodAI Seed How=Corner` (or `Tag` / `Arg`) with 6 workers. Team 1 gathers, trains AMPs, builds a Depot near the supply cap, builds a Barracks, trains Marines, and logs `KodAI Wave Size=` once eight or more idle Marines exist. Right-click an enemy structure with Marines selected and it takes HP. Destroy every team 1 structure: the canvas says **VICTORY** and selection, orders, and hotkeys stop. The camera still pans. Losing every team 0 structure says **DEFEAT**. `kod.AI 0` logs `KodAI Enabled=0` and `KodAI Orders Cleared`, and issues no new AI orders. `kod.AIDifficulty 2` logs `KodAI Difficulty=2`.
 - [ ] M6 canvas. The bottom-left minimap shows the playable box, jade and yellow-green nodes, team dots, structure rectangles, and a white camera trapezoid. Left-drag jumps the camera. Right-click logs `Minimap Order` (attack-move for Marines, move for AMPs). An idle-worker button and F1 cycle idle AMPs. One selected unit shows name, HP, Stim, and order; several show up to 24 tiles (click, Shift-click, Ctrl-click). The portrait is a letter. Ctrl+1 sets a group, 1 selects it, double-tap centres, and the tab shows the count. Supply turns red when it is blocked. Tab swaps the command card when Marines and AMPs are both selected.
+- [ ] B9 structures and tech. **B** opens CC, Depot, Barracks, Rig, Engineering Bay, and Bunker. **V** opens Turret and two grey slots. Barracks stays grey with `Requires SupplyDepot` until a Depot finishes. A CC ghost within 3 cells of a mineral or vent is red and the centre flash says `Can't build here, location is blocked`. **R** on a Depot logs `KodBuild Depot` and units can walk that footprint. A Barracks with an Engineering Bay trains a Medic. The selection panel shows an energy bar. Engineering Bay **Weapons** / **Armor** log `KodResearch Complete`. A bunker loads a Marine, the Marine fires from inside, and killing the bunker pops the Marine out. A loaded worker shows a jade cube or a yellow-green cylinder. Missing `/Game/Audio/TEMP/CoreLoop/` cues stay silent.
 - [ ] B7.1 and B8. **S** with a CC and Marines selected logs a train and `KodOrder Stop` on the Marines. A unit pushed into a footprint leaves it in one tick. A long fight can log `KodPath Replan`. Stim on your own Marine flashes the body and does not ping the minimap alert. Unexplored ground is dark on the world and the minimap; walking a Marine turns those cells clear and leaves a dim explored trail. An enemy Marine outside that trail is hidden and is not auto-acquired. An explicit attack on a unit that walks into fog logs `KodOrder FogChase` and keeps moving to the last-seen point. A seen enemy structure stays as a faded minimap mark after you look away. PIE logs `KodAI Scout` once, toward the player start. A wave with no visible enemy base logs `KodAI Wave` with a destination at the last-seen structure or the player start, and those Marines attack-move there. The six buttons beside the minimap log `KodMap Layer=`. Alt+click on the minimap logs `KodMap Ping` and draws a cross. Health bars are green, yellow, or red with segment ticks, and holding Alt shows every visible bar. The top-centre clock reads mm:ss from the sim tick.
 
 ## Blockers

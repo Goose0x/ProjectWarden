@@ -1439,6 +1439,35 @@ bool AKodPlayerController::ConsumeChromeClick()
 	}
 	const bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
 	const bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
+	if (Hit.Kind == FName(TEXT("Unload")) || Hit.Kind == FName(TEXT("UnloadAll")))
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+			{
+				if (Hit.Kind == FName(TEXT("UnloadAll")))
+				{
+					FKodEntityId BunkerId;
+					BunkerId.Value = Hit.IntParam;
+					Sim->UnloadAll(BunkerId);
+				}
+				else
+				{
+					TArray<FKodStructureState> Structures;
+					Sim->CopyStructures(Structures);
+					for (const FKodStructureState& Structure : Structures)
+					{
+						if (Structure.Cargo.Contains(Hit.IntParam))
+						{
+							Sim->UnloadUnit(Structure.Id, Hit.IntParam);
+							break;
+						}
+					}
+				}
+			}
+		}
+		return true;
+	}
 	if (Hit.Kind == FName(TEXT("Layer")))
 	{
 		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))

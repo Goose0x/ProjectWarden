@@ -59,6 +59,32 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
 	bool bCanGather = false;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	bool bBiological = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	bool bInfantry = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	bool bFlyer = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	bool bHealer = false;
+
+	/** Bunker space. 0 cannot load. Marine and Medic are 1. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	int32 CargoSize = 0;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	int32 EnergyMax = 0;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	int32 EnergyStart = 0;
+
+	/** Completed structure required before this unit can be trained. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	FName RequiresId;
+
 	/** Sim abilities. Combat Stim lives on the Marine. Not GAS. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Ability")
 	TArray<FKodAbilitySpec> Abilities;

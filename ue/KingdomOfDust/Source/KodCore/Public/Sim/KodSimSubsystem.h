@@ -18,6 +18,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FKodOnUnitFired, AActor*, Attacke
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FKodOnUnitHit, AActor*, Attacker, AActor*, Target, float, Health, int32, TargetId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKodOnUnitKilled, AActor*, Target, int32, TargetId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKodOnTrainCompleted, FVector, Location, int32, TeamId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FKodOnCue, FName, CueId, FVector, Location, bool, bAtLocation);
 
 UENUM(BlueprintType)
 enum class EKodSimOrderType : uint8
@@ -253,6 +254,50 @@ struct KODCORE_API FKodSimEntityState
 	 */
 	UPROPERTY()
 	bool bExplicitAttack = false;
+
+	/** Base armour plus the definition. Upgrades are applied when the shot lands. Hashed. */
+	UPROPERTY()
+	int32 ArmorPoints = 0;
+
+	UPROPERTY()
+	int32 Energy = 0;
+
+	UPROPERTY()
+	int32 EnergyMax = 0;
+
+	/** Remainder for 0.7875 energy per second. Hashed. */
+	UPROPERTY()
+	int32 EnergyRegenAcc = 0;
+
+	/** Remainder for 12.6 HP per second. Hashed. */
+	UPROPERTY()
+	int32 HealAcc = 0;
+
+	UPROPERTY()
+	bool bAutocastHeal = false;
+
+	UPROPERTY()
+	bool bBiological = false;
+
+	UPROPERTY()
+	bool bInfantry = false;
+
+	UPROPERTY()
+	bool bHealer = false;
+
+	UPROPERTY()
+	bool bFlyer = false;
+
+	UPROPERTY()
+	int32 CargoSize = 0;
+
+	/** Bunker this unit is inside. Hashed. */
+	UPROPERTY()
+	FKodEntityId InsideBunker;
+
+	/** Bunker this unit is walking to. Hashed. */
+	UPROPERTY()
+	FKodEntityId LoadTarget;
 
 	bool IsMoving() const
 	{
@@ -545,6 +590,20 @@ public:
 	bool IsAiSeeded() const { return bAiSeeded; }
 	/** Player spawn. Waves and the scout attack-move here when nothing has been seen. Hashed. */
 	void SetEnemyStart(FVector WorldLocation);
+	/** Quantized yaw, degrees. Buildings face this and do not rotate when placed. */
+	void SetTeamFacing(int32 TeamId, int32 YawDegrees);
+	int32 GetTeamFacing(int32 TeamId) const;
+	bool HasCompletedStructure(int32 TeamId, FName TypeId) const;
+	void RegisterUpgradeSpec(const FKodUpgradeSpec& Spec);
+	bool TryGetUpgradeSpec(FName UpgradeId, FKodUpgradeSpec& OutSpec) const;
+	bool EnqueueResearch(FKodEntityId StructureId, FName UpgradeId);
+	bool ToggleDepot(FKodEntityId StructureId);
+	bool LoadUnitIntoBunker(FKodEntityId UnitId, FKodEntityId BunkerId);
+	bool UnloadUnit(FKodEntityId BunkerId, int32 UnitId);
+	bool UnloadAll(FKodEntityId BunkerId);
+	void SetHealAutocast(FKodEntityId UnitId, bool bEnabled);
+	bool CastHeal(FKodEntityId UnitId);
+	void RaiseCue(FName CueId, FVector Location, bool bAtLocation);
 	EKodMatchOutcome GetMatchOutcome() const { return MatchOutcome; }
 	bool IsMatchOver() const { return MatchOutcome != EKodMatchOutcome::None; }
 
@@ -573,6 +632,10 @@ public:
 	/** Fired when a train slot finishes inside the sim step. Location is the exit point. */
 	UPROPERTY()
 	FKodOnTrainCompleted OnTrainCompleted;
+
+	/** Presentation only. Listeners play audio and must not write sim state. */
+	UPROPERTY()
+	FKodOnCue OnCue;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Sim")
 	int32 SimHz = KodBuildTicks::SimHz;
@@ -631,6 +694,11 @@ protected:
 	void StepProduction();
 	void StepAbilities();
 	void StepAI();
+	void StepTech();
+	void ApplyRoster(FKodEntityId Id);
+	void EjectBunker(FKodEntityId BunkerId);
+	bool CellHasUnit(int32 CellX, int32 CellY) const;
+	bool IsCellTerrainBlocked(int32 CellX, int32 CellY) const;
 	void EvaluateMatch();
 	float EffectiveMoveSpeed(const FKodSimEntityState& State) const;
 	void TryStartProduction(FKodStructureState& Structure);
@@ -669,6 +737,9 @@ protected:
 	TMap<FName, FKodTrainSpec> TrainSpecs;
 	TMap<FName, FKodBuildSpec> BuildSpecs;
 	TMap<FName, FKodAbilitySpec> AbilitySpecs;
+	TMap<FName, FKodUpgradeSpec> UpgradeSpecs;
+	TMap<int32, FKodTeamTech> TeamTech;
+	TMap<int32, int32> TeamFacingYaw;
 	TMap<FName, TArray<FName>> UnitAbilities;
 	TArray<FKodPendingUnitSpawn> PendingSpawns;
 	TArray<FKodPendingBuildingSpawn> PendingBuildingSpawns;

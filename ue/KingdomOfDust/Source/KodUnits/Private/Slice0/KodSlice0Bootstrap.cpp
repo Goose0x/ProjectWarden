@@ -65,9 +65,17 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	UKodUnitDefinition* Ranger = MakeRanger(Catalog, Rifle);
 	UKodUnitDefinition* Dozer = MakeDozer(Catalog);
 	UKodBuildingDefinition* CC = MakeCommandCenter(Catalog, Dozer);
+	UKodUnitDefinition* Medic = MakeMedic(Catalog);
 	UKodBuildingDefinition* Barracks = MakeBarracks(Catalog, Ranger);
+	if (Barracks && Medic)
+	{
+		Barracks->TrainableUnits.Add(Medic);
+	}
 	UKodBuildingDefinition* Depot = MakeSupplyDepot(Catalog);
 	UKodBuildingDefinition* Rig = MakeRig(Catalog);
+	UKodBuildingDefinition* EngineeringBay = MakeEngineeringBay(Catalog);
+	UKodBuildingDefinition* Bunker = MakeBunker(Catalog);
+	UKodBuildingDefinition* Turret = MakeTurret(Catalog);
 	UKodFactionDefinition* USA = MakeUSA(Catalog, CC, Dozer, Ranger);
 	UKodResourceNodeDefinition* JadeiteNode = MakeJadeiteNode(Catalog);
 	UKodResourceNodeDefinition* LumineneVent = MakeLumineneVent(Catalog);
@@ -83,6 +91,10 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Barracks), Barracks);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_SupplyDepot), Depot);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Rig), Rig);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Medic), Medic);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_EngineeringBay), EngineeringBay);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Bunker), Bunker);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Turret), Turret);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_USA), USA);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_JadeiteNode), JadeiteNode);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_LumineneVent), LumineneVent);
@@ -217,6 +229,9 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeRanger(UObject* Outer, UKodWeaponDe
 	U->UnitTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Unit.Ranger")), false);
 	U->MaxHealth = 120.f;
 	U->Armor = 0.f;
+	U->bBiological = true;
+	U->bInfantry = true;
+	U->CargoSize = 1;
 	U->MoveSpeed = 450.f;
 	U->SightRadius = 1600.f;
 	U->Cost.Credits = 75;
@@ -258,6 +273,8 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeDozer(UObject* Outer)
 	U->BuildTicks = KodEconomyDefaults::AmpBuildTicks;
 	U->BuildTimeSeconds = static_cast<float>(KodEconomyDefaults::AmpBuildSeconds);
 	U->bCanGather = true;
+	U->bBiological = true;
+	U->CargoSize = 0;
 	U->PrimaryWeapon.Reset();
 	// Shipped default is the cube. The truck prototype is KodWardenPaths::ProtoAmpSkeletalMesh
 	// and is assigned on the editable Dozer DataAsset, not here.
@@ -281,6 +298,8 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeCommandCenter(UObject* Outer, U
 	B->BuildTimeSeconds = 71.f;
 	B->SupplyProvided = KodEconomyDefaults::SupplyPerHq;
 	B->bIsDropOff = true;
+	B->bTownHall = true;
+	B->MenuTier = 0;
 	B->FootprintX = 5;
 	B->FootprintY = 5;
 	B->Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(KodWardenPaths::ProtoHqMesh));
@@ -310,6 +329,8 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeBarracks(UObject* Outer, UKodUn
 	B->BuildTimeSeconds = 46.f;
 	B->FootprintX = 3;
 	B->FootprintY = 3;
+	B->RequiresId = FName(KodWardenPaths::Id_SupplyDepot);
+	B->MenuTier = 0;
 	B->Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(KodWardenPaths::ProtoBarracksMesh));
 	B->PowerConsumed = 2.f;
 	B->PowerProvided = 0.f;
@@ -337,6 +358,8 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeSupplyDepot(UObject* Outer)
 	B->BuildTimeSeconds = 21.f;
 	B->SupplyProvided = KodEconomyDefaults::SupplyPerDepot;
 	B->bIsDropOff = false;
+	B->bCanLower = true;
+	B->MenuTier = 0;
 	B->FootprintX = 2;
 	B->FootprintY = 2;
 	B->Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(KodWardenPaths::ProtoDepotMesh));
@@ -361,6 +384,92 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeRig(UObject* Outer)
 	B->bExtractor = true;
 	B->SupplyProvided = 0;
 	B->bIsDropOff = false;
+	B->MenuTier = 0;
+	return B;
+}
+
+UKodUnitDefinition* UKodSlice0Bootstrap::MakeMedic(UObject* Outer)
+{
+	UKodUnitDefinition* U = NewObject<UKodUnitDefinition>(Outer, FName(KodWardenPaths::Id_Medic), RF_Public | RF_Transient);
+	U->DefinitionId = FName(KodWardenPaths::Id_Medic);
+	U->DisplayName = NSLOCTEXT("Kod", "Unit_Medic", "Medic");
+	U->UnitTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Unit.Medic")), false);
+	U->MaxHealth = 60.f;
+	U->Armor = 1.f;
+	U->MoveSpeed = 400.f;
+	U->SightRadius = 1400.f;
+	U->Cost.Credits = 50;
+	U->Cost.Luminene = 25;
+	U->Cost.Supply = 1;
+	U->Cost.BuildTime = 20 * 16;
+	U->BuildTicks = U->Cost.BuildTime;
+	U->BuildTimeSeconds = 20.f;
+	U->bBiological = true;
+	U->bInfantry = true;
+	U->bHealer = true;
+	U->CargoSize = 1;
+	U->EnergyMax = 200;
+	U->EnergyStart = 50;
+	U->RequiresId = FName(KodWardenPaths::Id_EngineeringBay);
+	return U;
+}
+
+UKodBuildingDefinition* UKodSlice0Bootstrap::MakeEngineeringBay(UObject* Outer)
+{
+	UKodBuildingDefinition* B = NewObject<UKodBuildingDefinition>(Outer, FName(KodWardenPaths::Id_EngineeringBay), RF_Public | RF_Transient);
+	B->DefinitionId = FName(KodWardenPaths::Id_EngineeringBay);
+	B->DisplayName = NSLOCTEXT("Kod", "Building_EngineeringBay", "Engineering Bay");
+	B->MaxHealth = 850.f;
+	B->Cost.Credits = 125;
+	B->Cost.Luminene = 0;
+	B->Cost.BuildTime = 25 * 16;
+	B->BuildTicks = B->Cost.BuildTime;
+	B->BuildTimeSeconds = 25.f;
+	B->FootprintX = 3;
+	B->FootprintY = 3;
+	B->MenuTier = 0;
+	B->SightRadius = 1400.f;
+	return B;
+}
+
+UKodBuildingDefinition* UKodSlice0Bootstrap::MakeBunker(UObject* Outer)
+{
+	UKodBuildingDefinition* B = NewObject<UKodBuildingDefinition>(Outer, FName(KodWardenPaths::Id_Bunker), RF_Public | RF_Transient);
+	B->DefinitionId = FName(KodWardenPaths::Id_Bunker);
+	B->DisplayName = NSLOCTEXT("Kod", "Building_Bunker", "Bunker");
+	B->MaxHealth = 400.f;
+	B->Cost.Credits = 100;
+	B->Cost.Luminene = 0;
+	B->Cost.BuildTime = 30 * 16;
+	B->BuildTicks = B->Cost.BuildTime;
+	B->BuildTimeSeconds = 30.f;
+	B->FootprintX = 3;
+	B->FootprintY = 3;
+	B->MenuTier = 0;
+	B->CargoCap = 4;
+	B->SightRadius = 1400.f;
+	return B;
+}
+
+UKodBuildingDefinition* UKodSlice0Bootstrap::MakeTurret(UObject* Outer)
+{
+	UKodBuildingDefinition* B = NewObject<UKodBuildingDefinition>(Outer, FName(KodWardenPaths::Id_Turret), RF_Public | RF_Transient);
+	B->DefinitionId = FName(KodWardenPaths::Id_Turret);
+	B->DisplayName = NSLOCTEXT("Kod", "Building_Turret", "Turret");
+	B->MaxHealth = 250.f;
+	B->Cost.Credits = 100;
+	B->Cost.Luminene = 0;
+	B->Cost.BuildTime = 25 * 16;
+	B->BuildTicks = B->Cost.BuildTime;
+	B->BuildTimeSeconds = 25.f;
+	B->FootprintX = 2;
+	B->FootprintY = 2;
+	B->MenuTier = 1;
+	B->RequiresId = FName(KodWardenPaths::Id_EngineeringBay);
+	B->AttackDamage = 12;
+	B->AttackRangeUU = 7 * 200;
+	B->bAttacksAir = true;
+	B->SightRadius = 1400.f;
 	return B;
 }
 

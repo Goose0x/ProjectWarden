@@ -278,23 +278,41 @@ void AKodSlice0GameMode::StartPlay()
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
 		{
+			auto RegisterUnit = [Sim](const UKodUnitDefinition* Def, FName FallbackId, FName DisplayId)
+			{
+				if (!Def)
+				{
+					return;
+				}
+				FKodTrainSpec Spec;
+				Spec.UnitId = Def->DefinitionId.IsNone() ? FallbackId : Def->DefinitionId;
+				Spec.DisplayId = DisplayId;
+				Spec.Cost = Def->Cost;
+				if (Spec.Cost.BuildTime <= 0)
+				{
+					Spec.Cost.BuildTime = Def->BuildTicks;
+				}
+				Spec.bCanGather = Def->bCanGather;
+				Spec.bBiological = Def->bBiological;
+				Spec.bInfantry = Def->bInfantry;
+				Spec.bFlyer = Def->bFlyer;
+				Spec.bHealer = Def->bHealer;
+				Spec.CargoSize = Def->CargoSize;
+				Spec.BaseArmor = FMath::Max(0, FMath::RoundToInt(Def->Armor));
+				Spec.EnergyMax = Def->EnergyMax;
+				Spec.EnergyStart = Def->EnergyStart;
+				Spec.RequiresId = Def->RequiresId;
+				Sim->RegisterTrainSpec(Spec);
+			};
 			if (const UKodUnitDefinition* Amp = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Dozer), this))
 			{
-				FKodTrainSpec Spec;
-				Spec.UnitId = Amp->DefinitionId.IsNone() ? FName(KodWardenPaths::Id_Dozer) : Amp->DefinitionId;
-				Spec.DisplayId = FName(TEXT("AMP"));
-				Spec.Cost = Amp->Cost;
-				Spec.bCanGather = true;
-				Sim->RegisterTrainSpec(Spec);
+				RegisterUnit(Amp, FName(KodWardenPaths::Id_Dozer), FName(TEXT("AMP")));
 			}
 			if (const UKodUnitDefinition* Marine = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Ranger), this))
 			{
+				RegisterUnit(Marine, FName(KodWardenPaths::Id_Ranger), FName(TEXT("Marine")));
 				FKodTrainSpec Spec;
 				Spec.UnitId = Marine->DefinitionId.IsNone() ? FName(KodWardenPaths::Id_Ranger) : Marine->DefinitionId;
-				Spec.DisplayId = FName(TEXT("Marine"));
-				Spec.Cost = Marine->Cost;
-				Spec.bCanGather = false;
-				Sim->RegisterTrainSpec(Spec);
 				if (Marine->Abilities.Num() > 0)
 				{
 					for (const FKodAbilitySpec& Ability : Marine->Abilities)
@@ -329,14 +347,103 @@ void AKodSlice0GameMode::StartPlay()
 				Spec.bIsDropOff = Def->bIsDropOff;
 				Spec.bExtractor = Def->bExtractor;
 				Spec.Trains = Trains;
+				Spec.RequiresId = Def->RequiresId;
+				Spec.MenuTier = Def->MenuTier;
+				Spec.bTownHall = Def->bTownHall;
+				Spec.bCanLower = Def->bCanLower;
+				Spec.CargoCap = Def->CargoCap;
+				Spec.AttackDamage = Def->AttackDamage;
+				Spec.AttackRangeUU = Def->AttackRangeUU;
+				Spec.bAttacksAir = Def->bAttacksAir;
+				if (Spec.TypeId == FName(KodWardenPaths::Id_CommandCenter))
+				{
+					Spec.bTownHall = true;
+					Spec.bIsDropOff = true;
+				}
+				else if (Spec.TypeId == FName(KodWardenPaths::Id_Barracks) && Spec.RequiresId.IsNone())
+				{
+					Spec.RequiresId = FName(KodWardenPaths::Id_SupplyDepot);
+				}
+				else if (Spec.TypeId == FName(KodWardenPaths::Id_SupplyDepot))
+				{
+					Spec.bCanLower = true;
+				}
+				else if (Spec.TypeId == FName(KodWardenPaths::Id_Bunker) && Spec.CargoCap <= 0)
+				{
+					Spec.CargoCap = 4;
+					Spec.MaxHealth = 400.f;
+				}
+				else if (Spec.TypeId == FName(KodWardenPaths::Id_Turret))
+				{
+					Spec.MenuTier = 1;
+					if (Spec.RequiresId.IsNone())
+					{
+						Spec.RequiresId = FName(KodWardenPaths::Id_EngineeringBay);
+					}
+					if (Spec.AttackDamage <= 0)
+					{
+						Spec.AttackDamage = 12;
+						Spec.AttackRangeUU = 7 * 200;
+						Spec.bAttacksAir = true;
+					}
+				}
 				Sim->RegisterBuildSpec(Spec);
 			};
 			TArray<FName> NoTrains;
 			TArray<FName> MarineTrain;
 			MarineTrain.Add(FName(KodWardenPaths::Id_Ranger));
+			MarineTrain.Add(FName(KodWardenPaths::Id_Medic));
+			RegisterBuild(KodWardenPaths::Id_CommandCenter, NoTrains);
 			RegisterBuild(KodWardenPaths::Id_SupplyDepot, NoTrains);
 			RegisterBuild(KodWardenPaths::Id_Barracks, MarineTrain);
 			RegisterBuild(KodWardenPaths::Id_Rig, NoTrains);
+			RegisterBuild(KodWardenPaths::Id_EngineeringBay, NoTrains);
+			RegisterBuild(KodWardenPaths::Id_Bunker, NoTrains);
+			RegisterBuild(KodWardenPaths::Id_Turret, NoTrains);
+			if (const UKodUnitDefinition* Medic = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Medic), this))
+			{
+				RegisterUnit(Medic, FName(KodWardenPaths::Id_Medic), FName(TEXT("Medic")));
+			}
+			auto StampRoster = [Sim](FName UnitId, bool bBiological, bool bInfantry, bool bHealer, int32 Cargo, int32 EnergyMax, int32 EnergyStart, FName RequiresId)
+			{
+				FKodTrainSpec Spec;
+				if (!Sim->TryGetTrainSpec(UnitId, Spec))
+				{
+					return;
+				}
+				Spec.bBiological = bBiological;
+				Spec.bInfantry = bInfantry;
+				Spec.bHealer = bHealer;
+				Spec.CargoSize = Cargo;
+				Spec.EnergyMax = EnergyMax;
+				Spec.EnergyStart = EnergyStart;
+				if (!RequiresId.IsNone())
+				{
+					Spec.RequiresId = RequiresId;
+				}
+				Sim->RegisterTrainSpec(Spec);
+			};
+			StampRoster(FName(KodWardenPaths::Id_Dozer), true, false, false, 0, 0, 0, FName());
+			StampRoster(FName(KodWardenPaths::Id_Ranger), true, true, false, 1, 0, 0, FName());
+			StampRoster(FName(KodWardenPaths::Id_Medic), true, true, true, 1, 200, 50, FName(KodWardenPaths::Id_EngineeringBay));
+			FKodUpgradeSpec Weapons;
+			Weapons.UpgradeId = FName(KodWardenPaths::Id_InfantryWeapons);
+			Weapons.DisplayId = FName(TEXT("Infantry Weapons"));
+			Weapons.BuildingId = FName(KodWardenPaths::Id_EngineeringBay);
+			Weapons.Credits = 100;
+			Weapons.Luminene = 100;
+			Weapons.BuildTicks = 114 * 16;
+			Weapons.WeaponBonus = 1;
+			Sim->RegisterUpgradeSpec(Weapons);
+			FKodUpgradeSpec Armor;
+			Armor.UpgradeId = FName(KodWardenPaths::Id_InfantryArmor);
+			Armor.DisplayId = FName(TEXT("Infantry Armor"));
+			Armor.BuildingId = FName(KodWardenPaths::Id_EngineeringBay);
+			Armor.Credits = 100;
+			Armor.Luminene = 100;
+			Armor.BuildTicks = 114 * 16;
+			Armor.ArmorBonus = 1;
+			Sim->RegisterUpgradeSpec(Armor);
 		}
 	}
 
@@ -1210,6 +1317,18 @@ void AKodSlice0GameMode::SpawnAiOpponent()
 		++Spawned;
 	}
 
+	auto SnapYaw = [](const FVector& From, const FVector& To)
+	{
+		const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(To.Y - From.Y, To.X - From.X));
+		int32 Snapped = FMath::RoundToInt(Yaw / 90.f) * 90;
+		while (Snapped < 0)
+		{
+			Snapped += 360;
+		}
+		return Snapped % 360;
+	};
+	Sim->SetTeamFacing(0, SnapYaw(PlayerLoc, Seed));
+	Sim->SetTeamFacing(1, SnapYaw(Seed, PlayerLoc));
 	Sim->SetAiSeeded(true);
 	UE_LOG(LogTemp, Log, TEXT("KodAI Seed How=%s Loc=%.0f,%.0f,%.0f Workers=%d Credits=%d"),
 		How,

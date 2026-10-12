@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
+#include "Engine/Texture2D.h"
 #include "Sim/KodSimSubsystem.h"
 #include "KodHUD.generated.h"
 
@@ -90,6 +91,7 @@ public:
 
 	/** Centre flash. Reason is Credits, Luminene, or Supply. */
 	void ShowResourceFlash(FName Reason);
+	void ShowCenterMessage(const FString& Text);
 
 	/** Credits, Luminene, Supply, or None. Reads the local team's sim bank and supply. */
 	FName PeekResourceFail(int32 Credits, int32 Luminene, int32 Supply) const;
@@ -120,6 +122,8 @@ protected:
 	void DrawHotkeyLegend();
 	void DrawWorldFog();
 	void DrawGameClock();
+	void DrawScaffolds();
+	bool TryDrawIcon(FName IconId, float X, float Y, float SizeX, float SizeY);
 	void CacheSimSnapshot();
 	const FKodSimEntityState* FindFrameState(int32 EntityId) const;
 	const FKodStructureState* FindFrameStructure(int32 EntityId) const;
@@ -183,4 +187,10 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> HudWidgetInstance;
+
+	UPROPERTY()
+	TSet<FName> IconMiss;
+
+	UPROPERTY()
+	TMap<FName, TObjectPtr<UTexture2D>> IconHits;
 };
