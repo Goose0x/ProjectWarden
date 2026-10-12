@@ -43,6 +43,9 @@ namespace KodWardenPaths
 	constexpr const TCHAR* Id_SupplyBoost = TEXT("SupplyBoost");
 	constexpr const TCHAR* Id_IsrView = TEXT("IsrView");
 	constexpr const TCHAR* Id_IsrPlatform = TEXT("IsrPlatform");
+	constexpr const TCHAR* Id_ArtilleryStrike = TEXT("ArtilleryStrike");
+	constexpr const TCHAR* Id_ReconSweep = TEXT("ReconSweep");
+	constexpr const TCHAR* Id_FieldRepair = TEXT("FieldRepair");
 	constexpr const TCHAR* Id_USA = TEXT("USA");
 	constexpr const TCHAR* Id_JadeiteNode = TEXT("JadeiteNode");
 	constexpr const TCHAR* Id_LumineneVent = TEXT("LumineneVent");

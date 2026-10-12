@@ -326,4 +326,5 @@ void UKodSimSubsystem::StepVision()
 		});
 	}
 	ApplyExposedReveal();
+	ApplyReconVision();
 }

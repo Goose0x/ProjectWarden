@@ -138,6 +138,7 @@ protected:
 	void DrawThreatRings();
 	void DrawIsrPopup();
 	void DrawCommandCard();
+	void DrawPowersPanel();
 	void DrawSelectionSummary();
 	void DrawResourceFlash();
 	void DrawMatchOutcome();
@@ -245,6 +246,11 @@ protected:
 	bool bChatOpen = false;
 	FString ChatLine;
 	float IsrCaptureAccum = 0.f;
+	bool bHasPowerPanel = false;
+	float PowerMinX = 0.f;
+	float PowerMinY = 0.f;
+	float PowerMaxX = 0.f;
+	float PowerMaxY = 0.f;
 
 	UPROPERTY()
 	TObjectPtr<class AKodIsrMonitor> IsrMonitor;

@@ -304,7 +304,16 @@ void UKodCommandSubsystem::IssueGroundOrders(const FKodCommand& Command, EKodSim
 		}
 		if (Count > 0)
 		{
-			SharedPath = Sim->PlanMovePath(Sum / static_cast<float>(Count), Command.TargetLocation);
+			int32 PathTeam = -1;
+			if (Command.SourceEntities.Num() > 0)
+			{
+				FKodSimEntityState Lead;
+				if (Sim->TryGetState(Command.SourceEntities[0], Lead))
+				{
+					PathTeam = Lead.TeamId;
+				}
+			}
+			SharedPath = Sim->PlanMovePath(Sum / static_cast<float>(Count), Command.TargetLocation, PathTeam);
 		}
 	}
 	const int32 Total = Command.SourceEntities.Num();

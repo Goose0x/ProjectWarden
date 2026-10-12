@@ -104,6 +104,10 @@ struct KODCORE_API FKodUnitBalanceRow : public FTableRowBase
 	/** 1000 matches the node harvest ticks. 2000 mines twice as fast. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
 	int32 GatherRatePermille = 1000;
+
+	/** Whole points awarded to the killer. 0 uses the credit cost. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 PowerPoints = 0;
 };
 
 /** Weapon integers. Damage, range, and cooldown ticks. */
@@ -178,6 +182,40 @@ struct KODCORE_API FKodStructureBalanceRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
 	int32 Sight = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 CanLiftoff = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 LiftSpeed = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 PowerPoints = 0;
+};
+
+/** Vanguard power integers. Cooldowns and delays are sim ticks. */
+USTRUCT(BlueprintType)
+struct KODCORE_API FKodPowerBalanceRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 PointCost = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 CooldownTicks = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 DelayTicks = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 RadiusUU = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Amount = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 DurationTicks = 0;
 };
 
 /** Upgrade integers. Defaults match the engineering-bay placeholders. */

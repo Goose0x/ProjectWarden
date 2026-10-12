@@ -13,6 +13,8 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerStart.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Game/KodHUD.h"
+#include "Game/KodPlayerController.h"
 #include "Game/KodPlayerState.h"
 #include "InputCoreTypes.h"
 #include "Sim/KodSimSubsystem.h"
@@ -390,11 +392,36 @@ void AKodRTSCameraPawn::FocusCommandCenter()
 	SetActorRotation(FRotator(0.f, YawDegrees, 0.f));
 }
 
+bool AKodRTSCameraPawn::IsChatFocused() const
+{
+	const APlayerController* PC = Cast<APlayerController>(GetController());
+	const AKodHUD* HUD = PC ? Cast<AKodHUD>(PC->GetHUD()) : nullptr;
+	return HUD && HUD->IsChatOpen();
+}
+
+bool AKodRTSCameraPawn::HasSelectedStructure() const
+{
+	const AKodPlayerController* PC = Cast<AKodPlayerController>(GetController());
+	const UKodSimSubsystem* Sim = GetWorld() ? GetWorld()->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!PC || !Sim)
+	{
+		return false;
+	}
+	for (AActor* Actor : PC->GetLocalSelection())
+	{
+		if (Actor && Sim->IsStructure(Sim->FindIdForActor(Actor)))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void AKodRTSCameraPawn::PollMoveInput(float DeltaSeconds, bool& bOutManualPan)
 {
 	bOutManualPan = false;
 	APlayerController* PC = Cast<APlayerController>(GetController());
-	if (!PC)
+	if (!PC || IsChatFocused())
 	{
 		PanVelocity = FMath::VInterpTo(PanVelocity, FVector::ZeroVector, DeltaSeconds, PanAccelSpeed);
 		if (!PanVelocity.IsNearlyZero())
@@ -510,6 +537,10 @@ void AKodRTSCameraPawn::ApplyPan(float DeltaSeconds, const FVector2D& UnitsPerSe
 
 void AKodRTSCameraPawn::PollZoom()
 {
+	if (IsChatFocused())
+	{
+		return;
+	}
 	const APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC)
 	{
@@ -535,6 +566,10 @@ void AKodRTSCameraPawn::PollZoom()
 
 void AKodRTSCameraPawn::PollBookmarks()
 {
+	if (IsChatFocused())
+	{
+		return;
+	}
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC)
 	{
@@ -601,6 +636,10 @@ void AKodRTSCameraPawn::RecallBookmark(int32 SlotNumber)
 
 void AKodRTSCameraPawn::PollAlert()
 {
+	if (IsChatFocused())
+	{
+		return;
+	}
 	const APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC || !bHasAlert)
 	{
@@ -614,7 +653,7 @@ void AKodRTSCameraPawn::PollAlert()
 
 void AKodRTSCameraPawn::PollRotate()
 {
-	if (!bAllowAltDragRotate)
+	if (IsChatFocused() || !bAllowAltDragRotate)
 	{
 		return;
 	}
@@ -640,7 +679,7 @@ void AKodRTSCameraPawn::PollRotate()
 
 void AKodRTSCameraPawn::PollFollow()
 {
-	if (!SupportsUnitFollow())
+	if (!SupportsUnitFollow() || IsChatFocused() || HasSelectedStructure())
 	{
 		return;
 	}

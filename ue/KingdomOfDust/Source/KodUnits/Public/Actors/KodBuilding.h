@@ -25,6 +25,9 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** 0, 1, 2, 3 for build progress under 33%, 66%, 100%, and finished. Art reads this. */
+	int32 GetScaffoldStage() const;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Kod|Data")
 	TSoftObjectPtr<UKodBuildingDefinition> Definition;
 

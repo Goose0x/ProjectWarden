@@ -75,6 +75,7 @@ void AKodHUD::DrawHUD()
 	DrawSpectatorPanel();
 	DrawProductionPanel();
 	DrawCommandCard();
+	DrawPowersPanel();
 	DrawBuildHint();
 	DrawMinimap();
 	DrawIdleWorkerButton();
@@ -587,6 +588,10 @@ void AKodHUD::DrawIsrPopup()
 	int32 IsrId = 0;
 	if (!Sim->TryGetOwnedIsr(ReadLocalTeamId(), Center, Sight, IsrId))
 	{
+		if (IsrMonitor)
+		{
+			IsrMonitor->SetMonitorVisible(false);
+		}
 		return;
 	}
 	if (!IsrMonitor)
@@ -599,13 +604,9 @@ void AKodHUD::DrawIsrPopup()
 	{
 		return;
 	}
+	IsrMonitor->SetMonitorVisible(true);
 	IsrMonitor->AimAt(Center, Sight);
-	IsrCaptureAccum += World->GetDeltaSeconds();
-	if (IsrCaptureAccum >= 0.12f)
-	{
-		IsrCaptureAccum = 0.f;
-		IsrMonitor->CaptureView();
-	}
+	IsrMonitor->CaptureView();
 	const float W = 240.f;
 	const float H = 168.f;
 	const float X = Canvas->SizeX - W - 28.f;
@@ -1163,6 +1164,101 @@ bool AKodHUD::GetCommandHit(float MouseX, float MouseY, FKodHudCommandHit& Out) 
 	return false;
 }
 
+void AKodHUD::DrawPowersPanel()
+{
+	bHasPowerPanel = false;
+	if (!Canvas)
+	{
+		return;
+	}
+	const UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim || !Sim->AreGeneralPowersEnabled() || Sim->IsTestIsolation())
+	{
+		return;
+	}
+	const int32 TeamId = ReadLocalTeamId();
+	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+	const float X = 16.f;
+	const float Y = 180.f;
+	const float W = 220.f;
+	const float H = 132.f;
+	PowerMinX = X;
+	PowerMinY = Y;
+	PowerMaxX = X + W;
+	PowerMaxY = Y + H;
+	bHasPowerPanel = true;
+	DrawRect(FLinearColor(0.03f, 0.04f, 0.05f, 0.88f), X, Y, W, H);
+	DrawText(FString::Printf(TEXT("Powers %d"), Sim->GetPowerPoints(TeamId)), FLinearColor(0.9f, 0.82f, 0.45f, 1.f), X + 8.f, Y + 6.f, Font, 1.f, false);
+	const FName Ids[3] = {
+		FName(KodWardenPaths::Id_ArtilleryStrike),
+		FName(KodWardenPaths::Id_ReconSweep),
+		FName(KodWardenPaths::Id_FieldRepair)
+	};
+	const TCHAR* Labels[3] = { TEXT("Artillery"), TEXT("Recon"), TEXT("Repair") };
+	const TCHAR* Keys[3] = { TEXT("K"), TEXT("O"), TEXT("X") };
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		FKodPowerSpec Spec;
+		const bool bHave = Sim->TryGetPowerSpec(Ids[Index], Spec);
+		const int32 Cooldown = Sim->GetPowerCooldown(TeamId, Ids[Index]);
+		const int32 Cost = bHave ? Spec.PointCost : 0;
+		const bool bReady = bHave && Cooldown <= 0 && Sim->GetPowerPoints(TeamId) >= Cost;
+		const float ButtonY = Y + 28.f + Index * 32.f;
+		DrawRect(bReady ? FLinearColor(0.12f, 0.18f, 0.14f, 1.f) : FLinearColor(0.08f, 0.08f, 0.08f, 1.f), X + 8.f, ButtonY, W - 16.f, 28.f);
+		const FString Line = Cooldown > 0
+			? FString::Printf(TEXT("%s %s  %ds"), Keys[Index], Labels[Index], Cooldown / 16)
+			: FString::Printf(TEXT("%s %s  %d"), Keys[Index], Labels[Index], Cost);
+		DrawText(Line, bReady ? FLinearColor::White : FLinearColor(0.6f, 0.6f, 0.6f, 1.f), X + 14.f, ButtonY + 6.f, Font, 0.85f, false);
+		FKodHudCommandHit Hit;
+		Hit.bInsideChrome = true;
+		Hit.bEnabled = bReady;
+		Hit.Action = FName(TEXT("Power"));
+		Hit.Payload = Ids[Index];
+		Hit.FailReason = bReady ? FName() : FName(TEXT("Energy"));
+		Hit.MinX = X + 8.f;
+		Hit.MinY = ButtonY;
+		Hit.MaxX = X + W - 8.f;
+		Hit.MaxY = ButtonY + 28.f;
+		Hit.Tooltip = Labels[Index];
+		CommandHits.Add(Hit);
+	}
+	TArray<int32> StrikeX;
+	TArray<int32> StrikeY;
+	TArray<int32> StrikeRadius;
+	Sim->CopyArtilleryTelegraphs(TeamId, StrikeX, StrikeY, StrikeRadius);
+	APlayerController* PC = GetOwningPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+	for (int32 Index = 0; Index < StrikeX.Num(); ++Index)
+	{
+		const FVector Center(static_cast<float>(StrikeX[Index]), static_cast<float>(StrikeY[Index]), 40.f);
+		const float Radius = static_cast<float>(StrikeRadius[Index]);
+		constexpr int32 Segments = 24;
+		FVector2D Previous = FVector2D::ZeroVector;
+		bool bHavePrevious = false;
+		for (int32 Step = 0; Step <= Segments; ++Step)
+		{
+			const float Angle = (2.f * PI * static_cast<float>(Step)) / static_cast<float>(Segments);
+			FVector2D Screen = FVector2D::ZeroVector;
+			const FVector Point = Center + FVector(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius, 0.f);
+			if (!PC->ProjectWorldLocationToScreen(Point, Screen, true))
+			{
+				bHavePrevious = false;
+				continue;
+			}
+			if (bHavePrevious)
+			{
+				DrawLine(Previous.X, Previous.Y, Screen.X, Screen.Y, FLinearColor(1.f, 0.45f, 0.15f, 0.95f), 2.f);
+			}
+			Previous = Screen;
+			bHavePrevious = true;
+		}
+	}
+}
+
 void AKodHUD::DrawCommandCard()
 {
 	CommandHits.Reset();
@@ -1575,6 +1671,14 @@ void AKodHUD::DrawCommandCard()
 				DrawText(FString::Printf(TEXT("Energy %d/%d"), CcState.Energy, CcState.EnergyMax), FLinearColor(0.45f, 0.75f, 1.f, 1.f), OriginX, OriginY - 22.f, Font, 0.75f, false);
 			}
 		}
+	}
+	const bool bLiftoff = bHaveBuilding && (SelectedBuilding.DefinitionId == FName(KodWardenPaths::Id_CommandCenter)
+		|| SelectedBuilding.DefinitionId == FName(KodWardenPaths::Id_Barracks)
+		|| SelectedBuilding.DefinitionId == FName(KodWardenPaths::Id_EngineeringBay));
+	if (bLiftoff && SelectedBuilding.bComplete)
+	{
+		const FString Label = SelectedBuilding.bAirborne ? TEXT("Land") : TEXT("Lift");
+		AddButton(4, 2, OriginX, OriginY, Label, TEXT("Z"), FName(TEXT("Liftoff")), FName(), SelectedBuilding.Id.Value, INDEX_NONE, true, FName(), Label);
 	}
 
 	float MouseX = 0.f;

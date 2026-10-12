@@ -335,7 +335,7 @@ void UKodSimSubsystem::ResyncActors() const
 TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 {
 	FBlob Blob;
-	const int32 Version = 3;
+	const int32 Version = 4;
 	Blob.WInt(Version);
 	Blob.W(&SimTickIndex, sizeof(SimTickIndex));
 	TArray<int32> Keys;
@@ -530,6 +530,11 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 		Blob.WInt(Structure.GathererCd);
 		Blob.WInt(Structure.SupplyCd);
 		Blob.WInt(Structure.IsrCd);
+		Blob.WU8(Structure.bAirborne ? 1 : 0);
+		Blob.WU8(Structure.bLiftMoving ? 1 : 0);
+		Blob.WInt(Structure.LiftGoalX);
+		Blob.WInt(Structure.LiftGoalY);
+		Blob.WInt(Structure.LiftSpeedUU);
 	}
 	Blob.WU8(static_cast<uint8>(MatchOutcome));
 	Blob.WU8(bAiEnabled ? 1 : 0);
@@ -661,6 +666,33 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 	Blob.WU8(bAiOpenerChosen ? 1 : 0);
 	Blob.WU8(bScoutSawEnemy ? 1 : 0);
 	Blob.WU8(bAiRetreating ? 1 : 0);
+	Blob.WU8(bGeneralPowers ? 1 : 0);
+	Blob.WInt(PowerPoints0);
+	Blob.WInt(PowerPoints1);
+	Blob.WInt(ArtilleryCd0);
+	Blob.WInt(ArtilleryCd1);
+	Blob.WInt(ReconCd0);
+	Blob.WInt(ReconCd1);
+	Blob.WInt(RepairCd0);
+	Blob.WInt(RepairCd1);
+	Blob.WInt(ScheduledPowers.Num());
+	for (const FKodScheduledPower& Power : ScheduledPowers)
+	{
+		Blob.WInt(Power.TeamId);
+		Blob.WStr(Power.PowerId.ToString());
+		Blob.WInt(Power.X);
+		Blob.WInt(Power.Y);
+		Blob.WInt(Power.TicksLeft);
+		Blob.WInt(Power.Phase);
+		Blob.WInt(Power.RadiusUU);
+		Blob.WInt(Power.Amount);
+		Blob.WInt(Power.DurationTicks);
+	}
+	Blob.WInt(RampCells.Num());
+	for (int64 Ramp : RampCells)
+	{
+		Blob.W(&Ramp, sizeof(Ramp));
+	}
 	return Blob.Bytes;
 }
 
@@ -669,7 +701,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version != 3)
+	if (!Blob.RInt(Version) || Version != 4)
 	{
 		return;
 	}
@@ -1136,6 +1168,15 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		Blob.RInt(Structure->GathererCd);
 		Blob.RInt(Structure->SupplyCd);
 		Blob.RInt(Structure->IsrCd);
+		uint8 Airborne = 0;
+		uint8 LiftMoving = 0;
+		Blob.RU8(Airborne);
+		Blob.RU8(LiftMoving);
+		Blob.RInt(Structure->LiftGoalX);
+		Blob.RInt(Structure->LiftGoalY);
+		Blob.RInt(Structure->LiftSpeedUU);
+		Structure->bAirborne = Airborne != 0;
+		Structure->bLiftMoving = LiftMoving != 0;
 	}
 	{
 		TArray<int32> StructureKeys;
@@ -1332,6 +1373,45 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	bAiOpenerChosen = OpenerChosen != 0;
 	bScoutSawEnemy = ScoutSaw != 0;
 	bAiRetreating = Retreating != 0;
+	uint8 PowersOn = 0;
+	Blob.RU8(PowersOn);
+	bGeneralPowers = PowersOn != 0;
+	Blob.RInt(PowerPoints0);
+	Blob.RInt(PowerPoints1);
+	Blob.RInt(ArtilleryCd0);
+	Blob.RInt(ArtilleryCd1);
+	Blob.RInt(ReconCd0);
+	Blob.RInt(ReconCd1);
+	Blob.RInt(RepairCd0);
+	Blob.RInt(RepairCd1);
+	int32 PowerCount = 0;
+	Blob.RInt(PowerCount);
+	ScheduledPowers.Reset();
+	for (int32 Index = 0; Index < PowerCount; ++Index)
+	{
+		FKodScheduledPower Power;
+		FString PowerName;
+		Blob.RInt(Power.TeamId);
+		Blob.RStr(PowerName);
+		Power.PowerId = FName(*PowerName);
+		Blob.RInt(Power.X);
+		Blob.RInt(Power.Y);
+		Blob.RInt(Power.TicksLeft);
+		Blob.RInt(Power.Phase);
+		Blob.RInt(Power.RadiusUU);
+		Blob.RInt(Power.Amount);
+		Blob.RInt(Power.DurationTicks);
+		ScheduledPowers.Add(Power);
+	}
+	int32 RampCount = 0;
+	Blob.RInt(RampCount);
+	RampCells.Reset();
+	for (int32 Index = 0; Index < RampCount; ++Index)
+	{
+		int64 Ramp = 0;
+		Blob.R(&Ramp, sizeof(Ramp));
+		RampCells.Add(Ramp);
+	}
 	int32 MaxId = 0;
 	TArray<int32> LiveKeys;
 	States.GetKeys(LiveKeys);
@@ -1361,7 +1441,7 @@ bool UKodSimSubsystem::CollectSavedEntityIds(const TArray<uint8>& Bytes, TSet<in
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version != 3)
+	if (!Blob.RInt(Version) || Version != 4)
 	{
 		return false;
 	}

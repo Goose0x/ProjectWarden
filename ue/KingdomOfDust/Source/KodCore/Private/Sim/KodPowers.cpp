@@ -1,0 +1,380 @@
+#include "Sim/KodSimSubsystem.h"
+
+#include "Engine/World.h"
+#include "EngineUtils.h"
+#include "Warden/KodWardenPaths.h"
+
+namespace
+{
+	int64 PackRamp(int32 X, int32 Y)
+	{
+		return (static_cast<int64>(X) << 32) | static_cast<uint32>(Y);
+	}
+}
+
+void UKodSimSubsystem::SetGeneralPowers(bool bEnabled)
+{
+	if (bCompetitive && bEnabled)
+	{
+		bGeneralPowers = false;
+		UE_LOG(LogTemp, Log, TEXT("KodPowers Refused Competitive"));
+		return;
+	}
+	bGeneralPowers = bEnabled;
+	UE_LOG(LogTemp, Log, TEXT("KodPowers Enabled=%d"), bGeneralPowers ? 1 : 0);
+}
+
+int32 UKodSimSubsystem::GetPowerPoints(int32 TeamId) const
+{
+	return TeamId == 0 ? PowerPoints0 : PowerPoints1;
+}
+
+int32 UKodSimSubsystem::GetPowerCooldown(int32 TeamId, FName PowerId) const
+{
+	const bool bTeam0 = TeamId == 0;
+	if (PowerId == FName(KodWardenPaths::Id_ArtilleryStrike))
+	{
+		return bTeam0 ? ArtilleryCd0 : ArtilleryCd1;
+	}
+	if (PowerId == FName(KodWardenPaths::Id_ReconSweep))
+	{
+		return bTeam0 ? ReconCd0 : ReconCd1;
+	}
+	if (PowerId == FName(KodWardenPaths::Id_FieldRepair))
+	{
+		return bTeam0 ? RepairCd0 : RepairCd1;
+	}
+	return 0;
+}
+
+bool UKodSimSubsystem::TryGetPowerSpec(FName PowerId, FKodPowerSpec& OutSpec) const
+{
+	if (const FKodPowerSpec* Found = PowerSpecs.Find(PowerId))
+	{
+		OutSpec = *Found;
+		return true;
+	}
+	return false;
+}
+
+void UKodSimSubsystem::CopyArtilleryTelegraphs(int32 TeamId, TArray<int32>& OutX, TArray<int32>& OutY, TArray<int32>& OutRadius) const
+{
+	OutX.Reset();
+	OutY.Reset();
+	OutRadius.Reset();
+	TArray<int32> Order;
+	for (int32 Index = 0; Index < ScheduledPowers.Num(); ++Index)
+	{
+		Order.Add(Index);
+	}
+	Order.Sort([this](int32 A, int32 B)
+	{
+		const FKodScheduledPower& Left = ScheduledPowers[A];
+		const FKodScheduledPower& Right = ScheduledPowers[B];
+		if (Left.X != Right.X)
+		{
+			return Left.X < Right.X;
+		}
+		return Left.Y < Right.Y;
+	});
+	for (int32 Index : Order)
+	{
+		const FKodScheduledPower& Power = ScheduledPowers[Index];
+		if (Power.TeamId != TeamId || Power.PowerId != FName(KodWardenPaths::Id_ArtilleryStrike) || Power.Phase != 0)
+		{
+			continue;
+		}
+		OutX.Add(Power.X);
+		OutY.Add(Power.Y);
+		OutRadius.Add(Power.RadiusUU);
+	}
+}
+
+bool UKodSimSubsystem::CastPower(int32 TeamId, FName PowerId, FVector Target)
+{
+	if (!bGeneralPowers || bCompetitive)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodPowers Reject Reason=Off"));
+		return false;
+	}
+	const FKodPowerSpec* Spec = PowerSpecs.Find(PowerId);
+	if (!Spec)
+	{
+		return false;
+	}
+	int32& Points = TeamId == 0 ? PowerPoints0 : PowerPoints1;
+	int32* Cooldown = nullptr;
+	if (PowerId == FName(KodWardenPaths::Id_ArtilleryStrike))
+	{
+		Cooldown = TeamId == 0 ? &ArtilleryCd0 : &ArtilleryCd1;
+	}
+	else if (PowerId == FName(KodWardenPaths::Id_ReconSweep))
+	{
+		Cooldown = TeamId == 0 ? &ReconCd0 : &ReconCd1;
+	}
+	else if (PowerId == FName(KodWardenPaths::Id_FieldRepair))
+	{
+		Cooldown = TeamId == 0 ? &RepairCd0 : &RepairCd1;
+	}
+	if (!Cooldown || *Cooldown > 0 || Points < Spec->PointCost)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodPowers Reject Id=%s Points=%d Cd=%d"), *PowerId.ToString(), Points, Cooldown ? *Cooldown : -1);
+		return false;
+	}
+	Points -= Spec->PointCost;
+	*Cooldown = FMath::Max(0, Spec->CooldownTicks);
+	FKodScheduledPower Power;
+	Power.TeamId = TeamId;
+	Power.PowerId = PowerId;
+	Power.X = FMath::RoundToInt(Target.X);
+	Power.Y = FMath::RoundToInt(Target.Y);
+	Power.TicksLeft = FMath::Max(0, Spec->DelayTicks);
+	Power.Phase = 0;
+	Power.RadiusUU = FMath::Max(1, Spec->RadiusUU);
+	Power.Amount = Spec->Amount;
+	Power.DurationTicks = FMath::Max(0, Spec->DurationTicks);
+	ScheduledPowers.Add(Power);
+	ScheduledPowers.Sort([](const FKodScheduledPower& A, const FKodScheduledPower& B)
+	{
+		if (A.TeamId != B.TeamId)
+		{
+			return A.TeamId < B.TeamId;
+		}
+		if (A.X != B.X)
+		{
+			return A.X < B.X;
+		}
+		return A.Y < B.Y;
+	});
+	UE_LOG(LogTemp, Log, TEXT("KodPowers Cast Id=%s Team=%d X=%d Y=%d"), *PowerId.ToString(), TeamId, Power.X, Power.Y);
+	return true;
+}
+
+void UKodSimSubsystem::AwardPowerPoints(int32 TeamId, int32 Amount)
+{
+	if (!bGeneralPowers || Amount <= 0)
+	{
+		return;
+	}
+	if (TeamId == 0)
+	{
+		PowerPoints0 += Amount;
+	}
+	else if (TeamId == 1)
+	{
+		PowerPoints1 += Amount;
+	}
+}
+
+void UKodSimSubsystem::StepPowers()
+{
+	if (ArtilleryCd0 > 0) { --ArtilleryCd0; }
+	if (ArtilleryCd1 > 0) { --ArtilleryCd1; }
+	if (ReconCd0 > 0) { --ReconCd0; }
+	if (ReconCd1 > 0) { --ReconCd1; }
+	if (RepairCd0 > 0) { --RepairCd0; }
+	if (RepairCd1 > 0) { --RepairCd1; }
+
+	for (int32 Index = ScheduledPowers.Num() - 1; Index >= 0; --Index)
+	{
+		FKodScheduledPower& Power = ScheduledPowers[Index];
+		if (Power.Phase == 1)
+		{
+			if (Power.TicksLeft > 0)
+			{
+				--Power.TicksLeft;
+			}
+			if (Power.TicksLeft <= 0)
+			{
+				ScheduledPowers.RemoveAt(Index);
+			}
+			continue;
+		}
+		if (Power.TicksLeft > 0)
+		{
+			--Power.TicksLeft;
+			continue;
+		}
+		const FVector Center(static_cast<float>(Power.X), static_cast<float>(Power.Y), 0.f);
+		const float RadiusSq = static_cast<float>(Power.RadiusUU) * static_cast<float>(Power.RadiusUU);
+		if (Power.PowerId == FName(KodWardenPaths::Id_ArtilleryStrike))
+		{
+			TArray<int32> Keys;
+			States.GetKeys(Keys);
+			Keys.Sort();
+			for (int32 Key : Keys)
+			{
+				FKodSimEntityState* State = States.Find(Key);
+				if (!State || State->Health <= 0.f || State->TeamId == Power.TeamId)
+				{
+					continue;
+				}
+				if (FVector::DistSquared2D(State->Position, Center) > RadiusSq)
+				{
+					continue;
+				}
+				State->Health = FMath::Max(0.f, State->Health - static_cast<float>(FMath::Max(0, Power.Amount)));
+				if (State->Health <= 0.f)
+				{
+					int32 Points = 0;
+					if (const FKodBuildSpec* Build = BuildSpecs.Find(State->DefinitionId))
+					{
+						Points = Build->PowerPoints;
+					}
+					else if (const FKodTrainSpec* Train = TrainSpecs.Find(State->DefinitionId))
+					{
+						Points = Train->PowerPoints;
+					}
+					AwardPowerPoints(Power.TeamId, Points);
+					NoteUnitKilled(Power.TeamId);
+					if (Structures.Contains(Key))
+					{
+						NoteStructureRazed(Power.TeamId);
+					}
+					FKodEntityId Dead;
+					Dead.Value = Key;
+					UnregisterEntity(Dead);
+				}
+			}
+			UE_LOG(LogTemp, Log, TEXT("KodPowers Artillery X=%d Y=%d"), Power.X, Power.Y);
+			ScheduledPowers.RemoveAt(Index);
+			continue;
+		}
+		if (Power.PowerId == FName(KodWardenPaths::Id_FieldRepair))
+		{
+			TArray<int32> Keys;
+			Structures.GetKeys(Keys);
+			Keys.Sort();
+			for (int32 Key : Keys)
+			{
+				const FKodStructureState* Structure = Structures.Find(Key);
+				FKodSimEntityState* Combat = States.Find(Key);
+				if (!Structure || !Combat || Structure->TeamId != Power.TeamId || Combat->Health <= 0.f)
+				{
+					continue;
+				}
+				if (FVector::DistSquared2D(Structure->Position, Center) > RadiusSq)
+				{
+					continue;
+				}
+				Combat->Health = FMath::Min(Combat->MaxHealth, Combat->Health + static_cast<float>(FMath::Max(0, Power.Amount)));
+			}
+			UE_LOG(LogTemp, Log, TEXT("KodPowers Repair X=%d Y=%d"), Power.X, Power.Y);
+			ScheduledPowers.RemoveAt(Index);
+			continue;
+		}
+		if (Power.PowerId == FName(KodWardenPaths::Id_ReconSweep))
+		{
+			Power.Phase = 1;
+			Power.TicksLeft = FMath::Max(1, Power.DurationTicks);
+			UE_LOG(LogTemp, Log, TEXT("KodPowers Recon X=%d Y=%d"), Power.X, Power.Y);
+		}
+	}
+}
+
+void UKodSimSubsystem::ApplyReconVision()
+{
+	for (const FKodScheduledPower& Power : ScheduledPowers)
+	{
+		if (Power.Phase != 1 || Power.PowerId != FName(KodWardenPaths::Id_ReconSweep))
+		{
+			continue;
+		}
+		TArray<uint8>* Cells = TeamVision.Find(Power.TeamId);
+		if (!Cells || VisionWidth <= 0)
+		{
+			continue;
+		}
+		const int32 RadiusCells = FMath::Max(1, FMath::DivideAndRoundUp(Power.RadiusUU, KodBuildGrid::CellUU));
+		const int32 OriginX = KodBuildGrid::CellOf(static_cast<float>(Power.X));
+		const int32 OriginY = KodBuildGrid::CellOf(static_cast<float>(Power.Y));
+		for (int32 DY = -RadiusCells; DY <= RadiusCells; ++DY)
+		{
+			for (int32 DX = -RadiusCells; DX <= RadiusCells; ++DX)
+			{
+				if (DX * DX + DY * DY > RadiusCells * RadiusCells)
+				{
+					continue;
+				}
+				const int32 Index = VisionCellIndex(OriginX + DX, OriginY + DY);
+				if (Cells->IsValidIndex(Index))
+				{
+					(*Cells)[Index] = 2;
+				}
+			}
+		}
+	}
+}
+
+int32 UKodSimSubsystem::GetMapCellHeight(int32 CellX, int32 CellY) const
+{
+	return RampCells.Contains(PackRamp(CellX, CellY)) ? 1 : 0;
+}
+
+void UKodSimSubsystem::RegisterRampCell(int32 CellX, int32 CellY)
+{
+	const int64 Key = PackRamp(CellX, CellY);
+	RampCells.AddUnique(Key);
+	RampCells.Sort();
+	UE_LOG(LogTemp, Log, TEXT("KodRamp Cell=%d,%d"), CellX, CellY);
+}
+
+bool UKodSimSubsystem::IsRampCell(int32 CellX, int32 CellY) const
+{
+	return RampCells.Contains(PackRamp(CellX, CellY));
+}
+
+bool UKodSimSubsystem::IsRampWalled(int32 CellX, int32 CellY, int32 ForTeam) const
+{
+	if (!IsRampCell(CellX, CellY))
+	{
+		return false;
+	}
+	TArray<int32> Keys;
+	Structures.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		const FKodStructureState* Structure = Structures.Find(Key);
+		if (!Structure || Structure->bAirborne || !Structure->bComplete)
+		{
+			continue;
+		}
+		const bool bWall = Structure->DefinitionId == FName(KodWardenPaths::Id_SupplyDepot)
+			|| Structure->DefinitionId == FName(KodWardenPaths::Id_Barracks);
+		if (!bWall)
+		{
+			continue;
+		}
+		const int32 MaxX = Structure->CellX + FMath::Max(1, Structure->FootprintX);
+		const int32 MaxY = Structure->CellY + FMath::Max(1, Structure->FootprintY);
+		if (CellX < Structure->CellX || CellX >= MaxX || CellY < Structure->CellY || CellY >= MaxY)
+		{
+			continue;
+		}
+		if (Structure->bLowered && Structure->bCanLower && Structure->TeamId == ForTeam)
+		{
+			return false;
+		}
+		return true;
+	}
+	return false;
+}
+
+void UKodSimSubsystem::CollectTaggedRamps()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!Actor || !Actor->ActorHasTag(FName(TEXT("KodRamp"))))
+		{
+			continue;
+		}
+		RegisterRampCell(KodBuildGrid::CellOf(Actor->GetActorLocation().X), KodBuildGrid::CellOf(Actor->GetActorLocation().Y));
+	}
+}

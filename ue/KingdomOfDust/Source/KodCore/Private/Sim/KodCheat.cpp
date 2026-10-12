@@ -96,6 +96,44 @@ namespace
 		TEXT("1 disables cheats. Usage: kod.Competitive 0|1"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodCompetitive));
 
+	void KodGeneralPowers(const TArray<FString>& Args, UWorld* World)
+	{
+		UKodSimSubsystem* Sim = FindPlaySim(World);
+		if (!Sim)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("kod.GeneralPowers: no sim (start PIE)"));
+			return;
+		}
+		const int32 Enabled = (Args.Num() > 0 && FCString::Atoi(*Args[0]) == 0) ? 0 : 1;
+		Sim->SetGeneralPowers(Enabled != 0);
+	}
+
+	void KodRamp(const TArray<FString>& Args, UWorld* World)
+	{
+		if (Args.Num() < 2)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("kod.Ramp <cellX> <cellY>"));
+			return;
+		}
+		UKodSimSubsystem* Sim = FindPlaySim(World);
+		if (!Sim)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("kod.Ramp: no sim (start PIE)"));
+			return;
+		}
+		Sim->RegisterRampCell(FCString::Atoi(*Args[0]), FCString::Atoi(*Args[1]));
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs GKodGeneralPowers(
+		TEXT("kod.GeneralPowers"),
+		TEXT("1 enables Vanguard powers. Competitive forces them off. Usage: kod.GeneralPowers 0|1"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodGeneralPowers));
+
+	FAutoConsoleCommandWithWorldAndArgs GKodRamp(
+		TEXT("kod.Ramp"),
+		TEXT("Mark a build cell as a ramp. Usage: kod.Ramp <cellX> <cellY>"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodRamp));
+
 	FAutoConsoleCommandWithWorldAndArgs GKodBalance(
 		TEXT("kod.Balance"),
 		TEXT("Override a balance row integer. Usage: kod.Balance Unit Ranger MaxHealth 200"),
@@ -105,7 +143,12 @@ namespace
 void UKodSimSubsystem::SetCompetitive(bool bEnabled)
 {
 	bCompetitive = bEnabled;
+	if (bCompetitive)
+	{
+		bGeneralPowers = false;
+	}
 	UE_LOG(LogTemp, Log, TEXT("KodCompetitive %d"), bEnabled ? 1 : 0);
+	UE_LOG(LogTemp, Log, TEXT("KodPowers Enabled=%d"), bGeneralPowers ? 1 : 0);
 }
 
 bool UKodSimSubsystem::ApplyCheatLine(const FString& Line)

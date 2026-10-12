@@ -326,6 +326,55 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 			}
 		}
 	}
+	if (!bBuildMenu && !bAdvancedMenu)
+	{
+		if (UKodSimSubsystem* PowerSim = GetWorld() ? GetWorld()->GetSubsystem<UKodSimSubsystem>() : nullptr)
+		{
+			if (PowerSim->AreGeneralPowersEnabled())
+			{
+				if (WasInputKeyJustPressed(EKeys::K))
+				{
+					ArmedOrder = FName(KodWardenPaths::Id_ArtilleryStrike);
+				}
+				if (WasInputKeyJustPressed(EKeys::O))
+				{
+					ArmedOrder = FName(KodWardenPaths::Id_ReconSweep);
+				}
+				if (WasInputKeyJustPressed(EKeys::X))
+				{
+					ArmedOrder = FName(KodWardenPaths::Id_FieldRepair);
+				}
+			}
+			if (WasInputKeyJustPressed(EKeys::Z))
+			{
+				for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+				{
+					FKodStructureState Structure;
+					if (!PowerSim->TryGetStructure(Id, Structure) || !Structure.bComplete)
+					{
+						continue;
+					}
+					const bool bCanLift = Structure.DefinitionId == FName(KodWardenPaths::Id_CommandCenter)
+						|| Structure.DefinitionId == FName(KodWardenPaths::Id_Barracks)
+						|| Structure.DefinitionId == FName(KodWardenPaths::Id_EngineeringBay);
+					if (!bCanLift)
+					{
+						continue;
+					}
+					if (Structure.bAirborne)
+					{
+						ArmedOrder = FName(TEXT("Land"));
+						ArmedStructureId = Id.Value;
+					}
+					else
+					{
+						PowerSim->IssueLiftoff(Id);
+					}
+					break;
+				}
+			}
+		}
+	}
 	if (WasInputKeyJustPressed(EKeys::BackSpace))
 	{
 		if (!PlaceType.IsNone())
@@ -767,7 +816,7 @@ FString AKodSlice0PlayerController::GetBuildMenuHint() const
 			? FString(TEXT("Advanced   T Turret   V Close"))
 			: FString(TEXT("Build   C CC   D Depot   R Barracks   E Rig   Y Bay   N Bunker   V Advanced"));
 	}
-	return FString::Printf(TEXT("Place %s   LMB Build   RMB Cancel   Shift Queues"), *PlaceType.ToString());
+	return FString::Printf(TEXT("Place %s   LMB Build   RMB Cancel   Facing locked"), *PlaceType.ToString());
 }
 
 void AKodSlice0PlayerController::HandleRightClickCommand()
@@ -1043,6 +1092,31 @@ bool AKodSlice0PlayerController::ConsumeHudCommandClick()
 	{
 		ToggleSelectedDepots();
 	}
+	else if (Hit.Action == FName(TEXT("Liftoff")))
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+			{
+				FKodEntityId Id;
+				Id.Value = Hit.StructureId;
+				FKodStructureState Structure;
+				if (Sim->TryGetStructure(Id, Structure) && Structure.bAirborne)
+				{
+					ArmedOrder = FName(TEXT("Land"));
+					ArmedStructureId = Hit.StructureId;
+				}
+				else
+				{
+					Sim->IssueLiftoff(Id);
+				}
+			}
+		}
+	}
+	else if (Hit.Action == FName(TEXT("Power")))
+	{
+		ArmedOrder = Hit.Payload;
+	}
 	else if (Hit.Action == TEXT("Orbital"))
 	{
 		if (UWorld* World = GetWorld())
@@ -1248,6 +1322,29 @@ bool AKodSlice0PlayerController::ConsumeArmedOrderClick()
 		return false;
 	}
 	const FKodCursorCommand Cursor = TraceCursorCommand();
+	if (ArmedOrder == FName(KodWardenPaths::Id_ArtilleryStrike)
+		|| ArmedOrder == FName(KodWardenPaths::Id_ReconSweep)
+		|| ArmedOrder == FName(KodWardenPaths::Id_FieldRepair))
+	{
+		if (Cursor.bHasMovePoint)
+		{
+			Sim->CastPower(0, ArmedOrder, Cursor.MovePoint);
+		}
+		ArmedOrder = FName();
+		return true;
+	}
+	if (ArmedOrder == FName(TEXT("Land")))
+	{
+		FKodEntityId StructureId;
+		StructureId.Value = ArmedStructureId;
+		if (Cursor.bHasMovePoint)
+		{
+			Sim->IssueLand(StructureId, Cursor.MovePoint);
+		}
+		ArmedOrder = FName();
+		ArmedStructureId = 0;
+		return true;
+	}
 	if (ArmedOrder == FName(TEXT("OrbitalSupply")) || ArmedOrder == FName(TEXT("OrbitalIsr")))
 	{
 		FKodEntityId CcId;

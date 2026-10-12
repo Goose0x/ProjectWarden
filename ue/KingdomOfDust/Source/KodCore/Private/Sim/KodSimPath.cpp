@@ -17,7 +17,7 @@ namespace
 	}
 }
 
-bool UKodSimSubsystem::IsPathCellClear(int32 X0, int32 Y0, int32 X1, int32 Y1) const
+bool UKodSimSubsystem::IsPathCellClear(int32 X0, int32 Y0, int32 X1, int32 Y1, int32 TeamId) const
 {
 	int32 X = X0;
 	int32 Y = Y0;
@@ -39,7 +39,7 @@ bool UKodSimSubsystem::IsPathCellClear(int32 X0, int32 Y0, int32 X1, int32 Y1) c
 			Err += DX;
 			Y += StepY;
 		}
-		if ((X != X1 || Y != Y1) && IsCellBlocked(X, Y))
+		if ((X != X1 || Y != Y1) && IsCellBlocked(X, Y, TeamId))
 		{
 			return false;
 		}
@@ -47,7 +47,7 @@ bool UKodSimSubsystem::IsPathCellClear(int32 X0, int32 Y0, int32 X1, int32 Y1) c
 	return true;
 }
 
-int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
+int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To, int32 TeamId)
 {
 	int32 StartX = KodBuildGrid::CellOf(From.X);
 	int32 StartY = KodBuildGrid::CellOf(From.Y);
@@ -57,12 +57,12 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 	{
 		return 0;
 	}
-	if (IsPathCellClear(StartX, StartY, GoalX, GoalY))
+	if (IsPathCellClear(StartX, StartY, GoalX, GoalY, TeamId))
 	{
 		return 0;
 	}
 
-	if (IsCellBlocked(StartX, StartY))
+	if (IsCellBlocked(StartX, StartY, TeamId))
 	{
 		bool bFound = false;
 		for (int32 Radius = 1; Radius <= 3 && !bFound; ++Radius)
@@ -71,7 +71,7 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 			{
 				for (int32 Y = StartY - Radius; Y <= StartY + Radius; ++Y)
 				{
-					if (!IsCellBlocked(X, Y))
+					if (!IsCellBlocked(X, Y, TeamId))
 					{
 						StartX = X;
 						StartY = Y;
@@ -82,7 +82,7 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 			}
 		}
 	}
-	if (IsCellBlocked(GoalX, GoalY))
+	if (IsCellBlocked(GoalX, GoalY, TeamId))
 	{
 		bool bFound = false;
 		int32 Best = MAX_int32;
@@ -94,7 +94,7 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 			{
 				for (int32 Y = GoalY - Radius; Y <= GoalY + Radius; ++Y)
 				{
-					if (IsCellBlocked(X, Y))
+					if (IsCellBlocked(X, Y, TeamId))
 					{
 						continue;
 					}
@@ -230,13 +230,13 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 			const int32 NextX = Here.X + Neighbors[NeighborIndex][0];
 			const int32 NextY = Here.Y + Neighbors[NeighborIndex][1];
 			const int32 StepCost = Neighbors[NeighborIndex][2];
-			if (IsCellBlocked(NextX, NextY))
+			if (IsCellBlocked(NextX, NextY, TeamId))
 			{
 				continue;
 			}
 			if (StepCost == 14
-				&& (IsCellBlocked(Here.X + Neighbors[NeighborIndex][0], Here.Y)
-					|| IsCellBlocked(Here.X, Here.Y + Neighbors[NeighborIndex][1])))
+				&& (IsCellBlocked(Here.X + Neighbors[NeighborIndex][0], Here.Y, TeamId)
+					|| IsCellBlocked(Here.X, Here.Y + Neighbors[NeighborIndex][1], TeamId)))
 			{
 				continue;
 			}
@@ -287,7 +287,7 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To)
 		int32 Farthest = Anchor + 1;
 		for (int32 Index = RawX.Num() - 1; Index > Anchor; --Index)
 		{
-			if (IsPathCellClear(RawX[Anchor], RawY[Anchor], RawX[Index], RawY[Index]))
+			if (IsPathCellClear(RawX[Anchor], RawY[Anchor], RawX[Index], RawY[Index], TeamId))
 			{
 				Farthest = Index;
 				break;
@@ -374,7 +374,7 @@ FVector UKodSimSubsystem::GetSteeredGoal(FKodSimEntityState& State)
 	}
 	if (!Path || Path->CellX.Num() == 0)
 	{
-		State.PathId = PlanMovePath(State.Position, State.MoveTarget);
+		State.PathId = PlanMovePath(State.Position, State.MoveTarget, State.TeamId);
 		State.PathCursor = 0;
 		UE_LOG(LogTemp, Log, TEXT("KodPath Replan Unit=%d Path=%d"), State.Id.Value, State.PathId);
 		if (State.PathId == 0)

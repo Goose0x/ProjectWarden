@@ -65,6 +65,22 @@ void AKodBuilding::BeginPlay()
 	}
 }
 
+int32 AKodBuilding::GetScaffoldStage() const
+{
+	const UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	FKodStructureState Structure;
+	if (!Sim || !Sim->TryGetStructure(EntityId, Structure) || Structure.bComplete || Structure.BuildTimeTotal <= 0)
+	{
+		return 3;
+	}
+	if (Structure.BuildTicksDone >= Structure.BuildTimeTotal)
+	{
+		return 3;
+	}
+	return FMath::Clamp((Structure.BuildTicksDone * 3) / Structure.BuildTimeTotal, 0, 2);
+}
+
 void AKodBuilding::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -80,26 +96,24 @@ void AKodBuilding::Tick(float DeltaSeconds)
 		return;
 	}
 	FKodStructureState Structure;
-	float Alpha = 1.f;
-	if (Sim->TryGetStructure(EntityId, Structure) && !Structure.bComplete && Structure.BuildTimeTotal > 0)
-	{
-		Alpha = 0.1f + 0.9f * (static_cast<float>(Structure.BuildTicksDone) / static_cast<float>(Structure.BuildTimeTotal));
-	}
+	const int32 Stage = GetScaffoldStage();
 	FVector Scale = BaseScale;
 	float Rise = 0.f;
 	if (Sim->TryGetStructure(EntityId, Structure))
 	{
-		if (Structure.bLowered)
+		if (Structure.bAirborne)
+		{
+			Rise = 220.f;
+		}
+		else if (Structure.bLowered)
 		{
 			Scale.Z *= 0.25f;
 			Rise = -80.f;
 		}
 		else if (!Structure.bComplete && Structure.BuildTimeTotal > 0)
 		{
-			Alpha = 0.1f + 0.9f * (static_cast<float>(Structure.BuildTicksDone) / static_cast<float>(Structure.BuildTimeTotal));
-			Scale.Z *= FMath::Clamp(Alpha, 0.15f, 1.f);
-			const float Height = BaseScale.Z * 100.f;
-			Rise = -Height * (1.f - Alpha);
+			const float StageScale[4] = {0.2f, 0.45f, 0.75f, 1.f};
+			Scale *= StageScale[FMath::Clamp(Stage, 0, 3)];
 			bSawIncomplete = true;
 		}
 		else if (!bSawComplete)
