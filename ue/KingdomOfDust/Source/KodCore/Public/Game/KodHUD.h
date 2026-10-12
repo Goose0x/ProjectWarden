@@ -23,6 +23,18 @@ struct KODCORE_API FKodHudCommandHit
 	FString Tooltip;
 };
 
+/** Clickable canvas chrome outside the command card. Presentation only. */
+struct KODCORE_API FKodHudChromeHit
+{
+	FName Kind;
+	int32 IntParam = 0;
+	FName NameParam;
+	float MinX = 0.f;
+	float MinY = 0.f;
+	float MaxX = 0.f;
+	float MaxY = 0.f;
+};
+
 /**
  * Hosts the in-game HUD. DrawHUD paints the resource readout, selection marquee,
  * unit HP bars, and the name/remaining label on a selected resource node
@@ -45,6 +57,30 @@ public:
 
 	/** Last frame's command card. True when the cursor is on the card, including an empty cell. */
 	bool GetCommandHit(float MouseX, float MouseY, FKodHudCommandHit& Out) const;
+
+	/** Selection tiles, idle-worker button, and control-group tabs from the last draw. */
+	bool GetChromeHit(float MouseX, float MouseY, FKodHudChromeHit& Out) const;
+
+	/** True when the pixel is inside the minimap square from the last draw. */
+	bool MinimapPixelToWorld(float MouseX, float MouseY, FVector& OutWorld, bool bClampToMap) const;
+
+	/** Selection panel, portrait, tabs, and the idle button. The minimap is separate. */
+	bool IsPassiveHudChrome(float MouseX, float MouseY) const;
+
+	int32 GetCommandSubgroupCount() const { return CommandSubgroupCount; }
+	FName GetActiveCommandSubgroup() const { return ActiveCommandSubgroup; }
+
+	/**
+	 * Fog of war is not simulated yet. Always revealed.
+	 * A later override can hide minimap marks that the local team has not seen.
+	 */
+	virtual bool IsMinimapWorldRevealed(float WorldX, float WorldY) const;
+
+	/**
+	 * Render-target portrait hook. The default draws nothing and returns false
+	 * so the canvas paints a silhouette letter instead.
+	 */
+	virtual bool DrawUnitPortrait(FName DisplayName, float X, float Y, float Width, float Height);
 
 	/** Centre flash. Reason is Credits, Luminene, or Supply. */
 	void ShowResourceFlash(FName Reason);
@@ -70,6 +106,13 @@ protected:
 	void DrawUnitHealthBars();
 	void DrawSelectedResourceNodes();
 	void DrawSelectionMarquee();
+	void DrawMinimap();
+	void DrawIdleWorkerButton();
+	void DrawPortrait();
+	void DrawSelectionPanel();
+	void DrawControlGroupTabs();
+	void RememberChrome(FName Kind, int32 IntParam, FName NameParam, float MinX, float MinY, float MaxX, float MaxY);
+	bool WorldToMinimap(float WorldX, float WorldY, float& OutX, float& OutY) const;
 
 	bool bLoggedFirstDraw = false;
 	int32 ShownJadeite = MIN_int32;
@@ -78,7 +121,25 @@ protected:
 	int32 ShownSupplyCap = 0;
 	float LastReadoutPollSeconds = -1.f;
 	TArray<FKodHudCommandHit> CommandHits;
+	TArray<FKodHudChromeHit> ChromeHits;
 	bool bCommandChrome = false;
+	bool bHasMinimap = false;
+	float MapMinX = 0.f;
+	float MapMinY = 0.f;
+	float MapMaxX = 0.f;
+	float MapMaxY = 0.f;
+	float MapWorldMinX = 0.f;
+	float MapWorldMinY = 0.f;
+	float MapWorldMaxX = 1.f;
+	float MapWorldMaxY = 1.f;
+	float MapWorldZ = 0.f;
+	float PassiveMinX = 0.f;
+	float PassiveMinY = 0.f;
+	float PassiveMaxX = 0.f;
+	float PassiveMaxY = 0.f;
+	bool bHasPassiveChrome = false;
+	int32 CommandSubgroupCount = 0;
+	FName ActiveCommandSubgroup;
 	float ChromeMinX = 0.f;
 	float ChromeMinY = 0.f;
 	float ChromeMaxX = 0.f;

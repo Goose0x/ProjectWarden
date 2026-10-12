@@ -535,9 +535,9 @@ Team 1 is a deterministic opponent inside the sim tick. It gathers with its AMPs
 
 The AI base is a Command Center plus 6 AMPs. The spot is `KodAIStart=X,Y,Z` on the command line, else an actor tagged `KodAIStart`, else the playable corner farthest from your Command Center. Difficulty 1 starts that base at 50 Credits, the same as you. Each step above 1 adds 100 Credits and adds that many Marines to later waves.
 
-`kod.AI 0` stops new AI orders. Units already moving keep going. `kod.AI 1` turns thinking back on. `kod.AIDifficulty N` sets the difficulty (minimum 1). A command line `kod.AI=0` skips the seed.
+`kod.AI 0` stops new AI orders and clears team 1's current move, attack, gather, and build orders (`KodAI Orders Cleared`). `kod.AI 1` turns thinking back on. `kod.AIDifficulty N` sets the difficulty (minimum 1). A command line `kod.AI=0` skips the seed.
 
-A team loses when it has no structures left. Structures, including both Command Centers, have HP and can be shot. Your own Command Center is still a rally when you right-click it. The canvas shows **VICTORY** or **DEFEAT** and mouse, hotkeys, and the camera hold still. Idle acquire still ignores buildings, so the two starting Marines still duel each other.
+A team loses when it has no structures left. Structures, including both Command Centers, have HP and can be shot. Your own Command Center is still a rally when you right-click it. The canvas shows **VICTORY** or **DEFEAT**. Selection and orders freeze. The camera still pans. Idle and attack-move units shoot an enemy structure when no enemy unit is in range. An explicit Move still does not acquire until it arrives, so the two starting Marines still duel each other.
 
 ```
 KodAI Seed How=Corner Loc=… Workers=6 Credits=50
@@ -547,13 +547,28 @@ KodAI Enabled=0
 KodAI Difficulty=1
 ```
 
+## M6 — canvas shell
+
+The match UI is drawn on the canvas. No new assets. It reads sim state and sends move / attack-move through `UKodCommandSubsystem`.
+
+The minimap is a square in the bottom left, 220 px at 1080p and scaled with the viewport height. The playable bounds sit on a flat dark field. Jadeite is jade, Luminene is yellow-green, units are dots, and structures are team-coloured rectangles. The camera footprint is a white trapezoid. Left-click jumps the camera there, and dragging keeps jumping. Right-click sends combat units as attack-move and everyone else as move. A recent alert pings on the map. `IsMinimapWorldRevealed` is the fog hook and currently returns true.
+
+The bottom centre is the selection panel. One unit shows its name, HP, Stim, and order or queue. There is no energy pool yet. Several units show up to 24 wireframe tiles grouped by type, each with an HP bar. Click a tile to select that unit, Shift-click to remove it, Ctrl-click to keep every selected unit of that type. A framed portrait to the left shows the display name and a silhouette letter. `DrawUnitPortrait` is the render-target hook and returns false so the letter stays.
+
+The idle-worker button above the minimap counts idle AMPs. Click it, or press F1, to cycle them. The top-right readout is Credits (jade), Luminene (yellow-green), and Supply, and Supply turns red when the cap is full or a queue is supply-blocked. Tab cycles the command-card subgroup when the selection mixes types. Hotkeys for that card follow the subgroup.
+
+```
+Minimap Order Move=2 AttackMove=4 Dest=…
+KodAI Orders Cleared Count=6
+```
+
 ## Camera — SC2 player view
 
 `AKodRTSCameraPawn` is the player camera. Pitch **-56°**, yaw **0** (looks north), vertical FOV **42** (horizontal FOV follows the window). The pawn is the ground look-at point. Default arm length **3600** (about 20 SC2 cells of ground at 200 uu, zoom clamped **2400–5200**). All of those are `Config` on the class.
 
 Pan is constant world speed (**4800** uu/s) with a short accel. Sources: viewport-edge scroll (about **2 px**, only while the game view is focused), arrow keys, and middle-mouse grab. **WASD does not pan.** Wheel zooms smoothly. The look-at height eases onto the visibility hit under it. XY stays inside `KodGround` or `PROXY_GROUND`, or `PlayableBox` when that override is set. Start framing is the local `PROXY_CC`.
 
-Ctrl+F5..F8 saves a view. F5..F8 recalls it. Space jumps to the last `OnUnitHit` target or the last train exit for this team. Double-tap a control-group number centers on that group when `UKodControlGroupStore` has actors in it. An empty store does nothing.
+Ctrl+F5..F8 saves a view. F5..F8 recalls it. Space jumps to the last `OnUnitHit` target or the last train exit for this team. Control groups are **1–0**: Ctrl+number sets the group, Shift+number adds, the number selects, and a double-tap centres the camera. Tabs above the selection panel show each count.
 
 `kod.Spectate 1` (or GameMode `bStartAsSpectator`, or URL `?Spectate=1`) uses `AKodSpectatorPawn` and `AKodSpectatorController`. Wider zoom (**1200–14000**), Alt+drag yaw on, F toggles follow, no select and no orders. `kod.Spectate 0` returns to the player camera.
 
@@ -581,7 +596,8 @@ KodCam Spectate=1
 - [ ] Hostile spawn. PIE: `Slice0 Hostile spawned Name=… Team=1 Loc=… Anchor=PROXY_HOSTILE Body=Skeletal` when the label or `KodHostileAnchor` tag is present and the skeletal mesh loads, otherwise `Body=Cube`. No anchor logs `Anchor=fallback` at `(1200, 600, 100)`. Same Ranger definition as the player, red team colour, auto-acquire, death / fire / hit react when the AnimBP is assigned. The team 0 Marine can die the same way.
 - [ ] Economy step 2 (section above). Fresh PIE with no resource tags: bank `Jadeite=50 Luminene=0`, six jade clusters `#00A86B` and one vent `#9EE60B` / `#C6FF1A`, `KodEcon DropOff`, `KodEcon Workers Spawned=3`. Readout shows `Credits 50`, `Luminene 0`, and supply `4/15`. `kod.GiveResources 100 25` logs `KodEcon Deposit Team=0 J=100 L=25`. Select an AMP, RMB a cluster: `RMB Gather`, `KodEcon Gather Worker=… Amt=5`, cargo mesh, then `KodEcon Deposit Team=0 J=5 L=0`, and the loop repeats. RMB ground cancels. RMB the vent logs `Amt=4` and `L=4`. A drained vent logs `KodEcon NodeDepleted` and later trips log `Amt=1`. Marines-only RMB on a node stays `RMB Move`. Auto-acquire still names the two Marines, not an AMP.
 - [ ] M1 train (section above). Select `PROXY_CC`, **S** queues an AMP and spends 50 Credits, **Backspace** refunds it, a finished train logs `KodProd Complete` and raises supply to `5/15`. CC-only RMB sets `KodProd Rally`. The AMP body stays the tan cube.
-- [ ] M5 opponent. PIE logs `KodAI Seed How=Corner` (or `Tag` / `Arg`) with 6 workers. Team 1 gathers, trains AMPs, builds a Depot near the supply cap, builds a Barracks, trains Marines, and logs `KodAI Wave Size=` once eight or more idle Marines exist. Right-click an enemy structure with Marines selected and it takes HP. Destroy every team 1 structure: the canvas says **VICTORY** and selection, orders, hotkeys, and the camera stop. Losing every team 0 structure says **DEFEAT**. `kod.AI 0` logs `KodAI Enabled=0` and issues no new AI orders. `kod.AIDifficulty 2` logs `KodAI Difficulty=2`.
+- [ ] M5 opponent. PIE logs `KodAI Seed How=Corner` (or `Tag` / `Arg`) with 6 workers. Team 1 gathers, trains AMPs, builds a Depot near the supply cap, builds a Barracks, trains Marines, and logs `KodAI Wave Size=` once eight or more idle Marines exist. Right-click an enemy structure with Marines selected and it takes HP. Destroy every team 1 structure: the canvas says **VICTORY** and selection, orders, and hotkeys stop. The camera still pans. Losing every team 0 structure says **DEFEAT**. `kod.AI 0` logs `KodAI Enabled=0` and `KodAI Orders Cleared`, and issues no new AI orders. `kod.AIDifficulty 2` logs `KodAI Difficulty=2`.
+- [ ] M6 canvas. The bottom-left minimap shows the playable box, jade and yellow-green nodes, team dots, structure rectangles, and a white camera trapezoid. Left-drag jumps the camera. Right-click logs `Minimap Order` (attack-move for Marines, move for AMPs). An idle-worker button and F1 cycle idle AMPs. One selected unit shows name, HP, Stim, and order; several show up to 24 tiles (click, Shift-click, Ctrl-click). The portrait is a letter. Ctrl+1 sets a group, 1 selects it, double-tap centres, and the tab shows the count. Supply turns red when it is blocked. Tab swaps the command card when Marines and AMPs are both selected.
 
 ## Blockers
 

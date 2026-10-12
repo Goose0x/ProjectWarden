@@ -58,7 +58,11 @@ void AKodHUD::DrawHUD()
 	RefreshReadout();
 	DrawProductionPanel();
 	DrawCommandCard();
-	DrawSelectionSummary();
+	DrawMinimap();
+	DrawIdleWorkerButton();
+	DrawControlGroupTabs();
+	DrawPortrait();
+	DrawSelectionPanel();
 	DrawResourceFlash();
 	DrawMatchOutcome();
 	DrawUnitHealthBars();
@@ -159,7 +163,28 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed,
 
 	const FString Credits = FString::Printf(TEXT("Credits %d"), Jadeite);
 	const FString LumineneText = FString::Printf(TEXT("Luminene %d"), Luminene);
-	const FString Supply = FString::Printf(TEXT("%d/%d"), SupplyUsed, SupplyCap);
+	bool bSupplyBlocked = SupplyCap > 0 && SupplyUsed >= SupplyCap;
+	if (!bSupplyBlocked)
+	{
+		if (const UWorld* World = GetWorld())
+		{
+			if (const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+			{
+				TArray<FKodStructureState> Structures;
+				Sim->CopyStructures(Structures);
+				const int32 TeamId = ReadLocalTeamId();
+				for (const FKodStructureState& Structure : Structures)
+				{
+					if (Structure.TeamId == TeamId && Structure.bSupplyBlocked)
+					{
+						bSupplyBlocked = true;
+						break;
+					}
+				}
+			}
+		}
+	}
+	const FString Supply = FString::Printf(TEXT("Supply %d/%d"), SupplyUsed, SupplyCap);
 	float CreditsW = 0.f;
 	float CreditsH = 0.f;
 	float LumineneW = 0.f;
@@ -179,7 +204,10 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed,
 	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.88f), X - Pad, Y - 6.f, TotalW + Pad * 2.f, TextH + 12.f);
 	DrawText(Credits, KodResourceColors::Jadeite(), X, Y, Font, 1.f, false);
 	DrawText(LumineneText, KodResourceColors::LumineneCore(), X + CreditsW + Gap, Y, Font, 1.f, false);
-	DrawText(Supply, FLinearColor(0.72f, 0.72f, 0.72f, 1.f), X + CreditsW + Gap + LumineneW + Gap, Y, Font, 1.f, false);
+	const FLinearColor SupplyInk = bSupplyBlocked
+		? FLinearColor(0.95f, 0.22f, 0.18f, 1.f)
+		: FLinearColor(0.78f, 0.78f, 0.78f, 1.f);
+	DrawText(Supply, SupplyInk, X + CreditsW + Gap + LumineneW + Gap, Y, Font, 1.f, false);
 }
 
 void AKodHUD::DrawProductionPanel()
@@ -394,6 +422,42 @@ void AKodHUD::DrawCommandCard()
 		return;
 	}
 
+	TArray<FName> SubgroupIds;
+	auto SubgroupOf = [Sim](AActor* Actor) -> FName
+	{
+		if (!Actor || !Sim)
+		{
+			return FName();
+		}
+		const FKodEntityId Id = Sim->FindIdForActor(Actor);
+		FKodStructureState Structure;
+		if (Sim->TryGetStructure(Id, Structure))
+		{
+			return Structure.DefinitionId.IsNone() ? FName() : Structure.DefinitionId;
+		}
+		FKodSimEntityState State;
+		if (Sim->TryGetState(Id, State))
+		{
+			return State.DefinitionId.IsNone() ? FName() : State.DefinitionId;
+		}
+		return FName();
+	};
+	for (AActor* Actor : PC->GetLocalSelection())
+	{
+		const FName Subgroup = SubgroupOf(Actor);
+		if (!Subgroup.IsNone() && !SubgroupIds.Contains(Subgroup))
+		{
+			SubgroupIds.Add(Subgroup);
+		}
+	}
+	SubgroupIds.Sort([](const FName& A, const FName& B)
+	{
+		return A.ToString() < B.ToString();
+	});
+	CommandSubgroupCount = SubgroupIds.Num();
+	const int32 SubgroupIndex = CommandSubgroupCount > 0 ? PC->GetCommandSubgroupIndex() % CommandSubgroupCount : 0;
+	ActiveCommandSubgroup = CommandSubgroupCount > 0 ? SubgroupIds[SubgroupIndex] : FName();
+
 	const FKodStructureState* Trainer = nullptr;
 	FKodStructureState TrainerState;
 	bool bWorker = false;
@@ -404,6 +468,10 @@ void AKodHUD::DrawCommandCard()
 	for (AActor* Actor : PC->GetLocalSelection())
 	{
 		if (!Actor)
+		{
+			continue;
+		}
+		if (CommandSubgroupCount > 1 && SubgroupOf(Actor) != ActiveCommandSubgroup)
 		{
 			continue;
 		}

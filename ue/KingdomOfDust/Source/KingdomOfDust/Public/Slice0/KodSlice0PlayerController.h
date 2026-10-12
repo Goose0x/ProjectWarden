@@ -38,6 +38,13 @@ protected:
 	virtual FString GetBuildMenuHint() const override;
 	virtual bool IsWorkerBuildMenuOpen() const override;
 	virtual void HandleRightClickCommand() override;
+	virtual int32 GetControlGroupCount(int32 GroupIndex) const override;
+	virtual TArray<FKodEntityId> GetControlGroupIds(int32 GroupIndex) const override;
+	virtual void AssignControlGroup(int32 GroupIndex) override;
+	virtual void AddToControlGroup(int32 GroupIndex) override;
+	virtual void IssueMinimapGroundOrder(FVector WorldLocation) override;
+
+	bool IsActiveCommandSubgroup(FName DefinitionId) const;
 
 	bool HasSelectedWorker() const;
 	FKodEntityId FirstSelectedWorker() const;

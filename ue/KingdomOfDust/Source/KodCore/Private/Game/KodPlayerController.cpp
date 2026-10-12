@@ -133,8 +133,40 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 	const AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn());
 	const bool bAltDrag = CameraPawn && CameraPawn->ConsumesAltDrag();
 
+	SyncCommandSubgroup();
+	if (WasInputKeyJustPressed(EKeys::Tab))
+	{
+		if (const AKodHUD* HUD = Cast<AKodHUD>(GetHUD()))
+		{
+			const int32 Subgroups = HUD->GetCommandSubgroupCount();
+			if (Subgroups > 1)
+			{
+				CommandSubgroupIndex = (CommandSubgroupIndex + 1) % Subgroups;
+			}
+		}
+	}
+	if (WasInputKeyJustPressed(EKeys::F1))
+	{
+		SelectIdleWorker();
+	}
+	if (bMinimapDrag)
+	{
+		if (IsInputKeyDown(EKeys::LeftMouseButton))
+		{
+			JumpCameraToMinimap(true);
+		}
+		else
+		{
+			bMinimapDrag = false;
+		}
+	}
+
 	// Greybox mouse fallback until Enhanced Input assets exist.
-	if (WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bAltDrag && !ConsumeHudCommandClick() && !ConsumePlacementLeftClick())
+	if (WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bAltDrag
+		&& !ConsumeMinimapClick()
+		&& !ConsumeChromeClick()
+		&& !ConsumeHudCommandClick()
+		&& !ConsumePlacementLeftClick())
 	{
 		HandleSelectStarted();
 	}
@@ -503,6 +535,25 @@ bool AKodPlayerController::ApplySelectedStructureRally(const FKodCursorCommand& 
 
 void AKodPlayerController::HandleRightClickCommand()
 {
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (GetMousePosition(MouseX, MouseY))
+	{
+		if (const AKodHUD* HUD = Cast<AKodHUD>(GetHUD()))
+		{
+			FVector WorldPoint;
+			if (HUD->MinimapPixelToWorld(MouseX, MouseY, WorldPoint, false))
+			{
+				IssueMinimapGroundOrder(WorldPoint);
+				return;
+			}
+			if (HUD->IsPassiveHudChrome(MouseX, MouseY))
+			{
+				return;
+			}
+		}
+	}
+
 	const FKodCursorCommand Cmd = TraceCursorCommand();
 	if (ApplySelectedStructureRally(Cmd))
 	{
@@ -1092,4 +1143,272 @@ void AKodPlayerController::CollectActorsInMarquee(TArray<AActor*>& OutActors) co
 			OutActors.Add(Actor);
 		}
 	}
+}
+
+int32 AKodPlayerController::GetControlGroupCount(int32 GroupIndex) const
+{
+	(void)GroupIndex;
+	return 0;
+}
+
+TArray<FKodEntityId> AKodPlayerController::GetControlGroupIds(int32 GroupIndex) const
+{
+	(void)GroupIndex;
+	return TArray<FKodEntityId>();
+}
+
+void AKodPlayerController::AssignControlGroup(int32 GroupIndex)
+{
+	(void)GroupIndex;
+}
+
+void AKodPlayerController::AddToControlGroup(int32 GroupIndex)
+{
+	(void)GroupIndex;
+}
+
+void AKodPlayerController::SetLocalSelectionFromIds(const TArray<FKodEntityId>& Ids, bool bAdd)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!bAdd)
+	{
+		LocalSelection.Reset();
+	}
+	if (Sim)
+	{
+		const int32 LocalTeam = GetLocalTeamId();
+		for (const FKodEntityId& Id : Ids)
+		{
+			AActor* Actor = Sim->ResolveEntity(Id);
+			if (Actor && IsSelectableSimId(Sim, Id, LocalTeam))
+			{
+				LocalSelection.AddUnique(Actor);
+			}
+		}
+	}
+	ApplySelectionHighlight();
+}
+
+void AKodPlayerController::SelectIdleWorker()
+{
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	TArray<FKodSimEntityState> States;
+	TArray<AActor*> Actors;
+	Sim->CopyEntitySnapshot(States, Actors);
+	const int32 LocalTeam = GetLocalTeamId();
+	TArray<int32> IdleIds;
+	for (const FKodSimEntityState& State : States)
+	{
+		if (State.TeamId == LocalTeam
+			&& State.bCanGather
+			&& State.bMobile
+			&& State.Health > 0.f
+			&& State.Order == EKodSimOrderType::None
+			&& State.GatherPhase == EKodGatherPhase::None
+			&& !State.BuildSite.IsValid())
+		{
+			IdleIds.Add(State.Id.Value);
+		}
+	}
+	if (IdleIds.Num() == 0)
+	{
+		return;
+	}
+	IdleIds.Sort();
+	int32 Pick = IdleIds[0];
+	for (int32 IdValue : IdleIds)
+	{
+		if (IdValue > LastIdleWorkerId)
+		{
+			Pick = IdValue;
+			break;
+		}
+	}
+	LastIdleWorkerId = Pick;
+	FKodEntityId Id;
+	Id.Value = Pick;
+	TArray<FKodEntityId> Only;
+	Only.Add(Id);
+	SetLocalSelectionFromIds(Only, false);
+}
+
+void AKodPlayerController::IssueMinimapGroundOrder(FVector WorldLocation)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodSimEntityState State;
+		if (!Sim->TryGetState(Id, State) || !State.bMobile || State.Health <= 0.f)
+		{
+			continue;
+		}
+		if (State.WeaponDamage > 0.f)
+		{
+			Sim->IssueAttackMove(Id, WorldLocation);
+		}
+		else
+		{
+			Sim->IssueMove(Id, WorldLocation);
+		}
+	}
+}
+
+void AKodPlayerController::SyncCommandSubgroup()
+{
+	TArray<int32> Ids;
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		if (Id.IsValid())
+		{
+			Ids.Add(Id.Value);
+		}
+	}
+	Ids.Sort();
+	if (Ids != CommandSelectionIds)
+	{
+		CommandSelectionIds = Ids;
+		CommandSubgroupIndex = 0;
+	}
+}
+
+void AKodPlayerController::JumpCameraToMinimap(bool bClampToMap)
+{
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY))
+	{
+		return;
+	}
+	const AKodHUD* HUD = Cast<AKodHUD>(GetHUD());
+	AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn());
+	if (!HUD || !CameraPawn)
+	{
+		return;
+	}
+	FVector WorldPoint;
+	if (HUD->MinimapPixelToWorld(MouseX, MouseY, WorldPoint, bClampToMap))
+	{
+		CameraPawn->JumpTo(WorldPoint);
+	}
+}
+
+bool AKodPlayerController::ConsumeMinimapClick()
+{
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY))
+	{
+		return false;
+	}
+	const AKodHUD* HUD = Cast<AKodHUD>(GetHUD());
+	if (!HUD)
+	{
+		return false;
+	}
+	FVector WorldPoint;
+	if (!HUD->MinimapPixelToWorld(MouseX, MouseY, WorldPoint, false))
+	{
+		return false;
+	}
+	bMinimapDrag = true;
+	if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn()))
+	{
+		CameraPawn->JumpTo(WorldPoint);
+	}
+	return true;
+}
+
+bool AKodPlayerController::ConsumeChromeClick()
+{
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY))
+	{
+		return false;
+	}
+	const AKodHUD* HUD = Cast<AKodHUD>(GetHUD());
+	if (!HUD)
+	{
+		return false;
+	}
+	FKodHudChromeHit Hit;
+	if (!HUD->GetChromeHit(MouseX, MouseY, Hit))
+	{
+		return false;
+	}
+	const bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
+	const bool bCtrl = IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl);
+	if (Hit.Kind == FName(TEXT("Idle")))
+	{
+		SelectIdleWorker();
+		return true;
+	}
+	if (Hit.Kind == FName(TEXT("Group")))
+	{
+		SetLocalSelectionFromIds(GetControlGroupIds(Hit.IntParam), bShift);
+		return true;
+	}
+	if (Hit.Kind == FName(TEXT("Tile")))
+	{
+		if (bCtrl)
+		{
+			UWorld* World = GetWorld();
+			const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+			TArray<FKodEntityId> SameType;
+			if (Sim)
+			{
+				for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+				{
+					FKodStructureState Structure;
+					FKodSimEntityState State;
+					FName TypeId;
+					if (Sim->TryGetStructure(Id, Structure))
+					{
+						TypeId = Structure.DefinitionId;
+					}
+					else if (Sim->TryGetState(Id, State))
+					{
+						TypeId = State.DefinitionId;
+					}
+					if (TypeId == Hit.NameParam)
+					{
+						SameType.Add(Id);
+					}
+				}
+			}
+			SetLocalSelectionFromIds(SameType, false);
+		}
+		else if (bShift)
+		{
+			UWorld* World = GetWorld();
+			UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+			FKodEntityId Id;
+			Id.Value = Hit.IntParam;
+			if (Sim)
+			{
+				RemoveFromLocalSelection(Sim->ResolveEntity(Id));
+			}
+		}
+		else
+		{
+			FKodEntityId Id;
+			Id.Value = Hit.IntParam;
+			TArray<FKodEntityId> Only;
+			Only.Add(Id);
+			SetLocalSelectionFromIds(Only, false);
+		}
+		return true;
+	}
+	return true;
 }

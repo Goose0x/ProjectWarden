@@ -1,6 +1,7 @@
 #include "Game/KodRTSCameraPawn.h"
 
 #include "Camera/CameraComponent.h"
+#include "Math/RotationMatrix.h"
 #include "CollisionQueryParams.h"
 #include "Components/SceneComponent.h"
 #include "Engine/Engine.h"
@@ -111,33 +112,21 @@ void AKodRTSCameraPawn::Tick(float DeltaSeconds)
 	ApplyVerticalFov();
 	MaintainBoom();
 
-	bool bMatchOver = false;
-	if (const UWorld* World = GetWorld())
-	{
-		if (const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
-		{
-			bMatchOver = Sim->IsMatchOver();
-		}
-	}
-
 	bool bManualPan = false;
-	if (!bMatchOver)
+	PollMoveInput(Dt, bManualPan);
+	PollZoom();
+	PollBookmarks();
+	PollAlert();
+	PollRotate();
+	if (bManualPan)
 	{
-		PollMoveInput(Dt, bManualPan);
-		PollZoom();
-		PollBookmarks();
-		PollAlert();
-		PollRotate();
-		if (bManualPan)
-		{
-			bFollowUnit = false;
-			FollowTarget = nullptr;
-		}
-		PollFollow();
-		if (bFollowUnit)
-		{
-			UpdateFollow(Dt);
-		}
+		bFollowUnit = false;
+		FollowTarget = nullptr;
+	}
+	PollFollow();
+	if (bFollowUnit)
+	{
+		UpdateFollow(Dt);
 	}
 
 	CurrentArmLength = FMath::FInterpTo(CurrentArmLength, TargetArmLength, Dt, ZoomInterpSpeed);
@@ -196,6 +185,77 @@ void AKodRTSCameraPawn::NoteAlert(FVector WorldLocation)
 {
 	AlertLocation = WorldLocation;
 	bHasAlert = true;
+	AlertNotedSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+}
+
+bool AKodRTSCameraPawn::GetActiveAlert(FVector& OutLocation) const
+{
+	const UWorld* World = GetWorld();
+	if (!bHasAlert || !World)
+	{
+		return false;
+	}
+	if (World->GetTimeSeconds() - AlertNotedSeconds > 4.f)
+	{
+		return false;
+	}
+	OutLocation = AlertLocation;
+	return true;
+}
+
+bool AKodRTSCameraPawn::GetGroundViewCorners(FVector& OutNearLeft, FVector& OutNearRight, FVector& OutFarRight, FVector& OutFarLeft) const
+{
+	if (!Camera)
+	{
+		return false;
+	}
+	const float GroundZ = GetActorLocation().Z;
+	const FVector CamLoc = Camera->GetComponentLocation();
+	const FRotator CamRot = Camera->GetComponentRotation();
+	float Aspect = 16.f / 9.f;
+	if (const APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		int32 SizeX = 0;
+		int32 SizeY = 0;
+		PC->GetViewportSize(SizeX, SizeY);
+		if (SizeX > 0 && SizeY > 0)
+		{
+			Aspect = static_cast<float>(SizeX) / static_cast<float>(SizeY);
+		}
+	}
+	const float HalfHorizontal = FMath::DegreesToRadians(FMath::Max(1.f, Camera->FieldOfView) * 0.5f);
+	const float HalfVertical = FMath::Atan(FMath::Tan(HalfHorizontal) / FMath::Max(0.1f, Aspect));
+	const FVector Forward = CamRot.Vector();
+	const FVector Right = FRotationMatrix(CamRot).GetScaledAxis(EAxis::Y);
+	const FVector Up = FRotationMatrix(CamRot).GetScaledAxis(EAxis::Z);
+	const float Corners[4][2] = {
+		{-1.f, -1.f},
+		{1.f, -1.f},
+		{1.f, 1.f},
+		{-1.f, 1.f}
+	};
+	FVector Hits[4];
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		FVector Dir = Forward
+			+ Right * (Corners[Index][0] * FMath::Tan(HalfHorizontal))
+			+ Up * (Corners[Index][1] * FMath::Tan(HalfVertical));
+		if (!Dir.Normalize() || FMath::IsNearlyZero(Dir.Z))
+		{
+			return false;
+		}
+		const float T = (GroundZ - CamLoc.Z) / Dir.Z;
+		if (T <= 0.f)
+		{
+			return false;
+		}
+		Hits[Index] = CamLoc + Dir * T;
+	}
+	OutNearLeft = Hits[0];
+	OutNearRight = Hits[1];
+	OutFarRight = Hits[2];
+	OutFarLeft = Hits[3];
+	return true;
 }
 
 void AKodRTSCameraPawn::CopyViewFrom(const AKodRTSCameraPawn* Other)

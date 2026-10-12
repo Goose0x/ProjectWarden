@@ -23,7 +23,36 @@ namespace
 
 void UKodSimSubsystem::SetAiEnabled(bool bEnabled)
 {
+	const bool bWasEnabled = bAiEnabled;
 	bAiEnabled = bEnabled;
+	if (!bWasEnabled || bEnabled)
+	{
+		return;
+	}
+
+	TArray<int32> Keys;
+	States.GetKeys(Keys);
+	Keys.Sort();
+	int32 Cleared = 0;
+	for (int32 Key : Keys)
+	{
+		const FKodSimEntityState* State = States.Find(Key);
+		if (!State || State->TeamId != AiTeamId || !State->bMobile)
+		{
+			continue;
+		}
+		if (State->Order == EKodSimOrderType::None
+			&& State->GatherPhase == EKodGatherPhase::None
+			&& !State->BuildSite.IsValid())
+		{
+			continue;
+		}
+		FKodEntityId Id;
+		Id.Value = Key;
+		IssueStop(Id);
+		++Cleared;
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodAI Orders Cleared Count=%d"), Cleared);
 }
 
 void UKodSimSubsystem::SetAiDifficulty(int32 Difficulty)

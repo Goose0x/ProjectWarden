@@ -25,7 +25,8 @@ enum class EKodSimOrderType : uint8
 	None,
 	Move,
 	Attack,
-	Gather
+	Gather,
+	AttackMove
 };
 
 /** Sim-owned entity state. Actors interpolate presentation from this — not CharacterMovement. */
@@ -233,6 +234,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	void IssueMove(FKodEntityId Id, FVector WorldLocation);
 
+	/** Move to a point and shoot enemies along the way. Structures are last, after units. */
+	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
+	void IssueAttackMove(FKodEntityId Id, FVector WorldLocation);
+
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	void IssueAttack(FKodEntityId Id, FKodEntityId TargetId);
 
@@ -423,6 +428,10 @@ public:
 	 */
 	void CopyEntitySnapshot(TArray<FKodSimEntityState>& OutStates, TArray<AActor*>& OutActors) const;
 
+	/** Read-only copies for the canvas. Sorted by id. Does not mutate sim state. */
+	void CopyResourceNodes(TArray<FKodResourceNodeState>& OutNodes) const;
+	void CopyStructures(TArray<FKodStructureState>& OutStructures) const;
+
 	/** Fired from the sim step when a hitscan shot is resolved. Tick is SimTickIndex at the shot. */
 	UPROPERTY()
 	FKodOnUnitFired OnUnitFired;
@@ -453,6 +462,7 @@ protected:
 	void StepSim(float FixedDt);
 	void StepEntityMove(FKodSimEntityState& State, float FixedDt);
 	void StepEntityAttack(FKodSimEntityState& State, float FixedDt);
+	void StepAttackMove(FKodSimEntityState& State, float FixedDt);
 	void StepEntityGather(FKodSimEntityState& State, float FixedDt);
 	/** Move toward Target and stop at AcceptUU. True when the worker is inside that radius. */
 	bool AdvanceGatherMove(FKodSimEntityState& State, const FVector& Target, float AcceptUU, float FixedDt);
@@ -470,6 +480,7 @@ protected:
 	 */
 	bool TryAutoAcquire(FKodSimEntityState& State, float FixedDt);
 	FKodEntityId FindNearestEnemyInRange(const FKodSimEntityState& State) const;
+	FKodEntityId FindNearestEnemyStructureInRange(const FKodSimEntityState& State) const;
 	FString GetEntityActorName(int32 IdValue) const;
 	void QuantizePose(FKodSimEntityState& State) const;
 	void QuantizeResourcePosition(FVector& Position) const;

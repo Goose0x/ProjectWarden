@@ -158,6 +158,9 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 		case EKodSimOrderType::Attack:
 			StepEntityAttack(*State, FixedDt);
 			break;
+		case EKodSimOrderType::AttackMove:
+			StepAttackMove(*State, FixedDt);
+			break;
 		default:
 			// Idle: auto-acquire or hold a quantized pose. An explicit Move is not this branch.
 			if (!TryAutoAcquire(*State, FixedDt))
@@ -385,6 +388,42 @@ FKodEntityId UKodSimSubsystem::FindNearestEnemyInRange(const FKodSimEntityState&
 	return BestId;
 }
 
+FKodEntityId UKodSimSubsystem::FindNearestEnemyStructureInRange(const FKodSimEntityState& State) const
+{
+	FKodEntityId BestId;
+	float BestDistSq = 0.f;
+	bool bFound = false;
+	const float RangeSq = FMath::Square(FMath::Max(0.f, State.WeaponRange));
+
+	TArray<int32> Keys;
+	States.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		if (Key == State.Id.Value)
+		{
+			continue;
+		}
+		const FKodSimEntityState* Other = States.Find(Key);
+		if (!Other || Other->bMobile || Other->Health <= 0.f || Other->TeamId == State.TeamId)
+		{
+			continue;
+		}
+		const float DistSq = FVector::DistSquared2D(State.Position, Other->Position);
+		if (DistSq > RangeSq)
+		{
+			continue;
+		}
+		if (!bFound || DistSq < BestDistSq)
+		{
+			bFound = true;
+			BestDistSq = DistSq;
+			BestId.Value = Key;
+		}
+	}
+	return BestId;
+}
+
 bool UKodSimSubsystem::TryAutoAcquire(FKodSimEntityState& State, float FixedDt)
 {
 	if (State.Order != EKodSimOrderType::None || State.WeaponDamage <= 0.f || State.Health <= 0.f)
@@ -415,6 +454,14 @@ bool UKodSimSubsystem::TryAutoAcquire(FKodSimEntityState& State, float FixedDt)
 		if (Chosen.IsValid())
 		{
 			Reason = TEXT("InRange");
+		}
+	}
+	if (!Chosen.IsValid())
+	{
+		Chosen = FindNearestEnemyStructureInRange(State);
+		if (Chosen.IsValid())
+		{
+			Reason = TEXT("Structure");
 		}
 	}
 
@@ -583,6 +630,44 @@ namespace
 	}
 }
 
+void UKodSimSubsystem::StepAttackMove(FKodSimEntityState& State, float FixedDt)
+{
+	if (!State.bMobile || State.Health <= 0.f || State.MoveSpeed <= 0.f)
+	{
+		State.Order = EKodSimOrderType::None;
+		QuantizePose(State);
+		return;
+	}
+
+	const FVector Dest = State.MoveTarget;
+	const int32 SelfId = State.Id.Value;
+	FKodEntityId Threat = FindNearestEnemyInRange(State);
+	if (!Threat.IsValid())
+	{
+		Threat = FindNearestEnemyStructureInRange(State);
+	}
+	if (Threat.IsValid())
+	{
+		State.AttackTarget = Threat;
+		State.Order = EKodSimOrderType::Attack;
+		StepEntityAttack(State, FixedDt);
+		if (FKodSimEntityState* Live = States.Find(SelfId))
+		{
+			if (Live->Health > 0.f)
+			{
+				Live->Order = EKodSimOrderType::AttackMove;
+				Live->MoveTarget = Dest;
+			}
+		}
+		return;
+	}
+
+	State.AttackTarget = FKodEntityId();
+	State.Order = EKodSimOrderType::AttackMove;
+	State.MoveTarget = Dest;
+	StepEntityMove(State, FixedDt);
+}
+
 void UKodSimSubsystem::IssueMove(FKodEntityId Id, FVector WorldLocation)
 {
 	if (FKodSimEntityState* State = States.Find(Id.Value))
@@ -594,6 +679,28 @@ void UKodSimSubsystem::IssueMove(FKodEntityId Id, FVector WorldLocation)
 		}
 		ClearBuildAssignment(*State);
 		State->Order = EKodSimOrderType::Move;
+		State->MoveTarget = WorldLocation;
+		State->AttackTarget = FKodEntityId();
+		State->RetaliateTarget = FKodEntityId();
+		FaceStateToward(*State, WorldLocation);
+	}
+}
+
+void UKodSimSubsystem::IssueAttackMove(FKodEntityId Id, FVector WorldLocation)
+{
+	if (FKodSimEntityState* State = States.Find(Id.Value))
+	{
+		if (!State->bMobile)
+		{
+			return;
+		}
+		if (State->GatherPhase != EKodGatherPhase::None || State->IsCarryingCargo())
+		{
+			RefundGatherCargo(*State);
+			ClearGatherFields(*State);
+		}
+		ClearBuildAssignment(*State);
+		State->Order = EKodSimOrderType::AttackMove;
 		State->MoveTarget = WorldLocation;
 		State->AttackTarget = FKodEntityId();
 		State->RetaliateTarget = FKodEntityId();
@@ -1635,6 +1742,38 @@ void UKodSimSubsystem::CopyEntitySnapshot(TArray<FKodSimEntityState>& OutStates,
 		}
 		OutStates.Add(*State);
 		OutActors.Add(Actor);
+	}
+}
+
+void UKodSimSubsystem::CopyResourceNodes(TArray<FKodResourceNodeState>& OutNodes) const
+{
+	OutNodes.Reset();
+	TArray<int32> Keys;
+	ResourceNodes.GetKeys(Keys);
+	Keys.Sort();
+	OutNodes.Reserve(Keys.Num());
+	for (int32 Key : Keys)
+	{
+		if (const FKodResourceNodeState* Node = ResourceNodes.Find(Key))
+		{
+			OutNodes.Add(*Node);
+		}
+	}
+}
+
+void UKodSimSubsystem::CopyStructures(TArray<FKodStructureState>& OutStructures) const
+{
+	OutStructures.Reset();
+	TArray<int32> Keys;
+	Structures.GetKeys(Keys);
+	Keys.Sort();
+	OutStructures.Reserve(Keys.Num());
+	for (int32 Key : Keys)
+	{
+		if (const FKodStructureState* Structure = Structures.Find(Key))
+		{
+			OutStructures.Add(*Structure);
+		}
 	}
 }
 
