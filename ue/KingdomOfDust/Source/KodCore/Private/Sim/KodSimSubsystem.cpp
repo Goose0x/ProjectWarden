@@ -63,6 +63,7 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Totals1 = FKodTeamTotals();
 	bMatchCheated = false;
 	bCompetitive = false;
+	MatchMode = EKodMatchMode::OfflineSkirmish;
 	bGeneralPowers = true;
 	PowerPoints0 = 0;
 	PowerPoints1 = 0;
@@ -92,7 +93,9 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bLoadRespawn = false;
 	LoadRespawnTicks = 0;
 	OnJuiceText.Clear();
+	CheatTable = nullptr;
 	EnsureBalanceTables();
+	EnsureCheatPhrases();
 	SimHz = KodBuildTicks::SimHz;
 	MaxCatchUpSteps = KodBuildTicks::MaxCatchUpSteps;
 	SetTeamBank(0, StartingJadeite, StartingLuminene);
@@ -2445,6 +2448,8 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	{
 		Append(&Ramp, sizeof(Ramp));
 	}
+	const uint8 ModeByte = static_cast<uint8>(MatchMode);
+	Append(&ModeByte, sizeof(ModeByte));
 
 	const uint64 Hash = Bytes.Num() > 0
 		? CityHash64(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num())

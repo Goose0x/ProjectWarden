@@ -4,6 +4,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "Sim/KodCheatRows.h"
 #include "KodGameMode.generated.h"
 
 /**
@@ -24,6 +25,10 @@ public:
 	/** GameMode default, or the `Spectate=1` URL option. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Camera")
 	bool bStartAsSpectator = false;
+
+	/** Cheats run only in Campaign and OfflineSkirmish. URL `Match=ranked` overrides this. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Match")
+	EKodMatchMode MatchMode = EKodMatchMode::OfflineSkirmish;
 
 	TSubclassOf<APlayerController> GetSavedPlayerControllerClass() const { return KodSavedPlayerControllerClass; }
 	TSubclassOf<APawn> GetSavedDefaultPawnClass() const { return KodSavedDefaultPawnClass; }

@@ -335,7 +335,7 @@ void UKodSimSubsystem::ResyncActors() const
 TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 {
 	FBlob Blob;
-	const int32 Version = 4;
+	const int32 Version = 5;
 	Blob.WInt(Version);
 	Blob.W(&SimTickIndex, sizeof(SimTickIndex));
 	TArray<int32> Keys;
@@ -693,6 +693,7 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 	{
 		Blob.W(&Ramp, sizeof(Ramp));
 	}
+	Blob.WU8(static_cast<uint8>(MatchMode));
 	return Blob.Bytes;
 }
 
@@ -701,7 +702,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version != 4)
+	if (!Blob.RInt(Version) || Version != 5)
 	{
 		return;
 	}
@@ -1412,6 +1413,11 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		Blob.R(&Ramp, sizeof(Ramp));
 		RampCells.Add(Ramp);
 	}
+	uint8 ModeByte = static_cast<uint8>(EKodMatchMode::OfflineSkirmish);
+	Blob.RU8(ModeByte);
+	MatchMode = ModeByte <= static_cast<uint8>(EKodMatchMode::Replay)
+		? static_cast<EKodMatchMode>(ModeByte)
+		: EKodMatchMode::OfflineSkirmish;
 	int32 MaxId = 0;
 	TArray<int32> LiveKeys;
 	States.GetKeys(LiveKeys);
@@ -1441,7 +1447,7 @@ bool UKodSimSubsystem::CollectSavedEntityIds(const TArray<uint8>& Bytes, TSet<in
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version != 4)
+	if (!Blob.RInt(Version) || Version != 5)
 	{
 		return false;
 	}

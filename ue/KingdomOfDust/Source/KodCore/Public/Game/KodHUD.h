@@ -112,6 +112,7 @@ public:
 	void AppendChatText(const FString& Text);
 	void BackspaceChat();
 	void SubmitChat();
+	void AddChatMessage(const FString& Text);
 	/** True on the second click inside 0.3 seconds. */
 	bool ConsumePortraitClick();
 
@@ -276,6 +277,7 @@ protected:
 	float FlashUntilSeconds = -1.f;
 	bool bChatOpen = false;
 	FString ChatLine;
+	TArray<FString> ChatLog;
 	float IsrCaptureAccum = 0.f;
 	bool bHasPowerPanel = false;
 	float PowerMinX = 0.f;

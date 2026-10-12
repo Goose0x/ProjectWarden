@@ -10,6 +10,7 @@
 #include "Sim/KodBuildTypes.h"
 #include "Sim/KodAbilityTypes.h"
 #include "Sim/KodBalanceRows.h"
+#include "Sim/KodCheatRows.h"
 #include "KodSimSubsystem.generated.h"
 
 class AActor;
@@ -679,8 +680,23 @@ public:
 	bool IsMatchCheated() const { return bMatchCheated; }
 	bool IsCompetitive() const { return bCompetitive; }
 	void SetCompetitive(bool bEnabled);
-	/** SC2-style line. Refused while competitive is on. Any accepted cheat sets the match flag. */
+
+	EKodMatchMode GetMatchMode() const { return MatchMode; }
+	void SetMatchMode(EKodMatchMode Mode);
+	bool AreCheatsAllowed() const;
+
+	/** Dev console alias. Non-shipping registration. Refused outside campaign and offline skirmish. */
 	bool ApplyCheatLine(const FString& Line);
+
+	/**
+	 * Exact chat phrase, case-insensitive.
+	 * Applied raises cheat_enabled and sets the cheated flag.
+	 * Refused logs KodCheat Refused Mode= and is ordinary chat.
+	 */
+	EKodCheatSubmit SubmitCheatPhrase(const FString& Line);
+
+	/** Rename one phrase. Effect stays the same. */
+	bool SetCheatPhrase(EKodCheatEffect Effect, const FString& Phrase);
 
 	void RegisterAbilitySpec(const FKodAbilitySpec& Spec);
 	bool UseOrbitalAbility(FKodEntityId CcId, FName AbilityId, FVector Target, FKodEntityId DepotId);
@@ -768,6 +784,12 @@ protected:
 	bool TryApplyWeapon(FKodSimEntityState& State, FKodSimEntityState& Target);
 	/** OnUnitKilled, unit_death, structure destroy, bunker cargo, and the kill log. */
 	void FinishEntityDeath(FKodSimEntityState& Target, int32 KillerTeam);
+	void EnsureCheatPhrases();
+	bool FindCheatPhrase(const FString& Line, EKodCheatEffect& OutEffect) const;
+	void ApplyCheatEffect(EKodCheatEffect Effect);
+	void NoteCheatAccepted();
+	void GrantAllUpgrades(int32 TeamId);
+	void KillEnemyUnitsOnScreen();
 	void StripDeadFromCargo(int32 DeadId);
 	void EnsureStructureDropOff(const FKodStructureState& Structure, int32 StandOverride);
 	FVector GetSteeredGoal(FKodSimEntityState& State);
@@ -928,6 +950,7 @@ protected:
 
 	bool bMatchCheated = false;
 	bool bCompetitive = false;
+	EKodMatchMode MatchMode = EKodMatchMode::OfflineSkirmish;
 	bool bGeneralPowers = true;
 	int32 PowerPoints0 = 0;
 	int32 PowerPoints1 = 0;
@@ -954,6 +977,9 @@ protected:
 	bool bScoutSawEnemy = false;
 	bool bAiRetreating = false;
 	bool bAiMemoryWritten = false;
+
+	UPROPERTY()
+	TObjectPtr<UDataTable> CheatTable;
 
 	UPROPERTY()
 	TObjectPtr<UDataTable> AbilityTable;

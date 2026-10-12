@@ -49,7 +49,8 @@ namespace
 		TEXT("artillery_strike"),
 		TEXT("resource_drop"),
 		TEXT("command_move"),
-		TEXT("command_attack")
+		TEXT("command_attack"),
+		TEXT("cheat_enabled")
 	};
 }
 
