@@ -28,4 +28,7 @@ protected:
 
 	void EnqueueTrainOnSelectedStructures();
 	void CancelTrainOnSelectedStructures();
+	void TryCenterControlGroup();
+
+	TArray<float> LastGroupTapSeconds;
 };

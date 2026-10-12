@@ -1,5 +1,6 @@
 #include "Game/KodPlayerController.h"
 #include "Game/KodRTSCameraPawn.h"
+#include "Game/KodSpectatorPawn.h"
 #include "Engine/LocalPlayer.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
@@ -110,8 +111,17 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
 
+	// A swapped-away controller must not keep selecting. A spectator pawn keeps the camera and drops orders.
+	if (!IsLocalPlayerController() || Cast<AKodSpectatorPawn>(GetPawn()))
+	{
+		return;
+	}
+
+	const AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn());
+	const bool bAltDrag = CameraPawn && CameraPawn->ConsumesAltDrag();
+
 	// Greybox mouse fallback until Enhanced Input assets exist.
-	if (WasInputKeyJustPressed(EKeys::LeftMouseButton))
+	if (WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bAltDrag)
 	{
 		HandleSelectStarted();
 	}
@@ -124,7 +134,7 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 			UpdateMarquee(FVector2D(X, Y));
 		}
 	}
-	if (WasInputKeyJustReleased(EKeys::LeftMouseButton))
+	if (WasInputKeyJustReleased(EKeys::LeftMouseButton) && bSelectPressed)
 	{
 		HandleSelectCompleted();
 	}

@@ -15,6 +15,7 @@ class AActor;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FKodOnUnitFired, AActor*, Attacker, AActor*, Target, int32, SimTick);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FKodOnUnitHit, AActor*, Attacker, AActor*, Target, float, Health, int32, TargetId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKodOnUnitKilled, AActor*, Target, int32, TargetId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FKodOnTrainCompleted, FVector, Location, int32, TeamId);
 
 UENUM(BlueprintType)
 enum class EKodSimOrderType : uint8
@@ -358,6 +359,10 @@ public:
 	/** Fired after the target is unregistered. The actor is still alive for death presentation. */
 	UPROPERTY()
 	FKodOnUnitKilled OnUnitKilled;
+
+	/** Fired when a train slot finishes inside the sim step. Location is the exit point. */
+	UPROPERTY()
+	FKodOnTrainCompleted OnTrainCompleted;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Sim")
 	int32 SimHz = KodBuildTicks::SimHz;

@@ -316,7 +316,7 @@ PIE log: `Slice0 PROXY collision muted Count=%d KeptGround=%d ByTag=%d ByLabel=%
 
 | Role | Class |
 |------|-------|
-| Camera | `AKodRTSCameraPawn` |
+| Camera | `AKodRTSCameraPawn` (SC2 pitch, edge scroll, wheel zoom). Spectator: `AKodSpectatorPawn` / `AKodSpectatorController` |
 | PC (base) | `AKodPlayerController` (select / marquee / mouse fallback) |
 | PC (command path) | `AKodSlice0PlayerController` → `UKodCommandSubsystem` — `/Script/KingdomOfDust.KodSlice0PlayerController` |
 | GameMode | `AKodSlice0GameMode` (bootstrap + optional smoke Marine + hostile Marine that auto-acquires + PROXY collision mute, floor kept) — `/Script/KingdomOfDust.KodSlice0GameMode` |
@@ -498,10 +498,27 @@ Soft mesh refs, placeholder if the load fails. Data assets stay editable and win
 6. Select only the CC, right-click a Jadeite cluster, train another AMP (gather first so Credits can pay). Expect `KodProd Rally Struct=… Target=<node id>`. The new worker starts gathering that node without a second click. Right-click the ground with only the CC selected and expect `Target=Ground`.
 7. Gather, combat, and the canvas readout still behave as in the economy step 2 checklist. Marines still duel. A selected AMP still gathers.
 
+## Camera — SC2 player view
+
+`AKodRTSCameraPawn` is the player camera. Pitch **-56°**, yaw **0** (looks north), vertical FOV **42** (horizontal FOV follows the window). The pawn is the ground look-at point. Default arm length **3600** (about 20 SC2 cells of ground at 200 uu, zoom clamped **2400–5200**). All of those are `Config` on the class.
+
+Pan is constant world speed (**4800** uu/s) with a short accel. Sources: viewport-edge scroll (about **2 px**, only while the game view is focused), arrow keys, and middle-mouse grab. **WASD does not pan.** Wheel zooms smoothly. The look-at height eases onto the visibility hit under it. XY stays inside `KodGround` or `PROXY_GROUND`, or `PlayableBox` when that override is set. Start framing is the local `PROXY_CC`.
+
+Ctrl+F5..F8 saves a view. F5..F8 recalls it. Space jumps to the last `OnUnitHit` target or the last train exit for this team. Double-tap a control-group number centers on that group when `UKodControlGroupStore` has actors in it. An empty store does nothing.
+
+`kod.Spectate 1` (or GameMode `bStartAsSpectator`, or URL `?Spectate=1`) uses `AKodSpectatorPawn` and `AKodSpectatorController`. Wider zoom (**1200–14000**), Alt+drag yaw on, F toggles follow, no select and no orders. `kod.Spectate 0` returns to the player camera.
+
+```
+KodCam Init Pitch=-56 FOV=42 Height=2984
+KodCam Save Slot=5
+KodCam Recall Slot=5
+KodCam Spectate=1
+```
+
 ## L_Slice0 acceptance checklist
 
 - [ ] Map `Content/Maps/Sandbox/L_Slice0` (editor). World Settings GameMode Override: `/Script/KingdomOfDust.KodSlice0GameMode`
-- [ ] Iso camera pans/zooms
+- [ ] SC2 camera. `KodCam Init Pitch=-56 FOV=42 Height=…` once. Look-at starts on `PROXY_CC`. Edge scroll only while the game view is focused (about 2 px). Arrow keys pan. Middle-mouse drags the ground. Mouse wheel zooms a short range. WASD does not pan (`S` still trains). Ctrl+F5..F8 logs `KodCam Save Slot=`, F5..F8 logs `KodCam Recall Slot=`. Space jumps to the last unit hit or train exit. Height eases onto `KodGround` / `PROXY_GROUND` and the look-at stays inside that box. `kod.Spectate 1` logs `KodCam Spectate=1` (wider zoom, Alt+drag yaw, F follows, no select or orders). `kod.Spectate 0` logs `KodCam Spectate=0`.
 - [ ] Left-click select. `AKodSlice0GameMode::StartPlay` sets `NoCollision` on primitive components of actors whose name or label contains `PROXY_`, except the floor whose name or label is `PROXY_GROUND` (L_Slice0 outliner label on `StaticMeshActor_0`). That floor stays BlockAll so the pawn capsule can stand on it and ECC_Pawn / ECC_Visibility still hit it. Other greybox stays placed and visible. Tags are checked first (`KodGreybox` mutes, `KodGround` keeps); actors with neither tag still use these label rules. PIE log: `Slice0 PROXY collision muted Count=23 KeptGround=1 ByTag=0 ByLabel=24` on the current untagged editor map (24 `PROXY_*` labels: 23 muted plus the kept floor). Muted actors must not appear in the click HitLog. The ray still walks ECC_Pawn past the unregistered floor and past sim actors whose `TeamId` is not the local player team, and selects the first local-team sim actor. A ray that only hits the floor clears selection. Drags shorter than `BoxSelectDragThresholdPx` (6) stay on this path. PIE log: `ClickSelectAtCursor LocalSelection=… Picked=… Hits=Actor(Pawn,sim=0|1,id=…,loc=…)`. An empty floor click logs the floor object name (`UEDPIE_0_StaticMeshActor_0` in PIE, `sim=0`) and `Picked=None`. `GetActorNameOrLabel` returns the outliner label only in editor builds; a packaged run sees `StaticMeshActor_*` and will not match these labels. The map needs tags (Director tooling, not this PR): `PROXY_GROUND` → `KodGround`; every other `PROXY_*` → `KodGreybox`; the `PROXY_HOSTILE` label also gets `KodHostileAnchor`. After that, the same mute log counts those actors as `ByTag` and `ByLabel=0`.
 - [ ] Drag-select. LMB drag at or past 6px shows an orange screen rect on `AKodHUD` (`DrawRect` / `DrawLine`, engine white texture, no Content asset). On release, every local-team sim actor (not a foreign `TeamId`) whose viewport projection lies inside that rect is selected. The hostile test Ranger is left out, so it does not take the selection rim. A fresh drag replaces the selection; Left Shift adds (same as click). An empty box clears unless Shift is held. The rim overlay updates for the whole set. PIE: `DragSelect LocalSelection=… Additive=0|1 Box=x0,y0-x1,y1 Hits=Name(id=…,screen=…,…)|none` then `SelectionHighlight LocalSelection=… Meshes=… Overlay=1 Stencil=1`
 - [ ] Right-click the floor → Move to the **first** cursor ImpactPoint (that ImpactPoint, not the actor pivot). `PROXY_GROUND` stays BlockAll, so the hit is the floor object name on ECC_Pawn (`sim=0`). Other `PROXY_*` meshes (CC, Dozer, crate, dock, pads, bounds, dirt, labels) are still `NoCollision` and are not that first Pawn hit. The ray walks past any remaining unregistered Pawn blocker the same way click-select does: a sim-registered combat actor on the ray that is not the current selection → Attack. A resource node is not an attack target. Marines RMB Move onto it (`RMB Move`, then `Move Issued`). A selected Dozer RMB Gathers (`RMB Gather`, then `Gather Issued`) and does not log `RMB Attack`. Self / selection is not an attack target (Move at the first ImpactPoint instead). If ECC_Pawn hits nothing, `GetGroundHitUnderCursor` (ECC_Visibility) still hits the floor. PIE: `RMB Move LocalSelection=… Dest=x,y,z Hit=UEDPIE_0_StaticMeshActor_0 sim=0` then `Move Issued Sources=… Dest=…`, or `RMB Attack LocalSelection=… Target=… Id=…` then `Attack Issued Sources=… Target=… Id=…`. `RMB Miss none` means the floor was muted. `Attack Reject NonSim` means the pivot fallback did not run. A missed floor logs `Slice0 PROXY ground floor not kept (tag KodGround or label PROXY_GROUND). Floor traces will miss.`

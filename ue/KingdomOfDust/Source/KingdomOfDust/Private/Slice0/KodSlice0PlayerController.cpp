@@ -1,14 +1,19 @@
 #include "Slice0/KodSlice0PlayerController.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
+#include "Game/KodRTSCameraPawn.h"
+#include "Game/KodSpectatorPawn.h"
+#include "GameFramework/Actor.h"
 #include "InputCoreTypes.h"
 #include "KodCommandSubsystem.h"
 #include "KodCommandTypes.h"
+#include "KodControlGroupStore.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Warden/KodWardenPaths.h"
 
 AKodSlice0PlayerController::AKodSlice0PlayerController()
 {
+	LastGroupTapSeconds.Init(-1.f, 10);
 }
 
 void AKodSlice0PlayerController::IssueMoveToSelection_Implementation(FVector WorldLocation)
@@ -148,6 +153,10 @@ void AKodSlice0PlayerController::IssueGatherToSelection_Implementation(AActor* N
 void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
+	if (!IsLocalPlayerController() || Cast<AKodSpectatorPawn>(GetPawn()))
+	{
+		return;
+	}
 	if (WasInputKeyJustPressed(EKeys::S))
 	{
 		EnqueueTrainOnSelectedStructures();
@@ -155,6 +164,64 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 	if (WasInputKeyJustPressed(EKeys::BackSpace))
 	{
 		CancelTrainOnSelectedStructures();
+	}
+	TryCenterControlGroup();
+}
+
+void AKodSlice0PlayerController::TryCenterControlGroup()
+{
+	UWorld* World = GetWorld();
+	ULocalPlayer* LocalPlayer = GetLocalPlayer();
+	UKodControlGroupStore* Store = LocalPlayer ? LocalPlayer->GetSubsystem<UKodControlGroupStore>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn());
+	if (!World || !Store || !Sim || !CameraPawn)
+	{
+		return;
+	}
+	if (IsInputKeyDown(EKeys::LeftControl) || IsInputKeyDown(EKeys::RightControl))
+	{
+		return;
+	}
+
+	const FKey Keys[10] = {
+		EKeys::Zero, EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four,
+		EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine
+	};
+	const float Now = World->GetTimeSeconds();
+	constexpr float DoubleTapSeconds = 0.3f;
+	for (int32 Index = 0; Index < 10; ++Index)
+	{
+		if (!WasInputKeyJustPressed(Keys[Index]))
+		{
+			continue;
+		}
+		const float Previous = LastGroupTapSeconds[Index];
+		LastGroupTapSeconds[Index] = Now;
+		if (Previous < 0.f || (Now - Previous) > DoubleTapSeconds)
+		{
+			continue;
+		}
+		LastGroupTapSeconds[Index] = -1.f;
+		const TArray<FKodEntityId> Ids = Store->GetGroup(Index);
+		if (Ids.Num() == 0)
+		{
+			continue;
+		}
+		FVector Sum = FVector::ZeroVector;
+		int32 Count = 0;
+		for (const FKodEntityId& Id : Ids)
+		{
+			if (AActor* Actor = Sim->ResolveEntity(Id))
+			{
+				Sum += Actor->GetActorLocation();
+				++Count;
+			}
+		}
+		if (Count > 0)
+		{
+			CameraPawn->JumpTo(Sum / static_cast<float>(Count));
+		}
 	}
 }
 

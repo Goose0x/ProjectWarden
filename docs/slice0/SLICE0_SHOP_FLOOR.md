@@ -42,7 +42,7 @@ Editor recipe (when UE opens): create six assets → set fields → Save. One Bl
 
 **Hash-stable idle:** when order is None, do not integrate micro-velocity; snap/quantize pose (e.g. mm or fixed-point) so idle hash does not drift frame-to-frame.
 
-**L_Slice0 walk:** iso cam · left select/box · right move · one Ranger walks · idle hash stable · HP from DataAsset only (no hardcoded HP in unit Tick).
+**L_Slice0 walk:** SC2 camera (edge, arrows, middle-mouse, wheel; no WASD) · left select/box · right move · one Ranger walks · idle hash stable · HP from DataAsset only (no hardcoded HP in unit Tick).
 
 **Box select:** LMB drag past 6px replaces the selection with every sim-registered actor whose viewport projection lies in the rect. Left Shift adds, same as click. A shorter drag stays click-select. `AKodHUD` draws the rect with the engine canvas (no Content asset).
 

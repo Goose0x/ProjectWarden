@@ -324,6 +324,7 @@ void UKodSimSubsystem::FinishActiveProduction(FKodStructureState& Structure)
 	Spawn.RallyNode = Structure.RallyNode;
 	Spawn.bRallyNode = Structure.bRallyNode;
 	PendingSpawns.Add(Spawn);
+	OnTrainCompleted.Broadcast(Spawn.Location, Spawn.TeamId);
 
 	// Count supply and start the next slot in this step. Catch-up steps must not
 	// wait for the actor, or a later slot can start early and pass the cap.
