@@ -9,6 +9,8 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Sim/KodSimSubsystem.h"
+#include "UObject/SoftObjectPath.h"
+#include "Warden/KodWardenPaths.h"
 
 #if WITH_EDITOR
 #include "Materials/Material.h"
@@ -218,18 +220,50 @@ void AKodResourceNode::ApplyDefinition(const UKodResourceNodeDefinition* Def)
 
 	ResourceType = Def->ResourceType;
 	DefinitionId = Def->DefinitionId;
-	if (UStaticMesh* Loaded = Def->Mesh.LoadSynchronous())
+	TSoftObjectPtr<UStaticMesh> MeshRef = Def->Mesh;
+	if (MeshRef.IsNull() && Def->ResourceType == EKodResourceType::Jadeite)
+	{
+		MeshRef = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(KodWardenPaths::ProtoJadeiteMesh));
+	}
+	if (UStaticMesh* Loaded = MeshRef.LoadSynchronous())
 	{
 		if (NodeMesh)
 		{
 			NodeMesh->SetStaticMesh(Loaded);
-			NodeMesh->SetRelativeScale3D(FVector::OneVector);
-			const float HalfHeight = Loaded->GetBounds().BoxExtent.Z;
+			const FVector Scale = Def->MeshScale.Equals(FVector::OneVector, 0.01f) ? FVector::OneVector : Def->MeshScale;
+			NodeMesh->SetRelativeScale3D(Scale);
+			const float HalfHeight = Loaded->GetBounds().BoxExtent.Z * Scale.Z;
 			NodeMesh->SetRelativeLocation(FVector(0.f, 0.f, HalfHeight));
+			if (!Def->Material.IsNull())
+			{
+				if (UMaterialInterface* AuthorMaterial = Def->Material.LoadSynchronous())
+				{
+					NodeMesh->SetMaterial(0, AuthorMaterial);
+				}
+			}
 		}
 		return;
 	}
 	ApplyPlaceholder(ResourceType);
+	if (!Def->Material.IsNull())
+	{
+		if (UMaterialInterface* AuthorMaterial = Def->Material.LoadSynchronous())
+		{
+			TInlineComponentArray<UStaticMeshComponent*> Meshes;
+			GetComponents(Meshes);
+			for (UStaticMeshComponent* Mesh : Meshes)
+			{
+				if (Mesh)
+				{
+					Mesh->SetMaterial(0, AuthorMaterial);
+				}
+			}
+		}
+	}
+	if (!Def->MeshScale.Equals(FVector::OneVector, 0.01f) && NodeMesh)
+	{
+		NodeMesh->SetRelativeScale3D(NodeMesh->GetRelativeScale3D() * Def->MeshScale);
+	}
 }
 
 void AKodResourceNode::ClearClusterMeshes()

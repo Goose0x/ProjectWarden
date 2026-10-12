@@ -23,4 +23,9 @@ protected:
 	virtual void IssueMoveToSelection_Implementation(FVector WorldLocation) override;
 	virtual void IssueAttackToSelection_Implementation(AActor* Target) override;
 	virtual void IssueGatherToSelection_Implementation(AActor* Node, FVector NonGathererMovePoint) override;
+	virtual void PlayerTick(float DeltaTime) override;
+	virtual bool ApplySelectedStructureRally(const FKodCursorCommand& Cmd) override;
+
+	void EnqueueTrainOnSelectedStructures();
+	void CancelTrainOnSelectedStructures();
 };

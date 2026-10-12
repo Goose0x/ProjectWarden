@@ -7,9 +7,15 @@
 #include "Actors/KodResourceNode.h"
 #include "Data/KodResourceNodeDefinition.h"
 #include "Data/KodUnitDefinition.h"
+#include "Data/KodBuildingDefinition.h"
 #include "Warden/KodWardenPaths.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/CollisionProfile.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
+#include "UObject/SoftObjectPath.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
@@ -172,6 +178,7 @@ AKodSlice0GameMode::AKodSlice0GameMode()
 	DefaultPawnClass = AKodRTSCameraPawn::StaticClass();
 	// Parent sets this too. Repeat it here so a map or config cannot leave Slice 0 without AKodHUD.
 	HUDClass = AKodHUD::StaticClass();
+	WorkerSpawnCount = KodEconomyDefaults::WorkerSpawnCount;
 }
 
 void AKodSlice0GameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
@@ -263,6 +270,21 @@ void AKodSlice0GameMode::StartPlay()
 	// Touch Resolve so soft-path miss path is exercised in logs / debugger.
 	UKodSlice0Bootstrap::ResolveWeapon(FName(KodWardenPaths::Id_RangerRifle), this);
 	UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Ranger), this);
+	if (UWorld* World = GetWorld())
+	{
+		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			if (const UKodUnitDefinition* Amp = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Dozer), this))
+			{
+				FKodTrainSpec Spec;
+				Spec.UnitId = Amp->DefinitionId.IsNone() ? FName(KodWardenPaths::Id_Dozer) : Amp->DefinitionId;
+				Spec.DisplayId = FName(TEXT("AMP"));
+				Spec.Cost = Amp->Cost;
+				Spec.bCanGather = true;
+				Sim->RegisterTrainSpec(Spec);
+			}
+		}
+	}
 
 	if (bSpawnSmokeRanger && GetWorld())
 	{
@@ -404,13 +426,25 @@ void AKodSlice0GameMode::SpawnResourceField()
 		const bool bJadeite = Actor->ActorHasTag(FName(TEXT("KodResourceJadeite")));
 		const bool bLuminene = Actor->ActorHasTag(FName(TEXT("KodResourceLuminene")))
 			|| Actor->ActorHasTag(FName(TEXT("KodResourceOil")));
-		if (!bJadeite && !bLuminene)
+		const bool bPlacedNode = Actor->IsA<AKodResourceNode>();
+		if (!bJadeite && !bLuminene && !bPlacedNode)
 		{
 			continue;
 		}
 		FTaggedNode Entry;
 		Entry.Actor = Actor;
-		Entry.Type = bJadeite ? EKodResourceType::Jadeite : EKodResourceType::Luminene;
+		if (bJadeite)
+		{
+			Entry.Type = EKodResourceType::Jadeite;
+		}
+		else if (bLuminene)
+		{
+			Entry.Type = EKodResourceType::Luminene;
+		}
+		else if (const AKodResourceNode* Placed = Cast<AKodResourceNode>(Actor))
+		{
+			Entry.Type = Placed->ResourceType;
+		}
 		Entry.SortKey = FString::Printf(TEXT("%d_%s"), bJadeite ? 0 : 1, *Actor->GetName());
 		Tagged.Add(Entry);
 	}
@@ -658,6 +692,47 @@ void AKodSlice0GameMode::SpawnResourceField()
 	UE_LOG(LogTemp, Log, TEXT("KodEcon Nodes Jadeite=%d Luminene=%d Source=Default"), JadeiteCount, LumineneCount);
 }
 
+static void ApplyPrototypeStructureMesh(AActor* Actor, const UKodBuildingDefinition* Def)
+{
+	if (!Actor)
+	{
+		return;
+	}
+	TSoftObjectPtr<UStaticMesh> MeshRef = (Def && !Def->Mesh.IsNull())
+		? Def->Mesh
+		: TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(KodWardenPaths::ProtoHqMesh));
+	UStaticMesh* Mesh = MeshRef.LoadSynchronous();
+	if (!Mesh)
+	{
+		return;
+	}
+	UMaterialInterface* Material = nullptr;
+	if (Def && !Def->Material.IsNull())
+	{
+		Material = Def->Material.LoadSynchronous();
+	}
+	const FVector Scale = Def ? Def->MeshScale : FVector::OneVector;
+	TInlineComponentArray<UStaticMeshComponent*> Meshes;
+	Actor->GetComponents(Meshes);
+	for (UStaticMeshComponent* Comp : Meshes)
+	{
+		if (!Comp)
+		{
+			continue;
+		}
+		Comp->SetStaticMesh(Mesh);
+		if (!Scale.Equals(FVector::OneVector, 0.01f))
+		{
+			Comp->SetRelativeScale3D(Scale);
+		}
+		if (Material)
+		{
+			Comp->SetMaterial(0, Material);
+		}
+		break;
+	}
+}
+
 void AKodSlice0GameMode::RegisterCommandCenterDropOff()
 {
 	UWorld* World = GetWorld();
@@ -699,12 +774,21 @@ void AKodSlice0GameMode::RegisterCommandCenterDropOff()
 		return;
 	}
 
-	const int32 Stand = DropOffStandUU > 0 ? DropOffStandUU : KodEconomyDefaults::DropOffStandUU;
-	const FKodEntityId Id = Sim->RegisterDropOff(Anchor, /*TeamId*/ 0, Stand);
+	UKodBuildingDefinition* CCDef = UKodSlice0Bootstrap::ResolveBuilding(FName(KodWardenPaths::Id_CommandCenter), this);
+	FKodStructureSpec Spec;
+	Spec.DefinitionId = FName(KodWardenPaths::Id_CommandCenter);
+	Spec.TeamId = 0;
+	Spec.SupplyProvided = CCDef ? CCDef->SupplyProvided : KodEconomyDefaults::SupplyPerHq;
+	Spec.bIsDropOff = true;
+	Spec.DropOffStandUU = DropOffStandUU > 0 ? DropOffStandUU : KodEconomyDefaults::DropOffStandUU;
+	const FKodEntityId Id = Sim->RegisterStructure(Anchor, Spec);
 	if (!Id.IsValid())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("KodEcon DropOff Miss Anchor=%s"), *Anchor->GetActorNameOrLabel());
+		return;
 	}
+	EnableResourceSelectCollision(Anchor);
+	ApplyPrototypeStructureMesh(Anchor, CCDef);
 }
 
 void AKodSlice0GameMode::SpawnWorkersIfNeeded()

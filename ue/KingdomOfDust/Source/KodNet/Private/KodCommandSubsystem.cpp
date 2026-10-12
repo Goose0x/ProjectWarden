@@ -65,7 +65,10 @@ void UKodCommandSubsystem::ExecuteCommand(const FKodCommand& Command)
 	case EKodCommandType::Stop:      ExecuteStop(Command); break;
 	case EKodCommandType::Build:     ExecuteBuild(Command); break;
 	case EKodCommandType::CastPower: ExecuteCastPower(Command); break;
-	case EKodCommandType::Gather:    ExecuteGather(Command); break;
+	case EKodCommandType::Gather:      ExecuteGather(Command); break;
+	case EKodCommandType::Train:       ExecuteTrain(Command); break;
+	case EKodCommandType::CancelTrain: ExecuteCancelTrain(Command); break;
+	case EKodCommandType::SetRally:    ExecuteSetRally(Command); break;
 	default: break;
 	}
 }
@@ -183,6 +186,48 @@ void UKodCommandSubsystem::ExecuteCastPower(const FKodCommand& Command)
 	// M1: general power activation is driven by GAS on the player pawn / power component.
 	// Command payload carries ability/tag name; activation hook filled when KodGenerals Content exists.
 	(void)Command;
+}
+
+void UKodCommandSubsystem::ExecuteTrain(const FKodCommand& Command)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : Command.SourceEntities)
+	{
+		Sim->EnqueueTrain(Id, Command.PayloadName);
+	}
+}
+
+void UKodCommandSubsystem::ExecuteCancelTrain(const FKodCommand& Command)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : Command.SourceEntities)
+	{
+		Sim->CancelLastTrain(Id);
+	}
+}
+
+void UKodCommandSubsystem::ExecuteSetRally(const FKodCommand& Command)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : Command.SourceEntities)
+	{
+		Sim->SetStructureRally(Id, Command.TargetLocation, Command.TargetEntity);
+	}
 }
 
 void UKodCommandSubsystem::ExecuteGather(const FKodCommand& Command)

@@ -110,7 +110,7 @@ protected:
 	void HandleCommandMove();
 	void HandleCommandAttack();
 	/** RMB: Attack a foreign sim entity, Gather when a worker hits a node, otherwise Move. */
-	void HandleRightClickCommand();
+	virtual void HandleRightClickCommand();
 
 	struct FKodCursorCommand
 	{
@@ -123,6 +123,9 @@ protected:
 		FVector MovePoint = FVector::ZeroVector;
 		FString HitName;
 	};
+
+	/** Rally when a structure is selected. True when the click should not also order units. */
+	virtual bool ApplySelectedStructureRally(const FKodCursorCommand& Cmd);
 
 	/**
 	 * Cursor ray on ECC_Pawn. MovePoint is the first blocking ImpactPoint.

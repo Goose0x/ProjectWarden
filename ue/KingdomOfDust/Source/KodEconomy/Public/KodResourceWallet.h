@@ -9,8 +9,9 @@ inline constexpr int32 KodSupplyHardCap = 200;
 #include "KodResourceWallet.generated.h"
 
 /**
- * Playtest #1 wallet. Cash is the primary spend. Oil is the second store.
- * This component does not gather world nodes.
+ * Retired as match authority. Cash and Oil mirror the sim bank for team 0
+ * (Jadeite and Luminene). The sim supply cap comes from registered structures.
+ * SetSupplyCount only clamps these mirrored fields.
  */
 UCLASS(ClassGroup = (Kod), meta = (BlueprintSpawnableComponent))
 class KODECONOMY_API UKodResourceWallet : public UActorComponent
@@ -19,6 +20,8 @@ class KODECONOMY_API UKodResourceWallet : public UActorComponent
 
 public:
 	UKodResourceWallet();
+
+	virtual void BeginPlay() override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing = OnRep_Cash, Category = "Kod|Economy")
 	int32 Cash = 500;
@@ -64,4 +67,5 @@ protected:
 	void OnRep_Supply();
 
 	void ClampSupply();
+	void MirrorFromSim();
 };

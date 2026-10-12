@@ -6,6 +6,7 @@
 #include "Sim/KodEntityId.h"
 #include "Sim/KodBuildTicks.h"
 #include "Sim/KodResourceTypes.h"
+#include "Sim/KodProductionTypes.h"
 #include "KodSimSubsystem.generated.h"
 
 class AActor;
@@ -134,6 +135,12 @@ struct KODCORE_API FKodSimEntityState
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
 	bool bGatherStallRetargeted = false;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	int32 SupplyCost = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	bool bSupplyCounted = false;
+
 	bool IsMoving() const { return Order == EKodSimOrderType::Move; }
 	bool HasPendingOrder() const { return Order != EKodSimOrderType::None; }
 	bool IsCarryingCargo() const { return CargoJadeite > 0 || CargoLuminene > 0; }
@@ -207,8 +214,9 @@ public:
 	/**
 	 * Stable when no units moving and no orders pending.
 	 * Hashes entity ids, quantized positions, HP, order, and gather state (phase, node, drop-off,
-	 * cargo, harvest ticks, stall), then each team bank (Jadeite, Luminene), each resource node
-	 * (id, type, remaining, quantized position), and each drop-off (id, team, quantized position).
+	 * cargo, harvest ticks, stall, supply cost), then each team bank (Jadeite, Luminene) and supply
+	 * used/cap, each resource node (id, type, remaining, quantized position), each drop-off
+	 * (id, team, quantized position), and each structure queue (slots, progress, rally).
 	 * Those fields are integers. TeamId, RetaliateTarget, visual bob, visual yaw, cargo mesh tint,
 	 * and other presentation (flash, tracer, HP bar, death sink, resource readout) are not hashed.
 	 */
@@ -306,6 +314,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
 	int32 HarvestNode(FKodEntityId Id, int32 Amount, int32 TeamId);
 
+	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
+	bool TryGetSupply(int32 TeamId, int32& OutUsed, int32& OutCap) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Kod|Economy")
+	void AccountUnitSupply(FKodEntityId Id, int32 Cost, bool bAlreadyPaid = false);
+
+	void RegisterTrainSpec(const FKodTrainSpec& Spec);
+	FKodEntityId RegisterStructure(AActor* Actor, const FKodStructureSpec& Spec);
+	bool IsStructure(FKodEntityId Id) const;
+	bool TryGetStructure(FKodEntityId Id, FKodStructureState& OutState) const;
+	bool EnqueueTrain(FKodEntityId StructureId, FName UnitId);
+	bool CancelLastTrain(FKodEntityId StructureId);
+	void SetStructureRally(FKodEntityId StructureId, FVector GroundPoint, FKodEntityId NodeId);
+	void ConsumePendingSpawns(TArray<FKodPendingUnitSpawn>& OutSpawns);
+	void NotifyTrainSpawned(int32 StructureId);
+
 	/** Default 50. L_Slice0 overwrites this from AKodSlice0GameMode at StartPlay. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
 	int32 StartingJadeite = 50;
@@ -370,6 +394,12 @@ protected:
 	void QuantizeResourcePosition(FVector& Position) const;
 	void SyncActorPresentation(float Alpha) const;
 	void DestroyResourceNodeActor(FKodEntityId Id);
+	void StepProduction();
+	void TryStartProduction(FKodStructureState& Structure);
+	void FinishActiveProduction(FKodStructureState& Structure);
+	void RecalcSupplyCap(int32 TeamId);
+	void AddSupplyUsed(int32 TeamId, int32 Delta);
+	void ReleaseCountedSupply(FKodEntityId Id);
 
 	UPROPERTY()
 	TMap<int32, TWeakObjectPtr<AActor>> Entities;
@@ -388,6 +418,11 @@ protected:
 	/** Drop-off buildings. Not combat. Included in ComputeIdleHash. */
 	UPROPERTY()
 	TMap<int32, FKodDropOffState> DropOffs;
+
+	TMap<int32, FKodSupplyState> Supply;
+	TMap<int32, FKodStructureState> Structures;
+	TMap<FName, FKodTrainSpec> TrainSpecs;
+	TArray<FKodPendingUnitSpawn> PendingSpawns;
 
 	/** Previous step poses for interpolation. */
 	TMap<int32, FVector> PrevPositions;

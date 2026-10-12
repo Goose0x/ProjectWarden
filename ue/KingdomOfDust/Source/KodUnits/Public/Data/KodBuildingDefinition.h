@@ -3,7 +3,10 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "Sim/KodBuildTicks.h"
+#include "Sim/KodResourceTypes.h"
 #include "KodBuildingDefinition.generated.h"
 
 class UKodUnitDefinition;
@@ -32,9 +35,26 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Combat")
 	float MaxHealth = 1000.f;
 
-	/** Cash spent to build. Not a gather-node field. */
+	/** Credits are Jadeite. BuildTime is sim ticks. Replaces BuildCostCash. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
-	int32 BuildCostCash = 200;
+	FKodTrainCost Cost;
+
+	/** HQ 15, Supply Depot 8. Added to the team cap while the structure is registered. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
+	int32 SupplyProvided = 0;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
+	bool bIsDropOff = false;
+
+	/** Optional presentation. Empty keeps the placed greybox mesh. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	TSoftObjectPtr<UStaticMesh> Mesh;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	TSoftObjectPtr<UMaterialInterface> Material;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	FVector MeshScale = FVector(1.f, 1.f, 1.f);
 
 	/** Authoritative build duration in sim ticks. Barracks=320 (20×16). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
@@ -65,6 +85,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|Economy")
 	int32 GetResolvedBuildTicks() const
 	{
+		if (Cost.BuildTime > 0)
+		{
+			return Cost.BuildTime;
+		}
 		return KodBuildTicks::ResolveBuildTicks(BuildTicks, BuildTimeSeconds);
 	}
 

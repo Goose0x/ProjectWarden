@@ -48,6 +48,11 @@ namespace
 		{
 			return true;
 		}
+		if (Sim->IsStructure(Id))
+		{
+			FKodStructureState Structure;
+			return Sim->TryGetStructure(Id, Structure) && Structure.TeamId == LocalTeam;
+		}
 		return IsLocalTeamSimId(Sim, Id, LocalTeam);
 	}
 }
@@ -403,9 +408,56 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 	return Cmd;
 }
 
+bool AKodPlayerController::ApplySelectedStructureRally(const FKodCursorCommand& Cmd)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return false;
+	}
+	TArray<FKodEntityId> Structures;
+	bool bHasUnits = false;
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		if (Sim->IsStructure(Id))
+		{
+			Structures.Add(Id);
+		}
+		else
+		{
+			FKodSimEntityState State;
+			if (Sim->TryGetState(Id, State))
+			{
+				bHasUnits = true;
+			}
+		}
+	}
+	if (Structures.Num() == 0)
+	{
+		return false;
+	}
+	FKodEntityId NodeId;
+	FVector Point = Cmd.bHasMovePoint ? Cmd.MovePoint : FVector::ZeroVector;
+	if (Cmd.GatherActor)
+	{
+		NodeId = Cmd.GatherId;
+		Point = Cmd.GatherActor->GetActorLocation();
+	}
+	for (const FKodEntityId& Id : Structures)
+	{
+		Sim->SetStructureRally(Id, Point, NodeId);
+	}
+	return !bHasUnits;
+}
+
 void AKodPlayerController::HandleRightClickCommand()
 {
 	const FKodCursorCommand Cmd = TraceCursorCommand();
+	if (ApplySelectedStructureRally(Cmd))
+	{
+		return;
+	}
 	if (Cmd.AttackActor)
 	{
 		UE_LOG(LogTemp, Log, TEXT("RMB Attack LocalSelection=%d Target=%s Id=%d"),

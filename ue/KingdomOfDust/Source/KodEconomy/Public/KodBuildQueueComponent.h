@@ -7,8 +7,8 @@
 class UKodUnitDefinition;
 
 /**
- * One-slot build / train queue (M1).
- * Enqueue a unit definition; tick Progress until complete, then spawn.
+ * Retired. Training is the sim production queue on UKodSimSubsystem.
+ * Enqueue does not spend, tick, or spawn.
  */
 UCLASS(ClassGroup = (Kod), meta = (BlueprintSpawnableComponent))
 class KODECONOMY_API UKodBuildQueueComponent : public UActorComponent

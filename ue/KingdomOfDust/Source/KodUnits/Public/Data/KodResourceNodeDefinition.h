@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "GameplayTagContainer.h"
 #include "Sim/KodResourceTypes.h"
 #include "KodResourceNodeDefinition.generated.h"
@@ -59,6 +60,12 @@ public:
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
 	TSoftObjectPtr<UStaticMesh> Mesh;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	TSoftObjectPtr<UMaterialInterface> Material;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	FVector MeshScale = FVector(1.f, 1.f, 1.f);
 
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override
 	{

@@ -16,6 +16,10 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Banks.Reset();
 	ResourceNodes.Reset();
 	DropOffs.Reset();
+	Supply.Reset();
+	Structures.Reset();
+	TrainSpecs.Reset();
+	PendingSpawns.Reset();
 	TimeAccumulator = 0.f;
 	SimTickIndex = 0;
 	SimHz = KodBuildTicks::SimHz;
@@ -33,6 +37,10 @@ void UKodSimSubsystem::Deinitialize()
 	Banks.Reset();
 	ResourceNodes.Reset();
 	DropOffs.Reset();
+	Supply.Reset();
+	Structures.Reset();
+	TrainSpecs.Reset();
+	PendingSpawns.Reset();
 	PrevPositions.Reset();
 	PrevYaws.Reset();
 	Super::Deinitialize();
@@ -118,6 +126,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 			break;
 		}
 	}
+	StepProduction();
 }
 
 void UKodSimSubsystem::StepEntityMove(FKodSimEntityState& State, float FixedDt)
@@ -425,6 +434,7 @@ FKodEntityId UKodSimSubsystem::RegisterEntity(AActor* Actor)
 
 void UKodSimSubsystem::UnregisterEntity(FKodEntityId Id)
 {
+	ReleaseCountedSupply(Id);
 	Entities.Remove(Id.Value);
 	States.Remove(Id.Value);
 	PrevPositions.Remove(Id.Value);
@@ -1540,7 +1550,7 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 {
 	// Stable when idle (no orders / no micro-integrate). Quantized pose + DA-driven HP.
 	// TeamId on combat entities is omitted so that prefix stays ids / pose / HP / order / gather.
-	// Banks, resource nodes, and drop-offs are appended after that prefix as integers.
+	// Banks, supply, resource nodes, drop-offs, and structure queues are appended after that prefix as integers.
 	// Visual bob, actor yaw, cargo mesh, and the resource readout are not appended.
 	TArray<uint8> Bytes;
 	auto Append = [&Bytes](const void* Data, int32 Size)
@@ -1592,12 +1602,21 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&S.GatherStallTicks, sizeof(S.GatherStallTicks));
 		const uint8 StallRetarget = S.bGatherStallRetargeted ? 1 : 0;
 		Append(&StallRetarget, sizeof(StallRetarget));
+		Append(&S.SupplyCost, sizeof(S.SupplyCost));
+		const uint8 SupplyCounted = S.bSupplyCounted ? 1 : 0;
+		Append(&SupplyCounted, sizeof(SupplyCounted));
 	}
 
 	// Economy is integers only: team id + bank, then node id + type + remaining + quantized position,
 	// then drop-off id + team + quantized position.
 	TArray<int32> TeamKeys;
 	Banks.GetKeys(TeamKeys);
+	TArray<int32> SupplyKeys;
+	Supply.GetKeys(SupplyKeys);
+	for (int32 SupplyTeam : SupplyKeys)
+	{
+		TeamKeys.AddUnique(SupplyTeam);
+	}
 	TeamKeys.Sort();
 	const int32 BankCount = TeamKeys.Num();
 	Append(&BankCount, sizeof(BankCount));
@@ -1607,6 +1626,11 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&TeamId, sizeof(TeamId));
 		Append(&Bank.Jadeite, sizeof(Bank.Jadeite));
 		Append(&Bank.Luminene, sizeof(Bank.Luminene));
+		const FKodSupplyState* SupplyRow = Supply.Find(TeamId);
+		const int32 SupplyUsed = SupplyRow ? SupplyRow->Used : 0;
+		const int32 SupplyCap = SupplyRow ? SupplyRow->Cap : 0;
+		Append(&SupplyUsed, sizeof(SupplyUsed));
+		Append(&SupplyCap, sizeof(SupplyCap));
 	}
 
 	TArray<int32> NodeKeys;
@@ -1646,6 +1670,45 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&QX, sizeof(QX));
 		Append(&QY, sizeof(QY));
 		Append(&QZ, sizeof(QZ));
+	}
+
+	TArray<int32> StructureKeys;
+	Structures.GetKeys(StructureKeys);
+	StructureKeys.Sort();
+	const int32 StructureCount = StructureKeys.Num();
+	Append(&StructureCount, sizeof(StructureCount));
+	for (int32 StructureKey : StructureKeys)
+	{
+		const FKodStructureState& Structure = Structures.FindChecked(StructureKey);
+		Append(&StructureKey, sizeof(StructureKey));
+		Append(&Structure.TeamId, sizeof(Structure.TeamId));
+		Append(&Structure.SupplyProvided, sizeof(Structure.SupplyProvided));
+		const int32 SlotCount = Structure.Slots.Num();
+		Append(&SlotCount, sizeof(SlotCount));
+		for (const FKodProductionSlot& Slot : Structure.Slots)
+		{
+			const FString UnitName = Slot.UnitId.ToString();
+			const int32 NameLen = UnitName.Len();
+			Append(&NameLen, sizeof(NameLen));
+			if (NameLen > 0)
+			{
+				Append(*UnitName, NameLen * static_cast<int32>(sizeof(TCHAR)));
+			}
+			Append(&Slot.BuildTime, sizeof(Slot.BuildTime));
+			const uint8 Started = Slot.bStarted ? 1 : 0;
+			Append(&Started, sizeof(Started));
+		}
+		Append(&Structure.ActiveTicksRemaining, sizeof(Structure.ActiveTicksRemaining));
+		const uint8 Blocked = Structure.bSupplyBlocked ? 1 : 0;
+		Append(&Blocked, sizeof(Blocked));
+		const int32 RallyNode = Structure.bRallyNode ? Structure.RallyNode.Value : 0;
+		Append(&RallyNode, sizeof(RallyNode));
+		const int32 RQX = FMath::RoundToInt(Structure.RallyPoint.X / NodeQ);
+		const int32 RQY = FMath::RoundToInt(Structure.RallyPoint.Y / NodeQ);
+		const int32 RQZ = FMath::RoundToInt(Structure.RallyPoint.Z / NodeQ);
+		Append(&RQX, sizeof(RQX));
+		Append(&RQY, sizeof(RQY));
+		Append(&RQZ, sizeof(RQZ));
 	}
 
 	const uint64 Hash = Bytes.Num() > 0
