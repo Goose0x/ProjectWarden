@@ -223,10 +223,11 @@ void AKodRTSCameraPawn::JumpTo(FVector WorldLocation)
 	ClampToPlayable();
 }
 
-void AKodRTSCameraPawn::NoteAlert(FVector WorldLocation)
+void AKodRTSCameraPawn::NoteAlert(FVector WorldLocation, float VisibleSeconds)
 {
 	AlertLocation = WorldLocation;
 	bHasAlert = true;
+	AlertVisibleSeconds = FMath::Max(0.5f, VisibleSeconds);
 	AlertNotedSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 }
 
@@ -237,7 +238,7 @@ bool AKodRTSCameraPawn::GetActiveAlert(FVector& OutLocation) const
 	{
 		return false;
 	}
-	if (World->GetTimeSeconds() - AlertNotedSeconds > 4.f)
+	if (World->GetTimeSeconds() - AlertNotedSeconds > AlertVisibleSeconds)
 	{
 		return false;
 	}

@@ -44,7 +44,7 @@ public:
 	void JumpTo(FVector WorldLocation);
 
 	/** Last alert (unit hit or train complete). Space jumps here. */
-	void NoteAlert(FVector WorldLocation);
+	void NoteAlert(FVector WorldLocation, float VisibleSeconds = 4.f);
 
 	/** Recent alert for the minimap ping. Space still uses the last alert after the ping fades. */
 	bool GetActiveAlert(FVector& OutLocation) const;
@@ -207,6 +207,7 @@ protected:
 	float TargetGroundZ = 0.f;
 	bool bHasAlert = false;
 	FVector AlertLocation = FVector::ZeroVector;
+	float AlertVisibleSeconds = 4.f;
 	float AlertNotedSeconds = -1.f;
 	bool bFollowUnit = false;
 	TWeakObjectPtr<AActor> FollowTarget;

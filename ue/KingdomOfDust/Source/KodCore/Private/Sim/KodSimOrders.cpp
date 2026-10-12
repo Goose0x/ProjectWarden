@@ -330,14 +330,7 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 	{
 		RaiseCue(FName(TEXT("marine_fire")), State.Position, true);
 	}
-	if (bStructureTarget)
-	{
-		RaiseCue(FName(TEXT("base_under_attack")), Target.Position, false);
-	}
-	else
-	{
-		RaiseCue(FName(TEXT("units_under_attack")), Target.Position, false);
-	}
+	NotifyOwnedDamage(Target);
 	const int32 AttackPermille = FMath::Clamp(State.AbilityAttackPermille, 1, 10000);
 	const int32 ScaledTicks = (bCheatNoCooldown && AttackerTeam == 0)
 		? 0
@@ -377,6 +370,66 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 		return true;
 	}
 	return false;
+}
+
+void UKodSimSubsystem::NotifyOwnedDamage(const FKodSimEntityState& Target)
+{
+	if (Target.TeamId != 0)
+	{
+		return;
+	}
+	constexpr int64 WindowTicks = 20 * 16;
+	constexpr int64 RadiusSq = 1500ll * 1500ll;
+	const int32 AlertX = FMath::RoundToInt(Target.Position.X);
+	const int32 AlertY = FMath::RoundToInt(Target.Position.Y);
+	AttackAlerts.RemoveAll([this, WindowTicks](const FKodAttackAlert& Alert)
+	{
+		return SimTickIndex - Alert.Tick >= WindowTicks;
+	});
+	for (const FKodAttackAlert& Alert : AttackAlerts)
+	{
+		if (Alert.TeamId != Target.TeamId)
+		{
+			continue;
+		}
+		const int64 DX = static_cast<int64>(AlertX) - static_cast<int64>(Alert.X);
+		const int64 DY = static_cast<int64>(AlertY) - static_cast<int64>(Alert.Y);
+		if (DX * DX + DY * DY <= RadiusSq)
+		{
+			return;
+		}
+	}
+	FKodAttackAlert Alert;
+	Alert.TeamId = Target.TeamId;
+	Alert.X = AlertX;
+	Alert.Y = AlertY;
+	Alert.Tick = SimTickIndex;
+	AttackAlerts.Add(Alert);
+	AttackAlerts.Sort([](const FKodAttackAlert& A, const FKodAttackAlert& B)
+	{
+		if (A.Tick != B.Tick)
+		{
+			return A.Tick < B.Tick;
+		}
+		if (A.TeamId != B.TeamId)
+		{
+			return A.TeamId < B.TeamId;
+		}
+		if (A.X != B.X)
+		{
+			return A.X < B.X;
+		}
+		return A.Y < B.Y;
+	});
+	const bool bStructure = Structures.Contains(Target.Id.Value);
+	const FVector At(static_cast<float>(AlertX), static_cast<float>(AlertY), Target.Position.Z);
+	RaiseCue(FName(TEXT("alert_ping")), At, false);
+	RaiseCue(bStructure ? FName(TEXT("base_under_attack")) : FName(TEXT("units_under_attack")), At, false);
+	UE_LOG(LogTemp, Log, TEXT("KodAlert Area X=%d Y=%d Tick=%lld Structure=%d"),
+		AlertX,
+		AlertY,
+		static_cast<long long>(SimTickIndex),
+		bStructure ? 1 : 0);
 }
 
 void UKodSimSubsystem::StripDeadFromCargo(int32 DeadId)
@@ -440,10 +493,25 @@ void UKodSimSubsystem::FinishEntityDeath(FKodSimEntityState& Target, int32 Kille
 	{
 		UE_LOG(LogTemp, Log, TEXT("KodOrbital Down Id=%d Reason=Destroyed"), DeadId.Value);
 	}
+	bool bOrganicDeath = false;
+	if (!bStructureTarget)
+	{
+		if (const FKodTrainSpec* Train = TrainSpecs.Find(DefinitionId))
+		{
+			bOrganicDeath = Train->bOrganic;
+		}
+		else
+		{
+			bOrganicDeath = Target.bInfantry || Target.bBiological || Target.bCanGather;
+		}
+	}
+	if (!bStructureTarget && !bOrganicDeath)
+	{
+		RaiseCue(FName(TEXT("unit_death")), DeathAt, true);
+	}
 	StripDeadFromCargo(DeadId.Value);
 	UnregisterEntity(DeadId);
 	OnUnitKilled.Broadcast(TargetActor, TargetIdValue);
-	RaiseCue(FName(TEXT("unit_death")), DeathAt, true);
 	if (bStructureTarget && TargetActor && !TargetActor->IsActorBeingDestroyed())
 	{
 		TargetActor->Destroy();

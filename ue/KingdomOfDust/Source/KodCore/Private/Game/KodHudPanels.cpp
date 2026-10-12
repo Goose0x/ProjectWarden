@@ -527,7 +527,8 @@ void AKodHUD::DrawMinimap()
 			const float Life = FMath::Clamp((MinimapPingUntil[Index] - Now) / 6.f, 0.f, 1.f);
 			const float Grow = 1.f - Life;
 			const float R = (4.f + 16.f * Grow) * Scale;
-			const FLinearColor Ping = Tok(0xFF, 0xD2, 0x3F, Life);
+			const float Flash = 0.35f + 0.65f * FMath::Abs(FMath::Sin(Now * 8.f));
+			const FLinearColor Ping = Tok(0xFF, 0xD2, 0x3F, Flash);
 			const int32 Steps = 10;
 			FVector2D Prev(X + R, Y);
 			for (int32 Step = 1; Step <= Steps; ++Step)

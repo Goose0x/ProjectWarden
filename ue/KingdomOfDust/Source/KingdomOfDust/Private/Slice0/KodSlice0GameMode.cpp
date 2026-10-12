@@ -335,6 +335,7 @@ void AKodSlice0GameMode::StartPlay()
 				Spec.bBiological = Def->bBiological;
 				Spec.bInfantry = Def->bInfantry;
 				Spec.bFlyer = Def->bFlyer;
+				Spec.bOrganic = Def->UsesOrganicDeath();
 				Spec.bHealer = Def->bHealer;
 				Spec.CargoSize = Def->CargoSize;
 				Spec.BaseArmor = FMath::Max(0, FMath::RoundToInt(Def->Armor));
@@ -963,6 +964,8 @@ void AKodSlice0GameMode::PlaceFieldAt(const FVector& AnchorLocation, const FVect
 		if (AKodResourceNode* Node = Cast<AKodResourceNode>(Actor))
 		{
 			Node->SetEntityId(Id);
+			Node->ApplyJadeiteStandIn();
+			Node->SetActorHiddenInGame(false);
 		}
 		const FVector SpawnedAt = Actor->GetActorLocation();
 		UE_LOG(LogTemp, Log, TEXT("KodEcon Node Spawn Id=%d Type=%s Loc=%.0f,%.0f,%.0f"),
@@ -1214,6 +1217,8 @@ void AKodSlice0GameMode::SpawnResourceField()
 		if (AKodResourceNode* Node = Cast<AKodResourceNode>(Actor))
 		{
 			Node->SetEntityId(Id);
+			Node->ApplyJadeiteStandIn();
+			Node->SetActorHiddenInGame(false);
 		}
 		const FVector SpawnedAt = Actor->GetActorLocation();
 		UE_LOG(LogTemp, Log, TEXT("KodEcon Node Spawn Id=%d Type=%s Loc=%.0f,%.0f,%.0f"),
@@ -1319,7 +1324,8 @@ void AKodSlice0GameMode::SpawnResourceField()
 	}
 	if (FMath::Abs(AnchorLocation.X) + FMath::Abs(AnchorLocation.Y) > 4000.f)
 	{
-		FieldDir = FVector(AnchorLocation.X >= 0.f ? 1.f : -1.f, AnchorLocation.Y >= 0.f ? 1.f : -1.f, 0.f).GetSafeNormal2D();
+		// In front of a corner command center, toward the map, not further into the corner.
+		FieldDir = FVector(AnchorLocation.X >= 0.f ? -1.f : 1.f, AnchorLocation.Y >= 0.f ? -1.f : 1.f, 0.f).GetSafeNormal2D();
 	}
 
 	const float FacingDeg = FMath::RadiansToDegrees(FMath::Atan2(FieldDir.Y, FieldDir.X));

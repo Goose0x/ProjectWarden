@@ -306,6 +306,7 @@ void UKodSimSubsystem::StepPowers()
 					continue;
 				}
 				State->Health = FMath::Max(0.f, State->Health - static_cast<float>(DealtInt));
+				NotifyOwnedDamage(*State);
 				if (Power.TeamId == 0)
 				{
 					DamageDealt0 += DealtInt;

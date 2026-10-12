@@ -2,6 +2,7 @@
 
 #include "Kismet/GameplayStatics.h"
 #include "Sim/KodSimSubsystem.h"
+#include "TimerManager.h"
 
 bool UKodCueSubsystem::IsVoiceCue(FName CueId)
 {
@@ -44,6 +45,7 @@ namespace
 		TEXT("defeat"),
 		TEXT("ui_click"),
 		TEXT("cant_build"),
+		TEXT("alert_ping"),
 		TEXT("depot_raise_blocked"),
 		TEXT("expand_or_be_exposed"),
 		TEXT("exposed"),
@@ -176,8 +178,28 @@ void UKodCueSubsystem::HandleCue(FName CueId, FVector Location, bool bAtLocation
 	{
 		OnWorldBeginPlay(*World);
 	}
+	if (CueId == FName(TEXT("units_under_attack")) || CueId == FName(TEXT("base_under_attack")))
+	{
+		FTimerHandle VoiceTimer;
+		World->GetTimerManager().SetTimer(
+			VoiceTimer,
+			FTimerDelegate::CreateUObject(this, &UKodCueSubsystem::PlayCueNow, CueId, Location, bAtLocation, true),
+			0.45f,
+			false);
+		return;
+	}
+	PlayCueNow(CueId, Location, bAtLocation, false);
+}
+
+void UKodCueSubsystem::PlayCueNow(FName CueId, FVector Location, bool bAtLocation, bool bSkipAnnouncerGap)
+{
+	UWorld* World = GetWorld();
+	if (!World || CueId.IsNone())
+	{
+		return;
+	}
 	const float Now = World->GetTimeSeconds();
-	if (IsAnnouncerCue(CueId))
+	if (!bSkipAnnouncerGap && IsAnnouncerCue(CueId))
 	{
 		if (const float* Until = AnnouncerUntil.Find(CueId))
 		{

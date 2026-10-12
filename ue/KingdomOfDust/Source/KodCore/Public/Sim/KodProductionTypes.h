@@ -15,6 +15,8 @@ struct KODCORE_API FKodTrainSpec
 	bool bBiological = false;
 	bool bInfantry = false;
 	bool bFlyer = false;
+	/** Body death. Infantry, biological units, and workers. Not saved on the entity. */
+	bool bOrganic = false;
 	bool bHealer = false;
 	int32 CargoSize = 0;
 	int32 BaseArmor = 0;

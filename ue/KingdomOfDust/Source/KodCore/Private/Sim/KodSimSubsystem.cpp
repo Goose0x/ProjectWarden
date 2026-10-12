@@ -70,6 +70,7 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	LastCheatLine.Reset();
 	bGeneralPowers = true;
 	bPowerStartGranted = false;
+	AttackAlerts.Reset();
 	PowerPoints0 = 0;
 	PowerPoints1 = 0;
 	ArtilleryCd0 = 0;
@@ -2668,6 +2669,15 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&Use.Effect, sizeof(Use.Effect));
 		Append(&Use.Count, sizeof(Use.Count));
 		Append(&Use.bEnabled, sizeof(Use.bEnabled));
+	}
+	const int32 AttackAlertCount = AttackAlerts.Num();
+	Append(&AttackAlertCount, sizeof(AttackAlertCount));
+	for (const FKodAttackAlert& Alert : AttackAlerts)
+	{
+		Append(&Alert.TeamId, sizeof(Alert.TeamId));
+		Append(&Alert.X, sizeof(Alert.X));
+		Append(&Alert.Y, sizeof(Alert.Y));
+		Append(&Alert.Tick, sizeof(Alert.Tick));
 	}
 
 	const uint64 Hash = Bytes.Num() > 0

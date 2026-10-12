@@ -362,11 +362,17 @@ void AKodResourceNode::ApplyJadeiteStandIn()
 		return;
 	}
 	UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(Parent, this);
+	if (!Mid)
+	{
+		return;
+	}
 	const FLinearColor Tint(FColor(0x00, 0xFF, 0x73));
 	Mid->SetVectorParameterValue(TEXT("Color"), Tint);
 	Mid->SetVectorParameterValue(TEXT("BaseColor"), Tint);
 	Mid->SetVectorParameterValue(TEXT("Tint"), Tint);
 	NodeMesh->SetMaterial(0, Mid);
+	NodeMesh->SetVisibility(true);
+	NodeMesh->SetHiddenInGame(false);
 }
 
 FName AKodResourceNode::ApplyTint(UStaticMeshComponent* Mesh, const FLinearColor& Tint, bool bEmissive)

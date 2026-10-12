@@ -18,6 +18,8 @@
 #include "NiagaraSystem.h"
 #include "Particles/ParticleSystem.h"
 #include "Particles/ParticleSystemComponent.h"
+#include "Actors/KodUnit.h"
+#include "Data/KodUnitDefinition.h"
 #include "Sim/KodSimSubsystem.h"
 
 namespace
@@ -303,6 +305,14 @@ void AKodMapLife::HandleKilled(AActor* Target, int32 TargetId)
 	if (!Target)
 	{
 		return;
+	}
+	if (const AKodUnit* Unit = Cast<AKodUnit>(Target))
+	{
+		const UKodUnitDefinition* Def = Unit->GetDefinition();
+		if (!Def || Def->UsesOrganicDeath())
+		{
+			return;
+		}
 	}
 	const FVector At = Target->GetActorLocation();
 	UNiagaraSystem* Burst = ExplosionGround ? ExplosionGround : ExplosionMain;

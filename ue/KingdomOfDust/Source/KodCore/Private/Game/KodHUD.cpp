@@ -370,10 +370,10 @@ void AKodHUD::AddCommandMarker(const FVector& WorldPoint, int32 Kind)
 	}
 }
 
-void AKodHUD::AddMinimapPing(const FVector& WorldPoint)
+void AKodHUD::AddMinimapPing(const FVector& WorldPoint, float Seconds)
 {
 	const UWorld* World = GetWorld();
-	const float Until = World ? World->GetTimeSeconds() + 6.f : 0.f;
+	const float Until = World ? World->GetTimeSeconds() + FMath::Max(0.5f, Seconds) : 0.f;
 	MinimapPings.Add(WorldPoint);
 	MinimapPingUntil.Add(Until);
 	UE_LOG(LogTemp, Log, TEXT("KodMap Ping X=%.0f Y=%.0f"), WorldPoint.X, WorldPoint.Y);
@@ -1561,11 +1561,11 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 	FString Text;
 	if (CueId == FName(TEXT("base_under_attack")))
 	{
-		Text = TEXT("Base under attack");
+		Text = TEXT("Your base is under attack");
 	}
 	else if (CueId == FName(TEXT("units_under_attack")))
 	{
-		Text = TEXT("Units under attack");
+		Text = TEXT("Your forces are under attack");
 	}
 	else if (CueId == FName(TEXT("unit_ready_amp")) || CueId == FName(TEXT("unit_ready_marine")) || CueId == FName(TEXT("unit_ready_medic")))
 	{
@@ -1636,17 +1636,6 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 	}
 	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 	const bool bAttack = CueId == FName(TEXT("base_under_attack")) || CueId == FName(TEXT("units_under_attack"));
-	if (bAttack)
-	{
-		if (const float* Until = AlertThrottleUntil.Find(CueId))
-		{
-			if (Now < *Until)
-			{
-				return;
-			}
-		}
-		AlertThrottleUntil.Add(CueId, Now + 4.f);
-	}
 	FKodAlertLine Line;
 	Line.Text = Text;
 	Line.CueId = CueId;
@@ -1659,10 +1648,10 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 	}
 	if (!Location.IsNearlyZero())
 	{
-		AddMinimapPing(Location);
+		AddMinimapPing(Location, bAttack ? 3.f : 6.f);
 		if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetOwningPawn()))
 		{
-			CameraPawn->NoteAlert(Location);
+			CameraPawn->NoteAlert(Location, bAttack ? 3.f : 4.f);
 		}
 	}
 }

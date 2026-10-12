@@ -77,7 +77,7 @@ public:
 
 	void ToggleHotkeyLegend();
 
-	void AddMinimapPing(const FVector& WorldPoint);
+	void AddMinimapPing(const FVector& WorldPoint, float Seconds = 6.f);
 
 	/** 0 move (green), 1 attack (red), 2 build complete (gold). Presentation only. */
 	void AddCommandMarker(const FVector& WorldPoint, int32 Kind);
