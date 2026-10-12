@@ -403,6 +403,8 @@ void UKodSimSubsystem::ResetFaultlineScript()
 	FaultlineWorkerSpeed = 0;
 	FaultlineWorkerRegenMilli = 0;
 	ScriptedUnits.Reset();
+	FaultlineLanePointX.Reset();
+	FaultlineLanePointY.Reset();
 }
 
 void UKodSimSubsystem::SetStructureVitals(FKodEntityId Id, int32 MaxHp, int32 Armor, int32 RegenMilliPerSec)
@@ -605,6 +607,18 @@ void UKodSimSubsystem::ArmFaultlineScript(const FKodFaultlineScript& Script)
 	FaultlineWorkerHp = FMath::Max(1, Script.WorkerHp);
 	FaultlineWorkerSpeed = FMath::Max(0, Script.WorkerSpeed);
 	FaultlineWorkerRegenMilli = FMath::Max(0, Script.WorkerRegenMilli);
+	const int32 LaneCount = FMath::Min(Script.LanePointX.Num(), Script.LanePointY.Num());
+	for (int32 LaneIndex = 0; LaneIndex < LaneCount && LaneIndex < 16; ++LaneIndex)
+	{
+		FaultlineLanePointX.Add(Script.LanePointX[LaneIndex]);
+		FaultlineLanePointY.Add(Script.LanePointY[LaneIndex]);
+	}
+	if (LaneCount > 0)
+	{
+		bFaultlineHasLane = 1;
+		FaultlineLaneX = FaultlineLanePointX[0];
+		FaultlineLaneY = FaultlineLanePointY[0];
+	}
 	if (FaultlineOutpostCount <= 0)
 	{
 		bFaultlineWaveErrorLogged = true;
@@ -879,28 +893,62 @@ void UKodSimSubsystem::StepFaultlineWave()
 		return;
 	}
 
-	for (FKodScriptedUnit& Row : ScriptedUnits)
+	if (FaultlineWavePhase == 2)
 	{
-		if (Row.Role != 2 || Row.bOrdered)
+		const int32 LaneCount = FMath::Min(FaultlineLanePointX.Num(), FaultlineLanePointY.Num());
+		const FVector Barracks(static_cast<float>(FaultlineBarracksX), static_cast<float>(FaultlineBarracksY), static_cast<float>(FaultlineBarracksZ));
+		for (FKodScriptedUnit& Row : ScriptedUnits)
 		{
-			continue;
+			if (Row.Role != 2)
+			{
+				continue;
+			}
+			FKodSimEntityState* State = States.Find(Row.Id);
+			if (!State || State->Health <= 0.f)
+			{
+				continue;
+			}
+			if (!Row.bOrdered)
+			{
+				FVector First = Barracks;
+				if (LaneCount > 0)
+				{
+					First = FVector(static_cast<float>(FaultlineLanePointX[0]), static_cast<float>(FaultlineLanePointY[0]), State->Position.Z);
+				}
+				else if (bFaultlineHasLane)
+				{
+					First = FVector(static_cast<float>(FaultlineLaneX), static_cast<float>(FaultlineLaneY), static_cast<float>(FaultlineLaneZ));
+				}
+				IssueAttackMove(State->Id, First);
+				Row.bOrdered = 1;
+				Row.LaneCursor = 0;
+				continue;
+			}
+			if (LaneCount <= 0 || Row.LaneCursor < 0 || Row.LaneCursor >= LaneCount)
+			{
+				continue;
+			}
+			const FVector Mark(
+				static_cast<float>(FaultlineLanePointX[Row.LaneCursor]),
+				static_cast<float>(FaultlineLanePointY[Row.LaneCursor]),
+				State->Position.Z);
+			if (FVector::Dist2D(State->Position, Mark) > 400.f)
+			{
+				continue;
+			}
+			++Row.LaneCursor;
+			if (Row.LaneCursor < LaneCount)
+			{
+				IssueAttackMove(State->Id, FVector(
+					static_cast<float>(FaultlineLanePointX[Row.LaneCursor]),
+					static_cast<float>(FaultlineLanePointY[Row.LaneCursor]),
+					State->Position.Z));
+			}
+			else
+			{
+				IssueAttackMove(State->Id, Barracks);
+			}
 		}
-		FKodSimEntityState* State = States.Find(Row.Id);
-		if (!State || State->Health <= 0.f)
-		{
-			continue;
-		}
-		if (bFaultlineHasLane)
-		{
-			IssueAttackMove(State->Id, FVector(static_cast<float>(FaultlineLaneX), static_cast<float>(FaultlineLaneY), static_cast<float>(FaultlineLaneZ)));
-			IssueOrder(
-				State->Id,
-				EKodSimOrderType::AttackMove,
-				FVector(static_cast<float>(FaultlineBarracksX), static_cast<float>(FaultlineBarracksY), static_cast<float>(FaultlineBarracksZ)),
-				FKodEntityId(),
-				true);
-		}
-		Row.bOrdered = 1;
 	}
 
 	if (FaultlineWavePhase == 2)
@@ -3415,6 +3463,14 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&Scripted.RegenAcc, sizeof(Scripted.RegenAcc));
 		Append(&Scripted.bOrdered, sizeof(Scripted.bOrdered));
 		Append(&Scripted.LastHealth, sizeof(Scripted.LastHealth));
+		Append(&Scripted.LaneCursor, sizeof(Scripted.LaneCursor));
+	}
+	const int32 LanePointCount = FMath::Min(FaultlineLanePointX.Num(), FaultlineLanePointY.Num());
+	Append(&LanePointCount, sizeof(LanePointCount));
+	for (int32 LaneIndex = 0; LaneIndex < LanePointCount; ++LaneIndex)
+	{
+		Append(&FaultlineLanePointX[LaneIndex], sizeof(int32));
+		Append(&FaultlineLanePointY[LaneIndex], sizeof(int32));
 	}
 
 	const uint64 Hash = Bytes.Num() > 0

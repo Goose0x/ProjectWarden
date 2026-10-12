@@ -30,7 +30,7 @@
   "coords": "cell (x,y): x east, y north, origin SW corner; world uu = cell*200 - 11200 (+100 for centres); world (0,0) = map centre",
   "symmetry": "NONE (tutorial, guided linear flow SW -> NE)",
   "ue_level": "/Game/Maps/Sandbox/L_FaultlineTraining (PROPOSED \u2014 Soft Dev to confirm)",
-  "ue_gamemode": "/Script/KingdomOfDust.KodSlice0GameMode (PLACEHOLDER \u2014 tutorial GameMode TBD)",
+  "ue_gamemode": "B28 tutorial GameMode (Soft Dev ruling; class path supplied by B28 \u2014 set in World Settings)",
   "high_ground": {
    "tiers": 1,
    "height_uu": 300,
@@ -1048,7 +1048,11 @@
    "note": "Scinder outpost core (3x3)",
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 500,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true
   },
   {
@@ -1063,7 +1067,11 @@
    "note": "defence ward (2x2)",
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 500,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true
   },
   {
@@ -1078,7 +1086,11 @@
    "note": "defence ward (2x2)",
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 500,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true
   },
   {
@@ -1093,7 +1105,11 @@
    "note": "Scinder HQ (5x5)",
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 1500,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true
   },
   {
@@ -1108,7 +1124,11 @@
    "note": "production (3x3)",
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 750,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true
   },
   {
@@ -1123,7 +1143,11 @@
    "note": "production (3x3)",
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 750,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true
   },
   {
@@ -1138,7 +1162,11 @@
    "note": "ramp-top defence (2x2)",
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 750,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true
   },
   {
@@ -1153,7 +1181,11 @@
    "note": "defence (2x2)",
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 750,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true
   }
  ],
@@ -1754,6 +1786,369 @@
     8.25
    ],
    "in_6_8_band": true
+  }
+ },
+ "counter_wave": {
+  "spawn": {
+   "id": "SPAWN_CW_01",
+   "tag": "KodSpawnPoint",
+   "cell": [
+    63,
+    68
+   ],
+   "uu": [
+    1500.0,
+    2500.0
+   ],
+   "z_uu": 0,
+   "pad_cells": 5,
+   "rule": "Scinder counter-wave (balance v1): 45 s after the outpost falls (60 s easy); 5 Fighters + 1 twin-blade normal, 4 + 1 easy",
+   "offscreen_check": {
+    "camera_focus_cell": [
+     63,
+     54
+    ],
+    "assumed_view_cells": [
+     34,
+     20
+    ],
+    "margin_cells": 3,
+    "dx": 0,
+    "dy": 14
+   }
+  },
+  "lane": {
+   "id": "QRF_LANE_01",
+   "tag": "KodWaypoint",
+   "ordered": true,
+   "to": "P1_SLOT_BARRACKS_ADDON front (rally cell)",
+   "waypoints_cells": [
+    [
+     63,
+     68
+    ],
+    [
+     65,
+     60
+    ],
+    [
+     65,
+     52
+    ],
+    [
+     65,
+     44
+    ],
+    [
+     65,
+     36
+    ],
+    [
+     57,
+     35
+    ],
+    [
+     49,
+     35
+    ],
+    [
+     41,
+     31
+    ],
+    [
+     33,
+     30
+    ],
+    [
+     28,
+     28
+    ]
+   ],
+   "length_cells": 73.1,
+   "length_uu": 14628,
+   "fighter_note": "wave attack-moves along the lane, then to the Barracks; retreats at 70% HP lost or 90 s",
+   "path_cells_full": [
+    [
+     63,
+     68
+    ],
+    [
+     63,
+     67
+    ],
+    [
+     63,
+     66
+    ],
+    [
+     63,
+     65
+    ],
+    [
+     63,
+     64
+    ],
+    [
+     63,
+     63
+    ],
+    [
+     63,
+     62
+    ],
+    [
+     64,
+     61
+    ],
+    [
+     65,
+     60
+    ],
+    [
+     65,
+     59
+    ],
+    [
+     65,
+     58
+    ],
+    [
+     65,
+     57
+    ],
+    [
+     65,
+     56
+    ],
+    [
+     65,
+     55
+    ],
+    [
+     65,
+     54
+    ],
+    [
+     65,
+     53
+    ],
+    [
+     65,
+     52
+    ],
+    [
+     65,
+     51
+    ],
+    [
+     65,
+     50
+    ],
+    [
+     65,
+     49
+    ],
+    [
+     65,
+     48
+    ],
+    [
+     65,
+     47
+    ],
+    [
+     65,
+     46
+    ],
+    [
+     65,
+     45
+    ],
+    [
+     65,
+     44
+    ],
+    [
+     65,
+     43
+    ],
+    [
+     65,
+     42
+    ],
+    [
+     65,
+     41
+    ],
+    [
+     65,
+     40
+    ],
+    [
+     65,
+     39
+    ],
+    [
+     65,
+     38
+    ],
+    [
+     65,
+     37
+    ],
+    [
+     65,
+     36
+    ],
+    [
+     64,
+     35
+    ],
+    [
+     63,
+     35
+    ],
+    [
+     62,
+     35
+    ],
+    [
+     61,
+     35
+    ],
+    [
+     60,
+     35
+    ],
+    [
+     59,
+     35
+    ],
+    [
+     58,
+     35
+    ],
+    [
+     57,
+     35
+    ],
+    [
+     56,
+     35
+    ],
+    [
+     55,
+     35
+    ],
+    [
+     54,
+     35
+    ],
+    [
+     53,
+     35
+    ],
+    [
+     52,
+     35
+    ],
+    [
+     51,
+     35
+    ],
+    [
+     50,
+     35
+    ],
+    [
+     49,
+     35
+    ],
+    [
+     48,
+     35
+    ],
+    [
+     47,
+     35
+    ],
+    [
+     46,
+     35
+    ],
+    [
+     45,
+     34
+    ],
+    [
+     44,
+     33
+    ],
+    [
+     43,
+     32
+    ],
+    [
+     42,
+     31
+    ],
+    [
+     41,
+     31
+    ],
+    [
+     40,
+     31
+    ],
+    [
+     39,
+     31
+    ],
+    [
+     38,
+     31
+    ],
+    [
+     37,
+     30
+    ],
+    [
+     36,
+     30
+    ],
+    [
+     35,
+     30
+    ],
+    [
+     34,
+     30
+    ],
+    [
+     33,
+     30
+    ],
+    [
+     32,
+     30
+    ],
+    [
+     31,
+     30
+    ],
+    [
+     30,
+     30
+    ],
+    [
+     29,
+     29
+    ],
+    [
+     28,
+     28
+    ]
+   ]
   }
  }
 }

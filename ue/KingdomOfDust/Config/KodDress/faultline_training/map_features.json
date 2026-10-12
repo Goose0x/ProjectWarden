@@ -9,10 +9,17 @@
   "placeholder": true,
   "generated_by": "_tools/gen_layout.py",
   "new_tags_pending_approval": [
+   "KodSpawnPoint",
+   "KodWaypoint"
+  ],
+  "new_tags_approved_2026_10_12": [
    "KodEnemyOutpost",
    "KodEnemyBase",
    "KodObjectiveTrigger"
-  ]
+  ],
+  "ai": "static defence + one small counter-wave after the outpost falls",
+  "expansion_socket": "starts empty",
+  "scinder_resources": "none"
  },
  "features": [
   {
@@ -1261,7 +1268,11 @@
    ],
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 500,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true,
    "note": "Scinder outpost core (3x3)"
   },
@@ -1315,7 +1326,11 @@
    ],
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 500,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true,
    "note": "defence ward (2x2)"
   },
@@ -1369,7 +1384,11 @@
    ],
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 500,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true,
    "note": "defence ward (2x2)"
   },
@@ -1423,7 +1442,11 @@
    ],
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 1500,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true,
    "note": "Scinder HQ (5x5)"
   },
@@ -1477,7 +1500,11 @@
    ],
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 750,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true,
    "note": "production (3x3)"
   },
@@ -1531,7 +1558,11 @@
    ],
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 750,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true,
    "note": "production (3x3)"
   },
@@ -1585,7 +1616,11 @@
    ],
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 750,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true,
    "note": "ramp-top defence (2x2)"
   },
@@ -1639,7 +1674,11 @@
    ],
    "faction": "Scinder",
    "proxy_only": true,
-   "hp": "TBD (Strategy)",
+   "hp": {
+    "value": 750,
+    "armor": 1,
+    "owner": "code (proposed, Soft Dev ruling 2026-10-12)"
+   },
    "blocks_walk_until_destroyed": true,
    "note": "defence (2x2)"
   },
@@ -3552,6 +3591,514 @@
    ],
    "radius_uu": 2000,
    "note": "dress keep-clear; the jade arc and vents inside it are the resources themselves"
+  },
+  {
+   "type": "spawn-point",
+   "id": "SPAWN_CW_01",
+   "tag": "KodSpawnPoint",
+   "tag_status": "NEW \u2014 pending approval",
+   "cells": {
+    "rect_xywh": [
+     61,
+     66,
+     5,
+     5
+    ]
+   },
+   "centre_uu": [
+    1500.0,
+    2500.0
+   ],
+   "z_uu": 0,
+   "faction": "Scinder",
+   "use": "counter-wave spawn (balance v1)",
+   "offscreen_check": {
+    "camera_focus_cell": [
+     63,
+     54
+    ],
+    "assumed_view_cells": [
+     34,
+     20
+    ],
+    "margin_cells": 3,
+    "dx": 0,
+    "dy": 14
+   },
+   "keep_clear_of_dress_uu": 400
+  },
+  {
+   "type": "waypoint",
+   "id": "QRF_LANE_01_WP00",
+   "tag": "KodWaypoint",
+   "tag_status": "NEW \u2014 pending approval",
+   "lane": "QRF_LANE_01",
+   "order": 0,
+   "cell": [
+    63,
+    68
+   ],
+   "centre_uu": [
+    1500.0,
+    2500.0
+   ],
+   "next": "QRF_LANE_01_WP01"
+  },
+  {
+   "type": "waypoint",
+   "id": "QRF_LANE_01_WP01",
+   "tag": "KodWaypoint",
+   "tag_status": "NEW \u2014 pending approval",
+   "lane": "QRF_LANE_01",
+   "order": 1,
+   "cell": [
+    65,
+    60
+   ],
+   "centre_uu": [
+    1900.0,
+    900.0
+   ],
+   "next": "QRF_LANE_01_WP02"
+  },
+  {
+   "type": "waypoint",
+   "id": "QRF_LANE_01_WP02",
+   "tag": "KodWaypoint",
+   "tag_status": "NEW \u2014 pending approval",
+   "lane": "QRF_LANE_01",
+   "order": 2,
+   "cell": [
+    65,
+    52
+   ],
+   "centre_uu": [
+    1900.0,
+    -700.0
+   ],
+   "next": "QRF_LANE_01_WP03"
+  },
+  {
+   "type": "waypoint",
+   "id": "QRF_LANE_01_WP03",
+   "tag": "KodWaypoint",
+   "tag_status": "NEW \u2014 pending approval",
+   "lane": "QRF_LANE_01",
+   "order": 3,
+   "cell": [
+    65,
+    44
+   ],
+   "centre_uu": [
+    1900.0,
+    -2300.0
+   ],
+   "next": "QRF_LANE_01_WP04"
+  },
+  {
+   "type": "waypoint",
+   "id": "QRF_LANE_01_WP04",
+   "tag": "KodWaypoint",
+   "tag_status": "NEW \u2014 pending approval",
+   "lane": "QRF_LANE_01",
+   "order": 4,
+   "cell": [
+    65,
+    36
+   ],
+   "centre_uu": [
+    1900.0,
+    -3900.0
+   ],
+   "next": "QRF_LANE_01_WP05"
+  },
+  {
+   "type": "waypoint",
+   "id": "QRF_LANE_01_WP05",
+   "tag": "KodWaypoint",
+   "tag_status": "NEW \u2014 pending approval",
+   "lane": "QRF_LANE_01",
+   "order": 5,
+   "cell": [
+    57,
+    35
+   ],
+   "centre_uu": [
+    300.0,
+    -4100.0
+   ],
+   "next": "QRF_LANE_01_WP06"
+  },
+  {
+   "type": "waypoint",
+   "id": "QRF_LANE_01_WP06",
+   "tag": "KodWaypoint",
+   "tag_status": "NEW \u2014 pending approval",
+   "lane": "QRF_LANE_01",
+   "order": 6,
+   "cell": [
+    49,
+    35
+   ],
+   "centre_uu": [
+    -1300.0,
+    -4100.0
+   ],
+   "next": "QRF_LANE_01_WP07"
+  },
+  {
+   "type": "waypoint",
+   "id": "QRF_LANE_01_WP07",
+   "tag": "KodWaypoint",
+   "tag_status": "NEW \u2014 pending approval",
+   "lane": "QRF_LANE_01",
+   "order": 7,
+   "cell": [
+    41,
+    31
+   ],
+   "centre_uu": [
+    -2900.0,
+    -4900.0
+   ],
+   "next": "QRF_LANE_01_WP08"
+  },
+  {
+   "type": "waypoint",
+   "id": "QRF_LANE_01_WP08",
+   "tag": "KodWaypoint",
+   "tag_status": "NEW \u2014 pending approval",
+   "lane": "QRF_LANE_01",
+   "order": 8,
+   "cell": [
+    33,
+    30
+   ],
+   "centre_uu": [
+    -4500.0,
+    -5100.0
+   ],
+   "next": "QRF_LANE_01_WP09"
+  },
+  {
+   "type": "waypoint",
+   "id": "QRF_LANE_01_WP09",
+   "tag": "KodWaypoint",
+   "tag_status": "NEW \u2014 pending approval",
+   "lane": "QRF_LANE_01",
+   "order": 9,
+   "cell": [
+    28,
+    28
+   ],
+   "centre_uu": [
+    -5500.0,
+    -5500.0
+   ],
+   "next": "P1_SLOT_BARRACKS_ADDON"
+  },
+  {
+   "type": "lane",
+   "id": "QRF_LANE_01",
+   "tag": "KodWaypoint",
+   "tag_status": "NEW \u2014 pending approval",
+   "ordered_waypoints": [
+    "QRF_LANE_01_WP00",
+    "QRF_LANE_01_WP01",
+    "QRF_LANE_01_WP02",
+    "QRF_LANE_01_WP03",
+    "QRF_LANE_01_WP04",
+    "QRF_LANE_01_WP05",
+    "QRF_LANE_01_WP06",
+    "QRF_LANE_01_WP07",
+    "QRF_LANE_01_WP08",
+    "QRF_LANE_01_WP09"
+   ],
+   "centreline_cells_full": [
+    [
+     63,
+     68
+    ],
+    [
+     63,
+     67
+    ],
+    [
+     63,
+     66
+    ],
+    [
+     63,
+     65
+    ],
+    [
+     63,
+     64
+    ],
+    [
+     63,
+     63
+    ],
+    [
+     63,
+     62
+    ],
+    [
+     64,
+     61
+    ],
+    [
+     65,
+     60
+    ],
+    [
+     65,
+     59
+    ],
+    [
+     65,
+     58
+    ],
+    [
+     65,
+     57
+    ],
+    [
+     65,
+     56
+    ],
+    [
+     65,
+     55
+    ],
+    [
+     65,
+     54
+    ],
+    [
+     65,
+     53
+    ],
+    [
+     65,
+     52
+    ],
+    [
+     65,
+     51
+    ],
+    [
+     65,
+     50
+    ],
+    [
+     65,
+     49
+    ],
+    [
+     65,
+     48
+    ],
+    [
+     65,
+     47
+    ],
+    [
+     65,
+     46
+    ],
+    [
+     65,
+     45
+    ],
+    [
+     65,
+     44
+    ],
+    [
+     65,
+     43
+    ],
+    [
+     65,
+     42
+    ],
+    [
+     65,
+     41
+    ],
+    [
+     65,
+     40
+    ],
+    [
+     65,
+     39
+    ],
+    [
+     65,
+     38
+    ],
+    [
+     65,
+     37
+    ],
+    [
+     65,
+     36
+    ],
+    [
+     64,
+     35
+    ],
+    [
+     63,
+     35
+    ],
+    [
+     62,
+     35
+    ],
+    [
+     61,
+     35
+    ],
+    [
+     60,
+     35
+    ],
+    [
+     59,
+     35
+    ],
+    [
+     58,
+     35
+    ],
+    [
+     57,
+     35
+    ],
+    [
+     56,
+     35
+    ],
+    [
+     55,
+     35
+    ],
+    [
+     54,
+     35
+    ],
+    [
+     53,
+     35
+    ],
+    [
+     52,
+     35
+    ],
+    [
+     51,
+     35
+    ],
+    [
+     50,
+     35
+    ],
+    [
+     49,
+     35
+    ],
+    [
+     48,
+     35
+    ],
+    [
+     47,
+     35
+    ],
+    [
+     46,
+     35
+    ],
+    [
+     45,
+     34
+    ],
+    [
+     44,
+     33
+    ],
+    [
+     43,
+     32
+    ],
+    [
+     42,
+     31
+    ],
+    [
+     41,
+     31
+    ],
+    [
+     40,
+     31
+    ],
+    [
+     39,
+     31
+    ],
+    [
+     38,
+     31
+    ],
+    [
+     37,
+     30
+    ],
+    [
+     36,
+     30
+    ],
+    [
+     35,
+     30
+    ],
+    [
+     34,
+     30
+    ],
+    [
+     33,
+     30
+    ],
+    [
+     32,
+     30
+    ],
+    [
+     31,
+     30
+    ],
+    [
+     30,
+     30
+    ],
+    [
+     29,
+     29
+    ],
+    [
+     28,
+     28
+    ]
+   ],
+   "clearance_uu_each_side": 400,
+   "length_uu": 14628,
+   "note": "dress keep-clear like KodRoute"
   }
  ]
 }

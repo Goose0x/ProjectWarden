@@ -248,4 +248,7 @@ struct KODCORE_API FKodFaultlineScript
 	int32 WorkerHp = 1;
 	int32 WorkerSpeed = 0;
 	int32 WorkerRegenMilli = 0;
+	/** Ordered QRF_LANE_01 centres. Empty means a single lane point, or the barracks. */
+	TArray<int32> LanePointX;
+	TArray<int32> LanePointY;
 };

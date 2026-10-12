@@ -335,7 +335,7 @@ void UKodSimSubsystem::ResyncActors() const
 TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 {
 	FBlob Blob;
-	const int32 Version = 10;
+	const int32 Version = 11;
 	Blob.WInt(Version);
 	Blob.W(&SimTickIndex, sizeof(SimTickIndex));
 	TArray<int32> Keys;
@@ -798,6 +798,14 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 		Blob.WInt(Scripted.RegenAcc);
 		Blob.WU8(Scripted.bOrdered);
 		Blob.WInt(Scripted.LastHealth);
+		Blob.WInt(Scripted.LaneCursor);
+	}
+	const int32 LanePointCount = FMath::Min(FaultlineLanePointX.Num(), FaultlineLanePointY.Num());
+	Blob.WInt(LanePointCount);
+	for (int32 LaneIndex = 0; LaneIndex < LanePointCount; ++LaneIndex)
+	{
+		Blob.WInt(FaultlineLanePointX[LaneIndex]);
+		Blob.WInt(FaultlineLanePointY[LaneIndex]);
 	}
 	return Blob.Bytes;
 }
@@ -807,7 +815,7 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version < 6 || Version > 10)
+	if (!Blob.RInt(Version) || Version < 6 || Version > 11)
 	{
 		return;
 	}
@@ -1725,9 +1733,31 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 				{
 					break;
 				}
+				if (Version >= 11 && !Blob.RInt(Scripted.LaneCursor))
+				{
+					break;
+				}
 				ScriptedUnits.Add(Scripted);
 			}
 			ScriptedUnits.Sort([](const FKodScriptedUnit& A, const FKodScriptedUnit& B) { return A.Id < B.Id; });
+			if (Version >= 11)
+			{
+				int32 LanePointCount = 0;
+				if (Blob.RInt(LanePointCount) && LanePointCount >= 0 && LanePointCount <= 16)
+				{
+					for (int32 LaneIndex = 0; LaneIndex < LanePointCount; ++LaneIndex)
+					{
+						int32 PointX = 0;
+						int32 PointY = 0;
+						if (!Blob.RInt(PointX) || !Blob.RInt(PointY))
+						{
+							break;
+						}
+						FaultlineLanePointX.Add(PointX);
+						FaultlineLanePointY.Add(PointY);
+					}
+				}
+			}
 		}
 		else
 		{
@@ -1768,7 +1798,7 @@ bool UKodSimSubsystem::CollectSavedEntityIds(const TArray<uint8>& Bytes, TSet<in
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;
-	if (!Blob.RInt(Version) || Version < 6 || Version > 10)
+	if (!Blob.RInt(Version) || Version < 6 || Version > 11)
 	{
 		return false;
 	}

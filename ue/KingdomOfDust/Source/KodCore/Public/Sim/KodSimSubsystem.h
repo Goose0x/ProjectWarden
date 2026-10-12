@@ -1091,8 +1091,11 @@ protected:
 		int32 RegenAcc = 0;
 		uint8 bOrdered = 0;
 		int32 LastHealth = 0;
+		int32 LaneCursor = 0;
 	};
 	TArray<FKodScriptedUnit> ScriptedUnits;
+	TArray<int32> FaultlineLanePointX;
+	TArray<int32> FaultlineLanePointY;
 	int32 PowerPoints0 = 0;
 	int32 PowerPoints1 = 0;
 	int32 ArtilleryCd0 = 0;

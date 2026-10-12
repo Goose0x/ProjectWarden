@@ -1,0 +1,1499 @@
+{
+ "meta": {
+  "name": "DRESS_LIST_FAULTLINE_TRAINING_V2_DELTA",
+  "version": "2.0-delta",
+  "date": "2026-10-12",
+  "base": "dress_list.json v1.0 (unchanged; rows here are ADDITIONS)",
+  "level": "/Game/Maps/Sandbox/L_FaultlineTraining (live on NAOMI; GameMode KodSlice0GameMode)",
+  "generated_by": "_tools/gen_dress_v2.py",
+  "asset_rule": "paths from naomi_content_paths_2026-10-12.md or /workspace/kod_paths.txt only",
+  "z": "absolute uu: floor 0, plateau +300, platform +40, cliff/mesa proxy top 500; light/VFX z includes its height offset",
+  "collision_rule": "all visual-only, collision off; blocks:true only wholly on sim-blocked cells"
+ },
+ "lighting": {
+  "sun_sky": {
+   "directional_light": {
+    "pitch_deg": -32,
+    "yaw_deg": 225,
+    "note": "low warm sun from the SW (behind the player start) so cliff faces cast readable NE shadows across the route",
+    "color_hex": "#FFD8A8",
+    "temperature_K": 4200,
+    "intensity_lux": 6.5,
+    "cast_shadows": true,
+    "dynamic_shadow_distance_uu": 30000,
+    "atmosphere_sun_light": true
+   },
+   "sky_light": {
+    "color_hex": "#9FB4D9",
+    "intensity": 0.8,
+    "real_time_capture": false,
+    "note": "cool fill so shadows stay blue-grey, not black, for top-down unit read"
+   },
+   "sky_atmosphere": {
+    "rayleigh_scale": 0.03,
+    "mie_scattering_scale": 0.006,
+    "note": "dusty warm horizon"
+   },
+   "exponential_height_fog": {
+    "density": 0.006,
+    "inscattering_hex": "#D9A675",
+    "start_distance_uu": 4000,
+    "note": "light haze only; keep the full play area readable"
+   },
+   "post_process": {
+    "exposure": "manual EV100 10.5",
+    "bloom": 0.4,
+    "note": "bloom low so jade/fire accents glow without smearing"
+   }
+  },
+  "accent_lights": [
+   {
+    "id": "LV_MAIN_PLATFORM_1",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "platform_corner",
+    "type": "point",
+    "x": -8200.0,
+    "y": -8200.0,
+    "z": 400,
+    "color_name": "cyan",
+    "color_hex": "#33E5FF",
+    "intensity_cd": 6.0,
+    "attenuation_radius_uu": 700,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a"
+   },
+   {
+    "id": "LV_MAIN_PLATFORM_2",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "platform_corner",
+    "type": "point",
+    "x": -6800.0,
+    "y": -8200.0,
+    "z": 400,
+    "color_name": "cyan",
+    "color_hex": "#33E5FF",
+    "intensity_cd": 6.0,
+    "attenuation_radius_uu": 700,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a"
+   },
+   {
+    "id": "LV_MAIN_PLATFORM_3",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "platform_corner",
+    "type": "point",
+    "x": -6800.0,
+    "y": -6800.0,
+    "z": 400,
+    "color_name": "cyan",
+    "color_hex": "#33E5FF",
+    "intensity_cd": 6.0,
+    "attenuation_radius_uu": 700,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a"
+   },
+   {
+    "id": "LV_MAIN_PLATFORM_4",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "platform_corner",
+    "type": "point",
+    "x": -8200.0,
+    "y": -6800.0,
+    "z": 400,
+    "color_name": "cyan",
+    "color_hex": "#33E5FF",
+    "intensity_cd": 6.0,
+    "attenuation_radius_uu": 700,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a"
+   },
+   {
+    "id": "LV_MAIN_VENT_1",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "arc_rim_vent",
+    "type": "point",
+    "x": -8700.0,
+    "y": -6300.0,
+    "z": 450,
+    "color_name": "molten_orange",
+    "color_hex": "#FF7A1A",
+    "intensity_cd": 5.0,
+    "attenuation_radius_uu": 600,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a"
+   },
+   {
+    "id": "LV_MAIN_VENT_2",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "arc_rim_vent",
+    "type": "point",
+    "x": -6300.0,
+    "y": -8700.0,
+    "z": 450,
+    "color_name": "molten_orange",
+    "color_hex": "#FF7A1A",
+    "intensity_cd": 5.0,
+    "attenuation_radius_uu": 600,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a"
+   },
+   {
+    "id": "LV_EXP_PLATFORM_1",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "expansion_socket",
+    "type": "point",
+    "x": 200.0,
+    "y": -8600.0,
+    "z": 100,
+    "color_name": "electric_blue",
+    "color_hex": "#2F6BFF",
+    "intensity_cd": 6.0,
+    "attenuation_radius_uu": 700,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a"
+   },
+   {
+    "id": "LV_EXP_PLATFORM_2",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "expansion_socket",
+    "type": "point",
+    "x": 1600.0,
+    "y": -8600.0,
+    "z": 100,
+    "color_name": "electric_blue",
+    "color_hex": "#2F6BFF",
+    "intensity_cd": 6.0,
+    "attenuation_radius_uu": 700,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a"
+   },
+   {
+    "id": "LV_EXP_PLATFORM_3",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "expansion_socket",
+    "type": "point",
+    "x": 1600.0,
+    "y": -7200.0,
+    "z": 100,
+    "color_name": "electric_blue",
+    "color_hex": "#2F6BFF",
+    "intensity_cd": 6.0,
+    "attenuation_radius_uu": 700,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a"
+   },
+   {
+    "id": "LV_EXP_PLATFORM_4",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "expansion_socket",
+    "type": "point",
+    "x": 200.0,
+    "y": -7200.0,
+    "z": 100,
+    "color_name": "electric_blue",
+    "color_hex": "#2F6BFF",
+    "intensity_cd": 6.0,
+    "attenuation_radius_uu": 700,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a"
+   },
+   {
+    "id": "LV_EXP_VENT_1",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "arc_rim_vent",
+    "type": "point",
+    "x": -700.0,
+    "y": -7500.0,
+    "z": 150,
+    "color_name": "molten_orange",
+    "color_hex": "#FF7A1A",
+    "intensity_cd": 5.0,
+    "attenuation_radius_uu": 600,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a"
+   },
+   {
+    "id": "LV_EXP_VENT_2",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "arc_rim_vent",
+    "type": "point",
+    "x": 2500.0,
+    "y": -7500.0,
+    "z": 150,
+    "color_name": "molten_orange",
+    "color_hex": "#FF7A1A",
+    "intensity_cd": 5.0,
+    "attenuation_radius_uu": 600,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a"
+   },
+   {
+    "id": "LV_MAIN_JADE_1",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "arc_rim_jadeite",
+    "type": "point",
+    "x": -9149.4,
+    "y": -7382.2,
+    "z": 380,
+    "color_name": "cyan",
+    "color_hex": "#33E5FF",
+    "intensity_cd": 2.0,
+    "attenuation_radius_uu": 500,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "notes": "cyan; #00FF73 is banned on Vanguard"
+   },
+   {
+    "id": "LV_MAIN_JADE_2",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "arc_rim_jadeite",
+    "type": "point",
+    "x": -7382.2,
+    "y": -9149.4,
+    "z": 380,
+    "color_name": "cyan",
+    "color_hex": "#33E5FF",
+    "intensity_cd": 2.0,
+    "attenuation_radius_uu": 500,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "notes": "cyan; #00FF73 is banned on Vanguard"
+   },
+   {
+    "id": "LV_EXP_JADE_1",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "arc_rim_jadeite",
+    "type": "point",
+    "x": -285.8,
+    "y": -8967.2,
+    "z": 80,
+    "color_name": "cyan",
+    "color_hex": "#33E5FF",
+    "intensity_cd": 2.0,
+    "attenuation_radius_uu": 500,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "notes": "cyan; #00FF73 is banned on Vanguard"
+   },
+   {
+    "id": "LV_EXP_JADE_2",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "arc_rim_jadeite",
+    "type": "point",
+    "x": 2085.8,
+    "y": -8967.2,
+    "z": 80,
+    "color_name": "cyan",
+    "color_hex": "#33E5FF",
+    "intensity_cd": 2.0,
+    "attenuation_radius_uu": 500,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "notes": "cyan; #00FF73 is banned on Vanguard"
+   },
+   {
+    "id": "LV_RAMP_TOP_N",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "ramp_top",
+    "type": "spot",
+    "x": -3100.0,
+    "y": -4700.0,
+    "z": 650,
+    "color_name": "warning_yellow",
+    "color_hex": "#FFC21A",
+    "intensity_cd": 10.0,
+    "attenuation_radius_uu": 900,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "rotation_pitch_deg": -90,
+    "inner_cone_deg": 20,
+    "outer_cone_deg": 40
+   },
+   {
+    "id": "LV_RAMP_TOP_S",
+    "tag": "KodAccentLight",
+    "side": "Vanguard",
+    "role": "ramp_top",
+    "type": "spot",
+    "x": -3100.0,
+    "y": -5700.0,
+    "z": 650,
+    "color_name": "warning_yellow",
+    "color_hex": "#FFC21A",
+    "intensity_cd": 10.0,
+    "attenuation_radius_uu": 900,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "rotation_pitch_deg": -90,
+    "inner_cone_deg": 20,
+    "outer_cone_deg": 40
+   },
+   {
+    "id": "LS_FIRE_01",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "brazier_campfire",
+    "type": "point",
+    "x": 600.0,
+    "y": -1000.0,
+    "z": 180,
+    "color_name": "amber_fire",
+    "color_hex": "#FFA040",
+    "intensity_cd": 12.0,
+    "attenuation_radius_uu": 1000,
+    "cast_shadows": true,
+    "mobility": "Movable (attached; off on death)",
+    "collision": "n/a",
+    "source": "F15",
+    "attach": "structure",
+    "flicker": "0.15 amplitude, 6 Hz (material function / BP)"
+   },
+   {
+    "id": "LS_FIRE_02",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "brazier_campfire",
+    "type": "point",
+    "x": 2400.0,
+    "y": 400.0,
+    "z": 180,
+    "color_name": "incendiary_orange",
+    "color_hex": "#E65F2B",
+    "intensity_cd": 12.0,
+    "attenuation_radius_uu": 1000,
+    "cast_shadows": false,
+    "mobility": "Movable (attached; off on death)",
+    "collision": "n/a",
+    "source": "F15",
+    "attach": "structure",
+    "flicker": "0.15 amplitude, 6 Hz (material function / BP)"
+   },
+   {
+    "id": "LS_FIRE_03",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "brazier_campfire",
+    "type": "point",
+    "x": 5400.0,
+    "y": 5000.0,
+    "z": 480,
+    "color_name": "amber_fire",
+    "color_hex": "#FFA040",
+    "intensity_cd": 12.0,
+    "attenuation_radius_uu": 1000,
+    "cast_shadows": true,
+    "mobility": "Movable (attached; off on death)",
+    "collision": "n/a",
+    "source": "F22",
+    "attach": "structure",
+    "flicker": "0.15 amplitude, 6 Hz (material function / BP)"
+   },
+   {
+    "id": "LS_FIRE_04",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "brazier_campfire",
+    "type": "point",
+    "x": 6400.0,
+    "y": 5400.0,
+    "z": 480,
+    "color_name": "incendiary_orange",
+    "color_hex": "#E65F2B",
+    "intensity_cd": 12.0,
+    "attenuation_radius_uu": 1000,
+    "cast_shadows": false,
+    "mobility": "Movable (attached; off on death)",
+    "collision": "n/a",
+    "source": "F22",
+    "attach": "structure",
+    "flicker": "0.15 amplitude, 6 Hz (material function / BP)"
+   },
+   {
+    "id": "LS_FIRE_05",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "brazier_campfire",
+    "type": "point",
+    "x": 2700.0,
+    "y": 6700.0,
+    "z": 680,
+    "color_name": "amber_fire",
+    "color_hex": "#FFA040",
+    "intensity_cd": 12.0,
+    "attenuation_radius_uu": 1000,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "source": "F23",
+    "attach": null,
+    "flicker": "0.15 amplitude, 6 Hz (material function / BP)"
+   },
+   {
+    "id": "LS_FIRE_06",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "brazier_campfire",
+    "type": "point",
+    "x": 2700.0,
+    "y": 5500.0,
+    "z": 680,
+    "color_name": "incendiary_orange",
+    "color_hex": "#E65F2B",
+    "intensity_cd": 12.0,
+    "attenuation_radius_uu": 1000,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "source": "F23",
+    "attach": null,
+    "flicker": "0.15 amplitude, 6 Hz (material function / BP)"
+   },
+   {
+    "id": "LS_FIRE_07",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "brazier_campfire",
+    "type": "point",
+    "x": 43.5,
+    "y": -1144.7,
+    "z": 180,
+    "color_name": "amber_fire",
+    "color_hex": "#FFA040",
+    "intensity_cd": 12.0,
+    "attenuation_radius_uu": 1000,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "source": "D04",
+    "attach": null,
+    "flicker": "0.15 amplitude, 6 Hz (material function / BP)"
+   },
+   {
+    "id": "LS_FIRE_08",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "brazier_campfire",
+    "type": "point",
+    "x": 8142.6,
+    "y": 8568.7,
+    "z": 480,
+    "color_name": "incendiary_orange",
+    "color_hex": "#E65F2B",
+    "intensity_cd": 12.0,
+    "attenuation_radius_uu": 1000,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "source": "D11",
+    "attach": null,
+    "flicker": "0.15 amplitude, 6 Hz (material function / BP)"
+   },
+   {
+    "id": "LS_FIRE_09",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "brazier_campfire",
+    "type": "point",
+    "x": 6730.2,
+    "y": 7448.9,
+    "z": 480,
+    "color_name": "amber_fire",
+    "color_hex": "#FFA040",
+    "intensity_cd": 12.0,
+    "attenuation_radius_uu": 1000,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "source": "D11",
+    "attach": null,
+    "flicker": "0.15 amplitude, 6 Hz (material function / BP)"
+   },
+   {
+    "id": "LS_FIRE_10",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "brazier_campfire",
+    "type": "point",
+    "x": 7886.6,
+    "y": 6774.9,
+    "z": 480,
+    "color_name": "incendiary_orange",
+    "color_hex": "#E65F2B",
+    "intensity_cd": 12.0,
+    "attenuation_radius_uu": 1000,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "source": "D11",
+    "attach": null,
+    "flicker": "0.15 amplitude, 6 Hz (material function / BP)"
+   },
+   {
+    "id": "LS_FIRE_11",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "brazier_campfire",
+    "type": "point",
+    "x": 6962.4,
+    "y": 5519.8,
+    "z": 480,
+    "color_name": "amber_fire",
+    "color_hex": "#FFA040",
+    "intensity_cd": 12.0,
+    "attenuation_radius_uu": 1000,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "source": "D11",
+    "attach": null,
+    "flicker": "0.15 amplitude, 6 Hz (material function / BP)"
+   },
+   {
+    "id": "LS_RAMP_TOP_1",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "ramp_top",
+    "type": "spot",
+    "x": 4100.0,
+    "y": 3400,
+    "z": 700,
+    "color_name": "incendiary_orange",
+    "color_hex": "#E65F2B",
+    "intensity_cd": 10.0,
+    "attenuation_radius_uu": 900,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "rotation_pitch_deg": -90,
+    "inner_cone_deg": 20,
+    "outer_cone_deg": 40
+   },
+   {
+    "id": "LS_RAMP_TOP_2",
+    "tag": "KodAccentLight",
+    "side": "Scinder",
+    "role": "ramp_top",
+    "type": "spot",
+    "x": 5500.0,
+    "y": 3400,
+    "z": 700,
+    "color_name": "incendiary_orange",
+    "color_hex": "#E65F2B",
+    "intensity_cd": 10.0,
+    "attenuation_radius_uu": 900,
+    "cast_shadows": false,
+    "mobility": "Static",
+    "collision": "n/a",
+    "rotation_pitch_deg": -90,
+    "inner_cone_deg": 20,
+    "outer_cone_deg": 40
+   }
+  ],
+  "count": 31,
+  "shadow_casters": 2,
+  "palette": {
+   "cyan": "#33E5FF",
+   "electric_blue": "#2F6BFF",
+   "warning_yellow": "#FFC21A",
+   "molten_orange": "#FF7A1A",
+   "jadeite": "#33E5FF",
+   "incendiary_orange": "#E65F2B",
+   "amber_fire": "#FFA040"
+  },
+  "rules": "Vanguard: cyan / electric blue / warning yellow / molten orange (+ subtle jadeite on the arc only); no teal-green. Scinder: #E65F2B + amber fire, co-located with fire VFX."
+ },
+ "vfx": [
+  {
+   "id": "V01_VENT_STEAM",
+   "asset": "/Game/StylizedRocks_Etherion/RocksVol1/Effects/P_Steam",
+   "kind": "cascade/niagara (P_)",
+   "where": "each Luminene vent (4); no fissures exist on this map",
+   "instances": [
+    {
+     "x": -8700.0,
+     "y": -6300.0,
+     "z": 300
+    },
+    {
+     "x": -6300.0,
+     "y": -8700.0,
+     "z": 300
+    },
+    {
+     "x": -700.0,
+     "y": -7500.0,
+     "z": 0
+    },
+    {
+     "x": 2500.0,
+     "y": -7500.0,
+     "z": 0
+    }
+   ],
+   "scale": [
+    0.5,
+    0.7
+   ],
+   "notes": "Low, thin plume; never taller than ~600 uu so units stay readable.",
+   "role": "vent",
+   "attach": "KodResourceLuminene"
+  },
+  {
+   "id": "V02_FOB_SPARKS",
+   "asset": "/Game/A_Surface_Footstep/Niagara_FX/ParticleSystems/PEN_SparksSmall",
+   "kind": "niagara",
+   "where": "player CC platform chamfer corners clear of KodRoute",
+   "instances": [
+    {
+     "x": -8200.0,
+     "y": -6800.0,
+     "z": 340
+    },
+    {
+     "x": -6800.0,
+     "y": -8200.0,
+     "z": 340
+    }
+   ],
+   "scale": [
+    0.5,
+    0.6
+   ],
+   "notes": "Intermittent weld sparks (loop with 4\u20138 s random delay; the asset is a footstep burst FX \u2014 check it loops).",
+   "role": "fob",
+   "base_owned": true
+  },
+  {
+   "id": "V03_DAMAGE_SPARKS",
+   "asset": "/Game/A_Surface_Footstep/Niagara_FX/ParticleSystems/PEN_SparksSmall",
+   "kind": "niagara",
+   "where": "OUTPOST_WARD_A / _B and ENEMY_TOWER_A / _B (attached)",
+   "instances": [
+    {
+     "x": 600.0,
+     "y": -1000.0,
+     "z": 250
+    },
+    {
+     "x": 2400.0,
+     "y": 400.0,
+     "z": 0
+    },
+    {
+     "x": 5400.0,
+     "y": 5000.0,
+     "z": 300
+    },
+    {
+     "x": 6400.0,
+     "y": 5400.0,
+     "z": 300
+    }
+   ],
+   "scale": [
+    0.6,
+    0.8
+   ],
+   "notes": "Enabled by code when the structure drops below 50% HP; off on death.",
+   "role": "damage",
+   "attach": "structure"
+  },
+  {
+   "id": "V04_OUTPOST_BRAZIER_FIRE",
+   "asset": "/Game/StylizedOrcWarcamp/FX/NS_BrazierFire",
+   "kind": "niagara",
+   "where": "D04 brazier stands",
+   "instances": [
+    {
+     "x": 43.5,
+     "y": -1144.7,
+     "z": 120
+    }
+   ],
+   "scale": [
+    0.6,
+    0.8
+   ],
+   "notes": "",
+   "role": "fire"
+  },
+  {
+   "id": "V05_BASE_BRAZIER_FIRE",
+   "asset": "/Game/StylizedOrcWarcamp/FX/NS_FireplaceFire",
+   "kind": "niagara",
+   "where": "D11 brazier stands",
+   "instances": [
+    {
+     "x": 8142.6,
+     "y": 8568.7,
+     "z": 420
+    },
+    {
+     "x": 6730.2,
+     "y": 7448.9,
+     "z": 300
+    },
+    {
+     "x": 7886.6,
+     "y": 6774.9,
+     "z": 300
+    },
+    {
+     "x": 6962.4,
+     "y": 5519.8,
+     "z": 300
+    }
+   ],
+   "scale": [
+    0.6,
+    0.8
+   ],
+   "notes": "",
+   "role": "fire"
+  },
+  {
+   "id": "V06_BASE_SMOKE",
+   "asset": "/Game/StylizedOrcWarcamp/FX/NS_BrazierSmoke",
+   "kind": "niagara",
+   "where": "2 of the D11 braziers",
+   "instances": [
+    {
+     "x": 8142.6,
+     "y": 8568.7,
+     "z": 500
+    },
+    {
+     "x": 6730.2,
+     "y": 7448.9,
+     "z": 300
+    }
+   ],
+   "scale": [
+    0.5,
+    0.6
+   ],
+   "notes": "Thin; must not hide the HQ from the camera.",
+   "role": "smoke"
+  },
+  {
+   "id": "V07_OUTPOST_SMOKE",
+   "asset": "/Game/StylizedOrcWarcamp/FX/NS_CampFireSmoke",
+   "kind": "niagara",
+   "where": "1 of the D04 braziers",
+   "instances": [
+    {
+     "x": 43.5,
+     "y": -1144.7,
+     "z": 200
+    }
+   ],
+   "scale": [
+    0.5,
+    0.6
+   ],
+   "notes": "",
+   "role": "smoke"
+  },
+  {
+   "id": "V08_EDGE_DUST",
+   "asset": "/Game/StylizedOrcWarcamp/FX/NS_BlowingDust",
+   "kind": "niagara",
+   "where": "border corners (adds to v1 F26 midpoints)",
+   "instances": [
+    {
+     "x": -10500.0,
+     "y": -10500.0,
+     "z": 500
+    },
+    {
+     "x": -10500.0,
+     "y": 10500.0,
+     "z": 500
+    },
+    {
+     "x": 10500.0,
+     "y": -10500.0,
+     "z": 500
+    },
+    {
+     "x": 10500.0,
+     "y": 10500.0,
+     "z": 500
+    }
+   ],
+   "scale": [
+    0.8,
+    1.0
+   ],
+   "notes": "Edges only.",
+   "role": "dust"
+  }
+ ],
+ "rows": [
+  {
+   "id": "D01_OUTPOST_PALISADE",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_WoodenStakesA",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_WoodenStakesB",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_WoodenStakesC",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_WoodenStakesD",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_WoodWallCurved"
+   ],
+   "kind": "static mesh (visual only)",
+   "zone": "ring around the 3 KodEnemyOutpost footprints (\u2265200 uu off, \u2265400 uu off KodRoute)",
+   "scale": [
+    0.8,
+    1.0
+   ],
+   "random_yaw": {
+    "random": false,
+    "mode": "face_away_from_structure"
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 150,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Low stake/palisade segments, broken ring, gaps toward every route. Never a wall.",
+   "camp": true,
+   "instances": [
+    {
+     "x": 1335.6,
+     "y": 380.4,
+     "z": 0
+    },
+    {
+     "x": 818.4,
+     "y": 68.8,
+     "z": 0
+    },
+    {
+     "x": 486.9,
+     "y": -410.8,
+     "z": 0
+    },
+    {
+     "x": 9.5,
+     "y": -795.2,
+     "z": 0
+    }
+   ]
+  },
+  {
+   "id": "D02_OUTPOST_RACKS_BARRELS",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_WeaponRack",
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_TanningRack",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_BoneBarrel",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_WoodenCrate"
+   ],
+   "kind": "blueprint / static mesh (visual only)",
+   "zone": "outpost ring, inner",
+   "scale": [
+    0.8,
+    1.0
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 100,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Disable BP collision/overlap.",
+   "camp": true,
+   "instances": [
+    {
+     "x": 1039.2,
+     "y": 291.7,
+     "z": 0
+    },
+    {
+     "x": 301.2,
+     "y": -1520.3,
+     "z": 0
+    }
+   ]
+  },
+  {
+   "id": "D03_OUTPOST_TOTEMS",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_DemonSkullTop",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_DemonSkullHorn",
+    "/Game/Fab/Props_Pack_-_Bones___Skulls/props_pack_bones_skulls/StaticMeshes/props_pack_bones_skulls"
+   ],
+   "kind": "static mesh (visual only)",
+   "zone": "outpost ring",
+   "scale": [
+    0.7,
+    0.9
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 120,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Skull totems = Scinder read from top-down.",
+   "camp": true,
+   "instances": [
+    {
+     "x": 800.2,
+     "y": -317.8,
+     "z": 0
+    }
+   ]
+  },
+  {
+   "id": "D04_OUTPOST_BRAZIERS",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_MetalFirePitFrame",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_MetalFirePitPoleA"
+   ],
+   "kind": "static mesh (visual only)",
+   "zone": "outpost ring; hosts V04 fire + L-S lights",
+   "scale": [
+    0.8,
+    1.0
+   ],
+   "random_yaw": {
+    "random": false
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 100,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Brazier stands; fire VFX + amber light on each.",
+   "camp": true,
+   "instances": [
+    {
+     "x": 43.5,
+     "y": -1144.7,
+     "z": 0
+    }
+   ]
+  },
+  {
+   "id": "D05_OUTPOST_SCORCH",
+   "assets": [
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark02",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark05",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark07"
+   ],
+   "kind": "decal",
+   "zone": "TRIG_05 floor, off routes",
+   "scale": [
+    1.2,
+    2.0
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 250,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "",
+   "camp": true,
+   "instances": [
+    {
+     "x": 3490.2,
+     "y": -245.7,
+     "z": 0
+    },
+    {
+     "x": 3936.0,
+     "y": -1827.0,
+     "z": 0
+    }
+   ]
+  },
+  {
+   "id": "D07_BASE_PALISADE_RING",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_WoodenStakesA",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_WoodenStakesB",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_WoodenStakesC",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_WoodenStakesD"
+   ],
+   "kind": "static mesh (visual only)",
+   "zone": "ring around the 5 KodEnemyBase footprints",
+   "scale": [
+    0.8,
+    1.0
+   ],
+   "random_yaw": {
+    "random": false,
+    "mode": "face_away_from_structure"
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 150,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Broken ring; gaps toward the ramp approach.",
+   "camp": true,
+   "instances": [
+    {
+     "x": 7297.7,
+     "y": 8588.1,
+     "z": 300
+    },
+    {
+     "x": 6809.0,
+     "y": 8206.8,
+     "z": 300
+    },
+    {
+     "x": 5996.6,
+     "y": 8592.3,
+     "z": 300
+    },
+    {
+     "x": 5433.0,
+     "y": 8341.7,
+     "z": 300
+    },
+    {
+     "x": 8123.2,
+     "y": 5410.2,
+     "z": 300
+    },
+    {
+     "x": 8584.8,
+     "y": 5794.1,
+     "z": 300
+    },
+    {
+     "x": 5924.3,
+     "y": 4615.8,
+     "z": 300
+    },
+    {
+     "x": 6468.6,
+     "y": 4829.1,
+     "z": 300
+    },
+    {
+     "x": 6974.7,
+     "y": 5154.4,
+     "z": 300
+    }
+   ]
+  },
+  {
+   "id": "D08_BASE_TENTS",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_OrcSmallTentA",
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_OrcSmallTentB",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_TentWallLargeB"
+   ],
+   "kind": "blueprint / static mesh (visual only)",
+   "zone": "behind ENEMY_HQ / PROD (NE of plateau)",
+   "scale": [
+    0.9,
+    1.0
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 300,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "Camp tents (not buildings, not selectable).",
+   "camp": true,
+   "instances": [
+    {
+     "x": 8728.6,
+     "y": 8494.9,
+     "z": 300
+    },
+    {
+     "x": 5178.7,
+     "y": 7817.7,
+     "z": 300
+    },
+    {
+     "x": 8810.0,
+     "y": 6372.9,
+     "z": 300
+    }
+   ]
+  },
+  {
+   "id": "D09_BASE_RACKS_BARRELS",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_WeaponRack",
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_TanningRack",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_BoneBarrel",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_WoodenCrate"
+   ],
+   "kind": "blueprint / static mesh (visual only)",
+   "zone": "base ring",
+   "scale": [
+    0.8,
+    1.0
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 100,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "",
+   "camp": true,
+   "instances": [
+    {
+     "x": 8534.3,
+     "y": 7300.5,
+     "z": 300
+    },
+    {
+     "x": 5513.0,
+     "y": 7433.1,
+     "z": 300
+    },
+    {
+     "x": 7295.4,
+     "y": 5699.9,
+     "z": 300
+    },
+    {
+     "x": 5920.4,
+     "y": 4930.9,
+     "z": 300
+    },
+    {
+     "x": 6650.7,
+     "y": 5917.5,
+     "z": 300
+    }
+   ]
+  },
+  {
+   "id": "D10_BASE_TOTEMS",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_DemonSkullTop",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_DemonSkullHorn",
+    "/Game/Fab/Props_Pack_-_Bones___Skulls/props_pack_bones_skulls/StaticMeshes/props_pack_bones_skulls",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_BoneRibCageFull"
+   ],
+   "kind": "static mesh (visual only)",
+   "zone": "flanking ENEMY_HQ",
+   "scale": [
+    0.8,
+    1.0
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 120,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "",
+   "camp": true,
+   "instances": [
+    {
+     "x": 8464.2,
+     "y": 6908.8,
+     "z": 300
+    },
+    {
+     "x": 8599.4,
+     "y": 7731.5,
+     "z": 300
+    }
+   ]
+  },
+  {
+   "id": "D11_BASE_BRAZIERS",
+   "assets": [
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_MetalFirePitFrame",
+    "/Game/StylizedOrcWarcamp/StaticMeshes/Props/SM_MetalFirePitPoleA",
+    "/Game/StylizedOrcWarcamp/Blueprints/BP_FirePit"
+   ],
+   "kind": "static mesh / blueprint (visual only)",
+   "zone": "base ring; hosts V05 fire + L-S lights",
+   "scale": [
+    0.8,
+    1.0
+   ],
+   "random_yaw": {
+    "random": false
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 100,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "",
+   "camp": true,
+   "instances": [
+    {
+     "x": 8142.6,
+     "y": 8568.7,
+     "z": 300
+    },
+    {
+     "x": 6730.2,
+     "y": 7448.9,
+     "z": 300
+    },
+    {
+     "x": 7886.6,
+     "y": 6774.9,
+     "z": 300
+    },
+    {
+     "x": 6962.4,
+     "y": 5519.8,
+     "z": 300
+    }
+   ]
+  },
+  {
+   "id": "D12_BASE_SCORCH",
+   "assets": [
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark01",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark04",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BlastMark08",
+    "/Game/ScorchBurnDecals/Materials/MI_Decal_BurntPaint01"
+   ],
+   "kind": "decal",
+   "zone": "Scinder plateau floor, off routes",
+   "scale": [
+    1.2,
+    2.0
+   ],
+   "random_yaw": {
+    "random": true,
+    "range_deg": [
+     0,
+     360
+    ],
+    "step_deg": 15
+   },
+   "align_to_slope": false,
+   "footprint_radius_uu": 250,
+   "collision": "off",
+   "affects_navigation": false,
+   "blocks": false,
+   "notes": "",
+   "camp": true,
+   "instances": [
+    {
+     "x": 4874.8,
+     "y": 7660.8,
+     "z": 300
+    },
+    {
+     "x": 9870.2,
+     "y": 9554.3,
+     "z": 300
+    },
+    {
+     "x": 9836.2,
+     "y": 3693.1,
+     "z": 300
+    }
+   ]
+  }
+ ],
+ "v1_suppress": {
+  "id": "X01_V1_SUPPRESS_ON_QRF_LANE",
+  "rule": "AKodMapLife skips these v1 instances (additive delta row; v1 file untouched): they sit within 400 uu of QRF_LANE_01 / SPAWN_CW_01",
+  "instances": [
+   {
+    "row": "F10_HOME_GREEN_CLUMPS",
+    "x": -3300.0,
+    "y": -4500.0
+   },
+   {
+    "row": "F10_HOME_GREEN_CLUMPS",
+    "x": -500.0,
+    "y": -4100.0
+   },
+   {
+    "row": "F10_HOME_GREEN_CLUMPS",
+    "x": 900.0,
+    "y": -4100.0
+   },
+   {
+    "row": "F10_HOME_GREEN_CLUMPS",
+    "x": -1900.0,
+    "y": -4100.0
+   },
+   {
+    "row": "F17_OUTPOST_SCORCH",
+    "x": 2226.1,
+    "y": -1032.7
+   },
+   {
+    "row": "F17_OUTPOST_SCORCH",
+    "x": 926.4,
+    "y": 1478.3
+   }
+  ]
+ },
+ "new_rules": [
+  {
+   "id": "CAMP_DENSITY",
+   "rule": "camp-ring props (camp:true) exempt from the global 0.1 floor cap; instead \u22640.6 per 1000\u00d71000 uu inside TRIG_05 / TRIG_07 (v1+v2)"
+  },
+  {
+   "id": "LIGHT_PALETTE",
+   "rule": "side palettes enforced by hue; Jadeite glow \u22643 cd and only on arc_rim_jadeite"
+  },
+  {
+   "id": "LIGHT_BUDGET",
+   "rule": "\u226440 accent lights, \u22644 shadow casters"
+  },
+  {
+   "id": "VFX_PLACEMENT",
+   "rule": "dust only on border cells; steam on vents; fire/smoke on brazier stands; damage sparks on structures; FOB sparks pass base/route checks"
+  }
+ ],
+ "validation": {
+  "props_instances": 36,
+  "vfx_instances_v2": 22,
+  "vfx_total_v1_plus_v2": 34,
+  "lights": 31,
+  "shadow_casters": 2,
+  "camp_density": {
+   "TRIG_05_OUTPOST": {
+    "props": 8,
+    "per_1000x1000": 0.51,
+    "cap": 0.6
+   },
+   "TRIG_07_ENEMY_BASE": {
+    "props": 23,
+    "per_1000x1000": 0.56,
+    "cap": 0.6
+   }
+  },
+  "v1_rows_on_qrf_lane_or_spawn_pad": [
+   {
+    "row": "F10_HOME_GREEN_CLUMPS",
+    "x": -3300.0,
+    "y": -4500.0
+   },
+   {
+    "row": "F10_HOME_GREEN_CLUMPS",
+    "x": -500.0,
+    "y": -4100.0
+   },
+   {
+    "row": "F10_HOME_GREEN_CLUMPS",
+    "x": 900.0,
+    "y": -4100.0
+   },
+   {
+    "row": "F10_HOME_GREEN_CLUMPS",
+    "x": -1900.0,
+    "y": -4100.0
+   },
+   {
+    "row": "F17_OUTPOST_SCORCH",
+    "x": 2226.1,
+    "y": -1032.7
+   },
+   {
+    "row": "F17_OUTPOST_SCORCH",
+    "x": 926.4,
+    "y": 1478.3
+   }
+  ],
+  "v1_suppressed": 6,
+  "per_row": {
+   "D01_OUTPOST_PALISADE": 4,
+   "D02_OUTPOST_RACKS_BARRELS": 2,
+   "D03_OUTPOST_TOTEMS": 1,
+   "D04_OUTPOST_BRAZIERS": 1,
+   "D05_OUTPOST_SCORCH": 2,
+   "D07_BASE_PALISADE_RING": 9,
+   "D08_BASE_TENTS": 3,
+   "D09_BASE_RACKS_BARRELS": 5,
+   "D10_BASE_TOTEMS": 2,
+   "D11_BASE_BRAZIERS": 4,
+   "D12_BASE_SCORCH": 3
+  },
+  "failures": [],
+  "result": "PASS"
+ }
+}

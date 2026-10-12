@@ -554,6 +554,15 @@ namespace
 			{
 				continue;
 			}
+			const TArray<TSharedPtr<FJsonValue>>* Centre = nullptr;
+			if (Feature->TryGetArrayField(TEXT("centre_uu"), Centre) && Centre && Centre->Num() >= 2)
+			{
+				OutPoint = FVector(
+					static_cast<float>((*Centre)[0]->AsNumber()),
+					static_cast<float>((*Centre)[1]->AsNumber()),
+					80.f);
+				return true;
+			}
 			const TSharedPtr<FJsonObject>* Cells = nullptr;
 			Feature->TryGetObjectField(TEXT("cells"), Cells);
 			const TArray<TSharedPtr<FJsonValue>>* Rect = nullptr;
@@ -565,6 +574,95 @@ namespace
 			return true;
 		}
 		return false;
+	}
+
+	void SpawnTaggedPoint(UWorld* World, const FVector& At, const FString& Id, const TCHAR* Tag)
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AActor* Marker = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform(At), Params);
+		if (!Marker)
+		{
+			return;
+		}
+		Marker->Tags.Add(FName(Tag));
+		Marker->Tags.Add(FName(*Id));
+		USceneComponent* MarkerRoot = NewObject<USceneComponent>(Marker, TEXT("Root"));
+		Marker->SetRootComponent(MarkerRoot);
+		MarkerRoot->RegisterComponent();
+		Marker->SetActorLocation(At);
+	}
+
+	void ReadCounterWaveMarkers(UWorld* World, FVector& SpawnAt, bool& bSpawn, TArray<FVector>& Lane)
+	{
+		bSpawn = false;
+		Lane.Reset();
+		TSharedPtr<FJsonObject> Root;
+		if (!LoadJson(TEXT("map_features.json"), Root))
+		{
+			return;
+		}
+		const TArray<TSharedPtr<FJsonValue>>* Features = nullptr;
+		if (!Root->TryGetArrayField(TEXT("features"), Features) || !Features)
+		{
+			return;
+		}
+		struct FLanePoint
+		{
+			int32 Order = 0;
+			FVector At = FVector::ZeroVector;
+			FString Id;
+		};
+		TArray<FLanePoint> Points;
+		for (const TSharedPtr<FJsonValue>& Value : *Features)
+		{
+			const TSharedPtr<FJsonObject> Feature = Value.IsValid() ? Value->AsObject() : nullptr;
+			if (!Feature.IsValid())
+			{
+				continue;
+			}
+			FString Type;
+			FString Id;
+			Feature->TryGetStringField(TEXT("type"), Type);
+			Feature->TryGetStringField(TEXT("id"), Id);
+			const TArray<TSharedPtr<FJsonValue>>* Centre = nullptr;
+			if (!Feature->TryGetArrayField(TEXT("centre_uu"), Centre) || !Centre || Centre->Num() < 2)
+			{
+				continue;
+			}
+			const FVector At(
+				static_cast<float>((*Centre)[0]->AsNumber()),
+				static_cast<float>((*Centre)[1]->AsNumber()),
+				0.f);
+			if (Type == TEXT("spawn-point") && Id == TEXT("SPAWN_CW_01"))
+			{
+				SpawnAt = At;
+				bSpawn = true;
+				SpawnTaggedPoint(World, At, Id, TEXT("KodSpawnPoint"));
+			}
+			else if (Type == TEXT("waypoint"))
+			{
+				FString LaneId;
+				Feature->TryGetStringField(TEXT("lane"), LaneId);
+				if (LaneId != TEXT("QRF_LANE_01"))
+				{
+					continue;
+				}
+				double Order = 0.0;
+				Feature->TryGetNumberField(TEXT("order"), Order);
+				FLanePoint Point;
+				Point.Order = FMath::RoundToInt(Order);
+				Point.At = At;
+				Point.Id = Id;
+				Points.Add(Point);
+			}
+		}
+		Points.Sort([](const FLanePoint& A, const FLanePoint& B) { return A.Order < B.Order; });
+		for (const FLanePoint& Point : Points)
+		{
+			Lane.Add(Point.At);
+			SpawnTaggedPoint(World, Point.At, Point.Id, TEXT("KodWaypoint"));
+		}
 	}
 
 	int32 SpawnScinder(UWorld* World, UKodSimSubsystem* Sim, FVector& WaveOrigin, const TMap<FString, FScnBuilding>& Buildings)
@@ -763,9 +861,9 @@ void KodFaultline::Begin(UWorld* World)
 	FVector OutpostAt(1500.f, -300.f, 80.f);
 	const int32 Outposts = SpawnScinder(World, Sim, OutpostAt, Buildings);
 	FVector SpawnAt = OutpostAt;
-	FVector LaneAt = FVector::ZeroVector;
-	const bool bSpawnMarker = FindMarker(World, TEXT("SPAWN_CW_01"), SpawnAt);
-	const bool bLaneMarker = FindMarker(World, TEXT("QRF_LANE_01"), LaneAt);
+	TArray<FVector> Lane;
+	bool bSpawnMarker = false;
+	ReadCounterWaveMarkers(World, SpawnAt, bSpawnMarker, Lane);
 	if (!bSpawnMarker)
 	{
 		SpawnAt = OutpostAt;
@@ -781,11 +879,20 @@ void KodFaultline::Begin(UWorld* World)
 	Script.HomeX = -7500;
 	Script.HomeY = -7500;
 	Script.HomeZ = 340;
-	Script.bHasLane = bLaneMarker ? 1 : 0;
-	Script.LaneX = FMath::RoundToInt(LaneAt.X);
-	Script.LaneY = FMath::RoundToInt(LaneAt.Y);
-	Script.LaneZ = FMath::RoundToInt(LaneAt.Z);
+	Script.bHasLane = Lane.Num() > 0 ? 1 : 0;
+	if (Lane.Num() > 0)
+	{
+		Script.LaneX = FMath::RoundToInt(Lane[0].X);
+		Script.LaneY = FMath::RoundToInt(Lane[0].Y);
+		Script.LaneZ = 0;
+		for (const FVector& Point : Lane)
+		{
+			Script.LanePointX.Add(FMath::RoundToInt(Point.X));
+			Script.LanePointY.Add(FMath::RoundToInt(Point.Y));
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodFaultline LanePoints=%d"), Lane.Num());
 	Sim->ArmFaultlineScript(Script);
 	UE_LOG(LogTemp, Log, TEXT("KodFaultline Begin Map=%s Outposts=%d Spawn=%.0f,%.0f Lane=%d"),
-		*World->GetMapName(), Outposts, SpawnAt.X, SpawnAt.Y, bLaneMarker ? 1 : 0);
+		*World->GetMapName(), Outposts, SpawnAt.X, SpawnAt.Y, Lane.Num());
 }

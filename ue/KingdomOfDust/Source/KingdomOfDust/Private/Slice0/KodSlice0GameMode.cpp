@@ -428,6 +428,87 @@ static void ApplySc2Look(UWorld* World)
 			FogComp->SetVolumetricFog(false);
 		}
 	}
+	if (!KodFaultline::IsTrainingMap(World))
+	{
+		return;
+	}
+	const FLinearColor SunColor = FLinearColor::FromSRGBColor(FColor(0xFF, 0xD8, 0xA8));
+	const FLinearColor SkyColor = FLinearColor::FromSRGBColor(FColor(0x9F, 0xB4, 0xD9));
+	const FLinearColor HazeColor = FLinearColor::FromSRGBColor(FColor(0xD9, 0xA6, 0x75));
+	ADirectionalLight* SunActor = nullptr;
+	for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+	{
+		SunActor = *It;
+		break;
+	}
+	if (!SunActor)
+	{
+		SunActor = World->SpawnActor<ADirectionalLight>(ADirectionalLight::StaticClass(), FTransform(FRotator(-32.f, 225.f, 0.f)));
+	}
+	if (SunActor)
+	{
+		SunActor->SetActorRotation(FRotator(-32.f, 225.f, 0.f));
+		if (UDirectionalLightComponent* Light = Cast<UDirectionalLightComponent>(SunActor->GetLightComponent()))
+		{
+			Light->SetMobility(EComponentMobility::Movable);
+			Light->SetIntensity(6.5f);
+			Light->SetLightColor(SunColor);
+			Light->SetTemperature(4200.f);
+			Light->SetUseTemperature(true);
+			Light->SetAtmosphereSunLight(true);
+			Light->SetCastShadows(true);
+			Light->SetDynamicShadowDistanceMovableLight(30000.f);
+		}
+	}
+	ASkyLight* SkyActor = nullptr;
+	for (TActorIterator<ASkyLight> It(World); It; ++It)
+	{
+		SkyActor = *It;
+		break;
+	}
+	if (!SkyActor)
+	{
+		SkyActor = World->SpawnActor<ASkyLight>();
+	}
+	if (SkyActor)
+	{
+		if (USkyLightComponent* Sky = SkyActor->GetLightComponent())
+		{
+			Sky->SetMobility(EComponentMobility::Movable);
+			Sky->SetIntensity(0.8f);
+			Sky->SetLightColor(SkyColor);
+			Sky->SetRealTimeCapture(false);
+		}
+	}
+	AExponentialHeightFog* FogActor = nullptr;
+	for (TActorIterator<AExponentialHeightFog> It(World); It; ++It)
+	{
+		FogActor = *It;
+		break;
+	}
+	if (!FogActor)
+	{
+		FogActor = World->SpawnActor<AExponentialHeightFog>();
+	}
+	if (FogActor && FogActor->GetComponent())
+	{
+		UExponentialHeightFogComponent* FogComp = FogActor->GetComponent();
+		FogComp->SetFogDensity(0.006f);
+		FogComp->SetFogInscatteringColor(HazeColor);
+		FogComp->SetStartDistance(4000.f);
+		FogComp->SetVolumetricFog(false);
+	}
+	for (TActorIterator<APostProcessVolume> It(World); It; ++It)
+	{
+		if (!It->bUnbound)
+		{
+			continue;
+		}
+		It->Settings.bOverride_BloomIntensity = true;
+		It->Settings.BloomIntensity = 0.4f;
+		break;
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodFaultline Sun Pitch=-32 Yaw=225 Color=#FFD8A8"));
 }
 
 void AKodSlice0GameMode::StartPlay()
