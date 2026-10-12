@@ -63,6 +63,17 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Totals1 = FKodTeamTotals();
 	bMatchCheated = false;
 	bCompetitive = false;
+	bGeneralPowers = true;
+	PowerPoints0 = 0;
+	PowerPoints1 = 0;
+	ArtilleryCd0 = 0;
+	ArtilleryCd1 = 0;
+	ReconCd0 = 0;
+	ReconCd1 = 0;
+	RepairCd0 = 0;
+	RepairCd1 = 0;
+	ScheduledPowers.Reset();
+	RampCells.Reset();
 	bCheatInvincible = false;
 	bCheatInstantBuild = false;
 	bCheatNoSupply = false;
@@ -231,7 +242,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 		if (State->bMobile
 			&& State->Order == EKodSimOrderType::None
 			&& State->GatherPhase == EKodGatherPhase::None
-			&& IsWorldCellBlocked(State->Position))
+			&& IsCellBlocked(KodBuildGrid::CellOf(State->Position.X), KodBuildGrid::CellOf(State->Position.Y), State->TeamId))
 		{
 			SnapOutOfFootprint(*State);
 			QuantizePose(*State);
@@ -290,6 +301,8 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 	StepAI();
 	StepTech();
 	StepOrbital();
+	StepLiftoff();
+	StepPowers();
 	StepExposed();
 	RecordMatchSample();
 }
@@ -320,7 +333,7 @@ void UKodSimSubsystem::StepEntityMove(FKodSimEntityState& State, float FixedDt)
 				const FVector Next = State.PatrolAnchor;
 				State.PatrolAnchor = State.MoveTarget;
 				State.MoveTarget = Next;
-				State.PathId = PlanMovePath(State.Position, State.MoveTarget);
+				State.PathId = PlanMovePath(State.Position, State.MoveTarget, State.TeamId);
 				State.PathCursor = 0;
 				QuantizePose(State);
 				return;
@@ -2227,6 +2240,13 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&Structure.GathererCd, sizeof(Structure.GathererCd));
 		Append(&Structure.SupplyCd, sizeof(Structure.SupplyCd));
 		Append(&Structure.IsrCd, sizeof(Structure.IsrCd));
+		const uint8 Airborne = Structure.bAirborne ? 1 : 0;
+		const uint8 LiftMoving = Structure.bLiftMoving ? 1 : 0;
+		Append(&Airborne, sizeof(Airborne));
+		Append(&LiftMoving, sizeof(LiftMoving));
+		Append(&Structure.LiftGoalX, sizeof(Structure.LiftGoalX));
+		Append(&Structure.LiftGoalY, sizeof(Structure.LiftGoalY));
+		Append(&Structure.LiftSpeedUU, sizeof(Structure.LiftSpeedUU));
 	}
 
 	const uint8 Outcome = static_cast<uint8>(MatchOutcome);
@@ -2392,6 +2412,37 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	Append(&ScoutSaw, sizeof(ScoutSaw));
 	Append(&Retreating, sizeof(Retreating));
 	AppendBalanceHash(Bytes);
+	const uint8 PowersOn = bGeneralPowers ? 1 : 0;
+	Append(&PowersOn, sizeof(PowersOn));
+	Append(&PowerPoints0, sizeof(PowerPoints0));
+	Append(&PowerPoints1, sizeof(PowerPoints1));
+	Append(&ArtilleryCd0, sizeof(ArtilleryCd0));
+	Append(&ArtilleryCd1, sizeof(ArtilleryCd1));
+	Append(&ReconCd0, sizeof(ReconCd0));
+	Append(&ReconCd1, sizeof(ReconCd1));
+	Append(&RepairCd0, sizeof(RepairCd0));
+	Append(&RepairCd1, sizeof(RepairCd1));
+	const int32 PowerCount = ScheduledPowers.Num();
+	Append(&PowerCount, sizeof(PowerCount));
+	for (const FKodScheduledPower& Power : ScheduledPowers)
+	{
+		Append(&Power.TeamId, sizeof(Power.TeamId));
+		const int32 NameCrc = static_cast<int32>(FCrc::StrCrc32(*Power.PowerId.ToString()));
+		Append(&NameCrc, sizeof(NameCrc));
+		Append(&Power.X, sizeof(Power.X));
+		Append(&Power.Y, sizeof(Power.Y));
+		Append(&Power.TicksLeft, sizeof(Power.TicksLeft));
+		Append(&Power.Phase, sizeof(Power.Phase));
+		Append(&Power.RadiusUU, sizeof(Power.RadiusUU));
+		Append(&Power.Amount, sizeof(Power.Amount));
+		Append(&Power.DurationTicks, sizeof(Power.DurationTicks));
+	}
+	const int32 RampCount = RampCells.Num();
+	Append(&RampCount, sizeof(RampCount));
+	for (int64 Ramp : RampCells)
+	{
+		Append(&Ramp, sizeof(Ramp));
+	}
 
 	const uint64 Hash = Bytes.Num() > 0
 		? CityHash64(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num())

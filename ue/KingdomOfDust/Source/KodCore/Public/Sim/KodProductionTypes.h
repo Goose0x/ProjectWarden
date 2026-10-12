@@ -21,6 +21,7 @@ struct KODCORE_API FKodTrainSpec
 	int32 EnergyMax = 0;
 	int32 EnergyStart = 0;
 	int32 GatherRatePermille = 1000;
+	int32 PowerPoints = 0;
 };
 
 /** Researched at a building. Level 1 placeholders. The sim does not load an asset. */
@@ -37,6 +38,30 @@ struct KODCORE_API FKodUpgradeSpec
 	int32 SatelliteFeed = 0;
 	int32 EnergyMax = 0;
 	int32 EnergyStart = 0;
+};
+
+struct KODCORE_API FKodPowerSpec
+{
+	FName PowerId;
+	int32 PointCost = 0;
+	int32 CooldownTicks = 0;
+	int32 DelayTicks = 0;
+	int32 RadiusUU = 0;
+	int32 Amount = 0;
+	int32 DurationTicks = 0;
+};
+
+struct KODCORE_API FKodScheduledPower
+{
+	int32 TeamId = 0;
+	FName PowerId;
+	int32 X = 0;
+	int32 Y = 0;
+	int32 TicksLeft = 0;
+	int32 Phase = 0;
+	int32 RadiusUU = 0;
+	int32 Amount = 0;
+	int32 DurationTicks = 0;
 };
 
 struct KODCORE_API FKodTeamTech
@@ -124,6 +149,11 @@ struct KODCORE_API FKodStructureState
 	int32 GathererCd = 0;
 	int32 SupplyCd = 0;
 	int32 IsrCd = 0;
+	bool bAirborne = false;
+	bool bLiftMoving = false;
+	int32 LiftGoalX = 0;
+	int32 LiftGoalY = 0;
+	int32 LiftSpeedUU = 0;
 };
 
 struct KODCORE_API FKodSupplyState

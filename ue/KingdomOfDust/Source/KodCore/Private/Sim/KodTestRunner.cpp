@@ -181,6 +181,16 @@ bool UKodSimSubsystem::RunScriptedTest(FName Scenario, int32 Runs, int32 Seed)
 		bCheatReveal = false;
 		bCheatNoCooldown = false;
 		bCompetitive = false;
+		bGeneralPowers = false;
+		PowerPoints0 = 0;
+		PowerPoints1 = 0;
+		ArtilleryCd0 = 0;
+		ArtilleryCd1 = 0;
+		ReconCd0 = 0;
+		ReconCd1 = 0;
+		RepairCd0 = 0;
+		RepairCd1 = 0;
+		ScheduledPowers.Reset();
 		AiOpener = 0;
 		bAiOpenerChosen = false;
 		bScoutSawEnemy = false;

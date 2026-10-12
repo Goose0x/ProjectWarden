@@ -14,6 +14,11 @@ AKodIsrMonitor::AKodIsrMonitor()
 	Capture->FOVAngle = 35.f;
 }
 
+void AKodIsrMonitor::SetMonitorVisible(bool bVisible)
+{
+	bMonitorVisible = bVisible;
+}
+
 void AKodIsrMonitor::AimAt(const FVector& Center, int32 SightUU)
 {
 	if (!RenderTarget)
@@ -34,8 +39,16 @@ void AKodIsrMonitor::AimAt(const FVector& Center, int32 SightUU)
 
 void AKodIsrMonitor::CaptureView()
 {
-	if (Capture && RenderTarget)
+	if (!bMonitorVisible || !Capture || !RenderTarget)
 	{
-		Capture->CaptureScene();
+		return;
 	}
+	const UWorld* World = GetWorld();
+	const float Now = World ? World->GetTimeSeconds() : 0.f;
+	if (LastCaptureSeconds >= 0.f && Now - LastCaptureSeconds < (1.f / 12.f))
+	{
+		return;
+	}
+	LastCaptureSeconds = Now;
+	Capture->CaptureScene();
 }

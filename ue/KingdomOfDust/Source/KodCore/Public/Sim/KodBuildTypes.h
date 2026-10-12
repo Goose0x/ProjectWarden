@@ -43,6 +43,9 @@ struct KODCORE_API FKodBuildSpec
 	int32 AttackDamage = 0;
 	int32 AttackRangeUU = 0;
 	bool bAttacksAir = false;
+	bool bCanLiftoff = false;
+	int32 LiftSpeedUU = 0;
+	int32 PowerPoints = 0;
 };
 
 struct KODCORE_API FKodPlacementResult

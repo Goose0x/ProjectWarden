@@ -417,8 +417,8 @@ public:
 		int32 OffsetX = 0,
 		int32 OffsetY = 0);
 
-	/** Grid A* around structure footprints. 0 means go straight. */
-	int32 PlanMovePath(FVector From, FVector To);
+	/** Grid A* around structure footprints. 0 means go straight. TeamId walks its own lowered depots. */
+	int32 PlanMovePath(FVector From, FVector To, int32 TeamId = -1);
 
 	/** 0 unexplored, 1 explored, 2 visible. Local and AI teams share this grid. */
 	uint8 GetTeamVision(int32 TeamId, float WorldX, float WorldY) const;
@@ -427,13 +427,17 @@ public:
 
 	void CopySeenStructureBlips(int32 TeamId, TArray<int32>& OutTeam, TArray<int32>& OutX, TArray<int32>& OutY, TArray<int32>& OutFootX, TArray<int32>& OutFootY) const;
 
-	/** Height layer hook. Returns 0 until a map writes cell heights. */
-	int32 GetMapCellHeight(int32 /*CellX*/, int32 /*CellY*/) const { return 0; }
+	/** Height layer. Ramp cells are 1. Flat ground is 0. */
+	int32 GetMapCellHeight(int32 CellX, int32 CellY) const;
+	void RegisterRampCell(int32 CellX, int32 CellY);
+	bool IsRampCell(int32 CellX, int32 CellY) const;
+	/** True when a Depot or Barracks closes this ramp for ForTeam. */
+	bool IsRampWalled(int32 CellX, int32 CellY, int32 ForTeam) const;
 
 	void SetAiCheatVision(bool bEnabled) { bAiCheatVision = bEnabled; }
 	bool HasAiCheatVision() const { return bAiCheatVision; }
 
-	bool IsPathCellClear(int32 X0, int32 Y0, int32 X1, int32 Y1) const;
+	bool IsPathCellClear(int32 X0, int32 Y0, int32 X1, int32 Y1, int32 TeamId = -1) const;
 
 	/**
 	 * Resource nodes are never targets. A friendly drop-off is a rally, not a target.
@@ -593,7 +597,8 @@ public:
 	bool TryGetPlayableCellBounds(int32& OutMinX, int32& OutMinY, int32& OutMaxX, int32& OutMaxY) const;
 	void BindStructureActor(FKodEntityId Id, AActor* Actor);
 	void ConsumePendingBuildingSpawns(TArray<FKodPendingBuildingSpawn>& OutSpawns);
-	bool IsCellBlocked(int32 CellX, int32 CellY) const;
+	/** TeamId < 0 blocks every footprint, including a lowered depot. The owner walks their own lowered depot. */
+	bool IsCellBlocked(int32 CellX, int32 CellY, int32 TeamId = -1) const;
 
 	/** Default 50. L_Slice0 overwrites this from AKodSlice0GameMode at StartPlay. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
@@ -670,6 +675,17 @@ public:
 
 	void RegisterAbilitySpec(const FKodAbilitySpec& Spec);
 	bool UseOrbitalAbility(FKodEntityId CcId, FName AbilityId, FVector Target, FKodEntityId DepotId);
+
+	void SetGeneralPowers(bool bEnabled);
+	bool AreGeneralPowersEnabled() const { return bGeneralPowers; }
+	int32 GetPowerPoints(int32 TeamId) const;
+	int32 GetPowerCooldown(int32 TeamId, FName PowerId) const;
+	bool TryGetPowerSpec(FName PowerId, FKodPowerSpec& OutSpec) const;
+	bool CastPower(int32 TeamId, FName PowerId, FVector Target);
+	void CopyArtilleryTelegraphs(int32 TeamId, TArray<int32>& OutX, TArray<int32>& OutY, TArray<int32>& OutRadius) const;
+
+	bool IssueLiftoff(FKodEntityId StructureId);
+	bool IssueLand(FKodEntityId StructureId, FVector Target);
 	void FinishOrbitalSpawn(FKodEntityId Id, const FKodPendingUnitSpawn& Request);
 	bool TryGetOwnedIsr(int32 TeamId, FVector& OutCenter, int32& OutSight, int32& OutId) const;
 
@@ -775,6 +791,11 @@ protected:
 	void RememberAiMatch();
 	void StepTech();
 	void StepOrbital();
+	void StepPowers();
+	void ApplyReconVision();
+	void StepLiftoff();
+	void AwardPowerPoints(int32 TeamId, int32 Amount);
+	void CollectTaggedRamps();
 	void StepExposed();
 	void ApplyExposedReveal();
 	void RecordMatchSample();
@@ -894,6 +915,18 @@ protected:
 
 	bool bMatchCheated = false;
 	bool bCompetitive = false;
+	bool bGeneralPowers = true;
+	int32 PowerPoints0 = 0;
+	int32 PowerPoints1 = 0;
+	int32 ArtilleryCd0 = 0;
+	int32 ArtilleryCd1 = 0;
+	int32 ReconCd0 = 0;
+	int32 ReconCd1 = 0;
+	int32 RepairCd0 = 0;
+	int32 RepairCd1 = 0;
+	TArray<FKodScheduledPower> ScheduledPowers;
+	TArray<int64> RampCells;
+	TMap<FName, FKodPowerSpec> PowerSpecs;
 	bool bCheatInvincible = false;
 	bool bCheatInstantBuild = false;
 	bool bCheatNoSupply = false;
@@ -919,6 +952,8 @@ protected:
 	TObjectPtr<UDataTable> StructureTable;
 	UPROPERTY()
 	TObjectPtr<UDataTable> UpgradeTable;
+	UPROPERTY()
+	TObjectPtr<UDataTable> PowerTable;
 
 	struct FKodTestResult
 	{

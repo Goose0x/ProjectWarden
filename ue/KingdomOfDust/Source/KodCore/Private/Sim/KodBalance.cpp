@@ -89,6 +89,10 @@ void UKodSimSubsystem::EnsureBalanceTables()
 	{
 		UpgradeTable = MakeTable(this, FKodUpgradeBalanceRow::StaticStruct(), FName(TEXT("Upgrade")));
 	}
+	if (!PowerTable)
+	{
+		PowerTable = MakeTable(this, FKodPowerBalanceRow::StaticStruct(), FName(TEXT("Power")));
+	}
 
 	auto AddAbility = [this](const TCHAR* Id, int32 HealthCost, int32 Duration, int32 MovePermille, int32 AttackPermille)
 	{
@@ -236,15 +240,23 @@ void UKodSimSubsystem::EnsureBalanceTables()
 	FKodStructureBalanceRow Cc = Structure(2500, 400, 71 * 16, KodEconomyDefaults::SupplyPerHq, 5, 5, 2000);
 	Cc.TownHall = 1;
 	Cc.DropOff = 1;
+	Cc.CanLiftoff = 1;
+	Cc.LiftSpeed = 160;
 	AddStructure(KodWardenPaths::Id_CommandCenter, Cc);
 	FKodStructureBalanceRow Depot = Structure(400, 100, 21 * 16, KodEconomyDefaults::SupplyPerDepot, 2, 2, 0);
 	Depot.CanLower = 1;
 	AddStructure(KodWardenPaths::Id_SupplyDepot, Depot);
-	AddStructure(KodWardenPaths::Id_Barracks, Structure(1500, 150, 46 * 16, 0, 3, 3, 1400));
+	FKodStructureBalanceRow BarracksRow = Structure(1500, 150, 46 * 16, 0, 3, 3, 1400);
+	BarracksRow.CanLiftoff = 1;
+	BarracksRow.LiftSpeed = 140;
+	AddStructure(KodWardenPaths::Id_Barracks, BarracksRow);
 	FKodStructureBalanceRow Rig = Structure(500, 75, 30 * 16, 0, 3, 3, 0);
 	Rig.Extractor = 1;
 	AddStructure(KodWardenPaths::Id_Rig, Rig);
-	AddStructure(KodWardenPaths::Id_EngineeringBay, Structure(850, 125, 25 * 16, 0, 3, 3, 1400));
+	FKodStructureBalanceRow BayRow = Structure(850, 125, 25 * 16, 0, 3, 3, 1400);
+	BayRow.CanLiftoff = 1;
+	BayRow.LiftSpeed = 140;
+	AddStructure(KodWardenPaths::Id_EngineeringBay, BayRow);
 	FKodStructureBalanceRow Bunker = Structure(400, 100, 30 * 16, 0, 3, 3, 1400);
 	Bunker.CargoCap = 4;
 	AddStructure(KodWardenPaths::Id_Bunker, Bunker);
@@ -287,6 +299,24 @@ void UKodSimSubsystem::EnsureBalanceTables()
 	Platform.Flyer = 1;
 	Platform.GatherRatePermille = 1000;
 	AddUnit(KodWardenPaths::Id_IsrPlatform, Platform);
+	auto AddPower = [this](const TCHAR* Id, int32 Cost, int32 Cooldown, int32 Delay, int32 Radius, int32 Amount, int32 Duration)
+	{
+		if (PowerTable->FindRow<FKodPowerBalanceRow>(FName(Id), TEXT("KodBalance"), false))
+		{
+			return;
+		}
+		FKodPowerBalanceRow Row;
+		Row.PointCost = Cost;
+		Row.CooldownTicks = Cooldown;
+		Row.DelayTicks = Delay;
+		Row.RadiusUU = Radius;
+		Row.Amount = Amount;
+		Row.DurationTicks = Duration;
+		PowerTable->AddRow(FName(Id), Row);
+	};
+	AddPower(KodWardenPaths::Id_ArtilleryStrike, 100, 60 * 16, 3 * 16, 400, 40, 0);
+	AddPower(KodWardenPaths::Id_ReconSweep, 50, 30 * 16, 0, 800, 0, 8 * 16);
+	AddPower(KodWardenPaths::Id_FieldRepair, 75, 40 * 16, 0, 500, 200, 0);
 }
 
 void UKodSimSubsystem::ApplyBalance()
@@ -318,6 +348,7 @@ void UKodSimSubsystem::ApplyBalance()
 			Spec->EnergyMax = Row->EnergyMax;
 			Spec->EnergyStart = Row->EnergyStart;
 			Spec->GatherRatePermille = Row->GatherRatePermille > 0 ? Row->GatherRatePermille : 1000;
+			Spec->PowerPoints = Row->PowerPoints > 0 ? Row->PowerPoints : Row->Credits;
 		}
 		const FKodWeaponBalanceRow* Weapon = nullptr;
 		if (Name == FName(KodWardenPaths::Id_Ranger))
@@ -391,6 +422,9 @@ void UKodSimSubsystem::ApplyBalance()
 			Spec->bAttacksAir = Row->AttacksAir != 0;
 			Spec->bExtractor = Row->Extractor != 0;
 			Spec->bIsDropOff = Row->DropOff != 0;
+			Spec->bCanLiftoff = Row->CanLiftoff != 0;
+			Spec->LiftSpeedUU = Row->LiftSpeed;
+			Spec->PowerPoints = Row->PowerPoints > 0 ? Row->PowerPoints : Row->Credits;
 		}
 		TArray<int32> Keys;
 		Structures.GetKeys(Keys);
@@ -472,6 +506,31 @@ void UKodSimSubsystem::ApplyBalance()
 		Spec->EnergyStart = Row->EnergyStart;
 	}
 
+	PowerSpecs.Reset();
+	if (PowerTable)
+	{
+		TArray<FName> PowerNames;
+		PowerTable->GetRowMap().GetKeys(PowerNames);
+		PowerNames.Sort([](const FName& A, const FName& B) { return A.ToString() < B.ToString(); });
+		for (const FName& Name : PowerNames)
+		{
+			const FKodPowerBalanceRow* Row = FindMutableRow<FKodPowerBalanceRow>(PowerTable, Name);
+			if (!Row)
+			{
+				continue;
+			}
+			FKodPowerSpec Spec;
+			Spec.PowerId = Name;
+			Spec.PointCost = Row->PointCost;
+			Spec.CooldownTicks = Row->CooldownTicks;
+			Spec.DelayTicks = Row->DelayTicks;
+			Spec.RadiusUU = Row->RadiusUU;
+			Spec.Amount = Row->Amount;
+			Spec.DurationTicks = Row->DurationTicks;
+			PowerSpecs.Add(Name, Spec);
+		}
+	}
+
 	RecalcSupplyCap(0);
 	RecalcSupplyCap(1);
 }
@@ -535,4 +594,5 @@ void UKodSimSubsystem::AppendBalanceHash(TArray<uint8>& Bytes) const
 	HashTable(WeaponTable, Bytes);
 	HashTable(StructureTable, Bytes);
 	HashTable(UpgradeTable, Bytes);
+	HashTable(PowerTable, Bytes);
 }

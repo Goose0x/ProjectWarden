@@ -95,7 +95,7 @@ void UKodSimSubsystem::StepSeparation()
 		{
 			continue;
 		}
-		if (IsWorldCellBlocked(State->Position))
+		if (IsCellBlocked(KodBuildGrid::CellOf(State->Position.X), KodBuildGrid::CellOf(State->Position.Y), State->TeamId))
 		{
 			SnapOutOfFootprint(*State);
 		}
@@ -117,7 +117,7 @@ bool UKodSimSubsystem::SnapOutOfFootprint(FKodSimEntityState& State) const
 {
 	const int32 CellX = KodBuildGrid::CellOf(State.Position.X);
 	const int32 CellY = KodBuildGrid::CellOf(State.Position.Y);
-	if (!IsCellBlocked(CellX, CellY))
+	if (!IsCellBlocked(CellX, CellY, State.TeamId))
 	{
 		return false;
 	}

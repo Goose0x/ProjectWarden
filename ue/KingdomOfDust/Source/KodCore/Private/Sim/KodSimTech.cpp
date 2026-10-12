@@ -142,7 +142,7 @@ bool UKodSimSubsystem::EnqueueResearch(FKodEntityId StructureId, FName UpgradeId
 {
 	FKodStructureState* Structure = Structures.Find(StructureId.Value);
 	const FKodUpgradeSpec* Spec = UpgradeSpecs.Find(UpgradeId);
-	if (!Structure || !Spec || !Structure->bComplete || Structure->DefinitionId != Spec->BuildingId)
+	if (!Structure || !Spec || !Structure->bComplete || Structure->bAirborne || Structure->DefinitionId != Spec->BuildingId)
 	{
 		return false;
 	}
@@ -287,7 +287,7 @@ bool UKodSimSubsystem::UnloadUnit(FKodEntityId BunkerId, int32 UnitId)
 			{
 				const bool bInside = X >= Bunker->CellX && X < Bunker->CellX + Bunker->FootprintX
 					&& Y >= Bunker->CellY && Y < Bunker->CellY + Bunker->FootprintY;
-				if (bInside || IsCellBlocked(X, Y) || CellHasUnit(X, Y))
+				if (bInside || IsCellBlocked(X, Y, Bunker->TeamId) || CellHasUnit(X, Y))
 				{
 					continue;
 				}
@@ -450,7 +450,7 @@ void UKodSimSubsystem::StepTech()
 	for (int32 Key : StructureKeys)
 	{
 		FKodStructureState* Structure = Structures.Find(Key);
-		if (!Structure || !Structure->bComplete)
+		if (!Structure || !Structure->bComplete || Structure->bAirborne)
 		{
 			continue;
 		}

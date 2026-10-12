@@ -17,6 +17,7 @@ public:
 	AKodIsrMonitor();
 
 	UTextureRenderTarget2D* GetRenderTarget() const { return RenderTarget; }
+	void SetMonitorVisible(bool bVisible);
 	void AimAt(const FVector& Center, int32 SightUU);
 	void CaptureView();
 
@@ -26,4 +27,7 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UTextureRenderTarget2D> RenderTarget;
+
+	bool bMonitorVisible = false;
+	float LastCaptureSeconds = -1.f;
 };

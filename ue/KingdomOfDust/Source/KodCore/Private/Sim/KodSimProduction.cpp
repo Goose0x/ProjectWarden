@@ -234,7 +234,7 @@ bool UKodSimSubsystem::TryGetStructure(FKodEntityId Id, FKodStructureState& OutS
 
 void UKodSimSubsystem::TryStartProduction(FKodStructureState& Structure)
 {
-	if (Structure.Slots.Num() <= 0)
+	if (Structure.bAirborne || Structure.Slots.Num() <= 0)
 	{
 		return;
 	}
@@ -267,7 +267,7 @@ bool UKodSimSubsystem::EnqueueTrain(FKodEntityId StructureId, FName UnitId)
 {
 	FKodStructureState* Structure = Structures.Find(StructureId.Value);
 	const FKodTrainSpec* Spec = TrainSpecs.Find(UnitId);
-	if (!Structure || !Spec || !Structure->bComplete)
+	if (!Structure || !Spec || !Structure->bComplete || Structure->bAirborne)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("KodProd Enqueue Miss Struct=%d Unit=%s"), StructureId.Value, *UnitId.ToString());
 		return false;
@@ -437,7 +437,7 @@ void UKodSimSubsystem::StepProduction()
 	for (int32 Key : Keys)
 	{
 		FKodStructureState* Structure = Structures.Find(Key);
-		if (!Structure || Structure->Slots.Num() <= 0)
+		if (!Structure || Structure->bAirborne || Structure->Slots.Num() <= 0)
 		{
 			continue;
 		}

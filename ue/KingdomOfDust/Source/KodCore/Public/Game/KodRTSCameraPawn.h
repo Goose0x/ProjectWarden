@@ -172,6 +172,8 @@ protected:
 	void PollAlert();
 	void PollRotate();
 	void PollFollow();
+	bool IsChatFocused() const;
+	bool HasSelectedStructure() const;
 	void ApplyPan(float DeltaSeconds, const FVector2D& UnitsPerSecond);
 	void UpdateTerrain(float DeltaSeconds, bool bInstant);
 	void ClampToPlayable();

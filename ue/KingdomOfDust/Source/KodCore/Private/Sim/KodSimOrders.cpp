@@ -168,7 +168,7 @@ void UKodSimSubsystem::IssueOrder(
 	}
 	else if (Kind == EKodSimOrderType::Move || Kind == EKodSimOrderType::AttackMove || Kind == EKodSimOrderType::Patrol)
 	{
-		State->PathId = PlanMovePath(State->Position, Point);
+		State->PathId = PlanMovePath(State->Position, Point, State->TeamId);
 	}
 	else
 	{
@@ -369,6 +369,19 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 		State.AttackTarget = FKodEntityId();
 		QuantizePose(State);
 		const FVector DeathAt = Target.Position;
+		int32 Points = 0;
+		if (bStructureTarget)
+		{
+			if (const FKodBuildSpec* Build = BuildSpecs.Find(Target.DefinitionId))
+			{
+				Points = Build->PowerPoints;
+			}
+		}
+		else if (const FKodTrainSpec* Train = TrainSpecs.Find(Target.DefinitionId))
+		{
+			Points = Train->PowerPoints;
+		}
+		AwardPowerPoints(AttackerTeam, Points);
 		NoteUnitKilled(AttackerTeam);
 		if (bStructureTarget)
 		{

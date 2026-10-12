@@ -1030,6 +1030,10 @@ bool AKodHUD::BlocksWorldSelect(float MouseX, float MouseY) const
 	{
 		return true;
 	}
+	if (bHasPowerPanel && PointIn(MouseX, MouseY, PowerMinX, PowerMinY, PowerMaxX, PowerMaxY))
+	{
+		return true;
+	}
 	FKodHudChromeHit Chrome;
 	return GetChromeHit(MouseX, MouseY, Chrome);
 }
