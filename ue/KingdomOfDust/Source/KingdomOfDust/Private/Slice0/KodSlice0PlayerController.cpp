@@ -45,6 +45,7 @@ void AKodSlice0PlayerController::IssueMoveToSelection_Implementation(FVector Wor
 	if (Cmd.SourceEntities.Num() > 0)
 	{
 		Commands->Enqueue(Cmd);
+		NotifyCommandMarker(WorldLocation, false);
 	}
 }
 
@@ -90,6 +91,7 @@ void AKodSlice0PlayerController::IssueAttackToSelection_Implementation(AActor* T
 		*Target->GetName(),
 		TargetId.Value);
 	Commands->Enqueue(Cmd);
+	NotifyCommandMarker(Target->GetActorLocation(), true);
 }
 
 void AKodSlice0PlayerController::IssueGatherToSelection_Implementation(AActor* Node, FVector NonGathererMovePoint)
@@ -1422,6 +1424,11 @@ bool AKodSlice0PlayerController::ConsumeArmedOrderClick()
 	if (Cmd.SourceEntities.Num() > 0)
 	{
 		Commands->Enqueue(Cmd);
+		const bool bAttack = Cmd.Type == EKodCommandType::Attack || Cmd.Type == EKodCommandType::AttackMove;
+		if (bAttack || Cmd.Type == EKodCommandType::Move)
+		{
+			NotifyCommandMarker(Cmd.TargetLocation, bAttack);
+		}
 	}
 	if (!Cmd.bQueued)
 	{

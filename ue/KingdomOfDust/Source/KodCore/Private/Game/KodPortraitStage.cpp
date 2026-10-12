@@ -2,6 +2,7 @@
 
 #include "Components/PointLightComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Animation/AnimSequence.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -137,6 +138,24 @@ void AKodPortraitStage::ShowSubject(AActor* Subject, int32 TeamId)
 		StaticMesh->SetRelativeScale3D(FVector(1.2f));
 	}
 	ShownTeam = TeamId;
+	IdleSeq = nullptr;
+	TalkSeq = nullptr;
+	bTalking = false;
+	TalkLeft = 0.f;
+	if (UKodPortraitHooks* Hooks = Subject->FindComponentByClass<UKodPortraitHooks>())
+	{
+		IdleSeq = Hooks->GetIdle();
+		TalkSeq = Hooks->GetTalk();
+	}
+	if (SkelMesh && IdleSeq)
+	{
+		SkelMesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+		SkelMesh->PlayAnimation(IdleSeq, true);
+	}
+	else if (SkelMesh)
+	{
+		SkelMesh->Stop();
+	}
 	if (BackdropMid)
 	{
 		const FLinearColor Ink = TeamId == 0
@@ -169,9 +188,34 @@ void AKodPortraitStage::AppendHiddenPrimitives(TSet<FPrimitiveComponentId>& Out)
 	}
 }
 
+void AKodPortraitStage::NotifyVoice(float Seconds)
+{
+	if (!TalkSeq || !SkelMesh || Seconds <= 0.f)
+	{
+		return;
+	}
+	SkelMesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+	SkelMesh->PlayAnimation(TalkSeq, true);
+	TalkLeft = Seconds;
+	bTalking = true;
+}
+
 void AKodPortraitStage::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (bTalking)
+	{
+		TalkLeft -= DeltaSeconds;
+		if (TalkLeft <= 0.f)
+		{
+			bTalking = false;
+			if (IdleSeq && SkelMesh)
+			{
+				SkelMesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+				SkelMesh->PlayAnimation(IdleSeq, true);
+			}
+		}
+	}
 	if (!bSway || !SkelMesh)
 	{
 		return;

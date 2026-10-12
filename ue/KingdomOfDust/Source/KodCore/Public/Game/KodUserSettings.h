@@ -47,4 +47,12 @@ public:
 	/** Scalability 0–3. */
 	UPROPERTY(Config)
 	int32 GraphicsQuality = 2;
+
+	/** Light shake on artillery and building deaths. */
+	UPROPERTY(Config)
+	bool bCameraShake = true;
+
+	/** Floating damage numbers. Off until the player turns them on. */
+	UPROPERTY(Config)
+	bool bShowDamageNumbers = false;
 };

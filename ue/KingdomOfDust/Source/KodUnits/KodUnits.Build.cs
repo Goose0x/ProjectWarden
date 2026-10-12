@@ -16,7 +16,8 @@ public class KodUnits : ModuleRules
 			"GameplayTags",
 			"GameplayTasks",
 			"NavigationSystem",
-			"AIModule"
+			"AIModule",
+			"Niagara"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });

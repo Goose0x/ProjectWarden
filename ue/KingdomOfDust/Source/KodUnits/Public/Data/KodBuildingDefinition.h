@@ -5,6 +5,7 @@
 #include "GameplayTagContainer.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraSystem.h"
 #include "Sim/KodBuildTicks.h"
 #include "Sim/KodResourceTypes.h"
 #include "KodBuildingDefinition.generated.h"
@@ -113,6 +114,14 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Vision")
 	float SightRadius = 1200.f;
+
+	/** Low-HP smoke. Left empty. The building spawns it only when this loads. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|FX")
+	TSoftObjectPtr<UNiagaraSystem> LowHealthSmoke;
+
+	/** Low-HP fire. Left empty. The building spawns it only when this loads. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|FX")
+	TSoftObjectPtr<UNiagaraSystem> LowHealthFire;
 
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override
 	{

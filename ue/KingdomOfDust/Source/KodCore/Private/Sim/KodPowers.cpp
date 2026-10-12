@@ -205,7 +205,7 @@ void UKodSimSubsystem::StepPowers()
 			for (int32 Key : Keys)
 			{
 				FKodSimEntityState* State = States.Find(Key);
-				if (!State || State->Health <= 0.f || State->TeamId == Power.TeamId)
+				if (!State || State->Health <= 0.f || State->TeamId == Power.TeamId || State->InsideBunker.IsValid())
 				{
 					continue;
 				}
@@ -213,30 +213,44 @@ void UKodSimSubsystem::StepPowers()
 				{
 					continue;
 				}
-				State->Health = FMath::Max(0.f, State->Health - static_cast<float>(FMath::Max(0, Power.Amount)));
-				if (State->Health <= 0.f)
+				const int32 DealtInt = FMath::Max(0, Power.Amount);
+				if (DealtInt <= 0)
 				{
-					int32 Points = 0;
-					if (const FKodBuildSpec* Build = BuildSpecs.Find(State->DefinitionId))
-					{
-						Points = Build->PowerPoints;
-					}
-					else if (const FKodTrainSpec* Train = TrainSpecs.Find(State->DefinitionId))
-					{
-						Points = Train->PowerPoints;
-					}
-					AwardPowerPoints(Power.TeamId, Points);
-					NoteUnitKilled(Power.TeamId);
-					if (Structures.Contains(Key))
-					{
-						NoteStructureRazed(Power.TeamId);
-					}
-					FKodEntityId Dead;
-					Dead.Value = Key;
-					UnregisterEntity(Dead);
+					continue;
+				}
+				State->Health = FMath::Max(0.f, State->Health - static_cast<float>(DealtInt));
+				if (Power.TeamId == 0)
+				{
+					DamageDealt0 += DealtInt;
+				}
+				else
+				{
+					DamageDealt1 += DealtInt;
+				}
+				if (State->TeamId == 0)
+				{
+					DamageTaken0 += DealtInt;
+				}
+				else
+				{
+					DamageTaken1 += DealtInt;
+				}
+				AActor* TargetActor = nullptr;
+				if (const TWeakObjectPtr<AActor>* Found = Entities.Find(Key))
+				{
+					TargetActor = Found->Get();
+				}
+				const float HealthLeft = State->Health;
+				const FVector HitAt = State->Position;
+				OnUnitHit.Broadcast(nullptr, TargetActor, HealthLeft, Key);
+				PushJuiceText(HitAt, DealtInt, 0);
+				if (HealthLeft <= 0.f)
+				{
+					FinishEntityDeath(*State, Power.TeamId);
 				}
 			}
 			UE_LOG(LogTemp, Log, TEXT("KodPowers Artillery X=%d Y=%d"), Power.X, Power.Y);
+			RaiseCue(FName(TEXT("artillery_strike")), Center, true);
 			ScheduledPowers.RemoveAt(Index);
 			continue;
 		}

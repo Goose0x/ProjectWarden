@@ -6,6 +6,9 @@
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
 #include "Sim/KodBuildTypes.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Slice0/KodSlice0Bootstrap.h"
@@ -129,7 +132,7 @@ void AKodBuilding::Tick(float DeltaSeconds)
 	if (bCompletionFlash)
 	{
 		FlashLeft -= DeltaSeconds;
-		Scale *= 1.f + 0.08f * FMath::Max(0.f, FlashLeft / 0.35f);
+		Scale *= 1.f + 0.22f * FMath::Max(0.f, FlashLeft / 0.35f);
 		if (FlashLeft <= 0.f)
 		{
 			bCompletionFlash = false;
@@ -137,6 +140,67 @@ void AKodBuilding::Tick(float DeltaSeconds)
 	}
 	BuildingMesh->SetRelativeScale3D(Scale);
 	BuildingMesh->SetRelativeLocation(FVector(0.f, 0.f, Rise));
+	FKodSimEntityState Combat;
+	if (Sim->TryGetState(EntityId, Combat))
+	{
+		UpdateLowHealthFx(Combat.Health, Combat.MaxHealth);
+	}
+}
+
+void AKodBuilding::UpdateLowHealthFx(float Health, float MaxHealth)
+{
+	if (!CachedDef || MaxHealth <= 0.f || !BuildingMesh)
+	{
+		return;
+	}
+	const float Ratio = Health / FMath::Max(1.f, MaxHealth);
+	auto Ensure = [this](const TSoftObjectPtr<UNiagaraSystem>& Soft, TObjectPtr<UNiagaraComponent>& Comp, bool bWant)
+	{
+		if (!bWant || Soft.IsNull())
+		{
+			if (Comp)
+			{
+				Comp->Deactivate();
+				Comp = nullptr;
+			}
+			return;
+		}
+		if (Comp)
+		{
+			if (!Comp->IsActive())
+			{
+				Comp->Activate(true);
+			}
+			return;
+		}
+		UNiagaraSystem* System = Soft.Get();
+		if (!System)
+		{
+			System = Soft.LoadSynchronous();
+		}
+		if (!System)
+		{
+			return;
+		}
+		Comp = UNiagaraFunctionLibrary::SpawnSystemAttached(
+			System,
+			BuildingMesh,
+			NAME_None,
+			FVector(0.f, 0.f, 80.f),
+			FRotator::ZeroRotator,
+			EAttachLocation::KeepRelativeOffset,
+			false);
+	};
+	Ensure(CachedDef->LowHealthSmoke, SmokeFx, Ratio < 0.35f);
+	Ensure(CachedDef->LowHealthFire, FireFx, Ratio < 0.15f);
+	if (!bLoggedLowHealth && Ratio < 0.35f)
+	{
+		bLoggedLowHealth = true;
+		UE_LOG(LogTemp, Log, TEXT("KodFx LowHealth Id=%d Smoke=%d Fire=%d"),
+			EntityId.Value,
+			CachedDef->LowHealthSmoke.IsNull() ? 0 : 1,
+			CachedDef->LowHealthFire.IsNull() ? 0 : 1);
+	}
 }
 
 void AKodBuilding::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -171,6 +235,7 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 		return;
 	}
 	Definition = Def;
+	CachedDef = Def;
 
 	if (UWorld* World = GetWorld())
 	{

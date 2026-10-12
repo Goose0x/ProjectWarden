@@ -16,6 +16,7 @@
 #include "Game/KodPlayerController.h"
 #include "Game/KodApmTracker.h"
 #include "Game/KodPlayerState.h"
+#include "Audio/KodCueSubsystem.h"
 #include "Game/KodUserSettings.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -85,6 +86,9 @@ void AKodHUD::DrawHUD()
 	DrawResourceFlash();
 	DrawMatchOutcome();
 	DrawUnitHealthBars();
+	DrawClickMarkers();
+	DrawSelectionPulse();
+	DrawJuiceFloaters();
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
 	DrawHotkeyLegend();
@@ -100,6 +104,20 @@ void AKodHUD::DrawHUD()
 	}
 }
 
+void AKodHUD::AddCommandMarker(const FVector& WorldPoint, int32 Kind)
+{
+	FKodClickMarker Marker;
+	Marker.World = WorldPoint;
+	Marker.Kind = Kind;
+	Marker.Born = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+	Marker.Life = Kind == 2 ? 0.85f : 0.6f;
+	ClickMarkers.Add(Marker);
+	while (ClickMarkers.Num() > 12)
+	{
+		ClickMarkers.RemoveAt(0);
+	}
+}
+
 void AKodHUD::AddMinimapPing(const FVector& WorldPoint)
 {
 	const UWorld* World = GetWorld();
@@ -107,6 +125,173 @@ void AKodHUD::AddMinimapPing(const FVector& WorldPoint)
 	MinimapPings.Add(WorldPoint);
 	MinimapPingUntil.Add(Until);
 	UE_LOG(LogTemp, Log, TEXT("KodMap Ping X=%.0f Y=%.0f"), WorldPoint.X, WorldPoint.Y);
+}
+
+void AKodHUD::DrawClickMarkers()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	APlayerController* PC = GetOwningPlayerController();
+	UWorld* World = GetWorld();
+	if (!PC || !World)
+	{
+		return;
+	}
+	const float Now = World->GetTimeSeconds();
+	for (int32 Index = ClickMarkers.Num() - 1; Index >= 0; --Index)
+	{
+		const FKodClickMarker& Marker = ClickMarkers[Index];
+		const float Age = Now - Marker.Born;
+		if (Age < 0.f || Age > Marker.Life)
+		{
+			ClickMarkers.RemoveAt(Index);
+			continue;
+		}
+		FVector Screen;
+		if (!PC->ProjectWorldLocationToScreen(Marker.World, Screen, true))
+		{
+			continue;
+		}
+		const float Life = 1.f - (Age / FMath::Max(0.05f, Marker.Life));
+		const float Pulse = 0.65f + 0.35f * FMath::Abs(FMath::Sin(Age * 16.f));
+		const float Radius = 10.f + 34.f * (Age / FMath::Max(0.05f, Marker.Life));
+		FLinearColor Color = FLinearColor(0.25f, 0.95f, 0.35f, Life * Pulse);
+		if (Marker.Kind == 1)
+		{
+			Color = FLinearColor(0.95f, 0.18f, 0.14f, Life * Pulse);
+		}
+		else if (Marker.Kind == 2)
+		{
+			Color = FLinearColor(0.95f, 0.82f, 0.28f, Life * Pulse);
+		}
+		const int32 Steps = 14;
+		FVector2D Prev(Screen.X + Radius, Screen.Y);
+		for (int32 Step = 1; Step <= Steps; ++Step)
+		{
+			const float Angle = (static_cast<float>(Step) / static_cast<float>(Steps)) * 2.f * PI;
+			const FVector2D Next(Screen.X + FMath::Cos(Angle) * Radius, Screen.Y + FMath::Sin(Angle) * Radius);
+			DrawLine(Prev.X, Prev.Y, Next.X, Next.Y, Color, 2.f);
+			Prev = Next;
+		}
+	}
+}
+
+void AKodHUD::DrawSelectionPulse()
+{
+	AKodPlayerController* PC = Cast<AKodPlayerController>(GetOwningPlayerController());
+	UWorld* World = GetWorld();
+	if (!Canvas || !PC || !World)
+	{
+		return;
+	}
+	TArray<AActor*> Selected = PC->GetLocalSelection();
+	Selected.Sort([](const AActor* A, const AActor* B)
+	{
+		const uint32 IdA = A ? A->GetUniqueID() : 0u;
+		const uint32 IdB = B ? B->GetUniqueID() : 0u;
+		return IdA < IdB;
+	});
+	TArray<uint32> Ids;
+	Ids.Reserve(Selected.Num());
+	for (const AActor* Actor : Selected)
+	{
+		if (Actor)
+		{
+			Ids.Add(Actor->GetUniqueID());
+		}
+	}
+	if (Ids != PulseSelectionIds)
+	{
+		PulseSelectionIds = Ids;
+		SelectPulseUntil = World->GetTimeSeconds() + 0.35f;
+	}
+	const float Now = World->GetTimeSeconds();
+	const bool bPulse = Now < SelectPulseUntil;
+	const float Wave = bPulse
+		? 0.55f + 0.45f * FMath::Abs(FMath::Sin((SelectPulseUntil - Now) * 18.f))
+		: 0.35f + 0.12f * FMath::Abs(FMath::Sin(Now * 3.f));
+	const float Radius = bPulse ? 26.f + 14.f * ((SelectPulseUntil - Now) / 0.35f) : 18.f;
+	const FLinearColor Color(0.35f, 0.95f, 0.45f, Wave);
+	for (AActor* Actor : Selected)
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+		FVector Screen;
+		if (!PC->ProjectWorldLocationToScreen(Actor->GetActorLocation(), Screen, true))
+		{
+			continue;
+		}
+		const int32 Steps = 12;
+		FVector2D Prev(Screen.X + Radius, Screen.Y);
+		for (int32 Step = 1; Step <= Steps; ++Step)
+		{
+			const float Angle = (static_cast<float>(Step) / static_cast<float>(Steps)) * 2.f * PI;
+			const FVector2D Next(Screen.X + FMath::Cos(Angle) * Radius, Screen.Y + FMath::Sin(Angle) * Radius);
+			DrawLine(Prev.X, Prev.Y, Next.X, Next.Y, Color, bPulse ? 2.5f : 1.25f);
+			Prev = Next;
+		}
+	}
+}
+
+void AKodHUD::DrawJuiceFloaters()
+{
+	APlayerController* PC = GetOwningPlayerController();
+	UWorld* World = GetWorld();
+	if (!Canvas || !PC || !World)
+	{
+		return;
+	}
+	if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+	{
+		TArray<FKodJuiceText> Fresh;
+		Sim->ConsumeJuiceText(Fresh);
+		const float Now = World->GetTimeSeconds();
+		for (const FKodJuiceText& Text : Fresh)
+		{
+			FKodHudFloater Floater;
+			Floater.World = Text.Position;
+			Floater.Amount = Text.Amount;
+			Floater.Kind = Text.Kind;
+			Floater.Born = Now;
+			JuiceFloaters.Add(Floater);
+		}
+	}
+	const UKodUserSettings* Settings = UKodUserSettings::Get();
+	const bool bNumbers = Settings && Settings->bShowDamageNumbers;
+	const float Now = World->GetTimeSeconds();
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	for (int32 Index = JuiceFloaters.Num() - 1; Index >= 0; --Index)
+	{
+		const FKodHudFloater& Floater = JuiceFloaters[Index];
+		const float Age = Now - Floater.Born;
+		if (Age > 0.9f)
+		{
+			JuiceFloaters.RemoveAt(Index);
+			continue;
+		}
+		if (Floater.Kind == 0 && !bNumbers)
+		{
+			continue;
+		}
+		FVector Screen;
+		if (!PC->ProjectWorldLocationToScreen(Floater.World + FVector(0.f, 0.f, 160.f), Screen, true))
+		{
+			continue;
+		}
+		const float Alpha = 1.f - (Age / 0.9f);
+		const float Rise = Age * 36.f;
+		const FString Label = Floater.Kind == 1
+			? FString::Printf(TEXT("+%d"), Floater.Amount)
+			: FString::FromInt(Floater.Amount);
+		const FLinearColor Color = Floater.Kind == 1
+			? FLinearColor(0.55f, 0.95f, 0.35f, Alpha)
+			: FLinearColor(1.f, 0.35f, 0.28f, Alpha);
+		DrawText(Label, Color, Screen.X - 8.f, Screen.Y - Rise, Font, 1.1f, false);
+	}
 }
 
 void AKodHUD::ToggleMinimapLayer(int32 LayerIndex)
@@ -792,6 +977,22 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 		}
 	}
 	(void)bAtLocation;
+	if (CueId == FName(TEXT("artillery_strike")) || CueId == FName(TEXT("building_destroyed")))
+	{
+		if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetOwningPawn()))
+		{
+			const float Amp = CueId == FName(TEXT("artillery_strike")) ? 18.f : 14.f;
+			CameraPawn->AddShakeAt(Location, Amp);
+		}
+	}
+	if (CueId == FName(TEXT("structure_complete")))
+	{
+		AddCommandMarker(Location, 2);
+	}
+	if (PortraitStage && UKodCueSubsystem::IsVoiceCue(CueId))
+	{
+		PortraitStage->NotifyVoice(1.6f);
+	}
 	FString Text;
 	if (CueId == FName(TEXT("base_under_attack")))
 	{
@@ -2281,6 +2482,16 @@ void AKodHUD::HandleMenuChoice(int32 Choice)
 	{
 		Sim->SetCompetitive(!Sim->IsCompetitive());
 	}
+	else if (Choice == 52 && Settings)
+	{
+		Settings->bCameraShake = !Settings->bCameraShake;
+		Settings->SaveNow();
+	}
+	else if (Choice == 53 && Settings)
+	{
+		Settings->bShowDamageNumbers = !Settings->bShowDamageNumbers;
+		Settings->SaveNow();
+	}
 }
 
 void AKodHUD::DrawShellMenus()
@@ -2314,7 +2525,8 @@ void AKodHUD::DrawShellMenus()
 	const float W = 420.f * Scale;
 	const float X = (Canvas->SizeX - W) * 0.5f;
 	float Y = Canvas->SizeY * 0.22f;
-	DrawRect(FLinearColor(0.02f, 0.03f, 0.03f, 0.94f), X - 16.f * Scale, Y - 20.f * Scale, W + 32.f * Scale, 520.f * Scale);
+	const float PanelH = (MenuPage == 2 ? 760.f : 520.f) * Scale;
+	DrawRect(FLinearColor(0.02f, 0.03f, 0.03f, 0.94f), X - 16.f * Scale, Y - 20.f * Scale, W + 32.f * Scale, PanelH);
 	if (MenuPage == 1)
 	{
 		DrawText(TEXT("Paused"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X, Y, Font, 1.4f * Scale, false);
@@ -2356,6 +2568,8 @@ void AKodHUD::DrawShellMenus()
 		Button(X, Y, W, FString::Printf(TEXT("Graphics %d"), Settings->GraphicsQuality), 49); Y += 40.f * Scale;
 		Button(X, Y, W, Sim && Sim->IsExposedRuleEnabled() ? TEXT("Exposed rule On") : TEXT("Exposed rule Off"), 50); Y += 40.f * Scale;
 		Button(X, Y, W, Sim && Sim->IsCompetitive() ? TEXT("Competitive On") : TEXT("Competitive Off"), 51); Y += 40.f * Scale;
+		Button(X, Y, W, Settings->bCameraShake ? TEXT("Camera shake On") : TEXT("Camera shake Off"), 52); Y += 40.f * Scale;
+		Button(X, Y, W, Settings->bShowDamageNumbers ? TEXT("Damage numbers On") : TEXT("Damage numbers Off"), 53); Y += 40.f * Scale;
 		Button(X, Y, W, TEXT("Back"), 30);
 	}
 	else if (MenuPage == 6)

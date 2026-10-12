@@ -361,52 +361,88 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 	OnUnitFired.Broadcast(AttackerActor, TargetActor, static_cast<int32>(SimTickIndex));
 	UE_LOG(LogTemp, Log, TEXT("KodSim Hit Target=%s Id=%d HP=%.0f"), *TargetName, TargetIdValue, HealthLeft);
 	OnUnitHit.Broadcast(AttackerActor, TargetActor, HealthLeft, TargetIdValue);
+	PushJuiceText(Target.Position, DealtInt, 0);
 
 	if (HealthLeft <= 0.f)
 	{
-		UE_LOG(LogTemp, Log, TEXT("KodSim Kill Target=%s Id=%d"), *TargetName, TargetIdValue);
 		State.Order = EKodSimOrderType::None;
 		State.AttackTarget = FKodEntityId();
 		QuantizePose(State);
-		const FVector DeathAt = Target.Position;
-		int32 Points = 0;
-		if (bStructureTarget)
-		{
-			if (const FKodBuildSpec* Build = BuildSpecs.Find(Target.DefinitionId))
-			{
-				Points = Build->PowerPoints;
-			}
-		}
-		else if (const FKodTrainSpec* Train = TrainSpecs.Find(Target.DefinitionId))
-		{
-			Points = Train->PowerPoints;
-		}
-		AwardPowerPoints(AttackerTeam, Points);
-		NoteUnitKilled(AttackerTeam);
-		if (bStructureTarget)
-		{
-			if (const FKodStructureState* DeadStructure = Structures.Find(DeadId.Value))
-			{
-				if (DeadStructure->bComplete)
-				{
-					NoteStructureRazed(AttackerTeam);
-				}
-			}
-		}
-		if (Target.DefinitionId == FName(TEXT("IsrPlatform")))
-		{
-			UE_LOG(LogTemp, Log, TEXT("KodOrbital Down Id=%d Reason=Destroyed"), DeadId.Value);
-		}
-		UnregisterEntity(DeadId);
-		OnUnitKilled.Broadcast(TargetActor, TargetIdValue);
-		RaiseCue(FName(TEXT("unit_death")), DeathAt, true);
-		if (bStructureTarget && TargetActor && !TargetActor->IsActorBeingDestroyed())
-		{
-			TargetActor->Destroy();
-		}
+		FinishEntityDeath(Target, AttackerTeam);
 		return true;
 	}
 	return false;
+}
+
+void UKodSimSubsystem::StripDeadFromCargo(int32 DeadId)
+{
+	if (FKodSimEntityState* Dead = States.Find(DeadId))
+	{
+		Dead->InsideBunker = FKodEntityId();
+	}
+	TArray<int32> Keys;
+	Structures.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		if (FKodStructureState* Structure = Structures.Find(Key))
+		{
+			Structure->Cargo.Remove(DeadId);
+		}
+	}
+}
+
+void UKodSimSubsystem::FinishEntityDeath(FKodSimEntityState& Target, int32 KillerTeam)
+{
+	const int32 TargetIdValue = Target.Id.Value;
+	const FKodEntityId DeadId = Target.Id;
+	const bool bStructureTarget = Structures.Contains(DeadId.Value);
+	const FVector DeathAt = Target.Position;
+	const FName DefinitionId = Target.DefinitionId;
+	AActor* TargetActor = nullptr;
+	if (const TWeakObjectPtr<AActor>* Found = Entities.Find(TargetIdValue))
+	{
+		TargetActor = Found->Get();
+	}
+	const FString TargetName = TargetActor ? TargetActor->GetName() : FString(TEXT("None"));
+	UE_LOG(LogTemp, Log, TEXT("KodSim Kill Target=%s Id=%d"), *TargetName, TargetIdValue);
+
+	int32 Points = 0;
+	if (bStructureTarget)
+	{
+		if (const FKodBuildSpec* Build = BuildSpecs.Find(DefinitionId))
+		{
+			Points = Build->PowerPoints;
+		}
+	}
+	else if (const FKodTrainSpec* Train = TrainSpecs.Find(DefinitionId))
+	{
+		Points = Train->PowerPoints;
+	}
+	AwardPowerPoints(KillerTeam, Points);
+	NoteUnitKilled(KillerTeam);
+	if (bStructureTarget)
+	{
+		if (const FKodStructureState* DeadStructure = Structures.Find(DeadId.Value))
+		{
+			if (DeadStructure->bComplete)
+			{
+				NoteStructureRazed(KillerTeam);
+			}
+		}
+	}
+	if (DefinitionId == FName(TEXT("IsrPlatform")))
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodOrbital Down Id=%d Reason=Destroyed"), DeadId.Value);
+	}
+	StripDeadFromCargo(DeadId.Value);
+	UnregisterEntity(DeadId);
+	OnUnitKilled.Broadcast(TargetActor, TargetIdValue);
+	RaiseCue(FName(TEXT("unit_death")), DeathAt, true);
+	if (bStructureTarget && TargetActor && !TargetActor->IsActorBeingDestroyed())
+	{
+		TargetActor->Destroy();
+	}
 }
 
 void UKodSimSubsystem::StepHold(FKodSimEntityState& State, float FixedDt)

@@ -16,6 +16,7 @@
 #include "Game/KodHUD.h"
 #include "Game/KodPlayerController.h"
 #include "Game/KodPlayerState.h"
+#include "Game/KodUserSettings.h"
 #include "InputCoreTypes.h"
 #include "Sim/KodSimSubsystem.h"
 #include "UnrealClient.h"
@@ -106,9 +107,30 @@ void AKodRTSCameraPawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
+void AKodRTSCameraPawn::AddShakeAt(const FVector& WorldPoint, float Amplitude)
+{
+	const UKodUserSettings* Settings = UKodUserSettings::Get();
+	if (!Settings || !Settings->bCameraShake || Amplitude <= 0.f)
+	{
+		return;
+	}
+	const float Dist = FVector::Dist2D(GetActorLocation(), WorldPoint);
+	if (Dist > 6000.f)
+	{
+		return;
+	}
+	const float Falloff = 1.f - FMath::Clamp(Dist / 6000.f, 0.f, 1.f);
+	ShakeAmp = FMath::Max(ShakeAmp, Amplitude * FMath::Max(0.25f, Falloff));
+}
+
 void AKodRTSCameraPawn::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (!ShakeApplied.IsNearlyZero())
+	{
+		AddActorWorldOffset(-ShakeApplied, false, nullptr, ETeleportType::TeleportPhysics);
+		ShakeApplied = FVector::ZeroVector;
+	}
 	const float Dt = FMath::Max(0.f, DeltaSeconds);
 
 	ApplyVerticalFov();
@@ -139,6 +161,17 @@ void AKodRTSCameraPawn::Tick(float DeltaSeconds)
 
 	UpdateTerrain(Dt, false);
 	ClampToPlayable();
+	if (ShakeAmp > 0.5f)
+	{
+		const float Time = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+		ShakeApplied = FVector(FMath::Sin(Time * 48.f), FMath::Cos(Time * 37.f), 0.f) * ShakeAmp;
+		AddActorWorldOffset(ShakeApplied, false, nullptr, ETeleportType::TeleportPhysics);
+		ShakeAmp = FMath::FInterpTo(ShakeAmp, 0.f, Dt, 6.f);
+	}
+	else
+	{
+		ShakeAmp = 0.f;
+	}
 }
 
 void AKodRTSCameraPawn::Pan(FVector2D AxisValue)

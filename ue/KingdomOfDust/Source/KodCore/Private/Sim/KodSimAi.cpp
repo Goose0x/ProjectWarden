@@ -151,6 +151,7 @@ void UKodSimSubsystem::EvaluateMatch()
 	for (int32 Key : Keys)
 	{
 		const FKodStructureState* Structure = Structures.Find(Key);
+		// A lifted structure still counts toward victory.
 		if (!Structure)
 		{
 			continue;

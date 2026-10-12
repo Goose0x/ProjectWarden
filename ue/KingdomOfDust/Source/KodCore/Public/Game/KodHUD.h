@@ -72,6 +72,9 @@ public:
 	void ToggleHotkeyLegend();
 
 	void AddMinimapPing(const FVector& WorldPoint);
+
+	/** 0 move (green), 1 attack (red), 2 build complete (gold). Presentation only. */
+	void AddCommandMarker(const FVector& WorldPoint, int32 Kind);
 	void ToggleMinimapLayer(int32 LayerIndex);
 
 	/** Selection panel, portrait, tabs, and the idle button. The minimap is separate. */
@@ -148,6 +151,9 @@ protected:
 	void DrawSelectedResourceNodes();
 	void DrawSelectionMarquee();
 	void DrawMinimap();
+	void DrawClickMarkers();
+	void DrawSelectionPulse();
+	void DrawJuiceFloaters();
 	void DrawIdleWorkerButton();
 	void DrawPortrait();
 	void DrawSelectionPanel();
@@ -197,6 +203,26 @@ protected:
 	bool bMapOwnOnly = false;
 	TArray<FVector> MinimapPings;
 	TArray<float> MinimapPingUntil;
+
+	struct FKodClickMarker
+	{
+		FVector World = FVector::ZeroVector;
+		float Born = 0.f;
+		float Life = 0.6f;
+		int32 Kind = 0;
+	};
+	TArray<FKodClickMarker> ClickMarkers;
+
+	struct FKodHudFloater
+	{
+		FVector World = FVector::ZeroVector;
+		int32 Amount = 0;
+		uint8 Kind = 0;
+		float Born = 0.f;
+	};
+	TArray<FKodHudFloater> JuiceFloaters;
+	TArray<uint32> PulseSelectionIds;
+	float SelectPulseUntil = -1.f;
 	TArray<FKodSimEntityState> FrameStates;
 	TArray<AActor*> FrameActors;
 	TArray<FKodStructureState> FrameStructures;
