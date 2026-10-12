@@ -90,6 +90,7 @@ void UKodSimSubsystem::IssueStop(FKodEntityId Id)
 		State->AttackTarget = FKodEntityId();
 		State->FollowTarget = FKodEntityId();
 		State->RetaliateTarget = FKodEntityId();
+		State->bExplicitAttack = false;
 		State->PathId = 0;
 		State->PathCursor = 0;
 		State->BackswingTicksRemaining = 0;
@@ -147,6 +148,7 @@ void UKodSimSubsystem::IssueOrder(
 	State->BackswingTicksRemaining = 0;
 	State->RetaliateTarget = FKodEntityId();
 	State->Order = Kind;
+	State->bExplicitAttack = Kind == EKodSimOrderType::Attack;
 	State->MoveTarget = Point;
 	State->AttackTarget = Kind == EKodSimOrderType::Attack ? Target : FKodEntityId();
 	State->FollowTarget = (Kind == EKodSimOrderType::Follow || Kind == EKodSimOrderType::Guard) ? Target : FKodEntityId();
@@ -174,7 +176,19 @@ void UKodSimSubsystem::IssueOrder(
 	{
 		if (const FKodSimEntityState* Victim = States.Find(Target.Value))
 		{
-			State->MoveTarget = Victim->Position;
+			if (Victim->TeamId == State->TeamId || CanTeamSeeWorld(State->TeamId, Victim->Position.X, Victim->Position.Y))
+			{
+				State->MoveTarget = Victim->Position;
+			}
+			else
+			{
+				FVector SeenPoint;
+				if (TryGetLastSeenPoint(State->TeamId, Target.Value, SeenPoint))
+				{
+					SeenPoint.Z = State->Position.Z;
+					State->MoveTarget = SeenPoint;
+				}
+			}
 		}
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodOrder %s Unit=%d Target=%d Dest=%.0f,%.0f Path=%d"),
@@ -216,6 +230,7 @@ void UKodSimSubsystem::CompleteCurrentOrder(FKodSimEntityState& State, float Fix
 		return;
 	}
 	State.Order = EKodSimOrderType::None;
+	State.bExplicitAttack = false;
 	State.AttackTarget = FKodEntityId();
 	State.FollowTarget = FKodEntityId();
 	if (State.WeaponDamage > 0.f && State.bMobile && State.Health > 0.f)

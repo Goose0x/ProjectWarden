@@ -2,28 +2,72 @@
 
 namespace
 {
-	int64 PackVisionCell(int32 X, int32 Y)
-	{
-		return (static_cast<int64>(static_cast<uint32>(X)) << 32) | static_cast<uint32>(Y);
-	}
-
 	constexpr uint8 VisionExplored = 1;
 	constexpr uint8 VisionVisible = 2;
 }
 
+void UKodSimSubsystem::EnsureVisionStorage()
+{
+	if (!bHasPlayable)
+	{
+		return;
+	}
+	const int32 Width = PlayMaxX - PlayMinX + 1;
+	const int32 Height = PlayMaxY - PlayMinY + 1;
+	if (Width <= 0 || Height <= 0)
+	{
+		return;
+	}
+	const int64 Count64 = static_cast<int64>(Width) * static_cast<int64>(Height);
+	if (Count64 <= 0 || Count64 > 4000000)
+	{
+		return;
+	}
+	if (VisionWidth == Width && VisionHeight == Height && VisionOriginX == PlayMinX && VisionOriginY == PlayMinY)
+	{
+		return;
+	}
+	VisionOriginX = PlayMinX;
+	VisionOriginY = PlayMinY;
+	VisionWidth = Width;
+	VisionHeight = Height;
+	const int32 Count = static_cast<int32>(Count64);
+	TArray<int32> Teams;
+	TeamVision.GetKeys(Teams);
+	for (int32 TeamId : Teams)
+	{
+		TeamVision.FindChecked(TeamId).Init(0, Count);
+	}
+}
+
+int32 UKodSimSubsystem::VisionCellIndex(int32 CellX, int32 CellY) const
+{
+	if (VisionWidth <= 0 || VisionHeight <= 0)
+	{
+		return INDEX_NONE;
+	}
+	const int32 LocalX = CellX - VisionOriginX;
+	const int32 LocalY = CellY - VisionOriginY;
+	if (LocalX < 0 || LocalY < 0 || LocalX >= VisionWidth || LocalY >= VisionHeight)
+	{
+		return INDEX_NONE;
+	}
+	return LocalY * VisionWidth + LocalX;
+}
+
 uint8 UKodSimSubsystem::GetTeamVision(int32 TeamId, float WorldX, float WorldY) const
 {
-	const TMap<int64, uint8>* Grid = TeamVision.Find(TeamId);
+	const TArray<uint8>* Grid = TeamVision.Find(TeamId);
 	if (!Grid)
 	{
 		return 0;
 	}
-	const int64 Key = PackVisionCell(KodBuildGrid::CellOf(WorldX), KodBuildGrid::CellOf(WorldY));
-	if (const uint8* Found = Grid->Find(Key))
+	const int32 Index = VisionCellIndex(KodBuildGrid::CellOf(WorldX), KodBuildGrid::CellOf(WorldY));
+	if (!Grid->IsValidIndex(Index))
 	{
-		return *Found;
+		return 0;
 	}
-	return 0;
+	return (*Grid)[Index];
 }
 
 bool UKodSimSubsystem::CanTeamSeeWorld(int32 TeamId, float WorldX, float WorldY) const
@@ -33,6 +77,33 @@ bool UKodSimSubsystem::CanTeamSeeWorld(int32 TeamId, float WorldX, float WorldY)
 		return true;
 	}
 	return GetTeamVision(TeamId, WorldX, WorldY) == VisionVisible;
+}
+
+bool UKodSimSubsystem::TryGetLastSeenPoint(int32 TeamId, int32 EntityId, FVector& OutPoint) const
+{
+	if (const TArray<FKodSeenStructure>* StructuresSeen = SeenStructures.Find(TeamId))
+	{
+		for (const FKodSeenStructure& Entry : *StructuresSeen)
+		{
+			if (Entry.Id == EntityId)
+			{
+				OutPoint = FVector(static_cast<float>(Entry.PosX), static_cast<float>(Entry.PosY), 0.f);
+				return true;
+			}
+		}
+	}
+	if (const TArray<FKodSeenUnit>* UnitsSeen = SeenUnits.Find(TeamId))
+	{
+		for (const FKodSeenUnit& Entry : *UnitsSeen)
+		{
+			if (Entry.Id == EntityId)
+			{
+				OutPoint = FVector(static_cast<float>(Entry.PosX), static_cast<float>(Entry.PosY), 0.f);
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 void UKodSimSubsystem::CopySeenStructureBlips(int32 TeamId, TArray<int32>& OutTeam, TArray<int32>& OutX, TArray<int32>& OutY, TArray<int32>& OutFootX, TArray<int32>& OutFootY) const
@@ -59,15 +130,54 @@ void UKodSimSubsystem::CopySeenStructureBlips(int32 TeamId, TArray<int32>& OutTe
 
 void UKodSimSubsystem::StepVision()
 {
+	EnsureVisionStorage();
+	if (VisionWidth <= 0 || VisionHeight <= 0)
+	{
+		return;
+	}
+	const int32 CellCount = VisionWidth * VisionHeight;
+
 	TArray<int32> EntityKeys;
 	States.GetKeys(EntityKeys);
 	EntityKeys.Sort();
 
-	TMap<int32, TSet<int64>> VisibleNow;
+	TArray<int32> Teams;
+	TeamVision.GetKeys(Teams);
+	for (int32 Key : EntityKeys)
+	{
+		const FKodSimEntityState* State = States.Find(Key);
+		if (State && State->Health > 0.f)
+		{
+			Teams.AddUnique(State->TeamId);
+		}
+	}
+	Teams.Sort();
+
+	for (int32 TeamId : Teams)
+	{
+		TArray<uint8>& Cells = TeamVision.FindOrAdd(TeamId);
+		if (Cells.Num() != CellCount)
+		{
+			Cells.Init(0, CellCount);
+		}
+		for (uint8& Value : Cells)
+		{
+			if (Value == VisionVisible)
+			{
+				Value = VisionExplored;
+			}
+		}
+	}
+
 	for (int32 Key : EntityKeys)
 	{
 		const FKodSimEntityState* State = States.Find(Key);
 		if (!State || State->Health <= 0.f || State->SightRadiusUU <= 0)
+		{
+			continue;
+		}
+		TArray<uint8>* Cells = TeamVision.Find(State->TeamId);
+		if (!Cells)
 		{
 			continue;
 		}
@@ -76,10 +186,9 @@ void UKodSimSubsystem::StepVision()
 		const int32 ViewerHeight = GetMapCellHeight(OriginX, OriginY);
 		const int32 RadiusCells = FMath::Max(1, FMath::DivideAndRoundUp(State->SightRadiusUU, KodBuildGrid::CellUU));
 		const int32 RadiusSq = RadiusCells * RadiusCells;
-		TSet<int64>& Visible = VisibleNow.FindOrAdd(State->TeamId);
-		for (int32 DX = -RadiusCells; DX <= RadiusCells; ++DX)
+		for (int32 DY = -RadiusCells; DY <= RadiusCells; ++DY)
 		{
-			for (int32 DY = -RadiusCells; DY <= RadiusCells; ++DY)
+			for (int32 DX = -RadiusCells; DX <= RadiusCells; ++DX)
 			{
 				if (DX * DX + DY * DY > RadiusSq)
 				{
@@ -87,52 +196,15 @@ void UKodSimSubsystem::StepVision()
 				}
 				const int32 CellX = OriginX + DX;
 				const int32 CellY = OriginY + DY;
-				const int32 CellHeight = GetMapCellHeight(CellX, CellY);
-				if (CellHeight > ViewerHeight)
+				if (GetMapCellHeight(CellX, CellY) > ViewerHeight)
 				{
 					continue;
 				}
-				Visible.Add(PackVisionCell(CellX, CellY));
-			}
-		}
-	}
-
-	TArray<int32> Teams;
-	for (const TPair<int32, TMap<int64, uint8>>& Pair : TeamVision)
-	{
-		Teams.Add(Pair.Key);
-	}
-	for (const TPair<int32, TSet<int64>>& Pair : VisibleNow)
-	{
-		Teams.AddUnique(Pair.Key);
-	}
-	Teams.Sort();
-
-	for (int32 TeamId : Teams)
-	{
-		TMap<int64, uint8>& Grid = TeamVision.FindOrAdd(TeamId);
-		const TSet<int64>* Visible = VisibleNow.Find(TeamId);
-		TArray<int64> Known;
-		Grid.GetKeys(Known);
-		Known.Sort();
-		for (int64 Cell : Known)
-		{
-			const bool bSeen = Visible && Visible->Contains(Cell);
-			uint8& Value = Grid.FindChecked(Cell);
-			if (bSeen)
-			{
-				Value = VisionVisible;
-			}
-			else if (Value == VisionVisible)
-			{
-				Value = VisionExplored;
-			}
-		}
-		if (Visible)
-		{
-			for (int64 Cell : *Visible)
-			{
-				Grid.FindOrAdd(Cell) = VisionVisible;
+				const int32 Index = VisionCellIndex(CellX, CellY);
+				if (Cells->IsValidIndex(Index))
+				{
+					(*Cells)[Index] = VisionVisible;
+				}
 			}
 		}
 	}
@@ -197,6 +269,54 @@ void UKodSimSubsystem::StepVision()
 			}
 		}
 		Seen.Sort([](const FKodSeenStructure& A, const FKodSeenStructure& B)
+		{
+			return A.Id < B.Id;
+		});
+
+		TArray<FKodSeenUnit>& SeenMobile = SeenUnits.FindOrAdd(TeamId);
+		for (int32 Key : EntityKeys)
+		{
+			const FKodSimEntityState* State = States.Find(Key);
+			if (!State || !State->bMobile || State->TeamId == TeamId || State->Health <= 0.f)
+			{
+				continue;
+			}
+			if (!CanTeamSeeWorld(TeamId, State->Position.X, State->Position.Y))
+			{
+				continue;
+			}
+			FKodSeenUnit* Slot = nullptr;
+			for (FKodSeenUnit& Entry : SeenMobile)
+			{
+				if (Entry.Id == State->Id.Value)
+				{
+					Slot = &Entry;
+					break;
+				}
+			}
+			if (!Slot)
+			{
+				Slot = &SeenMobile.AddDefaulted_GetRef();
+				Slot->Id = State->Id.Value;
+			}
+			Slot->TeamId = State->TeamId;
+			Slot->PosX = FMath::RoundToInt(State->Position.X);
+			Slot->PosY = FMath::RoundToInt(State->Position.Y);
+		}
+		for (int32 Index = SeenMobile.Num() - 1; Index >= 0; --Index)
+		{
+			const FKodSeenUnit& Entry = SeenMobile[Index];
+			if (GetTeamVision(TeamId, static_cast<float>(Entry.PosX), static_cast<float>(Entry.PosY)) != VisionVisible)
+			{
+				continue;
+			}
+			const FKodSimEntityState* Combat = States.Find(Entry.Id);
+			if (!Combat || Combat->Health <= 0.f)
+			{
+				SeenMobile.RemoveAt(Index);
+			}
+		}
+		SeenMobile.Sort([](const FKodSeenUnit& A, const FKodSeenUnit& B)
 		{
 			return A.Id < B.Id;
 		});

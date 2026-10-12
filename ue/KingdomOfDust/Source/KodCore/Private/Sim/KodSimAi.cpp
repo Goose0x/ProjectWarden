@@ -65,6 +65,74 @@ void UKodSimSubsystem::SetAiSeeded(bool bSeeded)
 	bAiSeeded = bSeeded;
 }
 
+void UKodSimSubsystem::SetEnemyStart(FVector WorldLocation)
+{
+	bHasEnemyStart = true;
+	EnemyStartX = FMath::RoundToInt(WorldLocation.X);
+	EnemyStartY = FMath::RoundToInt(WorldLocation.Y);
+}
+
+bool UKodSimSubsystem::TryGetEnemyStart(FVector& OutPoint) const
+{
+	if (bHasEnemyStart)
+	{
+		OutPoint = FVector(static_cast<float>(EnemyStartX), static_cast<float>(EnemyStartY), 0.f);
+		return true;
+	}
+	if (!bHasPlayable)
+	{
+		return false;
+	}
+	FVector Base = FVector::ZeroVector;
+	TArray<int32> StructureKeys;
+	Structures.GetKeys(StructureKeys);
+	StructureKeys.Sort();
+	for (int32 Key : StructureKeys)
+	{
+		const FKodStructureState* Structure = Structures.Find(Key);
+		if (!Structure || Structure->TeamId != AiTeamId)
+		{
+			continue;
+		}
+		Base = Structure->Position;
+		if (Structure->DefinitionId == FName(KodWardenPaths::Id_CommandCenter))
+		{
+			break;
+		}
+	}
+	const int32 Inset = 3;
+	const int32 Left = PlayMinX + Inset;
+	const int32 Right = FMath::Max(Left, PlayMaxX - Inset);
+	const int32 Bottom = PlayMinY + Inset;
+	const int32 Top = FMath::Max(Bottom, PlayMaxY - Inset);
+	const int32 Corners[4][2] = {
+		{Left, Bottom},
+		{Left, Top},
+		{Right, Bottom},
+		{Right, Top}
+	};
+	int32 BestX = Left;
+	int32 BestY = Bottom;
+	int64 Best = -1;
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		const float X = KodBuildGrid::CellCenter(Corners[Index][0]);
+		const float Y = KodBuildGrid::CellCenter(Corners[Index][1]);
+		const int64 DX = static_cast<int64>(FMath::RoundToInt(X - Base.X));
+		const int64 DY = static_cast<int64>(FMath::RoundToInt(Y - Base.Y));
+		const int64 Dist = DX * DX + DY * DY;
+		const bool bTie = Dist == Best && (Corners[Index][0] < BestX || (Corners[Index][0] == BestX && Corners[Index][1] < BestY));
+		if (Dist > Best || bTie)
+		{
+			Best = Dist;
+			BestX = Corners[Index][0];
+			BestY = Corners[Index][1];
+		}
+	}
+	OutPoint = FVector(KodBuildGrid::CellCenter(BestX), KodBuildGrid::CellCenter(BestY), 0.f);
+	return true;
+}
+
 void UKodSimSubsystem::EvaluateMatch()
 {
 	if (MatchOutcome != EKodMatchOutcome::None)
@@ -344,6 +412,60 @@ void UKodSimSubsystem::StepAI()
 		EnqueueIfOpen(BarracksIdValue, RangerId, bNeedDepot && !bDepotInProgress ? ReserveCredits : 0);
 	}
 
+	if (!bAiScoutSent)
+	{
+		FVector ScoutDest;
+		if (TryGetEnemyStart(ScoutDest))
+		{
+			FKodEntityId ScoutId;
+			if (WorkerCount > 1)
+			{
+				for (int32 Key : Keys)
+				{
+					const FKodSimEntityState* State = States.Find(Key);
+					if (!State || State->TeamId != AiTeamId || !State->bCanGather || State->Health <= 0.f || State->BuildSite.IsValid())
+					{
+						continue;
+					}
+					ScoutId.Value = Key;
+					break;
+				}
+			}
+			if (!ScoutId.IsValid())
+			{
+				for (int32 Key : Keys)
+				{
+					const FKodSimEntityState* State = States.Find(Key);
+					if (!State || State->TeamId != AiTeamId || State->Health <= 0.f || State->bCanGather || State->WeaponDamage <= 0.f)
+					{
+						continue;
+					}
+					ScoutId.Value = Key;
+					break;
+				}
+			}
+			if (!ScoutId.IsValid())
+			{
+				for (int32 Key : Keys)
+				{
+					const FKodSimEntityState* State = States.Find(Key);
+					if (!State || State->TeamId != AiTeamId || !State->bCanGather || State->Health <= 0.f || State->BuildSite.IsValid())
+					{
+						continue;
+					}
+					ScoutId.Value = Key;
+					break;
+				}
+			}
+			if (ScoutId.IsValid())
+			{
+				IssueAttackMove(ScoutId, ScoutDest);
+				bAiScoutSent = true;
+				UE_LOG(LogTemp, Log, TEXT("KodAI Scout Unit=%d Dest=%.0f,%.0f"), ScoutId.Value, ScoutDest.X, ScoutDest.Y);
+			}
+		}
+	}
+
 	if (SimTickIndex < AiNextWaveTick)
 	{
 		return;
@@ -374,8 +496,9 @@ void UKodSimSubsystem::StepAI()
 	}
 
 	FKodEntityId Target;
+	FVector AttackPoint = FVector::ZeroVector;
+	bool bAttackPoint = false;
 	int64 BestDist = 0;
-	bool bTarget = false;
 	const FKodSimEntityState* Lead = States.Find(IdleMarines[0]);
 	const FVector From = Lead ? Lead->Position : Base;
 	for (int32 Key : StructureKeys)
@@ -390,25 +513,65 @@ void UKodSimSubsystem::StepAI()
 			continue;
 		}
 		const int64 Dist = Dist2DSq(From, Structure->Position);
-		if (!bTarget || Dist < BestDist)
+		if (!bAttackPoint || Dist < BestDist)
 		{
-			bTarget = true;
+			bAttackPoint = true;
 			BestDist = Dist;
 			Target = Structure->Id;
+			AttackPoint = Structure->Position;
 		}
 	}
 	if (!Target.IsValid())
 	{
+		bAttackPoint = false;
+		BestDist = 0;
+		if (const TArray<FKodSeenStructure>* Seen = SeenStructures.Find(AiTeamId))
+		{
+			for (const FKodSeenStructure& Entry : *Seen)
+			{
+				if (Entry.TeamId != 0)
+				{
+					continue;
+				}
+				const FVector Point(static_cast<float>(Entry.PosX), static_cast<float>(Entry.PosY), From.Z);
+				const int64 Dist = Dist2DSq(From, Point);
+				if (!bAttackPoint || Dist < BestDist)
+				{
+					bAttackPoint = true;
+					BestDist = Dist;
+					AttackPoint = Point;
+					Target.Value = Entry.Id;
+				}
+			}
+		}
+	}
+	if (!bAttackPoint && !TryGetEnemyStart(AttackPoint))
+	{
 		return;
 	}
+	AttackPoint.Z = From.Z;
+	const bool bVisibleTarget = Target.IsValid()
+		&& States.Contains(Target.Value)
+		&& CanTeamSeeWorld(AiTeamId, AttackPoint.X, AttackPoint.Y);
 
 	for (int32 Index = 0; Index < WaveSize && Index < IdleMarines.Num(); ++Index)
 	{
 		FKodEntityId MarineId;
 		MarineId.Value = IdleMarines[Index];
-		IssueAttack(MarineId, Target);
+		if (bVisibleTarget)
+		{
+			IssueAttack(MarineId, Target);
+		}
+		else
+		{
+			IssueAttackMove(MarineId, AttackPoint);
+		}
 	}
 	++AiWavesLaunched;
 	AiNextWaveTick = SimTickIndex + static_cast<int64>(AiWaveGapTicks);
-	UE_LOG(LogTemp, Log, TEXT("KodAI Wave Size=%d Target=%d"), WaveSize, Target.Value);
+	UE_LOG(LogTemp, Log, TEXT("KodAI Wave Size=%d Target=%d Dest=%.0f,%.0f"),
+		WaveSize,
+		Target.Value,
+		AttackPoint.X,
+		AttackPoint.Y);
 }

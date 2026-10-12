@@ -247,6 +247,13 @@ struct KODCORE_API FKodSimEntityState
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Sim")
 	int32 SightRadiusUU = 1600;
 
+	/**
+	 * True when IssueOrder started this Attack. Auto-acquire leaves it false.
+	 * An explicit attack that loses sight becomes an attack-move. Hashed.
+	 */
+	UPROPERTY()
+	bool bExplicitAttack = false;
+
 	bool IsMoving() const
 	{
 		return Order == EKodSimOrderType::Move
@@ -536,6 +543,8 @@ public:
 	int32 GetAiDifficulty() const { return AiDifficulty; }
 	void SetAiSeeded(bool bSeeded);
 	bool IsAiSeeded() const { return bAiSeeded; }
+	/** Player spawn. Waves and the scout attack-move here when nothing has been seen. Hashed. */
+	void SetEnemyStart(FVector WorldLocation);
 	EKodMatchOutcome GetMatchOutcome() const { return MatchOutcome; }
 	bool IsMatchOver() const { return MatchOutcome != EKodMatchOutcome::None; }
 
@@ -586,6 +595,10 @@ protected:
 	void StepSeparation();
 	bool SnapOutOfFootprint(FKodSimEntityState& State) const;
 	void StepVision();
+	void EnsureVisionStorage();
+	int32 VisionCellIndex(int32 CellX, int32 CellY) const;
+	bool TryGetLastSeenPoint(int32 TeamId, int32 EntityId, FVector& OutPoint) const;
+	bool TryGetEnemyStart(FVector& OutPoint) const;
 	void CompleteCurrentOrder(FKodSimEntityState& State, float FixedDt);
 	bool TryApplyWeapon(FKodSimEntityState& State, FKodSimEntityState& Target);
 	FVector GetSteeredGoal(FKodSimEntityState& State);
@@ -676,6 +689,10 @@ protected:
 	bool bAiEnabled = true;
 	int32 AiDifficulty = 1;
 	bool bAiSeeded = false;
+	bool bAiScoutSent = false;
+	bool bHasEnemyStart = false;
+	int32 EnemyStartX = 0;
+	int32 EnemyStartY = 0;
 	int32 AiWavesLaunched = 0;
 	int64 AiNextWaveTick = 0;
 	EKodMatchOutcome MatchOutcome = EKodMatchOutcome::None;
@@ -706,10 +723,23 @@ protected:
 		int32 MaxHealth = 1;
 	};
 
+	struct FKodSeenUnit
+	{
+		int32 Id = 0;
+		int32 TeamId = 0;
+		int32 PosX = 0;
+		int32 PosY = 0;
+	};
+
 	TArray<FKodStoredPath> StoredPaths;
 	int32 NextPathId = 1;
 	bool bAiCheatVision = false;
-	/** Team -> packed cell -> 0 unexplored is absent, 1 explored, 2 visible. */
-	TMap<int32, TMap<int64, uint8>> TeamVision;
+	/** Playable build grid. Each team array is Width * Height, row-major. 0 unexplored, 1 explored, 2 visible. */
+	int32 VisionOriginX = 0;
+	int32 VisionOriginY = 0;
+	int32 VisionWidth = 0;
+	int32 VisionHeight = 0;
+	TMap<int32, TArray<uint8>> TeamVision;
 	TMap<int32, TArray<FKodSeenStructure>> SeenStructures;
+	TMap<int32, TArray<FKodSeenUnit>> SeenUnits;
 };

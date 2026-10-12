@@ -5,6 +5,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
 #include "Hash/CityHash.h"
+#include "Misc/Crc.h"
 
 void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -31,6 +32,10 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bAiEnabled = true;
 	AiDifficulty = 1;
 	bAiSeeded = false;
+	bAiScoutSent = false;
+	bHasEnemyStart = false;
+	EnemyStartX = 0;
+	EnemyStartY = 0;
 	AiWavesLaunched = 0;
 	AiNextWaveTick = 0;
 	MatchOutcome = EKodMatchOutcome::None;
@@ -40,7 +45,12 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	StoredPaths.Reset();
 	TeamVision.Reset();
 	SeenStructures.Reset();
+	SeenUnits.Reset();
 	bAiCheatVision = false;
+	VisionOriginX = 0;
+	VisionOriginY = 0;
+	VisionWidth = 0;
+	VisionHeight = 0;
 	NextPathId = 1;
 	SimHz = KodBuildTicks::SimHz;
 	MaxCatchUpSteps = KodBuildTicks::MaxCatchUpSteps;
@@ -70,13 +80,22 @@ void UKodSimSubsystem::Deinitialize()
 	StoredPaths.Reset();
 	TeamVision.Reset();
 	SeenStructures.Reset();
+	SeenUnits.Reset();
 	bAiCheatVision = false;
+	VisionOriginX = 0;
+	VisionOriginY = 0;
+	VisionWidth = 0;
+	VisionHeight = 0;
 	bHasPlayable = false;
 	PrevPositions.Reset();
 	PrevYaws.Reset();
 	bAiEnabled = true;
 	AiDifficulty = 1;
 	bAiSeeded = false;
+	bAiScoutSent = false;
+	bHasEnemyStart = false;
+	EnemyStartX = 0;
+	EnemyStartY = 0;
 	AiWavesLaunched = 0;
 	AiNextWaveTick = 0;
 	MatchOutcome = EKodMatchOutcome::None;
@@ -126,6 +145,9 @@ void UKodSimSubsystem::Tick(float DeltaTime)
 void UKodSimSubsystem::StepSim(float FixedDt)
 {
 	RebuildAcquireGrid();
+	// Stamp before orders so the first tick can see units that just spawned.
+	// The stamp after separation matches the poses presentation hides against.
+	StepVision();
 
 	TArray<int32> Keys;
 	States.GetKeys(Keys);
@@ -278,8 +300,29 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 	}
 	if (Target->TeamId != State.TeamId && !CanTeamSeeWorld(State.TeamId, Target->Position.X, Target->Position.Y))
 	{
-		State.AttackTarget = FKodEntityId();
 		State.BackswingTicksRemaining = 0;
+		if (State.bExplicitAttack && State.bMobile)
+		{
+			FVector Dest = State.MoveTarget;
+			FVector Seen;
+			if (TryGetLastSeenPoint(State.TeamId, Target->Id.Value, Seen))
+			{
+				Dest = Seen;
+			}
+			Dest.Z = State.Position.Z;
+			const int32 SelfId = State.Id.Value;
+			TArray<FKodQueuedOrder> Rest = State.OrderQueue;
+			IssueOrder(State.Id, EKodSimOrderType::AttackMove, Dest, FKodEntityId(), false);
+			if (FKodSimEntityState* Live = States.Find(SelfId))
+			{
+				Live->OrderQueue = Rest;
+				Live->bExplicitAttack = false;
+			}
+			UE_LOG(LogTemp, Log, TEXT("KodOrder FogChase Unit=%d Dest=%.0f,%.0f"), SelfId, Dest.X, Dest.Y);
+			return;
+		}
+		State.AttackTarget = FKodEntityId();
+		State.bExplicitAttack = false;
 		if (State.Order == EKodSimOrderType::Attack)
 		{
 			CompleteCurrentOrder(State, FixedDt);
@@ -527,6 +570,7 @@ bool UKodSimSubsystem::TryAutoAcquire(FKodSimEntityState& State, float FixedDt)
 	}
 
 	State.Order = EKodSimOrderType::Attack;
+	State.bExplicitAttack = false;
 	State.AttackTarget = Chosen;
 	UE_LOG(LogTemp, Log, TEXT("KodSim AutoAcquire Unit=%s Target=%s Reason=%s"),
 		*GetEntityActorName(State.Id.Value),
@@ -1842,7 +1886,8 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		const FKodSimEntityState& S = States.FindChecked(Key);
 		Append(&Key, sizeof(Key));
 
-		const int32 DefHash = GetTypeHash(S.DefinitionId);
+		const FString DefinitionName = S.DefinitionId.ToString();
+		const int32 DefHash = static_cast<int32>(FCrc::StrCrc32(*DefinitionName));
 		Append(&DefHash, sizeof(DefHash));
 
 		const float Q = FMath::Max(KINDA_SMALL_NUMBER, PoseQuantizeUU);
@@ -1860,6 +1905,8 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 
 		const uint8 OrderByte = static_cast<uint8>(S.Order);
 		Append(&OrderByte, sizeof(OrderByte));
+		const uint8 ExplicitAttack = S.bExplicitAttack ? 1 : 0;
+		Append(&ExplicitAttack, sizeof(ExplicitAttack));
 
 		const uint8 GatherPhase = static_cast<uint8>(S.GatherPhase);
 		Append(&GatherPhase, sizeof(GatherPhase));
@@ -2045,9 +2092,19 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	Append(&AiNextWaveTick, sizeof(AiNextWaveTick));
 	const uint8 Seeded = bAiSeeded ? 1 : 0;
 	Append(&Seeded, sizeof(Seeded));
+	const uint8 ScoutSent = bAiScoutSent ? 1 : 0;
+	Append(&ScoutSent, sizeof(ScoutSent));
+	const uint8 HasEnemyStart = bHasEnemyStart ? 1 : 0;
+	Append(&HasEnemyStart, sizeof(HasEnemyStart));
+	Append(&EnemyStartX, sizeof(EnemyStartX));
+	Append(&EnemyStartY, sizeof(EnemyStartY));
 	const uint8 Cheat = bAiCheatVision ? 1 : 0;
 	Append(&Cheat, sizeof(Cheat));
 
+	Append(&VisionOriginX, sizeof(VisionOriginX));
+	Append(&VisionOriginY, sizeof(VisionOriginY));
+	Append(&VisionWidth, sizeof(VisionWidth));
+	Append(&VisionHeight, sizeof(VisionHeight));
 	TArray<int32> VisionTeams;
 	TeamVision.GetKeys(VisionTeams);
 	VisionTeams.Sort();
@@ -2056,17 +2113,12 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	for (int32 TeamId : VisionTeams)
 	{
 		Append(&TeamId, sizeof(TeamId));
-		const TMap<int64, uint8>& Grid = TeamVision.FindChecked(TeamId);
-		TArray<int64> Cells;
-		Grid.GetKeys(Cells);
-		Cells.Sort();
-		const int32 CellCount = Cells.Num();
+		const TArray<uint8>& Grid = TeamVision.FindChecked(TeamId);
+		const int32 CellCount = Grid.Num();
 		Append(&CellCount, sizeof(CellCount));
-		for (int64 Cell : Cells)
+		if (CellCount > 0)
 		{
-			Append(&Cell, sizeof(Cell));
-			const uint8 Value = Grid.FindChecked(Cell);
-			Append(&Value, sizeof(Value));
+			Append(Grid.GetData(), CellCount);
 		}
 		const TArray<FKodSeenStructure>* Seen = SeenStructures.Find(TeamId);
 		const int32 SeenCount = Seen ? Seen->Num() : 0;
@@ -2077,7 +2129,8 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 			{
 				Append(&Entry.Id, sizeof(Entry.Id));
 				Append(&Entry.TeamId, sizeof(Entry.TeamId));
-				const int32 SeenDef = GetTypeHash(Entry.DefinitionId);
+				const FString SeenName = Entry.DefinitionId.ToString();
+				const int32 SeenDef = static_cast<int32>(FCrc::StrCrc32(*SeenName));
 				Append(&SeenDef, sizeof(SeenDef));
 				Append(&Entry.PosX, sizeof(Entry.PosX));
 				Append(&Entry.PosY, sizeof(Entry.PosY));
@@ -2085,6 +2138,19 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 				Append(&Entry.FootprintY, sizeof(Entry.FootprintY));
 				Append(&Entry.Health, sizeof(Entry.Health));
 				Append(&Entry.MaxHealth, sizeof(Entry.MaxHealth));
+			}
+		}
+		const TArray<FKodSeenUnit>* SeenMobile = SeenUnits.Find(TeamId);
+		const int32 SeenUnitCount = SeenMobile ? SeenMobile->Num() : 0;
+		Append(&SeenUnitCount, sizeof(SeenUnitCount));
+		if (SeenMobile)
+		{
+			for (const FKodSeenUnit& Entry : *SeenMobile)
+			{
+				Append(&Entry.Id, sizeof(Entry.Id));
+				Append(&Entry.TeamId, sizeof(Entry.TeamId));
+				Append(&Entry.PosX, sizeof(Entry.PosX));
+				Append(&Entry.PosY, sizeof(Entry.PosY));
 			}
 		}
 	}
