@@ -361,7 +361,7 @@ Definitions (bootstrap `NewObject` when the uasset is missing — do not commit 
 1. Actors tagged `KodResourceJadeite` or `KodResourceLuminene` are registered as-is (`KodResourceOil` still counts as a vent). Jadeite wins if both tags are on one actor. Log uses `Source=Tagged`.
 2. If **no** actor has either tag, a default field is spawned. Anchor is the first `PROXY_CC` label (name sort), else the first `PlayerStart`, else `SmokeRangerOffset`. Six Jadeite clusters sit on a tight arc facing that anchor, on the side away from the Marine spawns. Neighbour spacing is **120 cm**. The Luminene vent sits **52°** past the end of that arc and at least **400 cm** from the nearest crystal. Floor Z is a downward trace that ignores sim actors.
 
-`PROXY_CC` is then registered as team 0's drop-off and as the production structure (supply provided **15**). After the greybox mute, its collision is set back to QueryOnly Pawn so it can be selected. It is still not attackable. Other `PROXY_*` props stay NoCollision. If the map has no team-0 Dozer, three workers spawn on a short arc **420 cm** from that anchor toward the field. The sheet start is 12 AMPs; Slice 0 reads `KodEconomyDefaults::WorkerSpawnCount` (**3**).
+`PROXY_CC` is then registered as team 0's drop-off and as the production structure (supply provided **15**). After the greybox mute, its collision is set back to QueryOnly Pawn so it can be selected. It is still not attackable. Other `PROXY_*` props stay NoCollision. If the map has no team-0 Dozer, three workers spawn on a short arc just outside the CC footprint (half the footprint plus one 200 uu cell, about **700 uu** on a 5×5, stepped farther if that cell is still blocked). The drop-off stand is at least half the footprint plus 120 uu, so a worker can deposit without entering the blocked cells. The sheet start is 12 AMPs; Slice 0 reads `KodEconomyDefaults::WorkerSpawnCount` (**3**).
 
 With both Marines spawning, the first Jadeite node is still id **3** and the vent is id **9**. The drop-off is the next id. The three Dozers follow that.
 
@@ -497,6 +497,23 @@ Soft mesh refs, placeholder if the load fails. Data assets stay editable and win
 5. Press **S** again and wait about 12 seconds. Expect `KodProd Complete Spawned=KodUnit_…`. Supply becomes `5/15`. The new AMP is the tan cube, not the truck.
 6. Select only the CC, right-click a Jadeite cluster, train another AMP (gather first so Credits can pay). Expect `KodProd Rally Struct=… Target=<node id>`. The new worker starts gathering that node without a second click. Right-click the ground with only the CC selected and expect `Target=Ground`.
 7. Gather, combat, and the canvas readout still behave as in the economy step 2 checklist. Marines still duel. A selected AMP still gathers.
+
+## M2 — worker building
+
+Select an AMP and press **B**. The canvas hint reads `Build   D Depot   R Barracks   E Rig   RMB Cancel`. **D**, **R**, and **E** start a ghost snapped to the 200 uu grid. Valid cells are `#3DFF6A`. Blocked, unaffordable, off-map, or a Rig that is not on an open Luminene vent are `#FF3D3D`. LMB spends the cost and sends that AMP. Shift keeps the ghost up. RMB or Backspace cancels the ghost. Backspace on a selected unfinished building refunds 75%.
+
+The worker stays and builds. The structure starts near 10% height with HP that climbs in the sim. Moving the worker pauses construction. Another AMP can right-click the site to resume. On completion a Depot adds 8 supply, a Barracks can train a Marine with **S** (M3 is the full train pass), and a finished friendly Rig is the only Luminene harvest point. A depleted vent still trickles. Movement steers around footprints and pushes a unit out of one. Grid A* is M2.5.
+
+```
+KodBuild Place Type=SupplyDepot Cell=3,4 Valid=1
+KodBuild Start Id=12 Type=SupplyDepot
+KodBuild Progress Id=12 Ticks=84/336
+KodBuild Complete Id=12 Type=SupplyDepot
+KodBuild Cancel Refund=C75,L0
+KodBuild Invalid Reason=Blocked
+```
+
+Placeholder Rig: 75 Credits, 30 s, 3×3, HP 500, greybox until a static mesh is set on the DataAsset. Depot uses `SM_storage`. Barracks uses `SM_barracks_1`.
 
 ## Camera — SC2 player view
 

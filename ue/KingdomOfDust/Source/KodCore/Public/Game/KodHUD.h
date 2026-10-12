@@ -34,6 +34,7 @@ protected:
 	void RefreshReadout();
 	void DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed, int32 SupplyCap);
 	void DrawProductionPanel();
+	void DrawBuildHint();
 	bool ReadTeamBank(int32& OutJadeite, int32& OutLuminene) const;
 	void DrawUnitHealthBars();
 	void DrawSelectedResourceNodes();

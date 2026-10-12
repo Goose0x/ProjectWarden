@@ -78,6 +78,7 @@ protected:
 	static UKodBuildingDefinition* MakeCommandCenter(UObject* Outer, UKodUnitDefinition* Dozer);
 	static UKodBuildingDefinition* MakeBarracks(UObject* Outer, UKodUnitDefinition* Ranger);
 	static UKodBuildingDefinition* MakeSupplyDepot(UObject* Outer);
+	static UKodBuildingDefinition* MakeRig(UObject* Outer);
 	static UKodFactionDefinition* MakeUSA(UObject* Outer, UKodBuildingDefinition* CC, UKodUnitDefinition* Dozer, UKodUnitDefinition* Ranger);
 	static UKodResourceNodeDefinition* MakeJadeiteNode(UObject* Outer);
 	static UKodResourceNodeDefinition* MakeLumineneVent(UObject* Outer);

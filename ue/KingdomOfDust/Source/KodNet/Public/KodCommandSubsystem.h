@@ -57,6 +57,9 @@ protected:
 	void ExecuteTrain(const FKodCommand& Command);
 	void ExecuteCancelTrain(const FKodCommand& Command);
 	void ExecuteSetRally(const FKodCommand& Command);
+	void ExecutePlaceBuild(const FKodCommand& Command);
+	void ExecuteResumeBuild(const FKodCommand& Command);
+	void ExecuteCancelBuild(const FKodCommand& Command);
 
 	UPROPERTY()
 	TArray<FKodCommand> Pending;

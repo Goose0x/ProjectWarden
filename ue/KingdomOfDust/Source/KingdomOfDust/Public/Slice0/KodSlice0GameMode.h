@@ -80,4 +80,7 @@ private:
 
 	/** Three Dozers around the CC when no team-0 Dozer is already placed. */
 	void SpawnWorkersIfNeeded();
+
+	/** KodGround / PROXY_GROUND box becomes the sim placement limit. */
+	void PublishPlayableBounds();
 };

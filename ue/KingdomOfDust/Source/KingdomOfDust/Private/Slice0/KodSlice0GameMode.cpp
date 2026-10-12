@@ -283,6 +283,45 @@ void AKodSlice0GameMode::StartPlay()
 				Spec.bCanGather = true;
 				Sim->RegisterTrainSpec(Spec);
 			}
+			if (const UKodUnitDefinition* Marine = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Ranger), this))
+			{
+				FKodTrainSpec Spec;
+				Spec.UnitId = Marine->DefinitionId.IsNone() ? FName(KodWardenPaths::Id_Ranger) : Marine->DefinitionId;
+				Spec.DisplayId = FName(TEXT("Marine"));
+				Spec.Cost = Marine->Cost;
+				Spec.bCanGather = false;
+				Sim->RegisterTrainSpec(Spec);
+			}
+			auto RegisterBuild = [Sim, this](const TCHAR* TypeId, const TArray<FName>& Trains)
+			{
+				const UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(FName(TypeId), this);
+				if (!Def)
+				{
+					return;
+				}
+				FKodBuildSpec Spec;
+				Spec.TypeId = Def->DefinitionId.IsNone() ? FName(TypeId) : Def->DefinitionId;
+				Spec.DisplayId = FName(TypeId);
+				Spec.FootprintX = FMath::Max(1, Def->FootprintX);
+				Spec.FootprintY = FMath::Max(1, Def->FootprintY);
+				Spec.Cost = Def->Cost;
+				if (Spec.Cost.BuildTime <= 0)
+				{
+					Spec.Cost.BuildTime = Def->GetResolvedBuildTicks();
+				}
+				Spec.MaxHealth = Def->MaxHealth;
+				Spec.SupplyProvided = Def->SupplyProvided;
+				Spec.bIsDropOff = Def->bIsDropOff;
+				Spec.bExtractor = Def->bExtractor;
+				Spec.Trains = Trains;
+				Sim->RegisterBuildSpec(Spec);
+			};
+			TArray<FName> NoTrains;
+			TArray<FName> MarineTrain;
+			MarineTrain.Add(FName(KodWardenPaths::Id_Ranger));
+			RegisterBuild(KodWardenPaths::Id_SupplyDepot, NoTrains);
+			RegisterBuild(KodWardenPaths::Id_Barracks, MarineTrain);
+			RegisterBuild(KodWardenPaths::Id_Rig, NoTrains);
 		}
 	}
 
@@ -297,6 +336,43 @@ void AKodSlice0GameMode::StartPlay()
 	// The drop-off is registered at the end of the field, then the workers.
 	SpawnResourceField();
 	SpawnWorkersIfNeeded();
+	PublishPlayableBounds();
+}
+
+void AKodSlice0GameMode::PublishPlayableBounds()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Sim)
+	{
+		return;
+	}
+	FBox Combined(ForceInit);
+	bool bAny = false;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!Actor)
+		{
+			continue;
+		}
+		const FString Label = Actor->GetActorNameOrLabel();
+		if (!Actor->ActorHasTag(FName(TEXT("KodGround"))) && !Label.Contains(TEXT("PROXY_GROUND")))
+		{
+			continue;
+		}
+		const FBox Bounds = Actor->GetComponentsBoundingBox(true);
+		if (!Bounds.IsValid)
+		{
+			continue;
+		}
+		Combined += Bounds;
+		bAny = true;
+	}
+	if (bAny)
+	{
+		Sim->SetPlayableWorldBox(Combined);
+	}
 }
 
 void AKodSlice0GameMode::SpawnHostileTestTarget()
@@ -780,6 +856,11 @@ void AKodSlice0GameMode::RegisterCommandCenterDropOff()
 	Spec.TeamId = 0;
 	Spec.SupplyProvided = CCDef ? CCDef->SupplyProvided : KodEconomyDefaults::SupplyPerHq;
 	Spec.bIsDropOff = true;
+	Spec.DisplayId = FName(TEXT("CC"));
+	Spec.FootprintX = CCDef ? FMath::Max(1, CCDef->FootprintX) : 5;
+	Spec.FootprintY = CCDef ? FMath::Max(1, CCDef->FootprintY) : 5;
+	Spec.MaxHealth = CCDef ? CCDef->MaxHealth : 2500.f;
+	Spec.Trains.Add(FName(KodWardenPaths::Id_Dozer));
 	Spec.DropOffStandUU = DropOffStandUU > 0 ? DropOffStandUU : KodEconomyDefaults::DropOffStandUU;
 	const FKodEntityId Id = Sim->RegisterStructure(Anchor, Spec);
 	if (!Id.IsValid())
@@ -874,11 +955,26 @@ void AKodSlice0GameMode::SpawnWorkersIfNeeded()
 	const int32 Count = FMath::Clamp(WorkerSpawnCount, 1, 8);
 	int32 Spawned = 0;
 	TArray<AActor*> Ignored;
+	int32 HalfSpan = (5 * KodBuildGrid::CellUU) / 2;
+	if (Anchor)
+	{
+		FKodStructureState CcStructure;
+		if (Sim->TryGetStructure(Sim->FindIdForActor(Anchor), CcStructure))
+		{
+			HalfSpan = (FMath::Max(CcStructure.FootprintX, CcStructure.FootprintY) * KodBuildGrid::CellUU) / 2;
+		}
+	}
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
 		const float Angle = (static_cast<float>(Index) - (static_cast<float>(Count) - 1.f) * 0.5f) * 28.f;
 		const FVector Dir = FieldDir.RotateAngleAxis(Angle, FVector::UpVector);
-		const FVector Spot = AnchorLocation + Dir * 420.f;
+		float Radius = static_cast<float>(HalfSpan + KodBuildGrid::CellUU);
+		FVector Spot = AnchorLocation + Dir * Radius;
+		for (int32 Step = 0; Step < 8 && Sim->IsCellBlocked(KodBuildGrid::CellOf(Spot.X), KodBuildGrid::CellOf(Spot.Y)); ++Step)
+		{
+			Radius += static_cast<float>(KodBuildGrid::CellUU);
+			Spot = AnchorLocation + Dir * Radius;
+		}
 		const float FloorZ = ResolveResourceFloorZ(World, Sim, Spot.X, Spot.Y, AnchorLocation.Z, Ignored);
 		const FTransform Xform(FRotator::ZeroRotator, FVector(Spot.X, Spot.Y, FloorZ + 100.f));
 		AKodUnit* Worker = UKodSlice0Bootstrap::SpawnDozer(World, Xform, /*TeamId*/ 0);

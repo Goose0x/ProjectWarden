@@ -69,6 +69,9 @@ void UKodCommandSubsystem::ExecuteCommand(const FKodCommand& Command)
 	case EKodCommandType::Train:       ExecuteTrain(Command); break;
 	case EKodCommandType::CancelTrain: ExecuteCancelTrain(Command); break;
 	case EKodCommandType::SetRally:    ExecuteSetRally(Command); break;
+	case EKodCommandType::PlaceBuild:  ExecutePlaceBuild(Command); break;
+	case EKodCommandType::ResumeBuild: ExecuteResumeBuild(Command); break;
+	case EKodCommandType::CancelBuild: ExecuteCancelBuild(Command); break;
 	default: break;
 	}
 }
@@ -227,6 +230,48 @@ void UKodCommandSubsystem::ExecuteSetRally(const FKodCommand& Command)
 	for (const FKodEntityId& Id : Command.SourceEntities)
 	{
 		Sim->SetStructureRally(Id, Command.TargetLocation, Command.TargetEntity);
+	}
+}
+
+void UKodCommandSubsystem::ExecutePlaceBuild(const FKodCommand& Command)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim || Command.SourceEntities.Num() <= 0)
+	{
+		return;
+	}
+	int32 TeamId = 0;
+	FKodSimEntityState WorkerState;
+	if (Sim->TryGetState(Command.SourceEntities[0], WorkerState))
+	{
+		TeamId = WorkerState.TeamId;
+	}
+	Sim->TryPlaceStructure(TeamId, Command.PayloadName, Command.TargetLocation, Command.SourceEntities[0]);
+}
+
+void UKodCommandSubsystem::ExecuteResumeBuild(const FKodCommand& Command)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim || Command.SourceEntities.Num() <= 0)
+	{
+		return;
+	}
+	Sim->ResumeConstruction(Command.TargetEntity, Command.SourceEntities[0]);
+}
+
+void UKodCommandSubsystem::ExecuteCancelBuild(const FKodCommand& Command)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	for (const FKodEntityId& Id : Command.SourceEntities)
+	{
+		Sim->CancelConstruction(Id);
 	}
 }
 

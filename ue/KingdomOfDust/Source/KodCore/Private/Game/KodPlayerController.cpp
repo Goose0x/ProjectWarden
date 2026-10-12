@@ -121,7 +121,7 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 	const bool bAltDrag = CameraPawn && CameraPawn->ConsumesAltDrag();
 
 	// Greybox mouse fallback until Enhanced Input assets exist.
-	if (WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bAltDrag)
+	if (WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bAltDrag && !ConsumePlacementLeftClick())
 	{
 		HandleSelectStarted();
 	}
@@ -138,7 +138,7 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 	{
 		HandleSelectCompleted();
 	}
-	if (WasInputKeyJustPressed(EKeys::RightMouseButton))
+	if (WasInputKeyJustPressed(EKeys::RightMouseButton) && !ConsumePlacementRightClick())
 	{
 		HandleRightClickCommand();
 	}

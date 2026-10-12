@@ -7,6 +7,7 @@
 #include "Sim/KodBuildTicks.h"
 #include "Sim/KodResourceTypes.h"
 #include "Sim/KodProductionTypes.h"
+#include "Sim/KodBuildTypes.h"
 #include "KodSimSubsystem.generated.h"
 
 class AActor;
@@ -141,6 +142,10 @@ struct KODCORE_API FKodSimEntityState
 
 	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
 	bool bSupplyCounted = false;
+
+	/** Incomplete structure this worker is constructing. Cleared by any other order. */
+	UPROPERTY(BlueprintReadOnly, Category = "Kod|Economy")
+	FKodEntityId BuildSite;
 
 	bool IsMoving() const { return Order == EKodSimOrderType::Move; }
 	bool HasPendingOrder() const { return Order != EKodSimOrderType::None; }
@@ -332,6 +337,17 @@ public:
 	/** Presentation hook. Does not start the next slot or change supply. */
 	void NotifyTrainSpawned(int32 StructureId);
 
+	void RegisterBuildSpec(const FKodBuildSpec& Spec);
+	FKodPlacementResult QueryPlacement(int32 TeamId, FName TypeId, FVector CursorWorld) const;
+	bool TryPlaceStructure(int32 TeamId, FName TypeId, FVector CursorWorld, FKodEntityId WorkerId);
+	bool ResumeConstruction(FKodEntityId StructureId, FKodEntityId WorkerId);
+	bool CancelConstruction(FKodEntityId StructureId);
+	bool TryGetPrimaryTrain(FKodEntityId StructureId, FName& OutUnitId) const;
+	void SetPlayableWorldBox(const FBox& WorldBox);
+	void BindStructureActor(FKodEntityId Id, AActor* Actor);
+	void ConsumePendingBuildingSpawns(TArray<FKodPendingBuildingSpawn>& OutSpawns);
+	bool IsCellBlocked(int32 CellX, int32 CellY) const;
+
 	/** Default 50. L_Slice0 overwrites this from AKodSlice0GameMode at StartPlay. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")
 	int32 StartingJadeite = 50;
@@ -406,6 +422,13 @@ protected:
 	void RecalcSupplyCap(int32 TeamId);
 	void AddSupplyUsed(int32 TeamId, int32 Delta);
 	void ReleaseCountedSupply(FKodEntityId Id);
+	void StepConstruction();
+	void ClearBuildAssignment(FKodSimEntityState& State);
+	bool IsWorldCellBlocked(const FVector& World) const;
+	FVector SteerAroundBuildings(const FKodSimEntityState& State, const FVector& DesiredDelta) const;
+	bool TryGetGatherApproach(int32 TeamId, const FKodResourceNodeState& Node, FVector& OutPoint) const;
+	FKodEntityId FindCompletedRig(int32 TeamId, FKodEntityId VentId) const;
+	void ReleaseStructureRecord(FKodEntityId Id);
 
 	UPROPERTY()
 	TMap<int32, TWeakObjectPtr<AActor>> Entities;
@@ -428,7 +451,14 @@ protected:
 	TMap<int32, FKodSupplyState> Supply;
 	TMap<int32, FKodStructureState> Structures;
 	TMap<FName, FKodTrainSpec> TrainSpecs;
+	TMap<FName, FKodBuildSpec> BuildSpecs;
 	TArray<FKodPendingUnitSpawn> PendingSpawns;
+	TArray<FKodPendingBuildingSpawn> PendingBuildingSpawns;
+	bool bHasPlayable = false;
+	int32 PlayMinX = 0;
+	int32 PlayMinY = 0;
+	int32 PlayMaxX = 0;
+	int32 PlayMaxY = 0;
 
 	/** Previous step poses for interpolation. */
 	TMap<int32, FVector> PrevPositions;

@@ -19,7 +19,10 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Supply.Reset();
 	Structures.Reset();
 	TrainSpecs.Reset();
+	BuildSpecs.Reset();
 	PendingSpawns.Reset();
+	PendingBuildingSpawns.Reset();
+	bHasPlayable = false;
 	TimeAccumulator = 0.f;
 	SimTickIndex = 0;
 	SimHz = KodBuildTicks::SimHz;
@@ -41,7 +44,10 @@ void UKodSimSubsystem::Deinitialize()
 	Supply.Reset();
 	Structures.Reset();
 	TrainSpecs.Reset();
+	BuildSpecs.Reset();
 	PendingSpawns.Reset();
+	PendingBuildingSpawns.Reset();
+	bHasPlayable = false;
 	PrevPositions.Reset();
 	PrevYaws.Reset();
 	Super::Deinitialize();
@@ -102,6 +108,15 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 		{
 			State->CooldownRemaining = FMath::Max(0.f, State->CooldownRemaining - FixedDt);
 		}
+		if (State->bMobile
+			&& State->Order == EKodSimOrderType::None
+			&& State->GatherPhase == EKodGatherPhase::None
+			&& IsWorldCellBlocked(State->Position))
+		{
+			const FVector Push = SteerAroundBuildings(*State, FVector(FMath::Max(1.f, State->MoveSpeed) * FixedDt, 0.f, 0.f));
+			State->Position += Push;
+			QuantizePose(*State);
+		}
 
 		if (State->GatherPhase != EKodGatherPhase::None || State->Order == EKodSimOrderType::Gather)
 		{
@@ -128,6 +143,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 		}
 	}
 	StepProduction();
+	StepConstruction();
 }
 
 void UKodSimSubsystem::StepEntityMove(FKodSimEntityState& State, float FixedDt)
@@ -154,8 +170,16 @@ void UKodSimSubsystem::StepEntityMove(FKodSimEntityState& State, float FixedDt)
 	FVector Dir = ToTarget;
 	Dir.Z = 0.f;
 	Dir.Normalize();
-	State.YawDegrees = FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X));
-	State.Position += Dir * (State.MoveSpeed * FixedDt);
+	FVector Delta = SteerAroundBuildings(State, Dir * (State.MoveSpeed * FixedDt));
+	if (Delta.SizeSquared2D() > KINDA_SMALL_NUMBER)
+	{
+		State.YawDegrees = FMath::RadiansToDegrees(FMath::Atan2(Delta.Y, Delta.X));
+		State.Position += Delta;
+	}
+	else
+	{
+		State.YawDegrees = FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X));
+	}
 	// Keep Z from existing (ground projection is presentation/assist later — no NavMesh)
 }
 
@@ -436,6 +460,7 @@ FKodEntityId UKodSimSubsystem::RegisterEntity(AActor* Actor)
 void UKodSimSubsystem::UnregisterEntity(FKodEntityId Id)
 {
 	ReleaseCountedSupply(Id);
+	ReleaseStructureRecord(Id);
 	Entities.Remove(Id.Value);
 	States.Remove(Id.Value);
 	PrevPositions.Remove(Id.Value);
@@ -523,6 +548,7 @@ void UKodSimSubsystem::IssueMove(FKodEntityId Id, FVector WorldLocation)
 			RefundGatherCargo(*State);
 			ClearGatherFields(*State);
 		}
+		ClearBuildAssignment(*State);
 		State->Order = EKodSimOrderType::Move;
 		State->MoveTarget = WorldLocation;
 		State->AttackTarget = FKodEntityId();
@@ -545,6 +571,7 @@ void UKodSimSubsystem::IssueAttack(FKodEntityId Id, FKodEntityId TargetId)
 			RefundGatherCargo(*State);
 			ClearGatherFields(*State);
 		}
+		ClearBuildAssignment(*State);
 		State->Order = EKodSimOrderType::Attack;
 		State->AttackTarget = TargetId;
 		State->RetaliateTarget = FKodEntityId();
@@ -564,6 +591,7 @@ void UKodSimSubsystem::IssueStop(FKodEntityId Id)
 			RefundGatherCargo(*State);
 			ClearGatherFields(*State);
 		}
+		ClearBuildAssignment(*State);
 		State->Order = EKodSimOrderType::None;
 		State->AttackTarget = FKodEntityId();
 		State->RetaliateTarget = FKodEntityId();
@@ -990,6 +1018,34 @@ bool UKodSimSubsystem::RetargetGatherNode(FKodSimEntityState& State)
 	{
 		Next = FindNearestResourceNodeOfType(State.Position, Type, /*bRequireRemaining*/ false);
 	}
+	if (Type == EKodResourceType::Luminene && Next.IsValid() && !FindCompletedRig(State.TeamId, Next).IsValid())
+	{
+		Next = FKodEntityId();
+		TArray<int32> Keys;
+		ResourceNodes.GetKeys(Keys);
+		Keys.Sort();
+		int64 BestDist = MAX_int64;
+		for (int32 Key : Keys)
+		{
+			const FKodResourceNodeState* Node = ResourceNodes.Find(Key);
+			if (!Node || Node->Type != EKodResourceType::Luminene)
+			{
+				continue;
+			}
+			if (!FindCompletedRig(State.TeamId, Node->Id).IsValid())
+			{
+				continue;
+			}
+			const int64 DX = FMath::RoundToInt(Node->Position.X - State.Position.X);
+			const int64 DY = FMath::RoundToInt(Node->Position.Y - State.Position.Y);
+			const int64 Dist = DX * DX + DY * DY;
+			if (!Next.IsValid() || Dist < BestDist)
+			{
+				BestDist = Dist;
+				Next.Value = Key;
+			}
+		}
+	}
 	if (!Next.IsValid())
 	{
 		State.GatherNode = FKodEntityId();
@@ -1048,7 +1104,8 @@ bool UKodSimSubsystem::AdvanceGatherMove(FKodSimEntityState& State, const FVecto
 		QuantizePose(State);
 		return true;
 	}
-	State.Position += Dir * Travel;
+	FVector Delta = SteerAroundBuildings(State, Dir * Travel);
+	State.Position += Delta;
 	NoteStall(FVector::DistSquared2D(Before, State.Position));
 	return false;
 }
@@ -1186,8 +1243,17 @@ void UKodSimSubsystem::StepEntityGather(FKodSimEntityState& State, float FixedDt
 			}
 		}
 
+		FVector Approach = Node->Position;
+		if (!TryGetGatherApproach(State.TeamId, *Node, Approach))
+		{
+			if (!RetargetGatherNode(State))
+			{
+				AbortGather(State);
+			}
+			return;
+		}
 		const float Stand = static_cast<float>(FMath::Max(1, Node->GatherStandUU));
-		const float Dist = FVector::Dist2D(State.Position, Node->Position);
+		const float Dist = FVector::Dist2D(State.Position, Approach);
 		if (Dist > Stand && State.GatherStallTicks >= KodEconomyDefaults::GatherStallTicks)
 		{
 			if (RecoverGatherStall(State, Dist, Stand))
@@ -1197,7 +1263,7 @@ void UKodSimSubsystem::StepEntityGather(FKodSimEntityState& State, float FixedDt
 			}
 			return;
 		}
-		if (AdvanceGatherMove(State, Node->Position, Stand, FixedDt))
+		if (AdvanceGatherMove(State, Approach, Stand, FixedDt))
 		{
 			BeginGatherLeg(State, EKodGatherPhase::Harvest);
 			if (const FKodResourceNodeState* Arrived = ResourceNodes.Find(State.GatherNode.Value))
@@ -1439,6 +1505,11 @@ bool UKodSimSubsystem::IssueGather(FKodEntityId WorkerId, FKodEntityId NodeId)
 	{
 		return false;
 	}
+	FVector Approach = Node->Position;
+	if (!TryGetGatherApproach(State->TeamId, *Node, Approach))
+	{
+		return false;
+	}
 
 	State->GatherNode = NodeId;
 	State->GatherType = Node->Type;
@@ -1452,7 +1523,8 @@ bool UKodSimSubsystem::IssueGather(FKodEntityId WorkerId, FKodEntityId NodeId)
 		State->bCargoFromTrickle = false;
 		BeginGatherLeg(*State, EKodGatherPhase::ToNode);
 	}
-	FaceStateToward(*State, Node->Position);
+	ClearBuildAssignment(*State);
+	FaceStateToward(*State, Approach);
 	UE_LOG(LogTemp, Log, TEXT("KodEcon GatherOrder Worker=%d Node=%d Type=%s"),
 		WorkerId.Value,
 		NodeId.Value,
@@ -1606,6 +1678,7 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&S.SupplyCost, sizeof(S.SupplyCost));
 		const uint8 SupplyCounted = S.bSupplyCounted ? 1 : 0;
 		Append(&SupplyCounted, sizeof(SupplyCounted));
+		Append(&S.BuildSite.Value, sizeof(S.BuildSite.Value));
 	}
 
 	// Economy is integers only: team id + bank, then node id + type + remaining + quantized position,
@@ -1701,6 +1774,16 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 			Append(&Started, sizeof(Started));
 		}
 		Append(&Structure.ActiveTicksRemaining, sizeof(Structure.ActiveTicksRemaining));
+		Append(&Structure.CellX, sizeof(Structure.CellX));
+		Append(&Structure.CellY, sizeof(Structure.CellY));
+		Append(&Structure.FootprintX, sizeof(Structure.FootprintX));
+		Append(&Structure.FootprintY, sizeof(Structure.FootprintY));
+		Append(&Structure.BuildTimeTotal, sizeof(Structure.BuildTimeTotal));
+		Append(&Structure.BuildTicksDone, sizeof(Structure.BuildTicksDone));
+		const uint8 BuildComplete = Structure.bComplete ? 1 : 0;
+		Append(&BuildComplete, sizeof(BuildComplete));
+		Append(&Structure.BuilderId.Value, sizeof(Structure.BuilderId.Value));
+		Append(&Structure.VentId.Value, sizeof(Structure.VentId.Value));
 		const uint8 Blocked = Structure.bSupplyBlocked ? 1 : 0;
 		Append(&Blocked, sizeof(Blocked));
 		const int32 RallyNode = Structure.bRallyNode ? Structure.RallyNode.Value : 0;

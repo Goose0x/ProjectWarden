@@ -46,6 +46,17 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
 	bool bIsDropOff = false;
 
+	/** Integer build-grid cells. CC 5, Depot 2, Barracks 3, Rig 3. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
+	int32 FootprintX = 1;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
+	int32 FootprintY = 1;
+
+	/** Valid only when the footprint covers an open Luminene vent. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
+	bool bExtractor = false;
+
 	/** Optional presentation. Empty keeps the placed greybox mesh. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
 	TSoftObjectPtr<UStaticMesh> Mesh;

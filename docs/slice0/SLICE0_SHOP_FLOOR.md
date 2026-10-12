@@ -63,10 +63,13 @@ Tag `Kod.Unit.Dozer` · display AMP · MaxHealth 200 · Armor 1 · MoveSpeed 350
 Tag `Kod.Building.CommandCenter` · MaxHealth 2500 · Cost 400 Credits · BuildTime 71 s · SupplyProvided 15 · drop-off · PowerProvided 10 · Sight 2000 · Trainable: AMP (Dozer). Default mesh soft-ref `SM_general`. Barracks owns Ranger and is not trained in M1.
 
 ### Barracks
-Tag `Kod.Building.Barracks` · MaxHealth 1500 · Cost 150 Credits · BuildTime 46 s · PowerConsumed 2 · Sight 1400 · Trainable: Ranger. Not placed or trained in M1.
+Tag `Kod.Building.Barracks` · MaxHealth 1500 · Cost 150 Credits · BuildTime 46 s · footprint 3×3 · mesh soft-ref `SM_barracks_1` · PowerConsumed 2 · Sight 1400 · Trainable: Marine (Ranger). Placed by an AMP.
 
 ### SupplyDepot
-Tag `Kod.Building.SupplyDepot` · MaxHealth 400 · Cost 100 Credits · BuildTime 21 s · SupplyProvided 8 · mesh soft-ref `SM_storage`. Catalog only. Not spawned.
+Tag `Kod.Building.SupplyDepot` · MaxHealth 400 · Cost 100 Credits · BuildTime 21 s · SupplyProvided 8 · footprint 2×2 · mesh soft-ref `SM_storage`. Placed by an AMP.
+
+### Rig
+Tag `Kod.Building.Rig` · MaxHealth 500 · Cost 75 Credits · BuildTime 30 s (placeholder) · footprint 3×3 · extractor on a Luminene vent · greybox until a static mesh is set. `BP_oil_factory` is later and is not referenced.
 
 ### USA
 StartingBuilding CommandCenter · StartingUnits: 1 Dozer + 2 Ranger (PROXY)

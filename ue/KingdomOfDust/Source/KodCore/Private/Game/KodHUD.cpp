@@ -34,6 +34,7 @@ void AKodHUD::DrawHUD()
 
 	RefreshReadout();
 	DrawProductionPanel();
+	DrawBuildHint();
 	DrawUnitHealthBars();
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
@@ -194,9 +195,28 @@ void AKodHUD::DrawProductionPanel()
 	{
 		Font = GEngine->GetSmallFont();
 	}
+	const FString StructureName = Structure.DisplayId.IsNone() ? Structure.DefinitionId.ToString() : Structure.DisplayId.ToString();
+	FString Status = StructureName;
+	FKodSimEntityState Combat;
+	if (Sim->TryGetState(Structure.Id, Combat) && Combat.MaxHealth > 0.f)
+	{
+		Status += FString::Printf(TEXT("   HP %.0f/%.0f"), Combat.Health, Combat.MaxHealth);
+	}
+	if (!Structure.bComplete && Structure.BuildTimeTotal > 0)
+	{
+		const int32 Percent = (Structure.BuildTicksDone * 100) / Structure.BuildTimeTotal;
+		Status += FString::Printf(TEXT("   Build %d%%"), Percent);
+	}
+	DrawText(Status, FLinearColor::White, 24.f, 80.f, Font, 1.f, false);
+	if (!Structure.bComplete || Structure.Trains.Num() <= 0)
+	{
+		return;
+	}
+
 	const float X = 24.f;
-	float Y = 80.f;
-	const FString Title = FString::Printf(TEXT("S Train AMP  Backspace Cancel"));
+	float Y = 108.f;
+	const FString TrainName = Structure.Trains[0].ToString();
+	const FString Title = FString::Printf(TEXT("S Train %s  Backspace Cancel"), *TrainName);
 	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.82f), X - 8.f, Y - 8.f, 280.f, 36.f + 22.f * 5.f);
 	DrawText(Title, FLinearColor::White, X, Y, Font, 1.f, false);
 	Y += 22.f;
@@ -220,6 +240,31 @@ void AKodHUD::DrawProductionPanel()
 		DrawRect(KodResourceColors::Jadeite(), X + 70.f, Y + 2.f, 140.f * Fraction, 10.f);
 		Y += 20.f;
 	}
+}
+
+void AKodHUD::DrawBuildHint()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	const AKodPlayerController* PC = Cast<AKodPlayerController>(GetOwningPlayerController());
+	if (!PC)
+	{
+		return;
+	}
+	const FString Hint = PC->GetBuildMenuHint();
+	if (Hint.IsEmpty())
+	{
+		return;
+	}
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	if (!Font && GEngine)
+	{
+		Font = GEngine->GetSmallFont();
+	}
+	DrawRect(FLinearColor(0.02f, 0.02f, 0.02f, 0.82f), 16.f, 140.f, 720.f, 28.f);
+	DrawText(Hint, KodResourceColors::Jadeite(), 24.f, 144.f, Font, 1.f, false);
 }
 
 void AKodHUD::DrawUnitHealthBars()

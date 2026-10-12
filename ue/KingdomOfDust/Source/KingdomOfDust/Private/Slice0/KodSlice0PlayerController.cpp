@@ -3,7 +3,11 @@
 #include "Engine/World.h"
 #include "Game/KodRTSCameraPawn.h"
 #include "Game/KodSpectatorPawn.h"
+#include "Data/KodBuildingDefinition.h"
+#include "Engine/HitResult.h"
 #include "GameFramework/Actor.h"
+#include "Slice0/KodBuildGhost.h"
+#include "Slice0/KodSlice0Bootstrap.h"
 #include "InputCoreTypes.h"
 #include "KodCommandSubsystem.h"
 #include "KodCommandTypes.h"
@@ -157,13 +161,49 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 	{
 		return;
 	}
+	if (WasInputKeyJustPressed(EKeys::B) && HasSelectedWorker())
+	{
+		bBuildMenu = !bBuildMenu;
+		if (!bBuildMenu)
+		{
+			CancelPlacement();
+		}
+	}
+	if (bBuildMenu && HasSelectedWorker())
+	{
+		if (WasInputKeyJustPressed(EKeys::D))
+		{
+			PlaceType = FName(KodWardenPaths::Id_SupplyDepot);
+		}
+		else if (WasInputKeyJustPressed(EKeys::R))
+		{
+			PlaceType = FName(KodWardenPaths::Id_Barracks);
+		}
+		else if (WasInputKeyJustPressed(EKeys::E))
+		{
+			PlaceType = FName(KodWardenPaths::Id_Rig);
+		}
+	}
+	else if (!bBuildMenu)
+	{
+		PlaceType = NAME_None;
+	}
+	UpdateBuildGhost();
 	if (WasInputKeyJustPressed(EKeys::S))
 	{
 		EnqueueTrainOnSelectedStructures();
 	}
 	if (WasInputKeyJustPressed(EKeys::BackSpace))
 	{
-		CancelTrainOnSelectedStructures();
+		if (!PlaceType.IsNone())
+		{
+			CancelPlacement();
+			bBuildMenu = false;
+		}
+		else if (!CancelSelectedConstruction())
+		{
+			CancelTrainOnSelectedStructures();
+		}
 	}
 	TryCenterControlGroup();
 }
@@ -283,17 +323,16 @@ void AKodSlice0PlayerController::EnqueueTrainOnSelectedStructures()
 	FKodCommand Cmd;
 	Cmd.Type = EKodCommandType::Train;
 	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
-	Cmd.PayloadName = FName(KodWardenPaths::Id_Dozer);
 	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
 	{
-		if (Sim->IsStructure(Id))
+		FName TrainId;
+		if (Sim->IsStructure(Id) && Sim->TryGetPrimaryTrain(Id, TrainId))
 		{
-			Cmd.SourceEntities.Add(Id);
+			FKodCommand One = Cmd;
+			One.PayloadName = TrainId;
+			One.SourceEntities.Add(Id);
+			Commands->Enqueue(One);
 		}
-	}
-	if (Cmd.SourceEntities.Num() > 0)
-	{
-		Commands->Enqueue(Cmd);
 	}
 }
 
@@ -320,4 +359,211 @@ void AKodSlice0PlayerController::CancelTrainOnSelectedStructures()
 	{
 		Commands->Enqueue(Cmd);
 	}
+}
+
+bool AKodSlice0PlayerController::HasSelectedWorker() const
+{
+	return FirstSelectedWorker().IsValid();
+}
+
+FKodEntityId AKodSlice0PlayerController::FirstSelectedWorker() const
+{
+	FKodEntityId Found;
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return Found;
+	}
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodSimEntityState State;
+		if (Sim->TryGetState(Id, State) && State.bCanGather && State.Health > 0.f)
+		{
+			return Id;
+		}
+	}
+	return Found;
+}
+
+void AKodSlice0PlayerController::CancelPlacement()
+{
+	PlaceType = NAME_None;
+	if (AKodBuildGhost* Ghost = BuildGhost.Get())
+	{
+		Ghost->Destroy();
+	}
+	BuildGhost = nullptr;
+}
+
+void AKodSlice0PlayerController::UpdateBuildGhost()
+{
+	if (PlaceType.IsNone() || !HasSelectedWorker())
+	{
+		if (AKodBuildGhost* Ghost = BuildGhost.Get())
+		{
+			Ghost->SetActorHiddenInGame(true);
+		}
+		return;
+	}
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Sim)
+	{
+		return;
+	}
+	FHitResult Hit;
+	if (!GetHitResultUnderCursor(ECC_Visibility, true, Hit))
+	{
+		return;
+	}
+	const FKodPlacementResult Placement = Sim->QueryPlacement(0, PlaceType, Hit.ImpactPoint);
+	if (!BuildGhost.IsValid())
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		BuildGhost = World->SpawnActor<AKodBuildGhost>(AKodBuildGhost::StaticClass(), FTransform(Placement.WorldCenter), Params);
+	}
+	AKodBuildGhost* Ghost = BuildGhost.Get();
+	if (!Ghost)
+	{
+		return;
+	}
+	Ghost->SetActorHiddenInGame(false);
+	Ghost->SetActorLocation(Placement.WorldCenter);
+	if (const UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(PlaceType, this))
+	{
+		Ghost->SetFootprint(Def->FootprintX, Def->FootprintY);
+	}
+	Ghost->SetValidTint(Placement.bValid);
+}
+
+bool AKodSlice0PlayerController::ConsumePlacementLeftClick()
+{
+	if (PlaceType.IsNone() || !HasSelectedWorker())
+	{
+		return false;
+	}
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Commands || !Sim)
+	{
+		return true;
+	}
+	FHitResult Hit;
+	if (!GetHitResultUnderCursor(ECC_Visibility, true, Hit))
+	{
+		return true;
+	}
+	const FKodPlacementResult Placement = Sim->QueryPlacement(0, PlaceType, Hit.ImpactPoint);
+	FKodCommand Cmd;
+	Cmd.Type = EKodCommandType::PlaceBuild;
+	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	Cmd.PayloadName = PlaceType;
+	Cmd.TargetLocation = Hit.ImpactPoint;
+	Cmd.SourceEntities.Add(FirstSelectedWorker());
+	Commands->Enqueue(Cmd);
+	const bool bShift = IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift);
+	if (Placement.bValid && !bShift)
+	{
+		CancelPlacement();
+		bBuildMenu = false;
+	}
+	return true;
+}
+
+bool AKodSlice0PlayerController::ConsumePlacementRightClick()
+{
+	if (PlaceType.IsNone())
+	{
+		return false;
+	}
+	CancelPlacement();
+	bBuildMenu = false;
+	return true;
+}
+
+FString AKodSlice0PlayerController::GetBuildMenuHint() const
+{
+	if (!bBuildMenu && PlaceType.IsNone())
+	{
+		return FString();
+	}
+	if (PlaceType.IsNone())
+	{
+		return TEXT("Build   D Depot   R Barracks   E Rig   RMB Cancel");
+	}
+	return FString::Printf(TEXT("Place %s   LMB Build   RMB Cancel   Shift Queues"), *PlaceType.ToString());
+}
+
+void AKodSlice0PlayerController::HandleRightClickCommand()
+{
+	if (TryResumeBuildUnderCursor())
+	{
+		return;
+	}
+	Super::HandleRightClickCommand();
+}
+
+bool AKodSlice0PlayerController::TryResumeBuildUnderCursor()
+{
+	const FKodEntityId Worker = FirstSelectedWorker();
+	if (!Worker.IsValid())
+	{
+		return false;
+	}
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Commands || !Sim)
+	{
+		return false;
+	}
+	FHitResult Hit;
+	if (!GetHitResultUnderCursor(ECC_Pawn, true, Hit) || !Hit.GetActor())
+	{
+		return false;
+	}
+	const FKodEntityId HitId = Sim->FindIdForActor(Hit.GetActor());
+	FKodStructureState Structure;
+	if (!Sim->TryGetStructure(HitId, Structure) || Structure.bComplete)
+	{
+		return false;
+	}
+	FKodCommand Cmd;
+	Cmd.Type = EKodCommandType::ResumeBuild;
+	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	Cmd.TargetEntity = HitId;
+	Cmd.SourceEntities.Add(Worker);
+	Commands->Enqueue(Cmd);
+	return true;
+}
+
+bool AKodSlice0PlayerController::CancelSelectedConstruction()
+{
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Commands || !Sim)
+	{
+		return false;
+	}
+	FKodCommand Cmd;
+	Cmd.Type = EKodCommandType::CancelBuild;
+	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	for (const FKodEntityId& Id : GetLocalSelectedEntityIds())
+	{
+		FKodStructureState Structure;
+		if (Sim->TryGetStructure(Id, Structure) && !Structure.bComplete)
+		{
+			Cmd.SourceEntities.Add(Id);
+		}
+	}
+	if (Cmd.SourceEntities.Num() <= 0)
+	{
+		return false;
+	}
+	Commands->Enqueue(Cmd);
+	return true;
 }

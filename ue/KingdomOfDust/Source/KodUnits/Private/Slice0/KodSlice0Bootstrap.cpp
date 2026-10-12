@@ -66,6 +66,7 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	UKodBuildingDefinition* CC = MakeCommandCenter(Catalog, Dozer);
 	UKodBuildingDefinition* Barracks = MakeBarracks(Catalog, Ranger);
 	UKodBuildingDefinition* Depot = MakeSupplyDepot(Catalog);
+	UKodBuildingDefinition* Rig = MakeRig(Catalog);
 	UKodFactionDefinition* USA = MakeUSA(Catalog, CC, Dozer, Ranger);
 	UKodResourceNodeDefinition* JadeiteNode = MakeJadeiteNode(Catalog);
 	UKodResourceNodeDefinition* LumineneVent = MakeLumineneVent(Catalog);
@@ -76,6 +77,7 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_CommandCenter), CC);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Barracks), Barracks);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_SupplyDepot), Depot);
+	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Rig), Rig);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_USA), USA);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_JadeiteNode), JadeiteNode);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_LumineneVent), LumineneVent);
@@ -253,6 +255,8 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeCommandCenter(UObject* Outer, U
 	B->BuildTimeSeconds = 71.f;
 	B->SupplyProvided = KodEconomyDefaults::SupplyPerHq;
 	B->bIsDropOff = true;
+	B->FootprintX = 5;
+	B->FootprintY = 5;
 	B->Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(KodWardenPaths::ProtoHqMesh));
 	B->PowerProvided = 10.f;
 	B->PowerConsumed = 0.f;
@@ -278,6 +282,9 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeBarracks(UObject* Outer, UKodUn
 	B->Cost.BuildTime = 46 * 16;
 	B->BuildTicks = B->Cost.BuildTime;
 	B->BuildTimeSeconds = 46.f;
+	B->FootprintX = 3;
+	B->FootprintY = 3;
+	B->Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(KodWardenPaths::ProtoBarracksMesh));
 	B->PowerConsumed = 2.f;
 	B->PowerProvided = 0.f;
 	B->SightRadius = 1400.f;
@@ -304,7 +311,30 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeSupplyDepot(UObject* Outer)
 	B->BuildTimeSeconds = 21.f;
 	B->SupplyProvided = KodEconomyDefaults::SupplyPerDepot;
 	B->bIsDropOff = false;
+	B->FootprintX = 2;
+	B->FootprintY = 2;
 	B->Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(KodWardenPaths::ProtoDepotMesh));
+	return B;
+}
+
+UKodBuildingDefinition* UKodSlice0Bootstrap::MakeRig(UObject* Outer)
+{
+	UKodBuildingDefinition* B = NewObject<UKodBuildingDefinition>(Outer, FName(KodWardenPaths::Id_Rig), RF_Public | RF_Transient);
+	B->DefinitionId = FName(KodWardenPaths::Id_Rig);
+	B->DisplayName = NSLOCTEXT("Kod", "Building_Rig", "Rig");
+	B->BuildingTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Building.Rig")), false);
+	B->MaxHealth = 500.f;
+	B->Cost.Credits = 75;
+	B->Cost.Luminene = 0;
+	B->Cost.Supply = 0;
+	B->Cost.BuildTime = 30 * 16;
+	B->BuildTicks = B->Cost.BuildTime;
+	B->BuildTimeSeconds = 30.f;
+	B->FootprintX = 3;
+	B->FootprintY = 3;
+	B->bExtractor = true;
+	B->SupplyProvided = 0;
+	B->bIsDropOff = false;
 	return B;
 }
 

@@ -54,7 +54,7 @@ void UKodSimSubsystem::RecalcSupplyCap(int32 TeamId)
 	for (int32 Key : Keys)
 	{
 		const FKodStructureState* Structure = Structures.Find(Key);
-		if (Structure && Structure->TeamId == TeamId)
+		if (Structure && Structure->bComplete && Structure->TeamId == TeamId)
 		{
 			Sum += FMath::Max(0, Structure->SupplyProvided);
 		}
@@ -130,10 +130,22 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 		Forward = FVector(1.f, 0.f, 0.f);
 	}
 	Forward.Normalize();
-	Structure.ExitPoint = Structure.Position + Forward * 320.f;
-	QuantizeResourcePosition(Structure.ExitPoint);
 	Structure.SupplyProvided = FMath::Max(0, Spec.SupplyProvided);
 	Structure.bIsDropOff = Spec.bIsDropOff;
+	Structure.bComplete = true;
+	Structure.DisplayId = Spec.DisplayId.IsNone() ? Spec.DefinitionId : Spec.DisplayId;
+	Structure.MaxHealth = FMath::Max(1.f, Spec.MaxHealth);
+	Structure.FootprintX = FMath::Max(1, Spec.FootprintX);
+	Structure.FootprintY = FMath::Max(1, Spec.FootprintY);
+	Structure.CellX = KodBuildGrid::CellOf(Structure.Position.X) - (Structure.FootprintX - 1) / 2;
+	Structure.CellY = KodBuildGrid::CellOf(Structure.Position.Y) - (Structure.FootprintY - 1) / 2;
+	Structure.Trains = Spec.Trains;
+	// Half the footprint plus one cell. A 5×5 CC exits at ~700 uu, outside the blocked cells.
+	const int32 HalfSpan = (FMath::Max(Structure.FootprintX, Structure.FootprintY) * KodBuildGrid::CellUU) / 2;
+	const float ExitDistance = static_cast<float>(HalfSpan + KodBuildGrid::CellUU);
+	Structure.ExitPoint = Structure.Position + Forward * ExitDistance;
+	QuantizeResourcePosition(Structure.ExitPoint);
+	Structure.StandPoint = Structure.ExitPoint;
 	if (Structure.RallyPoint.IsNearlyZero())
 	{
 		Structure.RallyPoint = Structure.ExitPoint;
@@ -145,7 +157,8 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 		Drop.Id = Id;
 		Drop.TeamId = Spec.TeamId;
 		Drop.Position = Structure.Position;
-		Drop.StandUU = FMath::Max(1, Spec.DropOffStandUU);
+		const int32 FootprintClearance = (Structure.FootprintX * KodBuildGrid::CellUU) / 2 + 120;
+		Drop.StandUU = FMath::Max(Spec.DropOffStandUU, FootprintClearance);
 		DropOffs.Add(Id.Value, Drop);
 		UE_LOG(LogTemp, Log, TEXT("KodEcon DropOff Id=%d Team=%d Loc=%.0f,%.0f,%.0f"),
 			Id.Value,
@@ -212,7 +225,12 @@ bool UKodSimSubsystem::EnqueueTrain(FKodEntityId StructureId, FName UnitId)
 {
 	FKodStructureState* Structure = Structures.Find(StructureId.Value);
 	const FKodTrainSpec* Spec = TrainSpecs.Find(UnitId);
-	if (!Structure || !Spec)
+	if (!Structure || !Spec || !Structure->bComplete)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodProd Enqueue Miss Struct=%d Unit=%s"), StructureId.Value, *UnitId.ToString());
+		return false;
+	}
+	if (Structure->Trains.Num() > 0 && !Structure->Trains.Contains(UnitId))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("KodProd Enqueue Miss Struct=%d Unit=%s"), StructureId.Value, *UnitId.ToString());
 		return false;
