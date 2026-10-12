@@ -222,11 +222,8 @@ void AKodHUD::DrawMinimap()
 
 	TArray<FKodResourceNodeState> Nodes;
 	Sim->CopyResourceNodes(Nodes);
-	TArray<FKodSimEntityState> States;
-	TArray<AActor*> Actors;
-	Sim->CopyEntitySnapshot(States, Actors);
-	TArray<FKodStructureState> Structures;
-	Sim->CopyStructures(Structures);
+	const TArray<FKodSimEntityState>& States = FrameStates;
+	const TArray<FKodStructureState>& Structures = FrameStructures;
 	for (const FKodResourceNodeState& Node : Nodes)
 	{
 		Expand(Node.Position.X, Node.Position.Y);
@@ -376,10 +373,7 @@ void AKodHUD::DrawIdleWorkerButton()
 	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
 	const int32 LocalTeam = ReadLocalTeamId();
 	int32 Idle = 0;
-	TArray<FKodSimEntityState> States;
-	TArray<AActor*> Actors;
-	Sim->CopyEntitySnapshot(States, Actors);
-	for (const FKodSimEntityState& State : States)
+	for (const FKodSimEntityState& State : FrameStates)
 	{
 		if (State.TeamId == LocalTeam
 			&& State.bCanGather
@@ -445,6 +439,7 @@ void AKodHUD::DrawControlGroupTabs()
 
 void AKodHUD::DrawPortrait()
 {
+	bHasPortrait = false;
 	if (!Canvas)
 	{
 		return;
@@ -497,10 +492,16 @@ void AKodHUD::DrawPortrait()
 		DrawText(Name, FLinearColor::White, X + 8.f * Scale, Y + PanelH - 28.f * Scale, HudFont(), 0.8f * Scale, false);
 	}
 	RememberChrome(FName(TEXT("Portrait")), 0, FName(*Name), X, Y, X + Width, Y + PanelH);
+	bHasPortrait = true;
+	PortraitMinX = X;
+	PortraitMinY = Y;
+	PortraitMaxX = X + Width;
+	PortraitMaxY = Y + PanelH;
 }
 
 void AKodHUD::DrawSelectionPanel()
 {
+	bHasSelectionPanel = false;
 	if (!Canvas)
 	{
 		return;
@@ -541,51 +542,51 @@ void AKodHUD::DrawSelectionPanel()
 		}
 		FTile Tile;
 		Tile.EntityId = Id.Value;
-		FKodStructureState Structure;
-		FKodSimEntityState State;
-		const bool bStructure = Sim->TryGetStructure(Id, Structure);
-		const bool bState = Sim->TryGetState(Id, State);
+		const FKodStructureState* Structure = FindFrameStructure(Id.Value);
+		const FKodSimEntityState* State = FindFrameState(Id.Value);
+		const bool bStructure = Structure != nullptr;
+		const bool bState = State != nullptr;
 		if (!bStructure && !bState)
 		{
 			continue;
 		}
 		Tile.bStructure = bStructure;
-		Tile.TeamId = bState ? State.TeamId : Structure.TeamId;
-		Tile.TypeId = bStructure ? Structure.DefinitionId : State.DefinitionId;
+		Tile.TeamId = bState ? State->TeamId : Structure->TeamId;
+		Tile.TypeId = bStructure ? Structure->DefinitionId : State->DefinitionId;
 		Tile.Name = PanelFacingName(Sim, bStructure
-			? (Structure.DisplayId.IsNone() ? Structure.DefinitionId : Structure.DisplayId)
-			: State.DefinitionId).ToString();
+			? (Structure->DisplayId.IsNone() ? Structure->DefinitionId : Structure->DisplayId)
+			: State->DefinitionId).ToString();
 		Tile.TypeName = Tile.Name;
 		if (bState)
 		{
-			Tile.Health = State.Health;
-			Tile.MaxHealth = FMath::Max(1.f, State.MaxHealth);
-			Tile.Order = OrderLabel(State);
-			if (State.AbilityTicksRemaining > 0)
+			Tile.Health = State->Health;
+			Tile.MaxHealth = FMath::Max(1.f, State->MaxHealth);
+			Tile.Order = OrderLabel(*State);
+			if (State->AbilityTicksRemaining > 0)
 			{
-				Tile.Stim = FString::Printf(TEXT("Stim %ds"), FMath::Max(1, State.AbilityTicksRemaining / 16));
+				Tile.Stim = FString::Printf(TEXT("Stim %ds"), FMath::Max(1, State->AbilityTicksRemaining / 16));
 			}
-			else if (Sim->UnitHasAbility(State.DefinitionId, FName(KodWardenPaths::Id_CombatStim)))
+			else if (Sim->UnitHasAbility(State->DefinitionId, FName(KodWardenPaths::Id_CombatStim)))
 			{
 				Tile.Stim = TEXT("Stim off");
 			}
 		}
 		else
 		{
-			Tile.Health = Structure.MaxHealth;
-			Tile.MaxHealth = FMath::Max(1.f, Structure.MaxHealth);
+			Tile.Health = Structure->MaxHealth;
+			Tile.MaxHealth = FMath::Max(1.f, Structure->MaxHealth);
 		}
 		if (bStructure)
 		{
-			if (!Structure.bComplete && Structure.BuildTimeTotal > 0)
+			if (!Structure->bComplete && Structure->BuildTimeTotal > 0)
 			{
-				const int32 Percent = (Structure.BuildTicksDone * 100) / Structure.BuildTimeTotal;
+				const int32 Percent = (Structure->BuildTicksDone * 100) / Structure->BuildTimeTotal;
 				Tile.Order = FString::Printf(TEXT("Build %d%%"), Percent);
 			}
-			else if (Structure.Slots.Num() > 0)
+			else if (Structure->Slots.Num() > 0)
 			{
 				FString Queue;
-				for (const FKodProductionSlot& Slot : Structure.Slots)
+				for (const FKodProductionSlot& Slot : Structure->Slots)
 				{
 					if (!Queue.IsEmpty())
 					{
@@ -626,6 +627,11 @@ void AKodHUD::DrawSelectionPanel()
 	UFont* Font = HudFont();
 	DrawRect(FLinearColor(0.03f, 0.035f, 0.04f, 0.94f), X, Y, PanelW, PanelH);
 	RememberChrome(FName(TEXT("Panel")), 0, FName(), X, Y, X + PanelW, Y + PanelH);
+	bHasSelectionPanel = true;
+	PanelMinX = X;
+	PanelMinY = Y;
+	PanelMaxX = X + PanelW;
+	PanelMaxY = Y + PanelH;
 
 	if (Tiles.Num() == 1)
 	{
@@ -672,5 +678,127 @@ void AKodHUD::DrawSelectionPanel()
 		DrawRect(FLinearColor(0.1f, 0.1f, 0.1f, 1.f), TileX, TileY + BoxH - 4.f * Scale, Box, 3.f * Scale);
 		DrawRect(Ink, TileX, TileY + BoxH - 4.f * Scale, Box * Fraction, 3.f * Scale);
 		RememberChrome(FName(TEXT("Tile")), Tile.EntityId, Tile.TypeId, TileX, TileY, TileX + Box, TileY + BoxH);
+	}
+}
+
+void AKodHUD::CacheSimSnapshot()
+{
+	FrameStates.Reset();
+	FrameActors.Reset();
+	FrameStructures.Reset();
+	const UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return;
+	}
+	Sim->CopyEntitySnapshot(FrameStates, FrameActors);
+	Sim->CopyStructures(FrameStructures);
+}
+
+const FKodSimEntityState* AKodHUD::FindFrameState(int32 EntityId) const
+{
+	int32 Low = 0;
+	int32 High = FrameStates.Num();
+	while (Low < High)
+	{
+		const int32 Mid = (Low + High) / 2;
+		const int32 Key = FrameStates[Mid].Id.Value;
+		if (Key < EntityId)
+		{
+			Low = Mid + 1;
+		}
+		else
+		{
+			High = Mid;
+		}
+	}
+	if (Low < FrameStates.Num() && FrameStates[Low].Id.Value == EntityId)
+	{
+		return &FrameStates[Low];
+	}
+	return nullptr;
+}
+
+const FKodStructureState* AKodHUD::FindFrameStructure(int32 EntityId) const
+{
+	int32 Low = 0;
+	int32 High = FrameStructures.Num();
+	while (Low < High)
+	{
+		const int32 Mid = (Low + High) / 2;
+		const int32 Key = FrameStructures[Mid].Id.Value;
+		if (Key < EntityId)
+		{
+			Low = Mid + 1;
+		}
+		else
+		{
+			High = Mid;
+		}
+	}
+	if (Low < FrameStructures.Num() && FrameStructures[Low].Id.Value == EntityId)
+	{
+		return &FrameStructures[Low];
+	}
+	return nullptr;
+}
+
+bool AKodHUD::BlocksWorldSelect(float MouseX, float MouseY) const
+{
+	if (bHasMinimap && PointIn(MouseX, MouseY, MapMinX, MapMinY, MapMaxX, MapMaxY))
+	{
+		return true;
+	}
+	if (bHasSelectionPanel && PointIn(MouseX, MouseY, PanelMinX, PanelMinY, PanelMaxX, PanelMaxY))
+	{
+		return true;
+	}
+	if (bHasPortrait && PointIn(MouseX, MouseY, PortraitMinX, PortraitMinY, PortraitMaxX, PortraitMaxY))
+	{
+		return true;
+	}
+	return false;
+}
+
+void AKodHUD::ToggleHotkeyLegend()
+{
+	bHotkeyLegend = !bHotkeyLegend;
+}
+
+void AKodHUD::DrawHotkeyLegend()
+{
+	if (!Canvas || !bHotkeyLegend)
+	{
+		return;
+	}
+	const float Scale = FMath::Max(0.5f, Canvas->SizeY / 1080.f);
+	const TCHAR* Lines[] = {
+		TEXT("LMB  Select    Shift+LMB  Add    Drag  Box"),
+		TEXT("RMB  Move / Attack / Gather"),
+		TEXT("Minimap LMB  Camera    RMB  Move or Attack-move"),
+		TEXT("B  Build    D Depot    R Barracks    E Rig"),
+		TEXT("S  Train    T Stim    Backspace  Cancel"),
+		TEXT("Tab  Command subgroup"),
+		TEXT("F1  Next idle AMP"),
+		TEXT("1-0  Select group    Double-tap  Centre"),
+		TEXT("Ctrl+1-0  Set    Shift+1-0  Add"),
+		TEXT("F5-F8  Recall    Ctrl+F5-F8  Save    Space  Alert"),
+		TEXT("Arrows / edge / MMB  Pan    Wheel  Zoom"),
+		TEXT("F12 or ?  Hide this list")
+	};
+	constexpr int32 LineCount = 12;
+	UFont* Font = HudFont();
+	const float Width = 560.f * Scale;
+	const float LineH = 22.f * Scale;
+	const float Height = 36.f * Scale + LineCount * LineH;
+	const float X = (Canvas->SizeX - Width) * 0.5f;
+	const float Y = (Canvas->SizeY - Height) * 0.5f;
+	DrawRect(FLinearColor(0.02f, 0.03f, 0.04f, 0.94f), X, Y, Width, Height);
+	DrawRect(FLinearColor(0.75f, 0.62f, 0.28f, 1.f), X, Y, Width, 3.f * Scale);
+	DrawText(TEXT("Hotkeys"), FLinearColor(0.95f, 0.86f, 0.45f, 1.f), X + 16.f * Scale, Y + 10.f * Scale, Font, Scale, false);
+	for (int32 Index = 0; Index < LineCount; ++Index)
+	{
+		DrawText(Lines[Index], FLinearColor::White, X + 16.f * Scale, Y + 36.f * Scale + Index * LineH, Font, 0.85f * Scale, false);
 	}
 }
