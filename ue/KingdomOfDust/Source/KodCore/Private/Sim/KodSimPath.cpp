@@ -39,7 +39,7 @@ bool UKodSimSubsystem::IsPathCellClear(int32 X0, int32 Y0, int32 X1, int32 Y1, i
 			Err += DX;
 			Y += StepY;
 		}
-		if ((X != X1 || Y != Y1) && IsCellBlocked(X, Y, TeamId))
+		if ((X != X1 || Y != Y1) && IsCellBlocked(X, Y, TeamId, true))
 		{
 			return false;
 		}
@@ -62,7 +62,7 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To, int32 TeamId)
 		return 0;
 	}
 
-	if (IsCellBlocked(StartX, StartY, TeamId))
+	if (IsCellBlocked(StartX, StartY, TeamId, true))
 	{
 		bool bFound = false;
 		for (int32 Radius = 1; Radius <= 3 && !bFound; ++Radius)
@@ -71,7 +71,7 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To, int32 TeamId)
 			{
 				for (int32 Y = StartY - Radius; Y <= StartY + Radius; ++Y)
 				{
-					if (!IsCellBlocked(X, Y, TeamId))
+					if (!IsCellBlocked(X, Y, TeamId, true))
 					{
 						StartX = X;
 						StartY = Y;
@@ -82,7 +82,7 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To, int32 TeamId)
 			}
 		}
 	}
-	if (IsCellBlocked(GoalX, GoalY, TeamId))
+	if (IsCellBlocked(GoalX, GoalY, TeamId, true))
 	{
 		bool bFound = false;
 		int32 Best = MAX_int32;
@@ -94,7 +94,7 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To, int32 TeamId)
 			{
 				for (int32 Y = GoalY - Radius; Y <= GoalY + Radius; ++Y)
 				{
-					if (IsCellBlocked(X, Y, TeamId))
+					if (IsCellBlocked(X, Y, TeamId, true))
 					{
 						continue;
 					}
@@ -230,13 +230,13 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To, int32 TeamId)
 			const int32 NextX = Here.X + Neighbors[NeighborIndex][0];
 			const int32 NextY = Here.Y + Neighbors[NeighborIndex][1];
 			const int32 StepCost = Neighbors[NeighborIndex][2];
-			if (IsCellBlocked(NextX, NextY, TeamId))
+			if (IsCellBlocked(NextX, NextY, TeamId, true))
 			{
 				continue;
 			}
 			if (StepCost == 14
-				&& (IsCellBlocked(Here.X + Neighbors[NeighborIndex][0], Here.Y, TeamId)
-					|| IsCellBlocked(Here.X, Here.Y + Neighbors[NeighborIndex][1], TeamId)))
+				&& (IsCellBlocked(Here.X + Neighbors[NeighborIndex][0], Here.Y, TeamId, true)
+					|| IsCellBlocked(Here.X, Here.Y + Neighbors[NeighborIndex][1], TeamId, true)))
 			{
 				continue;
 			}

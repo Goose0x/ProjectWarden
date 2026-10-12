@@ -1014,7 +1014,7 @@ int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FV
 		{
 			const int32 CellX = KodBuildGrid::CellOf(Spot.X);
 			const int32 CellY = KodBuildGrid::CellOf(Spot.Y);
-			if (!Sim->IsCellBlocked(CellX, CellY) && !CellHoldsResourceNode(Sim, CellX, CellY))
+			if (!Sim->IsCellBlocked(CellX, CellY, -1, true) && !CellHoldsResourceNode(Sim, CellX, CellY))
 			{
 				break;
 			}

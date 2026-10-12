@@ -604,8 +604,12 @@ public:
 	bool AreResourcePointsInset(int32 InsetCells) const;
 	void BindStructureActor(FKodEntityId Id, AActor* Actor);
 	void ConsumePendingBuildingSpawns(TArray<FKodPendingBuildingSpawn>& OutSpawns);
-	/** TeamId < 0 blocks every footprint, including a lowered depot. The owner walks their own lowered depot. */
-	bool IsCellBlocked(int32 CellX, int32 CellY, int32 TeamId = -1) const;
+	/**
+	 * A structure footprint blocks the cell.
+	 * bIgnoreLowered is for movement only: a lowered depot stays walkable.
+	 * Placement leaves the flag false, so the same footprint stays occupied.
+	 */
+	bool IsCellBlocked(int32 CellX, int32 CellY, int32 TeamId = -1, bool bIgnoreLowered = false) const;
 
 	/** Default 50. L_Slice0 overwrites this from AKodSlice0GameMode at StartPlay. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Economy")

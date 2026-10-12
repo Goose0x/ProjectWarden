@@ -253,7 +253,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 		if (State->bMobile
 			&& State->Order == EKodSimOrderType::None
 			&& State->GatherPhase == EKodGatherPhase::None
-			&& IsCellBlocked(KodBuildGrid::CellOf(State->Position.X), KodBuildGrid::CellOf(State->Position.Y), State->TeamId))
+			&& IsCellBlocked(KodBuildGrid::CellOf(State->Position.X), KodBuildGrid::CellOf(State->Position.Y), State->TeamId, true))
 		{
 			SnapOutOfFootprint(*State);
 			QuantizePose(*State);
