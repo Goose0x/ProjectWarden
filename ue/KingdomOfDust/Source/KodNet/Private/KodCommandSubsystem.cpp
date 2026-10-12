@@ -215,7 +215,14 @@ void UKodCommandSubsystem::ExecuteCancelTrain(const FKodCommand& Command)
 	}
 	for (const FKodEntityId& Id : Command.SourceEntities)
 	{
-		Sim->CancelLastTrain(Id);
+		if (Command.PayloadIndex >= 0)
+		{
+			Sim->CancelTrainAt(Id, Command.PayloadIndex);
+		}
+		else
+		{
+			Sim->CancelLastTrain(Id);
+		}
 	}
 }
 

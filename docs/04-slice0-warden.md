@@ -361,7 +361,7 @@ Definitions (bootstrap `NewObject` when the uasset is missing — do not commit 
 1. Actors tagged `KodResourceJadeite` or `KodResourceLuminene` are registered as-is (`KodResourceOil` still counts as a vent). Jadeite wins if both tags are on one actor. Log uses `Source=Tagged`.
 2. If **no** actor has either tag, a default field is spawned. Anchor is the first `PROXY_CC` label (name sort), else the first `PlayerStart`, else `SmokeRangerOffset`. Six Jadeite clusters sit on a tight arc facing that anchor, on the side away from the Marine spawns. Neighbour spacing is **120 cm**. The Luminene vent sits **52°** past the end of that arc and at least **400 cm** from the nearest crystal. Floor Z is a downward trace that ignores sim actors.
 
-`PROXY_CC` is then registered as team 0's drop-off and as the production structure (supply provided **15**). After the greybox mute, its collision is set back to QueryOnly Pawn so it can be selected. It is still not attackable. Other `PROXY_*` props stay NoCollision. If the map has no team-0 Dozer, three workers spawn on a short arc just outside the CC footprint (half the footprint plus one 200 uu cell, about **700 uu** on a 5×5, stepped farther if that cell is still blocked). The drop-off stand is at least half the footprint plus 120 uu, so a worker can deposit without entering the blocked cells. The sheet start is 12 AMPs; Slice 0 reads `KodEconomyDefaults::WorkerSpawnCount` (**3**).
+`PROXY_CC` is then registered as team 0's drop-off and as the production structure (supply provided **15**). After the greybox mute, its collision is set back to QueryOnly Pawn so it can be selected. It is still not attackable. Other `PROXY_*` props stay NoCollision. If the map has no team-0 Dozer, three workers spawn on a short arc just outside the CC footprint (half the footprint plus one 200 uu cell, about **700 uu** on a 5×5, stepped farther if that cell is still blocked). The drop-off stand is at least the footprint's half-diagonal plus 120 uu, so a worker arriving at a corner can deposit without waiting out the stall timer. The sheet start is 12 AMPs; Slice 0 reads `KodEconomyDefaults::WorkerSpawnCount` (**3**).
 
 With both Marines spawning, the first Jadeite node is still id **3** and the vent is id **9**. The drop-off is the next id. The three Dozers follow that.
 
@@ -514,6 +514,10 @@ KodBuild Invalid Reason=Blocked
 ```
 
 Placeholder Rig: 75 Credits, 30 s, 3×3, HP 500, greybox until a static mesh is set on the DataAsset. Depot uses `SM_storage`. Barracks uses `SM_barracks_1`.
+
+## M3 — canvas command card
+
+`AKodHUD::DrawHUD` paints a placeholder SC2 command card in the bottom right: a 5×3 button grid. A selected Command Center shows **AMP** (hotkey S). A selected Barracks shows **Marine** (hotkey S). A selected AMP shows **Build** (B), then **Depot** (D), **Barracks** (R), and **Rig** (E). Buttons are left-clickable and use the same command path as the keys. A button is grey when the sim bank cannot pay, or when supply used plus the unit's supply would pass the cap, and the tooltip lists the definition's Credits, Luminene, supply, and build time. The five queue slots sit under the card. The first slot has a progress bar. Clicking a filled slot cancels that slot and refunds it. The bottom centre lists the selection counts by display name. A failed pay or supply check flashes `Not enough Credits`, `Not enough Luminene`, or `Not enough supply` in the centre. AMP and Marine costs stay on the unit definitions (50 Credits / 1 supply / 12 s, and 75 Credits / 1 supply / 80 ticks).
 
 ## Camera — SC2 player view
 

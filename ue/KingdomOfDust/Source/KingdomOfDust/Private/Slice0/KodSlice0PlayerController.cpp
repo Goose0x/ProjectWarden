@@ -1,6 +1,7 @@
 #include "Slice0/KodSlice0PlayerController.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
+#include "Game/KodHUD.h"
 #include "Game/KodRTSCameraPawn.h"
 #include "Game/KodSpectatorPawn.h"
 #include "Data/KodBuildingDefinition.h"
@@ -171,17 +172,22 @@ void AKodSlice0PlayerController::PlayerTick(float DeltaTime)
 	}
 	if (bBuildMenu && HasSelectedWorker())
 	{
+		FName HotkeyPlace = NAME_None;
 		if (WasInputKeyJustPressed(EKeys::D))
 		{
-			PlaceType = FName(KodWardenPaths::Id_SupplyDepot);
+			HotkeyPlace = FName(KodWardenPaths::Id_SupplyDepot);
 		}
 		else if (WasInputKeyJustPressed(EKeys::R))
 		{
-			PlaceType = FName(KodWardenPaths::Id_Barracks);
+			HotkeyPlace = FName(KodWardenPaths::Id_Barracks);
 		}
 		else if (WasInputKeyJustPressed(EKeys::E))
 		{
-			PlaceType = FName(KodWardenPaths::Id_Rig);
+			HotkeyPlace = FName(KodWardenPaths::Id_Rig);
+		}
+		if (!HotkeyPlace.IsNone())
+		{
+			TryBeginPlace(HotkeyPlace);
 		}
 	}
 	else if (!bBuildMenu)
@@ -328,6 +334,10 @@ void AKodSlice0PlayerController::EnqueueTrainOnSelectedStructures()
 		FName TrainId;
 		if (Sim->IsStructure(Id) && Sim->TryGetPrimaryTrain(Id, TrainId))
 		{
+			if (!AllowTrain(TrainId))
+			{
+				continue;
+			}
 			FKodCommand One = Cmd;
 			One.PayloadName = TrainId;
 			One.SourceEntities.Add(Id);
@@ -565,5 +575,144 @@ bool AKodSlice0PlayerController::CancelSelectedConstruction()
 		return false;
 	}
 	Commands->Enqueue(Cmd);
+	return true;
+}
+
+bool AKodSlice0PlayerController::IsWorkerBuildMenuOpen() const
+{
+	return bBuildMenu || !PlaceType.IsNone();
+}
+
+bool AKodSlice0PlayerController::AllowTrain(FName UnitId)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	AKodHUD* HUD = Cast<AKodHUD>(GetHUD());
+	if (!Sim || !HUD)
+	{
+		return true;
+	}
+	FKodTrainSpec Spec;
+	if (!Sim->TryGetTrainSpec(UnitId, Spec))
+	{
+		return true;
+	}
+	const FName Fail = HUD->PeekResourceFail(Spec.Cost.Credits, Spec.Cost.Luminene, Spec.Cost.Supply);
+	if (!Fail.IsNone())
+	{
+		HUD->ShowResourceFlash(Fail);
+		return false;
+	}
+	return true;
+}
+
+void AKodSlice0PlayerController::TryBeginPlace(FName TypeId)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	AKodHUD* HUD = Cast<AKodHUD>(GetHUD());
+	if (Sim && HUD)
+	{
+		FKodBuildSpec Spec;
+		if (Sim->TryGetBuildSpec(TypeId, Spec))
+		{
+			const FName Fail = HUD->PeekResourceFail(Spec.Cost.Credits, Spec.Cost.Luminene, 0);
+			if (!Fail.IsNone())
+			{
+				HUD->ShowResourceFlash(Fail);
+				return;
+			}
+		}
+	}
+	PlaceType = TypeId;
+	bBuildMenu = true;
+}
+
+void AKodSlice0PlayerController::IssueTrain(FName UnitId, int32 StructureId)
+{
+	if (!AllowTrain(UnitId))
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	if (!Commands || StructureId <= 0)
+	{
+		return;
+	}
+	FKodCommand Cmd;
+	Cmd.Type = EKodCommandType::Train;
+	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	Cmd.PayloadName = UnitId;
+	FKodEntityId Id;
+	Id.Value = StructureId;
+	Cmd.SourceEntities.Add(Id);
+	Commands->Enqueue(Cmd);
+}
+
+void AKodSlice0PlayerController::IssueCancelSlot(int32 StructureId, int32 SlotIndex)
+{
+	UWorld* World = GetWorld();
+	UKodCommandSubsystem* Commands = World ? World->GetSubsystem<UKodCommandSubsystem>() : nullptr;
+	if (!Commands || StructureId <= 0 || SlotIndex < 0)
+	{
+		return;
+	}
+	FKodCommand Cmd;
+	Cmd.Type = EKodCommandType::CancelTrain;
+	Cmd.IssuerPlayerId = GetLocalPlayer() ? GetLocalPlayer()->GetControllerId() : 0;
+	Cmd.PayloadIndex = SlotIndex;
+	FKodEntityId Id;
+	Id.Value = StructureId;
+	Cmd.SourceEntities.Add(Id);
+	Commands->Enqueue(Cmd);
+}
+
+bool AKodSlice0PlayerController::ConsumeHudCommandClick()
+{
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY))
+	{
+		return false;
+	}
+	AKodHUD* HUD = Cast<AKodHUD>(GetHUD());
+	if (!HUD)
+	{
+		return false;
+	}
+	FKodHudCommandHit Hit;
+	if (!HUD->GetCommandHit(MouseX, MouseY, Hit) || !Hit.bInsideChrome)
+	{
+		return false;
+	}
+	if (Hit.Action.IsNone())
+	{
+		return true;
+	}
+	if (!Hit.bEnabled)
+	{
+		if (Hit.FailReason == TEXT("Credits") || Hit.FailReason == TEXT("Luminene") || Hit.FailReason == TEXT("Supply"))
+		{
+			HUD->ShowResourceFlash(Hit.FailReason);
+		}
+		return true;
+	}
+	if (Hit.Action == TEXT("Train"))
+	{
+		IssueTrain(Hit.Payload, Hit.StructureId);
+	}
+	else if (Hit.Action == TEXT("BuildMenu"))
+	{
+		bBuildMenu = true;
+	}
+	else if (Hit.Action == TEXT("Place"))
+	{
+		TryBeginPlace(Hit.Payload);
+	}
+	else if (Hit.Action == TEXT("CancelSlot"))
+	{
+		IssueCancelSlot(Hit.StructureId, Hit.SlotIndex);
+	}
 	return true;
 }

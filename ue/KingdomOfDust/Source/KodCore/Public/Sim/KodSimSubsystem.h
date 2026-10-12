@@ -332,6 +332,9 @@ public:
 	bool TryGetStructure(FKodEntityId Id, FKodStructureState& OutState) const;
 	bool EnqueueTrain(FKodEntityId StructureId, FName UnitId);
 	bool CancelLastTrain(FKodEntityId StructureId);
+	bool CancelTrainAt(FKodEntityId StructureId, int32 SlotIndex);
+	bool TryGetTrainSpec(FName UnitId, FKodTrainSpec& OutSpec) const;
+	bool TryGetBuildSpec(FName TypeId, FKodBuildSpec& OutSpec) const;
 	void SetStructureRally(FKodEntityId StructureId, FVector GroundPoint, FKodEntityId NodeId);
 	void ConsumePendingSpawns(TArray<FKodPendingUnitSpawn>& OutSpawns);
 	/** Presentation hook. Does not start the next slot or change supply. */

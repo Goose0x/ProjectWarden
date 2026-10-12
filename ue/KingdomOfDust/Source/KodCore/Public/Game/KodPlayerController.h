@@ -107,6 +107,9 @@ public:
 	/** Canvas hint while the build menu or ghost is up. Empty when closed. */
 	virtual FString GetBuildMenuHint() const { return FString(); }
 
+	/** True after B, until the ghost is cancelled. */
+	virtual bool IsWorkerBuildMenuOpen() const { return false; }
+
 protected:
 	void HandleSelectStarted();
 	void HandleSelectCompleted();
@@ -114,6 +117,9 @@ protected:
 	void HandleCommandAttack();
 	/** RMB: Attack a foreign sim entity, Gather when a worker hits a node, otherwise Move. */
 	virtual void HandleRightClickCommand();
+
+	/** True when the command card consumed the click. */
+	virtual bool ConsumeHudCommandClick() { return false; }
 
 	/** True when a build ghost consumed the click. */
 	virtual bool ConsumePlacementLeftClick() { return false; }
