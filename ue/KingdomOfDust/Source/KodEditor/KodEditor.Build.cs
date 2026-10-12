@@ -22,7 +22,8 @@ public class KodEditor : ModuleRules
 			"UnrealEd",
 			"AssetTools",
 			"EditorSubsystem",
-			"DataValidation"
+			"DataValidation",
+			"Landscape"
 		});
 	}
 }
