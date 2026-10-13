@@ -11,7 +11,6 @@
 |----|-------|-----------|
 | `RangerRifle` | `UKodWeaponDefinition` | `/Game/Warden/Data/RangerRifle.RangerRifle` |
 | `Marine` | `UKodUnitDefinition` | `/Game/Warden/Data/Marine.Marine` |
-| `Ranger` | `UKodUnitDefinition` | reserved heavy stub. No DataAsset until the PackageRedirect below is removed |
 | `Dozer` | `UKodUnitDefinition` | `/Game/Warden/Data/Dozer.Dozer` |
 | `CommandCenter` | `UKodBuildingDefinition` | `/Game/Warden/Data/CommandCenter.CommandCenter` |
 | `Barracks` | `UKodBuildingDefinition` | `/Game/Warden/Data/Barracks.Barracks` |
@@ -25,9 +24,9 @@ Constants: `KodWardenPaths.h`. Catalog JSON: `Content/Warden/Data/WardenSlice0Ca
 
 The USA basic infantry **engine id is Marine** (`DefinitionId`, `/Game/Warden/Data/Marine`, gameplay tag `Kod.Unit.Marine`). DisplayName is Marine. `RangerRifle` stays the weapon id. `SM_Ranger_Body` stays the current body mesh. `Dozer` stays the AMP worker engine id; its DisplayName is AMP.
 
-`Ranger` is reserved for a Vanguard heavy stub (no mesh, not trainable) until Strategy authors its stats. Sim blob version 11 writes `Marine`. Loads of version 10 and earlier alias a unit id `Ranger` to `Marine`. `DefaultEngine.ini` PackageRedirects `/Game/Warden/Data/Ranger` to `/Game/Warden/Data/Marine`. Remove that redirect before saving a heavy DataAsset at the old path.
+Ranger is Marine. There is no separate Ranger unit. Sim blob version 11 writes `Marine`. Loads of version 10 and earlier alias a unit id `Ranger` to `Marine`. `DefaultEngine.ini` permanently redirects `/Game/Warden/Data/Ranger` to `/Game/Warden/Data/Marine`.
 
-NAOMI, on the local content (do not commit the uassets): rename `/Game/Warden/Data/Ranger` to `/Game/Warden/Data/Marine`, set that asset's `DefinitionId` to `Marine` and its tag to `Kod.Unit.Marine`, point Barracks `TrainableUnits` at Marine, and rename a `DT_KodUnitStats` row `Ranger` to `Marine` if that table exists. Do not rename `SM_Ranger_Body` or the `Characters/USA/Ranger` folder. Do not create `/Game/Warden/Data/Ranger` for the heavy yet.
+NAOMI, on the local content (do not commit the uassets): rename `/Game/Warden/Data/Ranger` to `/Game/Warden/Data/Marine`, set that asset's `DefinitionId` to `Marine` and its tag to `Kod.Unit.Marine`, point Barracks `TrainableUnits` at Marine, and rename a `DT_KodUnitStats` row `Ranger` to `Marine` if that table exists. Do not rename `SM_Ranger_Body` or the `Characters/USA/Ranger` folder.
 
 ## BuildTicks formula
 
@@ -61,7 +60,7 @@ Helper: `KodBuildTicks::SecondsToBuildTicks` / `BuildTicksToSeconds` / `ResolveB
 
 ## Marine body mesh (presentation)
 
-The current Marine body is still `SM_Ranger_Body`. Set it on `/Game/Warden/Data/Marine.Marine` after the rename. Do not assign it to the reserved Ranger heavy. The mesh is not a new Primary Asset id. `AKodUnit` reads it off `UKodUnitDefinition` and draws it on the existing static mesh child `UnitMesh`.
+The current Marine body is still `SM_Ranger_Body`. Set it on `/Game/Warden/Data/Marine.Marine` after the rename. The mesh is not a new Primary Asset id. `AKodUnit` reads it off `UKodUnitDefinition` and draws it on the existing static mesh child `UnitMesh`.
 
 Constants: `KodWardenPaths::RangerCharacterRoot`, `KodWardenPaths::RangerBodyStaticMesh`.
 
@@ -72,7 +71,7 @@ Constants: `KodWardenPaths::RangerCharacterRoot`, `KodWardenPaths::RangerBodySta
 | Skeletal mesh | Assign when the Marine skeletal asset exists. Empty keeps the static mesh, then the cube. |
 | Rejected folder | `/Game/Units/Meshes/` |
 
-`UKodSlice0Bootstrap::MakeMarine` leaves `SkeletalMesh` and `StaticMesh` null. `MakeRanger` is the heavy stub and also leaves both empty. PIE with only the catalog still shows `/Engine/BasicShapes/Cube` at scale `0.8×0.8×1.7`. A set soft path that fails to load does the same. PIE log: `KodUnitBody <name> Source=Cube` or `Source=StaticMesh`.
+`UKodSlice0Bootstrap::MakeMarine` leaves `SkeletalMesh` and `StaticMesh` null. PIE with only the catalog still shows `/Engine/BasicShapes/Cube` at scale `0.8×0.8×1.7`. A set soft path that fails to load does the same. PIE log: `KodUnitBody <name> Source=Cube` or `Source=StaticMesh`.
 
 ### Editor import (local only — no binaries in git)
 

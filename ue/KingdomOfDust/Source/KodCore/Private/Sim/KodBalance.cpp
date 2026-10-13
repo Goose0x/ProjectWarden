@@ -208,7 +208,6 @@ void UKodSimSubsystem::EnsureBalanceTables()
 	Marine.Infantry = 1;
 	Marine.CargoSize = 1;
 	// Row name is the engine id. This table is the DT_KodUnitStats stand-in (object name "Unit").
-	// The reserved Ranger heavy has no row until Strategy authors its stats.
 	AddUnit(KodWardenPaths::Id_Marine, Marine);
 
 	FKodUnitBalanceRow Medic;

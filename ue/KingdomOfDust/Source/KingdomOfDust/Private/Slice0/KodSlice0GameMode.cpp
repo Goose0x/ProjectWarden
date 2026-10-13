@@ -451,7 +451,6 @@ void AKodSlice0GameMode::StartPlay()
 	// Touch Resolve so soft-path miss path is exercised in logs / debugger.
 	UKodSlice0Bootstrap::ResolveWeapon(FName(KodWardenPaths::Id_RangerRifle), this);
 	UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Marine), this);
-	UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Ranger), this);
 	if (UWorld* World = GetWorld())
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())

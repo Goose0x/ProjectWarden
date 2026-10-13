@@ -14,9 +14,9 @@ class UWorld;
 
 /**
  * Runtime authoring bridge until cooked .uassets exist under /Game/Warden/Data/.
- * NewObject with exact FNames: RangerRifle, Marine, Ranger, Dozer, CommandCenter, Barracks, USA,
+ * NewObject with exact FNames: RangerRifle, Marine, Dozer, CommandCenter, Barracks, USA,
  * plus JadeiteNode and LumineneVent. OilSource remains a catalog alias of the vent.
- * Ranger is the reserved heavy stub. Marine is the infantry. Dozer stays the AMP engine id.
+ * Marine is the infantry. Ranger is that same unit's legacy id. Dozer stays the AMP engine id.
  * PIE: prefer SoftObjectPath load; on failure use catalog entries from EnsureCatalog.
  */
 UCLASS()
@@ -67,7 +67,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
 	static class AKodUnit* SpawnMarine(UWorld* World, const FTransform& Transform, int32 TeamId = 0, bool bForceCubeBody = false);
 
-	/** Legacy Blueprint name. Spawns a Marine, not the reserved Ranger heavy. */
+	/** Legacy Blueprint name. Spawns a Marine. Ranger is Marine. */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
 	static class AKodUnit* SpawnRanger(UWorld* World, const FTransform& Transform, int32 TeamId = 0, bool bForceCubeBody = false);
 
@@ -82,8 +82,6 @@ protected:
 	static UKodDataCatalog* BuildCatalog(UObject* Outer);
 	static UKodWeaponDefinition* MakeRangerRifle(UObject* Outer);
 	static UKodUnitDefinition* MakeMarine(UObject* Outer, UKodWeaponDefinition* Rifle);
-	/** Reserved heavy. No mesh, no weapon, not added to the Barracks train list. */
-	static UKodUnitDefinition* MakeRanger(UObject* Outer);
 	static UKodUnitDefinition* MakeScinderInfantry(UObject* Outer, UKodWeaponDefinition* Rifle);
 	static UKodUnitDefinition* MakeScnFighter(UObject* Outer);
 	static UKodUnitDefinition* MakeScnTwinblade(UObject* Outer);

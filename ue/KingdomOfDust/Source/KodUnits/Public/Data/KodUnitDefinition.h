@@ -28,7 +28,7 @@ enum class EKodDeathStyle : uint8
  * Primary data asset for a unit archetype.
  * Runtime MUST load MaxHealth / MoveSpeed / BuildTicks from this DA —
  * UPROPERTY defaults are editor-only conveniences, never match-state truth.
- * Slice 0 id law: Marine, Dozer, and the reserved Ranger heavy under /Game/Warden/Data/.
+ * Slice 0 id law: Marine and Dozer under /Game/Warden/Data/. Ranger is the legacy id for Marine.
  * Dozer is the AMP worker engine id. DisplayName is AMP.
  */
 UCLASS(BlueprintType)

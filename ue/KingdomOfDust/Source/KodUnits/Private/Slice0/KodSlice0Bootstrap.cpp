@@ -63,7 +63,6 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	UKodDataCatalog* Catalog = NewObject<UKodDataCatalog>(CatalogOuter, TEXT("KodSlice0Catalog"), RF_Transient);
 	UKodWeaponDefinition* Rifle = MakeRangerRifle(Catalog);
 	UKodUnitDefinition* Marine = MakeMarine(Catalog, Rifle);
-	UKodUnitDefinition* RangerHeavy = MakeRanger(Catalog);
 	UKodUnitDefinition* ScinderInfantry = MakeScinderInfantry(Catalog, Rifle);
 	UKodUnitDefinition* ScnFighter = MakeScnFighter(Catalog);
 	UKodUnitDefinition* ScnTwinblade = MakeScnTwinblade(Catalog);
@@ -114,7 +113,6 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 		Catalog->RegisterAsset(FName(KodWardenPaths::Id_CombatStim), MakeCombatStim(Catalog));
 	}
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Marine), Marine);
-	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Ranger), RangerHeavy);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScinderInfantry), ScinderInfantry);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScnFighter), ScnFighter);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScnTwinblade), ScnTwinblade);
@@ -145,36 +143,34 @@ UObject* UKodSlice0Bootstrap::ResolveDefinition(FName DefinitionId, UObject* Out
 	{
 		return nullptr;
 	}
-	const FName MarineId(KodWardenPaths::Id_Marine);
-	const FName HeavyId(KodWardenPaths::Id_Ranger);
-	// Ranger is the reserved heavy. /Game/Warden/Data/Ranger is still the Marine
-	// DataAsset until NAOMI renames it, and CoreRedirects send that package to Marine.
-	// The heavy is the catalog stub only, so a load cannot turn it back into the infantry.
-	if (DefinitionId != HeavyId)
+	if (DefinitionId == FName(KodWardenPaths::Id_Ranger))
 	{
-		if (UObject* Loaded = TryLoadWardenAsset(DefinitionId))
+		DefinitionId = FName(KodWardenPaths::Id_Marine);
+	}
+	const FName MarineId(KodWardenPaths::Id_Marine);
+	const FName LegacyId(KodWardenPaths::Id_Ranger);
+	if (UObject* Loaded = TryLoadWardenAsset(DefinitionId))
+	{
+		if (UKodUnitDefinition* LoadedUnit = Cast<UKodUnitDefinition>(Loaded))
 		{
-			if (UKodUnitDefinition* LoadedUnit = Cast<UKodUnitDefinition>(Loaded))
+			if (DefinitionId == MarineId && (LoadedUnit->DefinitionId.IsNone() || LoadedUnit->DefinitionId == LegacyId))
 			{
-				if (DefinitionId == MarineId && (LoadedUnit->DefinitionId.IsNone() || LoadedUnit->DefinitionId == HeavyId))
+				const FName CopyName(TEXT("MarineFromLegacyRanger"));
+				if (UKodUnitDefinition* ExistingCopy = FindObject<UKodUnitDefinition>(GetTransientPackage(), *CopyName.ToString()))
 				{
-					const FName CopyName(TEXT("MarineFromLegacyRanger"));
-					if (UKodUnitDefinition* ExistingCopy = FindObject<UKodUnitDefinition>(GetTransientPackage(), *CopyName.ToString()))
-					{
-						return ExistingCopy;
-					}
-					UKodUnitDefinition* Copy = DuplicateObject<UKodUnitDefinition>(LoadedUnit, GetTransientPackage(), CopyName);
-					if (Copy)
-					{
-						Copy->DefinitionId = MarineId;
-						Copy->UnitTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Unit.Marine")), false);
-						Copy->SetFlags(RF_Transient);
-						return Copy;
-					}
+					return ExistingCopy;
+				}
+				UKodUnitDefinition* Copy = DuplicateObject<UKodUnitDefinition>(LoadedUnit, GetTransientPackage(), CopyName);
+				if (Copy)
+				{
+					Copy->DefinitionId = MarineId;
+					Copy->UnitTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Unit.Marine")), false);
+					Copy->SetFlags(RF_Transient);
+					return Copy;
 				}
 			}
-			return Loaded;
 		}
+		return Loaded;
 	}
 	UKodDataCatalog* Catalog = EnsureCatalog(Outer);
 	return Catalog ? Catalog->FindAsset(DefinitionId) : nullptr;
@@ -324,30 +320,6 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeMarine(UObject* Outer, UKodWeaponDe
 	{
 		U->Abilities.Add(Stim->ToSpec());
 	}
-	return U;
-}
-
-UKodUnitDefinition* UKodSlice0Bootstrap::MakeRanger(UObject* Outer)
-{
-	UKodUnitDefinition* U = NewObject<UKodUnitDefinition>(Outer, FName(KodWardenPaths::Id_Ranger), RF_Public | RF_Transient);
-	U->DefinitionId = FName(KodWardenPaths::Id_Ranger);
-	U->DisplayName = NSLOCTEXT("Kod", "Unit_RangerHeavy", "Ranger");
-	U->UnitTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Unit.Ranger")), false);
-	// Reserved Vanguard heavy. The rebake v2 body is not assigned yet.
-	// No weapon, no train cost, and not on the Barracks list until Strategy authors stats.
-	U->MaxHealth = 1.f;
-	U->Armor = 0.f;
-	U->MoveSpeed = 0.f;
-	U->SightRadius = 0.f;
-	U->Cost.Credits = 0;
-	U->Cost.Luminene = 0;
-	U->Cost.Supply = 0;
-	U->Cost.BuildTime = 0;
-	U->BuildTicks = 0;
-	U->BuildTimeSeconds = 0.f;
-	U->PrimaryWeapon.Reset();
-	U->SkeletalMesh.Reset();
-	U->StaticMesh.Reset();
 	return U;
 }
 

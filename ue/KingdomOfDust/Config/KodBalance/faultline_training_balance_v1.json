@@ -11,7 +11,7 @@
       "percent": "whole numbers"
     },
     "core_sheet": "SOURCE/PLACEHOLDER_INTEGERS_CORE_LOOP_2026-10-11",
-    "id_note": "Core sheet uses SCI_ for Scinder; this file uses SCN_ as requested; core_row cites the SCI_ row. Engine ids: VAN_MARINE is Marine, VAN_AMP is Dozer (DisplayName AMP). Ranger is reserved for the Vanguard heavy and is not a row here until Strategy authors its stats.",
+    "id_note": "Core sheet uses SCI_ for Scinder; this file uses SCN_ as requested; core_row cites the SCI_ row. Engine ids: VAN_MARINE is Marine, VAN_AMP is Dozer (DisplayName AMP). Ranger is Marine.",
     "matchup": "Vanguard vs Scinder (AI)",
     "start": {
       "credits": 50,
