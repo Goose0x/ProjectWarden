@@ -116,6 +116,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
 	int32 EnergyMax = 0;
 
+	/** Spawn shield. 0 hides the wireframe rim. Presentation only, not combat. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
+	int32 ShieldMax = 0;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Tech")
 	int32 EnergyStart = 0;
 

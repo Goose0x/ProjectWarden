@@ -763,6 +763,8 @@ void AKodHUD::DrawSelectionPanel()
 		bool bStructure = false;
 		int32 Energy = 0;
 		int32 EnergyMax = 0;
+		int32 Shield = 0;
+		int32 ShieldMax = 0;
 		TArray<int32> Cargo;
 	};
 
@@ -845,6 +847,8 @@ void AKodHUD::DrawSelectionPanel()
 			}
 			Tile.Energy = State->Energy;
 			Tile.EnergyMax = State->EnergyMax;
+			Tile.Shield = State->Shield;
+			Tile.ShieldMax = State->ShieldMax;
 		}
 		else
 		{
@@ -975,7 +979,7 @@ void AKodHUD::DrawSelectionPanel()
 		const float* HitUntil = WireHitUntil.Find(Tile.EntityId);
 		const bool bFlash = HitUntil && *HitUntil > Now;
 		DrawRect(Tok(0x1F, 0x23, 0x27, 0.92f), Wire.X, Wire.Y, Wire.W, Wire.H);
-		DrawWireSilhouette(Silhouette.X, Silhouette.Y, Silhouette.W, Silhouette.H, Tile.TypeId, ShownHP, MaxHP, Tile.bStructure, bFlash, KodWireTint::ESlot::Info160, nullptr);
+		DrawWireSilhouette(Silhouette.X, Silhouette.Y, Silhouette.W, Silhouette.H, Tile.TypeId, ShownHP, MaxHP, Tile.bStructure, bFlash, KodWireTint::ESlot::Info160, Tile.Shield, Tile.ShieldMax, nullptr);
 		DrawRect(Tok(0xB0, 0x8D, 0x57), Wire.X, Wire.Y, Wire.W, 2.f * Scale);
 		float TextY = Info.Y + 6.f * Scale;
 		const float Line = 16.f * Scale;
@@ -1060,7 +1064,7 @@ void AKodHUD::DrawSelectionPanel()
 			KodHudLayout::GroupOriginY + KodHudLayout::GroupStepY * static_cast<float>(Row) + KodHudLayout::GroupSilhouetteInsetY,
 			KodHudLayout::GroupSilhouette,
 			KodHudLayout::GroupSilhouette);
-		DrawWireSilhouette(Silhouette.X, Silhouette.Y, Silhouette.W, Silhouette.H, Tile.TypeId, ShownHP, MaxHP, Tile.bStructure, bFlash, KodWireTint::ESlot::Group48, nullptr);
+		DrawWireSilhouette(Silhouette.X, Silhouette.Y, Silhouette.W, Silhouette.H, Tile.TypeId, ShownHP, MaxHP, Tile.bStructure, bFlash, KodWireTint::ESlot::Group48, Tile.Shield, Tile.ShieldMax, nullptr);
 		const FLinearColor Frame = Tile.EntityId == PrimaryId ? Tok(0xD9, 0xB8, 0x78) : Tok(0x5C, 0x64, 0x6C);
 		const float Edge = FMath::Max(1.f, (Tile.EntityId == PrimaryId ? 2.f : 1.f) * Scale);
 		DrawRect(Frame, Cell.X, Cell.Y, Cell.W, Edge);

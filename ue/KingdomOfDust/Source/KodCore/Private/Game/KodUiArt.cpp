@@ -101,7 +101,7 @@ namespace
 			Suffix = TEXT("_Mask");
 			break;
 		case FKodUiArt::EKind::Icon:
-			Suffix = TEXT("_Icon");
+			Suffix = TEXT("");
 			break;
 		default:
 			break;

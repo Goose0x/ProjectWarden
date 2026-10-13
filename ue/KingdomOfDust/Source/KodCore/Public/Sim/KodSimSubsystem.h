@@ -291,6 +291,16 @@ struct KODCORE_API FKodSimEntityState
 	UPROPERTY()
 	int32 EnergyMax = 0;
 
+	/**
+	 * Presentation shield pool for the wireframe rim. Not hashed and not saved.
+	 * Combat does not spend it. 0 means no rim.
+	 */
+	UPROPERTY()
+	int32 Shield = 0;
+
+	UPROPERTY()
+	int32 ShieldMax = 0;
+
 	/** Remainder for 0.7875 energy per second. Hashed. */
 	UPROPERTY()
 	int32 EnergyRegenAcc = 0;
@@ -394,6 +404,9 @@ public:
 		bool bCanGather = false,
 		int32 BodyRadiusUU = 34,
 		int32 SightRadiusUU = 1600);
+
+	/** Wireframe rim only. Not part of the idle hash or the save blob. */
+	void SetPresentationShield(FKodEntityId Id, int32 Shield, int32 ShieldMax);
 
 	UFUNCTION(BlueprintCallable, Category = "Kod|Sim")
 	void IssueMove(FKodEntityId Id, FVector WorldLocation);

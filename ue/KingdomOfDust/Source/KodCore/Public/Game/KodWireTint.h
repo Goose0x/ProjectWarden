@@ -8,8 +8,10 @@
  * HP.Red #E5383B below 33%.
  * #3DFF6A and #FF3D3D are placement legality, not these bands.
  * Presentation only. Not sim state and not part of the idle hash.
- * All zones use overall HP until a caller fills per-zone Remain values.
- * Units are head / torso / legs / weapon. Buildings are roof / body / base.
+ * The wireframe slot draws the unit icon through this tint.
+ * A zone mask may split the tint. Without one, the whole icon uses overall HP.
+ * Units masks are head / torso / legs / weapon. Buildings are roof / body / base.
+ * ShieldRim is a blue edge glow when shield points are above zero.
  */
 namespace KodWireTint
 {
@@ -33,12 +35,33 @@ namespace KodWireTint
 		Base
 	};
 
-	/** Which authored PNG the slot asks the manifest for. */
+	/** Slot size. Both sizes sample the same unit icon. */
 	enum class ESlot : uint8
 	{
 		Info160,
 		Group48
 	};
+
+	/** Blue rim. Not an HP token. */
+	inline FLinearColor ShieldRimColor()
+	{
+		return FLinearColor(FColor(0x4D, 0xA6, 0xFF));
+	}
+
+	/** 0 hides the rim. A positive shield with no max is a full rim. */
+	inline float ShieldRimStrength(int32 Shield, int32 ShieldMax)
+	{
+		if (Shield <= 0)
+		{
+			return 0.f;
+		}
+		if (ShieldMax <= 0)
+		{
+			return 1.f;
+		}
+		const int32 Clamped = Shield > ShieldMax ? ShieldMax : Shield;
+		return static_cast<float>(Clamped) / static_cast<float>(ShieldMax);
+	}
 
 	constexpr EBand BandFor(int32 Health, int32 MaxHealth)
 	{

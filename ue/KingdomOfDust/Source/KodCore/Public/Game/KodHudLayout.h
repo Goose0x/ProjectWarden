@@ -5,8 +5,9 @@
  * Adjust the v5 rects here. Draw code should not hardcode these numbers.
  * Single-unit silhouette is 160×160 inside the existing info well.
  * Each multi-select cell keeps its hit rect and draws a 48×48 silhouette inside it.
- * Imported wireframe PNGs are 160 and 48. Zone masks match those sizes.
- * Command icons are 128 PNGs scaled to the cell.
+ * The 160 and 48 slots draw the unit icon through the HP tint.
+ * Command icons are the same 128 art, scaled to the cell.
+ * An optional zone mask can split the tint. Overall HP is the fallback.
  */
 namespace KodHudLayout
 {

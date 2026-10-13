@@ -7,11 +7,15 @@
 #
 # Parameters the HUD writes on a dynamic instance, one instance per silhouette
 # each frame so a group grid can show a different HP on every cell:
-#   Silhouette          160 or 48 PNG for this slot
-#   ZoneMask            rgba weights. Units: R head, G torso, B legs, A weapon.
-#                       Buildings: R roof, G body, B base. A is unused.
-#   ZoneRemain0..3      scalar 0..1. Today every zone is overall HP.
-#   ZoneTint0..3        HUD HP tokens. Today every live zone is the same band.
+# The silhouette texture is the unit's own icon, drawn at 160 or 48 by the HUD.
+#   Silhouette          icon texture
+#   ZoneMask            optional. Units: R head, G torso, B legs, A weapon.
+#                       Buildings: R roof, G body, B base. Empty mask uses ZoneTint0
+#                       for the whole icon (overall HP).
+#   ZoneRemain0..3      scalar 0..1
+#   ZoneTint0..3        HUD HP tokens
+#   ShieldRim           0 hides the rim. Above 0 when the unit has shields.
+#   ShieldRimColor      blue rim
 #
 # Bands: HP.Green #4CD964 at >= 66%, HP.Yellow #F2C230 from 33% up to 66%,
 # HP.Red #E5383B below 33%. Do not use the placement colours #3DFF6A / #FF3D3D.
@@ -25,8 +29,7 @@ float W1 = Mask.g;
 float W2 = Mask.b;
 float W3 = Mask.a;
 float MaskSum = W0 + W1 + W2 + W3;
-float3 Color = T0.rgb;
-float Cover = Silhouette.a;
+float3 Tint = T0.rgb;
 if (MaskSum > 1e-3)
 {
     float3 Acc = float3(0.0, 0.0, 0.0);
@@ -36,8 +39,13 @@ if (MaskSum > 1e-3)
     w = W1 * R1; Acc += T1.rgb * w; Weight += w;
     w = W2 * R2; Acc += T2.rgb * w; Weight += w;
     w = W3 * R3; Acc += T3.rgb * w; Weight += w;
-    Color = (Weight > 1e-3) ? Acc / Weight : T0.rgb;
+    Tint = (Weight > 1e-3) ? Acc / Weight : T0.rgb;
 }
+float Shade = dot(Silhouette.rgb, float3(0.30, 0.59, 0.11));
+Shade = lerp(0.45, 1.0, saturate(Shade));
+float Edge = ShieldRim * saturate(fwidth(Silhouette.a) * 8.0);
+float3 Color = Tint * Shade + ShieldColor.rgb * Edge;
+float Cover = max(Silhouette.a, Edge);
 return float4(Color, Cover);
 """
 
@@ -96,6 +104,7 @@ for pin_name in (
     "Silhouette", "Mask",
     "R0", "R1", "R2", "R3",
     "T0", "T1", "T2", "T3",
+    "ShieldRim", "ShieldColor",
 ):
     pin = unreal.CustomInput()
     pin.set_editor_property("input_name", pin_name)
@@ -108,6 +117,12 @@ for index in range(4):
     tint = vector_param(material, f"ZoneTint{index}", -600, 220 + index * 40)
     mel.connect_material_expressions(remain, "", custom, f"R{index}")
     mel.connect_material_expressions(tint, "", custom, f"T{index}")
+shield = scalar_param(material, "ShieldRim", -600, 420)
+shield.set_editor_property("default_value", 0.0)
+rim_color = vector_param(material, "ShieldRimColor", -600, 480)
+rim_color.set_editor_property("default_value", unreal.LinearColor(0.30, 0.65, 1.0, 1.0))
+mel.connect_material_expressions(shield, "", custom, "ShieldRim")
+mel.connect_material_expressions(rim_color, "", custom, "ShieldColor")
 rgb = mel.create_material_expression(material, unreal.MaterialExpressionComponentMask, 80, -40)
 rgb.set_editor_property("R", True)
 rgb.set_editor_property("G", True)

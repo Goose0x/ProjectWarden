@@ -24,6 +24,11 @@ bool FKodWireHpTintTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("green token"), KodWireTint::Healthy().Equals(FLinearColor(FColor(0x4C, 0xD9, 0x64))));
 	TestTrue(TEXT("yellow token"), KodWireTint::Warning().Equals(FLinearColor(FColor(0xF2, 0xC2, 0x30))));
 	TestTrue(TEXT("red token"), KodWireTint::Critical().Equals(FLinearColor(FColor(0xE5, 0x38, 0x3B))));
+	TestTrue(TEXT("no shield rim"), FMath::IsNearlyZero(KodWireTint::ShieldRimStrength(0, 100)));
+	TestTrue(TEXT("negative shield rim"), FMath::IsNearlyZero(KodWireTint::ShieldRimStrength(-3, 100)));
+	TestTrue(TEXT("half shield rim"), FMath::IsNearlyEqual(KodWireTint::ShieldRimStrength(50, 100), 0.5f));
+	TestTrue(TEXT("full shield rim"), FMath::IsNearlyEqual(KodWireTint::ShieldRimStrength(100, 100), 1.f));
+	TestTrue(TEXT("shield without max"), FMath::IsNearlyEqual(KodWireTint::ShieldRimStrength(10, 0), 1.f));
 
 	TArray<KodWireTint::FZone> Zones;
 	KodWireTint::BuildZones(false, Zones);

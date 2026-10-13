@@ -138,23 +138,28 @@ void AKodHUD::DrawIconSlot(FName IconId, float X, float Y, float W, float H, flo
 	DrawRect(FLinearColor(0.36f, 0.39f, 0.42f, Alpha), X, Y, W, H);
 }
 
-void AKodHUD::DrawWireSilhouette(float X, float Y, float W, float H, FName DefinitionId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash, KodWireTint::ESlot Slot, const TArray<float>* ZoneRemain)
+void AKodHUD::DrawWireSilhouette(float X, float Y, float W, float H, FName DefinitionId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash, KodWireTint::ESlot Slot, int32 Shield, int32 ShieldMax, const TArray<float>* ZoneRemain)
 {
+	(void)Slot;
 	if (!Canvas || W < 1.f || H < 1.f)
 	{
 		return;
 	}
 	TArray<KodWireTint::FZone> Zones;
 	KodWireTint::BuildZones(bStructure, Zones);
-	if (!ZoneRemain || !KodWireTint::ApplyPerZone(Zones, *ZoneRemain))
+	const bool bPerZone = ZoneRemain && KodWireTint::ApplyPerZone(Zones, *ZoneRemain);
+	if (!bPerZone)
 	{
 		KodWireTint::ApplyOverallHp(Zones, Health, MaxHealth);
 	}
 
-	const FKodUiArt::EKind WireKind = Slot == KodWireTint::ESlot::Group48 ? FKodUiArt::EKind::Wire48 : FKodUiArt::EKind::Wire160;
-	UTexture2D* WireTexture = ResolveArtTexture(DefinitionId, WireKind);
-	UTexture2D* ZoneMask = ResolveArtTexture(DefinitionId, FKodUiArt::EKind::ZoneMask);
-	if (UMaterialInstanceDynamic* Mid = WireTexture ? LeaseWireMaterial() : nullptr)
+	const float Rim = KodWireTint::ShieldRimStrength(Shield, ShieldMax);
+	const FLinearColor RimColor = KodWireTint::ShieldRimColor();
+	const FLinearColor OverallTint = KodWireTint::FromHitPoints(Health, MaxHealth);
+	UTexture2D* IconTexture = ResolveArtTexture(DefinitionId, FKodUiArt::EKind::Icon);
+	UTexture2D* ZoneMask = bPerZone ? ResolveArtTexture(DefinitionId, FKodUiArt::EKind::ZoneMask) : nullptr;
+	bool bDrewMaterial = false;
+	if (UMaterialInstanceDynamic* Mid = IconTexture ? LeaseWireMaterial() : nullptr)
 	{
 		static const FName ZoneRemainName[KodWireTint::MaterialZoneCount] = {
 			TEXT("ZoneRemain0"), TEXT("ZoneRemain1"), TEXT("ZoneRemain2"), TEXT("ZoneRemain3")
@@ -162,39 +167,27 @@ void AKodHUD::DrawWireSilhouette(float X, float Y, float W, float H, FName Defin
 		static const FName ZoneTintName[KodWireTint::MaterialZoneCount] = {
 			TEXT("ZoneTint0"), TEXT("ZoneTint1"), TEXT("ZoneTint2"), TEXT("ZoneTint3")
 		};
-		Mid->SetTextureParameterValue(TEXT("Silhouette"), WireTexture);
+		Mid->SetTextureParameterValue(TEXT("Silhouette"), IconTexture);
 		if (ZoneMask)
 		{
 			Mid->SetTextureParameterValue(TEXT("ZoneMask"), ZoneMask);
 		}
 		for (int32 Index = 0; Index < KodWireTint::MaterialZoneCount; ++Index)
 		{
-			const bool bLive = Zones.IsValidIndex(Index);
-			const float Remain = bLive ? Zones[Index].Remain : 0.f;
-			const FLinearColor Tint = bLive ? KodWireTint::FromRemain(Remain) : FLinearColor::Black;
+			const bool bLive = bPerZone && ZoneMask && Zones.IsValidIndex(Index);
+			const float Remain = bLive ? Zones[Index].Remain : 1.f;
+			const FLinearColor Tint = bLive ? KodWireTint::FromRemain(Zones[Index].Remain) : OverallTint;
 			Mid->SetScalarParameterValue(ZoneRemainName[Index], Remain);
 			Mid->SetVectorParameterValue(ZoneTintName[Index], Tint);
 		}
+		Mid->SetScalarParameterValue(TEXT("ShieldRim"), Rim);
+		Mid->SetVectorParameterValue(TEXT("ShieldRimColor"), RimColor);
 		DrawMaterial(Mid, X, Y, W, H, 0.f, 0.f, 1.f, 1.f);
+		bDrewMaterial = true;
 	}
-	else if (WireTexture)
+	else if (IconTexture)
 	{
-		for (const KodWireTint::FZone& Zone : Zones)
-		{
-			const float ZoneW = (Zone.U1 - Zone.U0) * W;
-			const float ZoneH = (Zone.V1 - Zone.V0) * H;
-			DrawTexture(
-				WireTexture,
-				X + Zone.U0 * W,
-				Y + Zone.V0 * H,
-				ZoneW,
-				ZoneH,
-				Zone.U0,
-				Zone.V0,
-				Zone.U1 - Zone.U0,
-				Zone.V1 - Zone.V0,
-				KodWireTint::FromRemain(Zone.Remain));
-		}
+		DrawTexture(IconTexture, X, Y, W, H, 0.f, 0.f, 1.f, 1.f, OverallTint);
 	}
 	else
 	{
@@ -207,6 +200,15 @@ void AKodHUD::DrawWireSilhouette(float X, float Y, float W, float H, FName Defin
 				(Zone.U1 - Zone.U0) * W,
 				(Zone.V1 - Zone.V0) * H);
 		}
+	}
+	if (Rim > 0.f && !bDrewMaterial)
+	{
+		const float Thickness = FMath::Max(1.f, 2.f * Rim);
+		const FLinearColor Glow = RimColor.CopyWithNewOpacity(Rim);
+		DrawRect(Glow, X, Y, W, Thickness);
+		DrawRect(Glow, X, Y + H - Thickness, W, Thickness);
+		DrawRect(Glow, X, Y, Thickness, H);
+		DrawRect(Glow, X + W - Thickness, Y, Thickness, H);
 	}
 	if (bFlash)
 	{

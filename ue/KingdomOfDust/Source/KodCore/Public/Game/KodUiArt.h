@@ -5,11 +5,10 @@
 
 /**
  * Wireframe and command-icon lookup. Presentation only.
- * The manifest maps an engine id to imported file stems.
- * 160 and 48 wireframes and zone masks live under /Game/Warden/UI/Wireframes.
- * 128 icons live under /Game/Warden/UI/Icons.
- * A soft ref registered from the unit or building definition is used when the
- * manifest has no file for that slot. VG_Ranger is the placeholder stem.
+ * The wireframe slot uses the unit icon. Optional zone masks live under
+ * /Game/Warden/UI/Wireframes. Icons live under /Game/Warden/UI/Icons.
+ * A soft ref registered from the definition is used when the manifest has no icon.
+ * Ranger is Marine. There is no separate Ranger wireframe.
  */
 class KODCORE_API FKodUiArt
 {

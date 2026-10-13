@@ -1567,6 +1567,17 @@ void UKodSimSubsystem::ConfigureEntity(
 	ApplyRoster(Id);
 }
 
+void UKodSimSubsystem::SetPresentationShield(FKodEntityId Id, int32 Shield, int32 ShieldMax)
+{
+	FKodSimEntityState* State = States.Find(Id.Value);
+	if (!State)
+	{
+		return;
+	}
+	State->ShieldMax = FMath::Max(0, ShieldMax);
+	State->Shield = FMath::Clamp(Shield, 0, State->ShieldMax > 0 ? State->ShieldMax : Shield);
+}
+
 namespace
 {
 	void FaceStateToward(FKodSimEntityState& State, const FVector& WorldPoint)

@@ -1,11 +1,4 @@
 {
-  "note": "Maps an engine id to imported file stems. wire160, wire48, and mask load from /Game/Warden/UI/Wireframes. icon loads from /Game/Warden/UI/Icons. A full /Game path is used as written. VG_Ranger is a placeholder until final Marine art replaces it. Units use zones head, torso, legs, weapon. Buildings use roof, body, base.",
-  "entries": {
-    "Ranger": {
-      "wire160": "VG_Ranger_160",
-      "wire48": "VG_Ranger_48",
-      "mask": "VG_Ranger_Mask",
-      "icon": "VG_Ranger_Icon"
-    }
-  }
+  "note": "Maps an engine id to imported file stems. icon is the unit art, drawn at 160 and 48 through the HP tint, and used on command buttons at 128. Optional mask is a zone mask under /Game/Warden/UI/Wireframes. Without a mask the whole icon uses overall HP. Ranger is Marine, so there is no Ranger or VG_Ranger row.",
+  "entries": {}
 }
