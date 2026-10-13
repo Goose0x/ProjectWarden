@@ -1,5 +1,9 @@
 #include "Game/KodHUD.h"
 
+#include "Game/KodHudLayout.h"
+#include "Game/KodUiArt.h"
+#include "Game/KodWireTint.h"
+
 #include "Algo/Sort.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/CapsuleComponent.h"
@@ -55,19 +59,10 @@ namespace
 		return Label;
 	}
 
-	/** HP fill. Green at 66% and above, yellow from 33%, red below. */
+	/** HP fill. Same tokens as the wireframe: HP.Green, HP.Yellow, HP.Red. */
 	FLinearColor HealthBarInk(float Fraction)
 	{
-		const float Clamped = FMath::Clamp(Fraction, 0.f, 1.f);
-		if (Clamped >= 0.66f)
-		{
-			return FLinearColor(FColor(0x4C, 0xD9, 0x64));
-		}
-		if (Clamped >= 0.33f)
-		{
-			return FLinearColor(FColor(0xF2, 0xC2, 0x30));
-		}
-		return FLinearColor(FColor(0xE5, 0x38, 0x3B));
+		return KodWireTint::FromRemain(Fraction);
 	}
 
 	struct FKodSpecRow
@@ -1807,27 +1802,12 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 
 void AKodHUD::DrawWireHeat(float X, float Y, float W, float H, int32 UnitId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash)
 {
-	const int32 Zones = bStructure ? 4 : 6;
-	auto ColorOf = [this, UnitId, Health, MaxHealth, Zones, bFlash](int32 Zone)
+	(void)UnitId;
+	const FLinearColor Shared = bFlash ? KodWireTint::Critical() : KodWireTint::FromHitPoints(Health, MaxHealth);
+	auto ColorOf = [Shared](int32 Zone)
 	{
-		if (bFlash)
-		{
-			return FLinearColor(0.95f, 0.15f, 0.12f, 1.f);
-		}
-		const float Remain = WireZoneRemain(UnitId, Zone, Zones, Health, MaxHealth);
-		if (Remain >= 0.75f)
-		{
-			return FLinearColor(0.25f, 0.85f, 0.3f, 1.f);
-		}
-		if (Remain >= 0.5f)
-		{
-			return FLinearColor(0.92f, 0.82f, 0.2f, 1.f);
-		}
-		if (Remain >= 0.25f)
-		{
-			return FLinearColor(0.95f, 0.5f, 0.12f, 1.f);
-		}
-		return FLinearColor(0.9f, 0.16f, 0.12f, 1.f);
+		(void)Zone;
+		return Shared;
 	};
 	auto Seg = [this, X, Y, W, H](float U0, float V0, float U1, float V1, const FLinearColor& Ink)
 	{
@@ -2033,28 +2013,12 @@ void AKodHUD::ShowResourceFlash(FName Reason)
 
 bool AKodHUD::TryDrawIcon(FName IconId, float X, float Y, float SizeX, float SizeY)
 {
-	if (IconId.IsNone() || IconMiss.Contains(IconId))
+	if (UTexture2D* Texture = ResolveArtTexture(IconId, false))
 	{
-		return false;
+		DrawTexture(Texture, X, Y, SizeX, SizeY, 0.f, 0.f, 1.f, 1.f);
+		return true;
 	}
-	if (const TObjectPtr<UTexture2D>* Found = IconHits.Find(IconId))
-	{
-		if (*Found)
-		{
-			DrawTexture(*Found, X, Y, SizeX, SizeY, 0.f, 0.f, 1.f, 1.f);
-			return true;
-		}
-	}
-	const FString Path = FString::Printf(TEXT("/Game/UI/Icons/%s.%s"), *IconId.ToString(), *IconId.ToString());
-	UTexture2D* Texture = Cast<UTexture2D>(FSoftObjectPath(Path).TryLoad());
-	if (!Texture)
-	{
-		IconMiss.Add(IconId);
-		return false;
-	}
-	IconHits.Add(IconId, Texture);
-	DrawTexture(Texture, X, Y, SizeX, SizeY, 0.f, 0.f, 1.f, 1.f);
-	return true;
+	return false;
 }
 
 void AKodHUD::DrawScaffolds()
@@ -2421,11 +2385,11 @@ void AKodHUD::DrawCommandCard()
 		Font = GEngine->GetSmallFont();
 	}
 
-	const float Button = 76.f * FrameScale;
-	const float Gap = 6.f * FrameScale;
-	constexpr int32 Cols = 5;
-	constexpr int32 Rows = 3;
-	const FKodScreenRect Card = MapSpec(1507.f, 826.f, 404.f, 240.f);
+	const float Button = KodHudLayout::CommandButton * FrameScale;
+	const float Gap = KodHudLayout::CommandGap * FrameScale;
+	constexpr int32 Cols = KodHudLayout::CommandCols;
+	constexpr int32 Rows = KodHudLayout::CommandRows;
+	const FKodScreenRect Card = MapSpec(KodHudLayout::CommandCardX, KodHudLayout::CommandCardY, KodHudLayout::CommandCardW, KodHudLayout::CommandCardH);
 	const float CardW = Card.W;
 	const float CardH = Card.H;
 	const float QueueH = 0.f;
@@ -2450,12 +2414,8 @@ void AKodHUD::DrawCommandCard()
 			? FLinearColor::White
 			: (bRequires ? FLinearColor(0.45f, 0.45f, 0.45f, 1.f) : FLinearColor(0.62f, 0.66f, 0.6f, 0.8f));
 		DrawRect(Plate, X, Y, Button, Button);
-		if (!TryDrawIcon(Payload.IsNone() ? FName(*Label) : Payload, X + 4.f, Y + 4.f, 18.f, 18.f))
-		{
-			const FString Glyph = Label.Left(2).ToUpper();
-			DrawRect(Tok(0x5C, 0x64, 0x6C), X + 4.f, Y + 4.f, 18.f, 18.f);
-			DrawText(Glyph, FLinearColor::White, X + 5.f, Y + 5.f, Font, 0.55f, false);
-		}
+		const FName IconId = Payload.IsNone() ? FName(*Label) : Payload;
+		DrawIconSlot(IconId, X, Y, Button, Button, bEnabled ? 1.f : 0.45f);
 		DrawText(Label, Ink, X + 6.f, Y + 24.f, Font, 0.65f, false);
 		const FLinearColor HotkeyInk = HudSkin == 1 ? Tok(0xDF, 0xD4, 0xC0) : Tok(0xFF, 0xD2, 0x3F);
 		DrawText(Hotkey, bEnabled ? HotkeyInk : Tok(0x8E, 0x94, 0x9A, 0.6f), X + 4.f * FrameScale, Y + 2.f * FrameScale, Font, 0.75f * FrameScale, false);
@@ -3617,6 +3577,7 @@ void AKodHUD::BeginPlay()
 {
 	Super::BeginPlay();
 	bShowHUD = true;
+	FKodUiArt::LoadManifest();
 	BindAlertFeed();
 	if (UWorld* SettingsWorld = GetWorld())
 	{

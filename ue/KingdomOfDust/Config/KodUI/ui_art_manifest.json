@@ -1,0 +1,4 @@
+{
+  "note": "Maps an engine id to imported file stems. icon is the unit art, drawn at 160 and 48 through the HP tint, and used on command buttons at 128. Optional mask is a zone mask under /Game/Warden/UI/Wireframes. Without a mask the whole icon uses overall HP. Ranger is Marine, so there is no Ranger or VG_Ranger row.",
+  "entries": {}
+}

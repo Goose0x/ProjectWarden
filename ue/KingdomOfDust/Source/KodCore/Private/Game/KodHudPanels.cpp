@@ -1,5 +1,8 @@
 #include "Game/KodHUD.h"
 
+#include "Game/KodHudLayout.h"
+#include "Game/KodWireTint.h"
+
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
@@ -42,15 +45,7 @@ namespace
 
 	FLinearColor PanelHealthInk(float Fraction)
 	{
-		if (Fraction >= 0.66f)
-		{
-			return FLinearColor(FColor(0x4C, 0xD9, 0x64));
-		}
-		if (Fraction >= 0.33f)
-		{
-			return FLinearColor(FColor(0xF2, 0xC2, 0x30));
-		}
-		return FLinearColor(FColor(0xE5, 0x38, 0x3B));
+		return KodWireTint::FromRemain(Fraction);
 	}
 
 	UFont* HudFont()
@@ -764,6 +759,8 @@ void AKodHUD::DrawSelectionPanel()
 		bool bStructure = false;
 		int32 Energy = 0;
 		int32 EnergyMax = 0;
+		int32 Shield = 0;
+		int32 ShieldMax = 0;
 		TArray<int32> Cargo;
 	};
 
@@ -846,6 +843,8 @@ void AKodHUD::DrawSelectionPanel()
 			}
 			Tile.Energy = State->Energy;
 			Tile.EnergyMax = State->EnergyMax;
+			Tile.Shield = State->Shield;
+			Tile.ShieldMax = State->ShieldMax;
 		}
 		else
 		{
@@ -903,8 +902,9 @@ void AKodHUD::DrawSelectionPanel()
 	});
 
 	const float Scale = FrameScale;
-	const FKodScreenRect Grid = MapSpec(525.f, 872.f, 714.f, 198.f);
-	const FKodScreenRect Rail = MapSpec(1245.f, 872.f, 32.f, 198.f);
+	WireMidCursor = 0;
+	const FKodScreenRect Grid = MapSpec(KodHudLayout::GroupGridX, KodHudLayout::GroupGridY, KodHudLayout::GroupGridW, KodHudLayout::GroupGridH);
+	const FKodScreenRect Rail = MapSpec(KodHudLayout::GroupRailX, KodHudLayout::GroupRailY, KodHudLayout::GroupRailW, KodHudLayout::GroupRailH);
 	UFont* Font = HudFont();
 	bHasSelectionPanel = true;
 	PanelMinX = Rail.X;
@@ -920,22 +920,21 @@ void AKodHUD::DrawSelectionPanel()
 		{
 			return;
 		}
-		const float SlotX[5] = { 584.f, 668.f, 740.f, 812.f, 884.f };
-		const float SlotW[5] = { 72.f, 64.f, 64.f, 64.f, 64.f };
-		const float SlotY[5] = { 948.f, 956.f, 956.f, 956.f, 956.f };
-		const float SlotH[5] = { 72.f, 64.f, 64.f, 64.f, 64.f };
 		for (int32 Slot = 0; Slot < 5; ++Slot)
 		{
-			const FKodScreenRect Cell = MapSpec(SlotX[Slot], SlotY[Slot], SlotW[Slot], SlotH[Slot]);
+			const FKodScreenRect Cell = MapSpec(KodHudLayout::QueueX[Slot], KodHudLayout::QueueY[Slot], KodHudLayout::QueueW[Slot], KodHudLayout::QueueH[Slot]);
 			const bool bFilled = Slot < Structure->Slots.Num();
 			DrawPlate(Cell.X, Cell.Y, Cell.W, Cell.H, bFilled ? Tok(0x5C, 0x64, 0x6C) : Tok(0x3A, 0x3F, 0x45, 0.55f), TEXT("T_UI_VG_Btn_Cell"), 10.f, 10.f, 10.f, 10.f);
 			if (!bFilled)
 			{
+				DrawIconSlot(FName(), Cell.X, Cell.Y, Cell.W, Cell.H, 0.45f);
 				continue;
 			}
 			const FKodProductionSlot& Job = Structure->Slots[Slot];
+			const FName JobId = Job.UnitId;
+			DrawIconSlot(JobId, Cell.X, Cell.Y, Cell.W, Cell.H, 1.f);
 			const FString Name = PanelFacingName(Sim, Job.DisplayId.IsNone() ? Job.UnitId : Job.DisplayId).ToString();
-			DrawText(Name.Left(8), Tok(0xE6, 0xE6, 0xE0), Cell.X + 4.f * Scale, Cell.Y + 4.f * Scale, Font, 0.65f * Scale, false);
+			DrawText(Name.Left(8), Tok(0xE6, 0xE6, 0xE0), Cell.X + 4.f * Scale, Cell.Y + Cell.H - 14.f * Scale, Font, 0.55f * Scale, false);
 			if (Slot == 0)
 			{
 				float Fraction = 0.f;
@@ -944,7 +943,7 @@ void AKodHUD::DrawSelectionPanel()
 					Fraction = 1.f - (static_cast<float>(Structure->ActiveTicksRemaining) / static_cast<float>(Structure->ActiveBuildTime));
 					Fraction = FMath::Clamp(Fraction, 0.f, 1.f);
 				}
-				const FKodScreenRect Prog = MapSpec(584.f, 1014.f, 72.f, 6.f);
+				const FKodScreenRect Prog = MapSpec(KodHudLayout::QueueProgX, KodHudLayout::QueueProgY, KodHudLayout::QueueProgW, KodHudLayout::QueueProgH);
 				DrawRect(Tok(0x1F, 0x23, 0x27), Prog.X, Prog.Y, Prog.W, Prog.H);
 				DrawRect(Tok(0xFF, 0xD2, 0x3F), Prog.X, Prog.Y, Prog.W * Fraction, Prog.H);
 			}
@@ -966,16 +965,17 @@ void AKodHUD::DrawSelectionPanel()
 	if (Tiles.Num() == 1)
 	{
 		const FTile& Tile = Tiles[0];
-		const FKodScreenRect Wire = MapSpec(368.f, 820.f, 200.f, 222.f);
-		const FKodScreenRect Info = MapSpec(584.f, 820.f, 466.f, 112.f);
+		const FKodScreenRect Wire = MapSpec(KodHudLayout::SingleWellX, KodHudLayout::SingleWellY, KodHudLayout::SingleWellW, KodHudLayout::SingleWellH);
+		const FKodScreenRect Info = MapSpec(KodHudLayout::SingleInfoX, KodHudLayout::SingleInfoY, KodHudLayout::SingleInfoW, KodHudLayout::SingleInfoH);
+		const FKodScreenRect Silhouette = MapSpec(KodHudLayout::SingleSilhouetteX, KodHudLayout::SingleSilhouetteY, KodHudLayout::SingleSilhouette, KodHudLayout::SingleSilhouette);
 		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(Tile.Health));
 		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(Tile.MaxHealth));
 		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
 		const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 		const float* HitUntil = WireHitUntil.Find(Tile.EntityId);
 		const bool bFlash = HitUntil && *HitUntil > Now;
-		DrawRect(PanelHealthInk(Fraction).CopyWithNewOpacity(0.35f), Wire.X, Wire.Y, Wire.W, Wire.H);
-		DrawWireHeat(Wire.X + 8.f * Scale, Wire.Y + 8.f * Scale, Wire.W - 16.f * Scale, Wire.H - 16.f * Scale, Tile.EntityId, ShownHP, MaxHP, Tile.bStructure, bFlash);
+		DrawRect(Tok(0x1F, 0x23, 0x27, 0.92f), Wire.X, Wire.Y, Wire.W, Wire.H);
+		DrawWireSilhouette(Silhouette.X, Silhouette.Y, Silhouette.W, Silhouette.H, Tile.TypeId, ShownHP, MaxHP, Tile.bStructure, bFlash, KodWireTint::ESlot::Info160, Tile.Shield, Tile.ShieldMax, nullptr);
 		DrawRect(Tok(0xB0, 0x8D, 0x57), Wire.X, Wire.Y, Wire.W, 2.f * Scale);
 		float TextY = Info.Y + 6.f * Scale;
 		const float Line = 16.f * Scale;
@@ -1032,7 +1032,7 @@ void AKodHUD::DrawSelectionPanel()
 		const int32 ShownPages = FMath::Min(Pages, 6);
 		for (int32 Page = 0; Page < ShownPages; ++Page)
 		{
-			const FKodScreenRect Tab = MapSpec(332.f, 820.f + 37.f * static_cast<float>(Page), 28.f, 32.f);
+			const FKodScreenRect Tab = MapSpec(KodHudLayout::GroupPageX, KodHudLayout::GroupPageY + KodHudLayout::GroupPageStepY * static_cast<float>(Page), KodHudLayout::GroupPageW, KodHudLayout::GroupPageH);
 			const bool bOn = Page == SelectionPage;
 			DrawPlate(Tab.X, Tab.Y, Tab.W, Tab.H, bOn ? Tok(0xB0, 0x8D, 0x57) : Tok(0x3A, 0x3F, 0x45), TEXT("T_UI_VG_Tab_Group"), 8.f, 6.f, 8.f, 6.f);
 			DrawText(FString::FromInt(Page + 1), Tok(0xE6, 0xE6, 0xE0), Tab.X + 8.f * Scale, Tab.Y + 14.f * Scale, Font, 0.7f * Scale, false);
@@ -1047,12 +1047,20 @@ void AKodHUD::DrawSelectionPanel()
 		const bool bFlash = HitUntil && *HitUntil > Now;
 		const int32 Col = Index % 8;
 		const int32 Row = Index / 8;
-		const FKodScreenRect Cell = MapSpec(525.f + 90.f * static_cast<float>(Col), 872.f + 68.f * static_cast<float>(Row), 84.f, 62.f);
+		const FKodScreenRect Cell = MapSpec(
+			KodHudLayout::GroupOriginX + KodHudLayout::GroupStepX * static_cast<float>(Col),
+			KodHudLayout::GroupOriginY + KodHudLayout::GroupStepY * static_cast<float>(Row),
+			KodHudLayout::GroupCellW,
+			KodHudLayout::GroupCellH);
 		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(Tile.Health));
 		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(Tile.MaxHealth));
-		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
-		const FLinearColor Tint = PanelHealthInk(Fraction);
-		DrawRect(Tint.CopyWithNewOpacity(0.85f), Cell.X, Cell.Y, Cell.W, Cell.H);
+		DrawIconSlot(Tile.TypeId, Cell.X, Cell.Y, Cell.W, Cell.H, 1.f);
+		const FKodScreenRect Silhouette = MapSpec(
+			KodHudLayout::GroupOriginX + KodHudLayout::GroupStepX * static_cast<float>(Col) + KodHudLayout::GroupSilhouetteInsetX,
+			KodHudLayout::GroupOriginY + KodHudLayout::GroupStepY * static_cast<float>(Row) + KodHudLayout::GroupSilhouetteInsetY,
+			KodHudLayout::GroupSilhouette,
+			KodHudLayout::GroupSilhouette);
+		DrawWireSilhouette(Silhouette.X, Silhouette.Y, Silhouette.W, Silhouette.H, Tile.TypeId, ShownHP, MaxHP, Tile.bStructure, bFlash, KodWireTint::ESlot::Group48, Tile.Shield, Tile.ShieldMax, nullptr);
 		const FLinearColor Frame = Tile.EntityId == PrimaryId ? Tok(0xD9, 0xB8, 0x78) : Tok(0x5C, 0x64, 0x6C);
 		const float Edge = FMath::Max(1.f, (Tile.EntityId == PrimaryId ? 2.f : 1.f) * Scale);
 		DrawRect(Frame, Cell.X, Cell.Y, Cell.W, Edge);
@@ -1066,7 +1074,6 @@ void AKodHUD::DrawSelectionPanel()
 			DrawRect(Tok(0x1F, 0x23, 0x27), Cell.X, Cell.Y + Cell.H - 4.f * Scale, Cell.W, 4.f * Scale);
 			DrawRect(Tok(0x2F, 0x7B, 0xFF), Cell.X, Cell.Y + Cell.H - 4.f * Scale, Cell.W * EnergyFrac, 4.f * Scale);
 		}
-		DrawWireHeat(Cell.X + 6.f * Scale, Cell.Y + 4.f * Scale, Cell.W - 12.f * Scale, Cell.H - 12.f * Scale, Tile.EntityId, ShownHP, MaxHP, Tile.bStructure, bFlash);
 		RememberChrome(FName(TEXT("Tile")), Tile.EntityId, Tile.TypeId, Cell.X, Cell.Y, Cell.X + Cell.W, Cell.Y + Cell.H);
 	}
 }
