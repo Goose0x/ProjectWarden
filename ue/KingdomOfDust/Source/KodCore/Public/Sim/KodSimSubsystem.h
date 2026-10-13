@@ -459,6 +459,8 @@ public:
 	bool IsRampCell(int32 CellX, int32 CellY) const;
 	/** Sorted unique cliff cells from map_features. Hashed. */
 	void SetCliffBlockCells(TArray<int64> Cells);
+	/** Drop cached A* polylines. Units replan on the next step. */
+	void ClearStoredPaths(const TCHAR* Reason);
 	bool IsDressBlockCell(int32 CellX, int32 CellY) const;
 	/** LOS scrub. Blocks fog vision through the cell. Hashed. */
 	void SetVisionBlockCells(TArray<int64> Cells);

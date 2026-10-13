@@ -439,6 +439,13 @@ void UKodSimSubsystem::SetCliffBlockCells(TArray<int64> Cells)
 	}
 }
 
+void UKodSimSubsystem::ClearStoredPaths(const TCHAR* Reason)
+{
+	const int32 Count = StoredPaths.Num();
+	StoredPaths.Reset();
+	UE_LOG(LogTemp, Log, TEXT("KodPath Clear Reason=%s Count=%d"), Reason ? Reason : TEXT("None"), Count);
+}
+
 bool UKodSimSubsystem::IsDressBlockCell(int32 CellX, int32 CellY) const
 {
 	return Algo::BinarySearch(DressBlockCells, PackRamp(CellX, CellY)) != INDEX_NONE;

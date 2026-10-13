@@ -1662,6 +1662,7 @@ void UKodSimSubsystem::StepFaultlineWave()
 			DespawnFaultlineRole(2);
 			FaultlineWavePhase = 4;
 			FaultlineRetreatTick = SimTickIndex;
+			ClearStoredPaths(TEXT("WaveEnd"));
 			UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave End Tick=%lld Kills0=%d Kills1=%d Living=%d"),
 				static_cast<long long>(SimTickIndex),
 				Totals0.Killed,
