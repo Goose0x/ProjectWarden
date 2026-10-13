@@ -657,6 +657,19 @@ public:
 	 */
 	void SetPlayerAutoplay(bool bEnabled);
 	bool IsPlayerAutoplay() const { return bPlayerAutoplay; }
+	/**
+	 * Two advances of the same blob with autoplay on. The soak uses this
+	 * instead of comparing a live idle hash to itself between frames.
+	 */
+	bool RunAutoplayDeterminismCheck(int32 Ticks);
+	/** Applied on the next sim tick boundary. Not hashed. */
+	void DeferMove(FKodEntityId Id, FVector Point);
+	void DeferAttackMove(FKodEntityId Id, FVector Point);
+	void DeferAttack(FKodEntityId Id, FKodEntityId Target);
+	void DeferGather(FKodEntityId Id, FKodEntityId Node);
+	void DeferTrain(FKodEntityId StructureId, FName UnitId);
+	void DeferOrder(FKodEntityId Id, EKodSimOrderType Kind, FVector Point, FKodEntityId Target, bool bQueued);
+	void DeferScriptAdopt(FKodEntityId Id, const FKodPendingUnitSpawn& Request);
 	/** Exact sim steps. Wall-clock time is not involved. */
 	void AdvanceSimTicks(int32 Ticks);
 	/** 1 matches the player's 50 Credit start. Each step above 1 adds 100 starting Credits and grows waves faster. */
@@ -833,6 +846,8 @@ public:
 
 protected:
 	void StepSim(float FixedDt);
+	void FlushDeferredCommands();
+	void RequestSoakExit(uint8 Code);
 	void StepEntityMove(FKodSimEntityState& State, float FixedDt);
 	void StepEntityAttack(FKodSimEntityState& State, float FixedDt);
 	/** Melee ring slot for this attacker. Derived from the acquire grid. Not stored. */
@@ -996,6 +1011,24 @@ protected:
 	float SoakMemoryMark = -30.f;
 	int64 SoakHashTick = -1;
 	FString SoakHash;
+	bool bSoakDeterminismDone = false;
+	struct FKodDeferredCommand
+	{
+		uint8 Kind = 1;
+		uint8 Order = 0;
+		uint8 bQueued = 0;
+		int32 Sequence = 0;
+		int32 Unit = 0;
+		int32 Target = 0;
+		int32 X = 0;
+		int32 Y = 0;
+		int32 Z = 0;
+		FName TrainId;
+		FKodPendingUnitSpawn Spawn;
+	};
+	/** Orders waiting for a sim tick. Not hashed. */
+	TArray<FKodDeferredCommand> DeferredCommands;
+	int32 DeferredSequence = 0;
 	int64 PlayerNextWaveTick = 0;
 	int32 AiDifficulty = 1;
 	bool bAiSeeded = false;

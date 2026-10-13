@@ -29,7 +29,14 @@ namespace
 		World->InitializeActorsForPlay(Url);
 		if (ULevel* Level = World->PersistentLevel)
 		{
-			AKodWorldSettings* Settings = NewObject<AKodWorldSettings>(Level);
+			// 5.8 SetWorldSettings looks the actor up in Level->Actors, so spawn it instead of NewObject.
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.OverrideLevel = Level;
+			AKodWorldSettings* Settings = World->SpawnActor<AKodWorldSettings>(SpawnParams);
+			if (!Settings)
+			{
+				return World;
+			}
 			Settings->bFaultlineTraining = true;
 			Level->SetWorldSettings(Settings);
 		}

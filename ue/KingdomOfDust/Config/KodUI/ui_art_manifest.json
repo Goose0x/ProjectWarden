@@ -1,4 +1,71 @@
 {
-  "note": "Maps an engine id to imported file stems. icon is the unit art, drawn at 160 and 48 through the HP tint, and used on command buttons at 128. Optional mask is a zone mask under /Game/Warden/UI/Wireframes. Without a mask the whole icon uses overall HP. Ranger is Marine, so there is no Ranger or VG_Ranger row.",
-  "entries": {}
+  "note": "Maps an engine DefinitionId to imported file stems. icon is the unit art, drawn at 160 and 48 through the HP tint, and used on command buttons at 128. Optional mask is a zone mask under /Game/Warden/UI/Wireframes. Without a mask the whole icon uses overall HP. Ranger is Marine, so there is no Ranger or VG_Ranger row. Vanguard AMP is the Dozer id. Scinder rows use the SCN_ engine ids.",
+  "entries": {
+    "Marine": {
+      "wire160": "T_VG_Marine_lum_160",
+      "wire48": "T_VG_Marine_lum_48",
+      "mask": "T_VG_Marine_zones_160",
+      "icon": "ICON_VG_Marine_128_v1"
+    },
+    "Dozer": {
+      "wire160": "T_VG_AMP_lum_160",
+      "wire48": "T_VG_AMP_lum_48",
+      "mask": "T_VG_AMP_zones_160",
+      "icon": "ICON_VG_AMP_128_v1"
+    },
+    "CommandCenter": {
+      "wire160": "T_VG_CommandCenter_lum_160",
+      "wire48": "T_VG_CommandCenter_lum_48",
+      "mask": "T_VG_CommandCenter_zones_160",
+      "icon": "ICON_VG_CommandCenter_128_v1"
+    },
+    "Barracks": {
+      "wire160": "T_VG_Barracks_lum_160",
+      "wire48": "T_VG_Barracks_lum_48",
+      "mask": "T_VG_Barracks_zones_160",
+      "icon": "ICON_VG_Barracks_128_v1"
+    },
+    "SupplyDepot": {
+      "wire160": "T_VG_SupplyDepot_lum_160",
+      "wire48": "T_VG_SupplyDepot_lum_48",
+      "mask": "T_VG_SupplyDepot_zones_160",
+      "icon": "ICON_VG_SupplyDepot_128_v1"
+    },
+    "SCN_WORKER": {
+      "wire160": "T_SC_Worker_lum_160",
+      "wire48": "T_SC_Worker_lum_48",
+      "mask": "T_SC_Worker_zones_160",
+      "icon": "ICON_SC_Worker_128_v1"
+    },
+    "SCN_TWINBLADE": {
+      "wire160": "T_SC_Shardbitten_lum_160",
+      "wire48": "T_SC_Shardbitten_lum_48",
+      "mask": "T_SC_Shardbitten_zones_160",
+      "icon": "ICON_SC_Shardbitten_128_v1"
+    },
+    "SCN_HOST": {
+      "wire160": "T_SC_Host_lum_160",
+      "wire48": "T_SC_Host_lum_48",
+      "mask": "T_SC_Host_zones_160",
+      "icon": "ICON_SC_Host_128_v1"
+    },
+    "SCN_HQ": {
+      "wire160": "T_SC_HQ_lum_160",
+      "wire48": "T_SC_HQ_lum_48",
+      "mask": "T_SC_HQ_zones_160",
+      "icon": "ICON_SC_HQ_128_v1"
+    },
+    "SCN_BARRACKS": {
+      "wire160": "T_SC_Barracks_lum_160",
+      "wire48": "T_SC_Barracks_lum_48",
+      "mask": "T_SC_Barracks_zones_160",
+      "icon": "ICON_SC_Barracks_128_v1"
+    },
+    "SCN_DEPOT": {
+      "wire160": "T_SC_Supply_lum_160",
+      "wire48": "T_SC_Supply_lum_48",
+      "mask": "T_SC_Supply_zones_160",
+      "icon": "ICON_SC_Supply_128_v1"
+    }
+  }
 }

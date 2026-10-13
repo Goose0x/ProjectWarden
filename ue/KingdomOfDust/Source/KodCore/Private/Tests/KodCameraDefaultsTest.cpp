@@ -5,7 +5,7 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FKodCameraDefaultsTest,
 	"Kod.Camera.Defaults",
-	EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 
 namespace
 {
