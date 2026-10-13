@@ -450,7 +450,7 @@ void AKodSlice0GameMode::StartPlay()
 
 	// Touch Resolve so soft-path miss path is exercised in logs / debugger.
 	UKodSlice0Bootstrap::ResolveWeapon(FName(KodWardenPaths::Id_RangerRifle), this);
-	UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Ranger), this);
+	UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Marine), this);
 	if (UWorld* World = GetWorld())
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
@@ -486,11 +486,11 @@ void AKodSlice0GameMode::StartPlay()
 			{
 				RegisterUnit(Amp, FName(KodWardenPaths::Id_Dozer), FName(TEXT("AMP")));
 			}
-			if (const UKodUnitDefinition* Marine = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Ranger), this))
+			if (const UKodUnitDefinition* Marine = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Marine), this))
 			{
-				RegisterUnit(Marine, FName(KodWardenPaths::Id_Ranger), FName(TEXT("Marine")));
+				RegisterUnit(Marine, FName(KodWardenPaths::Id_Marine), FName(TEXT("Marine")));
 				FKodTrainSpec Spec;
-				Spec.UnitId = Marine->DefinitionId.IsNone() ? FName(KodWardenPaths::Id_Ranger) : Marine->DefinitionId;
+				Spec.UnitId = Marine->DefinitionId.IsNone() ? FName(KodWardenPaths::Id_Marine) : Marine->DefinitionId;
 				if (Marine->Abilities.Num() > 0)
 				{
 					for (const FKodAbilitySpec& Ability : Marine->Abilities)
@@ -585,7 +585,7 @@ void AKodSlice0GameMode::StartPlay()
 			};
 			TArray<FName> NoTrains;
 			TArray<FName> MarineTrain;
-			MarineTrain.Add(FName(KodWardenPaths::Id_Ranger));
+			MarineTrain.Add(FName(KodWardenPaths::Id_Marine));
 			MarineTrain.Add(FName(KodWardenPaths::Id_Medic));
 			RegisterBuild(KodWardenPaths::Id_CommandCenter, NoTrains);
 			RegisterBuild(KodWardenPaths::Id_SupplyDepot, NoTrains);
@@ -618,7 +618,7 @@ void AKodSlice0GameMode::StartPlay()
 				Sim->RegisterTrainSpec(Spec);
 			};
 			StampRoster(FName(KodWardenPaths::Id_Dozer), true, false, false, 0, 0, 0, FName());
-			StampRoster(FName(KodWardenPaths::Id_Ranger), true, true, false, 1, 0, 0, FName());
+			StampRoster(FName(KodWardenPaths::Id_Marine), true, true, false, 1, 0, 0, FName());
 			StampRoster(FName(KodWardenPaths::Id_Medic), true, true, true, 1, 200, 50, FName(KodWardenPaths::Id_EngineeringBay));
 			FKodUpgradeSpec Weapons;
 			Weapons.UpgradeId = FName(KodWardenPaths::Id_InfantryWeapons);
@@ -1038,9 +1038,9 @@ void AKodSlice0GameMode::SpawnHostileTestTarget()
 
 	const TCHAR* Anchor = bFoundAnchor ? TEXT("PROXY_HOSTILE") : TEXT("fallback");
 	const FTransform Transform(FRotator::ZeroRotator, Location);
-	// Same Ranger definition as the player Marine (skeletal mesh + AnimBP when they load).
+	// Same Marine definition as the player infantry (skeletal mesh + AnimBP when they load).
 	// Cube only if that mesh soft ref misses. TeamColor tints team 1 red. No AI controller.
-	AKodUnit* Hostile = UKodSlice0Bootstrap::SpawnRanger(World, Transform, HostileTeamId, /*bForceCubeBody*/ false);
+	AKodUnit* Hostile = UKodSlice0Bootstrap::SpawnMarine(World, Transform, HostileTeamId, /*bForceCubeBody*/ false);
 	if (!Hostile)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Slice0 Hostile spawn failed Anchor=%s Loc=%.0f,%.0f,%.0f"),

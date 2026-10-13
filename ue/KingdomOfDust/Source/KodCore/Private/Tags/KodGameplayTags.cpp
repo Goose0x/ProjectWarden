@@ -4,6 +4,7 @@ namespace KodGameplayTags
 {
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Unit, "Kod.Unit");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Unit_Soldier, "Kod.Unit.Soldier");
+	UE_DEFINE_GAMEPLAY_TAG(Kod_Unit_Marine, "Kod.Unit.Marine");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Unit_Ranger, "Kod.Unit.Ranger");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Unit_Dozer, "Kod.Unit.Dozer");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Building, "Kod.Building");

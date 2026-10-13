@@ -28,10 +28,6 @@ namespace
 		{
 			return FName(TEXT("AMP"));
 		}
-		if (Label == FName(KodWardenPaths::Id_Ranger) || EngineId == FName(KodWardenPaths::Id_Ranger))
-		{
-			return FName(TEXT("Marine"));
-		}
 		return Label.IsNone() ? FName(TEXT("Unit")) : Label;
 	}
 

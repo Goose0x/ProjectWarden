@@ -10,7 +10,7 @@
 | Id | Class | Soft path |
 |----|-------|-----------|
 | `RangerRifle` | `UKodWeaponDefinition` | `/Game/Warden/Data/RangerRifle.RangerRifle` |
-| `Ranger` | `UKodUnitDefinition` | `/Game/Warden/Data/Ranger.Ranger` |
+| `Marine` | `UKodUnitDefinition` | `/Game/Warden/Data/Marine.Marine` |
 | `Dozer` | `UKodUnitDefinition` | `/Game/Warden/Data/Dozer.Dozer` |
 | `CommandCenter` | `UKodBuildingDefinition` | `/Game/Warden/Data/CommandCenter.CommandCenter` |
 | `Barracks` | `UKodBuildingDefinition` | `/Game/Warden/Data/Barracks.Barracks` |
@@ -22,7 +22,11 @@ Constants: `KodWardenPaths.h`. Catalog JSON: `Content/Warden/Data/WardenSlice0Ca
 
 `JadeiteNode` and `LumineneVent` are the economy node ids. Bootstrap creates them in memory. PIE does not need those uassets. Do not commit them. `OilSource` is a catalog alias of the vent so an old id still resolves. The actor tag `KodResourceOil` still registers as Luminene.
 
-The USA basic infantry **display name is Marine**. The internal id stays `Ranger` (`DefinitionId`, `/Game/Warden/Data/Ranger`, `RangerRifle`, gameplay tag `Kod.Unit.Ranger`, log keys, class names). Bootstrap `UKodUnitDefinition::DisplayName` text is Marine (`NSLOCTEXT` key `Unit_Ranger`). On a loaded Ranger Data Asset, set the **DisplayName** property to Marine. Do not rename the asset.
+The USA basic infantry **engine id is Marine** (`DefinitionId`, `/Game/Warden/Data/Marine`, gameplay tag `Kod.Unit.Marine`). DisplayName is Marine. `RangerRifle` stays the weapon id. `SM_Ranger_Body` stays the current body mesh. `Dozer` stays the AMP worker engine id; its DisplayName is AMP.
+
+Ranger is Marine. There is no separate Ranger unit. Sim blob version 11 writes `Marine`. Loads of version 10 and earlier alias a unit id `Ranger` to `Marine`. `DefaultEngine.ini` permanently redirects `/Game/Warden/Data/Ranger` to `/Game/Warden/Data/Marine`.
+
+NAOMI, on the local content (do not commit the uassets): rename `/Game/Warden/Data/Ranger` to `/Game/Warden/Data/Marine`, set that asset's `DefinitionId` to `Marine` and its tag to `Kod.Unit.Marine`, point Barracks `TrainableUnits` at Marine, and rename a `DT_KodUnitStats` row `Ranger` to `Marine` if that table exists. Do not rename `SM_Ranger_Body` or the `Characters/USA/Ranger` folder.
 
 ## BuildTicks formula
 
@@ -34,7 +38,7 @@ Helper: `KodBuildTicks::SecondsToBuildTicks` / `BuildTicksToSeconds` / `ResolveB
 
 | Asset | Seconds | BuildTicks |
 |-------|---------|------------|
-| Ranger | 5 | **80** |
+| Marine | 5 | **80** |
 | Dozer | 8 | **128** |
 | Barracks | 20 | **320** |
 | CommandCenter | 0 | **0** |
@@ -50,13 +54,13 @@ Helper: `KodBuildTicks::SecondsToBuildTicks` / `BuildTicksToSeconds` / `ResolveB
 2. Content Browser → `/Game/Warden/Data`.
 3. Right-click → **Miscellaneous → Data Asset** → class from table → **Save As exact id** (`RangerRifle`, not `DA_Weapon_RangerRifle`).
 4. Fill from matching `Content/Warden/Data/<Id>.md` or catalog JSON.
-5. Wire soft refs (Ranger → RangerRifle, Barracks Trainable → Ranger, USA start refs, etc.).
+5. Wire soft refs (Marine → RangerRifle, Barracks Trainable → Marine, USA start refs, etc.).
 
 **Do not commit fake binary `.uasset` / `.umap` files.**
 
-## Ranger body mesh (presentation)
+## Marine body mesh (presentation)
 
-The Ranger DataAsset stays `/Game/Warden/Data/Ranger.Ranger`. The mesh is not a new Primary Asset id. `AKodUnit` reads it off `UKodUnitDefinition` and draws it on the existing static mesh child `UnitMesh`.
+The current Marine body is still `SM_Ranger_Body`. Set it on `/Game/Warden/Data/Marine.Marine` after the rename. The mesh is not a new Primary Asset id. `AKodUnit` reads it off `UKodUnitDefinition` and draws it on the existing static mesh child `UnitMesh`.
 
 Constants: `KodWardenPaths::RangerCharacterRoot`, `KodWardenPaths::RangerBodyStaticMesh`.
 
@@ -67,7 +71,7 @@ Constants: `KodWardenPaths::RangerCharacterRoot`, `KodWardenPaths::RangerBodySta
 | Skeletal mesh | Assign when the Marine skeletal asset exists. Empty keeps the static mesh, then the cube. |
 | Rejected folder | `/Game/Units/Meshes/` |
 
-`UKodSlice0Bootstrap::MakeRanger` leaves `SkeletalMesh` and `StaticMesh` null. PIE with only the catalog still shows `/Engine/BasicShapes/Cube` at scale `0.8×0.8×1.7`. A set soft path that fails to load does the same. PIE log: `KodUnitBody <name> Source=Cube` or `Source=StaticMesh`.
+`UKodSlice0Bootstrap::MakeMarine` leaves `SkeletalMesh` and `StaticMesh` null. PIE with only the catalog still shows `/Engine/BasicShapes/Cube` at scale `0.8×0.8×1.7`. A set soft path that fails to load does the same. PIE log: `KodUnitBody <name> Source=Cube` or `Source=StaticMesh`.
 
 ### Editor import (local only — no binaries in git)
 
@@ -75,7 +79,7 @@ Constants: `KodWardenPaths::RangerCharacterRoot`, `KodWardenPaths::RangerBodySta
 2. Content Browser → add `/Game/Warden/Characters/USA/Ranger/` (this mount, not `Units/Meshes`).
 3. Import the baked USA Ranger LOW FBX as a **static mesh**. Skeletal mesh and anims wait for a later pass.
 4. If Import keeps the source asset name, rename the static mesh to **`SM_Ranger_Body`**. The soft path above has to match the package name.
-5. Open `/Game/Warden/Data/Ranger` (create it with the six-DA recipe above if it is not there yet). Set **Static Mesh** to `SM_Ranger_Body`. Leave **Skeletal Mesh** empty.
+5. Open `/Game/Warden/Data/Marine` (rename the old Ranger DataAsset; do not create a new Ranger asset). Set **Static Mesh** to `SM_Ranger_Body`. Leave **Skeletal Mesh** empty. Set **DefinitionId** to `Marine`.
 6. Save. Do not commit the `.uasset`, the FBX, or the map.
 
 On the next PIE, `ApplyDefinition` puts that mesh on `UnitMesh` at relative location `0` (still attached to the capsule) and logs `KodUnitBody … Source=StaticMesh`. `MountResolvedStaticMesh` then sets a uniform `RelativeScale3D` of `170 / (BoxExtent.Z * 2)` so the body is about 170 cm tall. That is a Slice 0 presentation band-aid: `SM_Ranger_Body` was imported in meters (bounds ~1.7 units, ~2 cm in Unreal) and disappears next to the cube at scale 1. Invalid bounds stay at scale 1. Remove the band-aid once Art reimports `SM_Ranger_Body` at centimeter scale, or once a skeletal mesh lands. The cube placeholder stays scale `0.8×0.8×1.7` at the same attachment.
@@ -478,7 +482,7 @@ Train and cancel spend the sim bank only. `FKodTrainCost` on the unit and buildi
 | `CommandCenter` | Command Center | 400 | 0 | provides 15 | 71 s | Drop-off. Trains AMP. Mesh soft-ref `SM_general`. |
 | `SupplyDepot` | Supply Depot | 100 | 0 | provides 8 | 21 s | Catalog only. Not spawned. Mesh soft-ref `SM_storage`. |
 | `Barracks` | Barracks | 150 | 0 | 0 | 46 s | Not trained this step. |
-| `Ranger` | Marine | 75 | 0 | 1 | 80 ticks | Combat HP and rifle unchanged. |
+| `Marine` | Marine | 75 | 0 | 1 | 80 ticks | Combat HP and rifle unchanged. Engine id was Ranger through save version 10. |
 
 Supply cap is the sum of registered structures, hard-capped at **200**. HQ contributes 15, a depot would contribute 8. Used supply is counted when the unit actor applies its definition, and released on death. A train checks supply when the slot **starts**, not when it is queued. Five slots. Cost is spent on enqueue and refunded in full on cancel (last slot). Cancel does not change supply.
 
@@ -665,7 +669,7 @@ UE 5.8 hides the portrait stage with `UpdateHiddenComponents` and `GetPrimitiveS
 
 Enter opens the chat line. `kod.Cheat` accepts `invincible`, `add credits`, `add luminene`, `instant build`, `no supply cap`, `reveal map`, and `no cooldown`. Any accepted cheat flags the match. The results screen draws `CHEATED`. `kod.Competitive 1` (and the settings toggle) refuses cheats.
 
-Abilities, units, weapons, structures, and upgrades are runtime `UDataTable` rows. Defaults are the bootstrap integers. `kod.Balance Unit Ranger MaxHealth 200` retunes without a recompile. Those integers are hashed.
+Abilities, units, weapons, structures, and upgrades are runtime `UDataTable` rows. Defaults are the bootstrap integers. `kod.Balance Unit Marine MaxHealth 200` retunes without a recompile. Those integers are hashed.
 
 `kod.Test marines|stim|bunker [runs] [seed]` runs a seeded headless fight and writes CSV and JSON under `Saved/KodTests`. `kod.TestSummary` prints them. The live match is restored afterward.
 

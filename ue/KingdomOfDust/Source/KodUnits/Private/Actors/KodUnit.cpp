@@ -71,9 +71,9 @@ namespace
 		{
 			return false;
 		}
-		const FName RangerId(KodWardenPaths::Id_Ranger);
+		const FName MarineId(KodWardenPaths::Id_Marine);
 		const FName RifleId(KodWardenPaths::Id_RangerRifle);
-		if (Def->DefinitionId == RangerId || Def->GetFName() == RangerId)
+		if (Def->DefinitionId == MarineId || Def->GetFName() == MarineId)
 		{
 			return true;
 		}

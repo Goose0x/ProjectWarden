@@ -326,7 +326,7 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 		DamageTaken1 += DealtInt;
 	}
 	Target.Health = FMath::Max(0.f, Target.Health - Dealt);
-	if (State.DefinitionId == FName(TEXT("Ranger")))
+	if (State.DefinitionId == FName(KodWardenPaths::Id_Marine))
 	{
 		RaiseCue(FName(TEXT("marine_fire")), State.Position, true);
 	}

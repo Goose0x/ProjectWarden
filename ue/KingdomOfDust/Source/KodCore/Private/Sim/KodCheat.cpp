@@ -140,7 +140,7 @@ namespace
 
 	FAutoConsoleCommandWithWorldAndArgs GKodBalance(
 		TEXT("kod.Balance"),
-		TEXT("Override a balance row integer. Usage: kod.Balance Unit Ranger MaxHealth 200"),
+		TEXT("Override a balance row integer. Usage: kod.Balance Unit Marine MaxHealth 200"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodBalance));
 
 	void KodMatchMode(const TArray<FString>& Args, UWorld* World)

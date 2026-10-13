@@ -14,8 +14,9 @@ class UWorld;
 
 /**
  * Runtime authoring bridge until cooked .uassets exist under /Game/Warden/Data/.
- * NewObject with exact FNames: RangerRifle, Ranger, Dozer, CommandCenter, Barracks, USA,
+ * NewObject with exact FNames: RangerRifle, Marine, Dozer, CommandCenter, Barracks, USA,
  * plus JadeiteNode and LumineneVent. OilSource remains a catalog alias of the vent.
+ * Marine is the infantry. Ranger is that same unit's legacy id. Dozer stays the AMP engine id.
  * PIE: prefer SoftObjectPath load; on failure use catalog entries from EnsureCatalog.
  */
 UCLASS()
@@ -58,11 +59,15 @@ public:
 	static UKodResourceNodeDefinition* ResolveResourceNode(FName DefinitionId, UObject* Outer = nullptr);
 
 	/**
-	 * Spawn one Ranger at Transform. MaxHealth from the DA only.
+	 * Spawn one Marine at Transform. MaxHealth from the DA only.
 	 * bForceCubeBody keeps the Engine cube and applies the red hostile tint.
-	 * Otherwise the unit mounts the Ranger skeletal mesh when it loads, then static, then the cube,
-	 * and ApplyTeamColor tints TeamColor (or the Color fallback on team 1).
+	 * Otherwise the unit mounts the Marine body (SM_Ranger_Body until the rebake) when it loads,
+	 * then the cube, and ApplyTeamColor tints TeamColor (or the Color fallback on team 1).
 	 */
+	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
+	static class AKodUnit* SpawnMarine(UWorld* World, const FTransform& Transform, int32 TeamId = 0, bool bForceCubeBody = false);
+
+	/** Legacy Blueprint name. Spawns a Marine. Ranger is Marine. */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
 	static class AKodUnit* SpawnRanger(UWorld* World, const FTransform& Transform, int32 TeamId = 0, bool bForceCubeBody = false);
 
@@ -76,21 +81,21 @@ public:
 protected:
 	static UKodDataCatalog* BuildCatalog(UObject* Outer);
 	static UKodWeaponDefinition* MakeRangerRifle(UObject* Outer);
-	static UKodUnitDefinition* MakeRanger(UObject* Outer, UKodWeaponDefinition* Rifle);
+	static UKodUnitDefinition* MakeMarine(UObject* Outer, UKodWeaponDefinition* Rifle);
 	static UKodUnitDefinition* MakeScinderInfantry(UObject* Outer, UKodWeaponDefinition* Rifle);
 	static UKodUnitDefinition* MakeScnFighter(UObject* Outer);
 	static UKodUnitDefinition* MakeScnTwinblade(UObject* Outer);
 	static UKodUnitDefinition* MakeScnWorker(UObject* Outer);
 	static UKodUnitDefinition* MakeDozer(UObject* Outer);
 	static UKodBuildingDefinition* MakeCommandCenter(UObject* Outer, UKodUnitDefinition* Dozer);
-	static UKodBuildingDefinition* MakeBarracks(UObject* Outer, UKodUnitDefinition* Ranger);
+	static UKodBuildingDefinition* MakeBarracks(UObject* Outer, UKodUnitDefinition* Marine);
 	static UKodBuildingDefinition* MakeSupplyDepot(UObject* Outer);
 	static UKodBuildingDefinition* MakeRig(UObject* Outer);
 	static UKodUnitDefinition* MakeMedic(UObject* Outer);
 	static UKodBuildingDefinition* MakeEngineeringBay(UObject* Outer);
 	static UKodBuildingDefinition* MakeBunker(UObject* Outer);
 	static UKodBuildingDefinition* MakeTurret(UObject* Outer);
-	static UKodFactionDefinition* MakeUSA(UObject* Outer, UKodBuildingDefinition* CC, UKodUnitDefinition* Dozer, UKodUnitDefinition* Ranger);
+	static UKodFactionDefinition* MakeUSA(UObject* Outer, UKodBuildingDefinition* CC, UKodUnitDefinition* Dozer, UKodUnitDefinition* Marine);
 	static UKodResourceNodeDefinition* MakeJadeiteNode(UObject* Outer);
 	static UKodResourceNodeDefinition* MakeLumineneVent(UObject* Outer);
 
