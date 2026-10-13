@@ -9,13 +9,20 @@
 
 namespace
 {
+	struct FArtEntry
+	{
+		FSoftObjectPath Wire160;
+		FSoftObjectPath Wire48;
+		FSoftObjectPath Mask;
+		FSoftObjectPath Icon;
+	};
+
 	struct FKodUiArtState
 	{
 		bool bManifestLoaded = false;
 		TMap<FName, FSoftObjectPath> RegisteredWire;
 		TMap<FName, FSoftObjectPath> RegisteredIcon;
-		TMap<FName, FSoftObjectPath> ManifestWire;
-		TMap<FName, FSoftObjectPath> ManifestIcon;
+		TMap<FName, FArtEntry> Entries;
 	};
 
 	FKodUiArtState& ArtState()
@@ -24,56 +31,103 @@ namespace
 		return State;
 	}
 
-	void ReadMap(const TSharedPtr<FJsonObject>& Root, const TCHAR* Field, TMap<FName, FSoftObjectPath>& Out)
+	FSoftObjectPath FromStem(const FString& Stem, const TCHAR* Root)
+	{
+		if (Stem.IsEmpty())
+		{
+			return FSoftObjectPath();
+		}
+		if (Stem.Contains(TEXT("/")))
+		{
+			return FSoftObjectPath(Stem);
+		}
+		return FSoftObjectPath(FString::Printf(TEXT("%s/%s.%s"), Root, *Stem, *Stem));
+	}
+
+	FSoftObjectPath FieldStem(const TSharedPtr<FJsonObject>& Row, const TCHAR* Field, const TCHAR* Root)
+	{
+		FString Stem;
+		if (!Row.IsValid() || !Row->TryGetStringField(Field, Stem))
+		{
+			return FSoftObjectPath();
+		}
+		return FromStem(Stem, Root);
+	}
+
+	void ReadEntries(const TSharedPtr<FJsonObject>& Root, TMap<FName, FArtEntry>& Out)
 	{
 		const TSharedPtr<FJsonObject>* Object = nullptr;
-		if (!Root.IsValid() || !Root->TryGetObjectField(FString(Field), Object) || !Object || !Object->IsValid())
+		if (!Root.IsValid() || !Root->TryGetObjectField(TEXT("entries"), Object) || !Object || !Object->IsValid())
 		{
 			return;
 		}
 		for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : (*Object)->Values)
 		{
-			FString Path;
-			if (!Pair.Value.IsValid() || !Pair.Value->TryGetString(Path) || Path.IsEmpty())
+			const TSharedPtr<FJsonObject> Row = Pair.Value.IsValid() ? Pair.Value->AsObject() : nullptr;
+			if (!Row.IsValid())
 			{
 				continue;
 			}
-			FSoftObjectPath Soft(Path);
-			if (Soft.IsValid())
+			FArtEntry Entry;
+			Entry.Wire160 = FieldStem(Row, TEXT("wire160"), KodWardenPaths::UiWireframeRoot);
+			Entry.Wire48 = FieldStem(Row, TEXT("wire48"), KodWardenPaths::UiWireframeRoot);
+			Entry.Mask = FieldStem(Row, TEXT("mask"), KodWardenPaths::UiWireframeRoot);
+			Entry.Icon = FieldStem(Row, TEXT("icon"), KodWardenPaths::UiIconRoot);
+			if (Entry.Wire160.IsValid() || Entry.Wire48.IsValid() || Entry.Mask.IsValid() || Entry.Icon.IsValid())
 			{
-				Out.Add(FName(*Pair.Key), Soft);
+				Out.Add(FName(*Pair.Key), Entry);
 			}
 		}
 	}
 
-	FSoftObjectPath Convention(const TCHAR* Root, FName Id)
+	FSoftObjectPath Convention(FName Id, FKodUiArt::EKind Kind)
 	{
 		if (Id.IsNone())
 		{
 			return FSoftObjectPath();
 		}
 		const FString Name = Id.ToString();
-		return FSoftObjectPath(FString::Printf(TEXT("%s/%s.%s"), Root, *Name, *Name));
+		const TCHAR* Root = Kind == FKodUiArt::EKind::Icon ? KodWardenPaths::UiIconRoot : KodWardenPaths::UiWireframeRoot;
+		const TCHAR* Suffix = TEXT("");
+		switch (Kind)
+		{
+		case FKodUiArt::EKind::Wire160:
+			Suffix = TEXT("_160");
+			break;
+		case FKodUiArt::EKind::Wire48:
+			Suffix = TEXT("_48");
+			break;
+		case FKodUiArt::EKind::ZoneMask:
+			Suffix = TEXT("_Mask");
+			break;
+		case FKodUiArt::EKind::Icon:
+			Suffix = TEXT("_Icon");
+			break;
+		default:
+			break;
+		}
+		return FSoftObjectPath(FString::Printf(TEXT("%s/%s%s.%s%s"), Root, *Name, Suffix, *Name, Suffix));
 	}
 
-	FSoftObjectPath Pick(FName Id, const TMap<FName, FSoftObjectPath>& Registered, const TMap<FName, FSoftObjectPath>& Manifest, const TCHAR* Root)
+	const FSoftObjectPath* Mapped(const FArtEntry* Entry, FKodUiArt::EKind Kind)
 	{
-		FKodUiArt::LoadManifest();
-		if (const FSoftObjectPath* Found = Registered.Find(Id))
+		if (!Entry)
 		{
-			if (Found->IsValid())
-			{
-				return *Found;
-			}
+			return nullptr;
 		}
-		if (const FSoftObjectPath* Found = Manifest.Find(Id))
+		switch (Kind)
 		{
-			if (Found->IsValid())
-			{
-				return *Found;
-			}
+		case FKodUiArt::EKind::Wire160:
+			return Entry->Wire160.IsValid() ? &Entry->Wire160 : nullptr;
+		case FKodUiArt::EKind::Wire48:
+			return Entry->Wire48.IsValid() ? &Entry->Wire48 : nullptr;
+		case FKodUiArt::EKind::ZoneMask:
+			return Entry->Mask.IsValid() ? &Entry->Mask : nullptr;
+		case FKodUiArt::EKind::Icon:
+			return Entry->Icon.IsValid() ? &Entry->Icon : nullptr;
+		default:
+			return nullptr;
 		}
-		return Convention(Root, Id);
 	}
 }
 
@@ -99,9 +153,8 @@ void FKodUiArt::LoadManifest()
 		UE_LOG(LogTemp, Warning, TEXT("KodUiArt Manifest parse %s"), *Path);
 		return;
 	}
-	ReadMap(Root, TEXT("wireframes"), State.ManifestWire);
-	ReadMap(Root, TEXT("icons"), State.ManifestIcon);
-	UE_LOG(LogTemp, Log, TEXT("KodUiArt Manifest Wire=%d Icon=%d"), State.ManifestWire.Num(), State.ManifestIcon.Num());
+	ReadEntries(Root, State.Entries);
+	UE_LOG(LogTemp, Log, TEXT("KodUiArt Manifest Entries=%d"), State.Entries.Num());
 }
 
 void FKodUiArt::RegisterWireframe(FName Id, const FSoftObjectPath& Path)
@@ -120,14 +173,41 @@ void FKodUiArt::RegisterIcon(FName Id, const FSoftObjectPath& Path)
 	}
 }
 
-FSoftObjectPath FKodUiArt::ResolveWireframe(FName Id)
+FSoftObjectPath FKodUiArt::Resolve(FName Id, EKind Kind)
 {
+	LoadManifest();
 	const FKodUiArtState& State = ArtState();
-	return Pick(Id, State.RegisteredWire, State.ManifestWire, KodWardenPaths::UiWireframeRoot);
+	if (const FArtEntry* Entry = State.Entries.Find(Id))
+	{
+		if (const FSoftObjectPath* MappedPath = Mapped(Entry, Kind))
+		{
+			return *MappedPath;
+		}
+	}
+	if (Kind == EKind::Icon)
+	{
+		if (const FSoftObjectPath* Registered = State.RegisteredIcon.Find(Id))
+		{
+			if (Registered->IsValid())
+			{
+				return *Registered;
+			}
+		}
+	}
+	else if (Kind == EKind::Wire160 || Kind == EKind::Wire48)
+	{
+		if (const FSoftObjectPath* Registered = State.RegisteredWire.Find(Id))
+		{
+			if (Registered->IsValid())
+			{
+				return *Registered;
+			}
+		}
+	}
+	return Convention(Id, Kind);
 }
 
-FSoftObjectPath FKodUiArt::ResolveIcon(FName Id)
+FSoftObjectPath FKodUiArt::Resolve(FName Id, KodWireTint::ESlot Slot)
 {
-	const FKodUiArtState& State = ArtState();
-	return Pick(Id, State.RegisteredIcon, State.ManifestIcon, KodWardenPaths::UiIconRoot);
+	return Resolve(Id, Slot == KodWireTint::ESlot::Group48 ? EKind::Wire48 : EKind::Wire160);
 }

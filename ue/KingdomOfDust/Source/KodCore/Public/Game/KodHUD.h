@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
 #include "Engine/Texture2D.h"
+#include "Game/KodWireTint.h"
+#include "Game/KodUiArt.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Sim/KodSimSubsystem.h"
@@ -214,10 +216,11 @@ protected:
 	 * Filled silhouette. ZoneRemain overrides per-zone HP (0..1, one entry per zone).
 	 * Null, or a count that does not match, drives every zone from overall HP.
 	 */
-	void DrawWireSilhouette(float X, float Y, float W, float H, FName DefinitionId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash, const TArray<float>* ZoneRemain = nullptr);
+	void DrawWireSilhouette(float X, float Y, float W, float H, FName DefinitionId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash, KodWireTint::ESlot Slot, const TArray<float>* ZoneRemain = nullptr);
 	/** 128 source scaled to the slot. A missing texture draws the flat placeholder. */
 	void DrawIconSlot(FName IconId, float X, float Y, float W, float H, float Opacity = 1.f);
 	class UTexture2D* ResolveArtTexture(FName Id, bool bWireframe);
+	class UTexture2D* ResolveArtTexture(FName Id, FKodUiArt::EKind Kind);
 	class UMaterialInstanceDynamic* LeaseWireMaterial();
 	void BindAlertFeed();
 	void HandleJuiceText(FVector Position, int32 Amount, uint8 Kind);

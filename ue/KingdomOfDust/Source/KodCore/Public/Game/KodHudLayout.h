@@ -5,7 +5,8 @@
  * Adjust the v5 rects here. Draw code should not hardcode these numbers.
  * Single-unit silhouette is 160×160 inside the existing info well.
  * Each multi-select cell keeps its hit rect and draws a 48×48 silhouette inside it.
- * Command icons and queue icons are authored at 128×128 and scaled to the cell.
+ * Imported wireframe PNGs are 160 and 48. Zone masks match those sizes.
+ * Command icons are 128 PNGs scaled to the cell.
  */
 namespace KodHudLayout
 {

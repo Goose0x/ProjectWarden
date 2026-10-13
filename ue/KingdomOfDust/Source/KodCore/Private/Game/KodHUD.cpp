@@ -63,19 +63,10 @@ namespace
 		return Label;
 	}
 
-	/** HP fill. Green at 66% and above, yellow from 33%, red below. */
+	/** HP fill. Same tokens as the wireframe: HP.Green, HP.Yellow, HP.Red. */
 	FLinearColor HealthBarInk(float Fraction)
 	{
-		const float Clamped = FMath::Clamp(Fraction, 0.f, 1.f);
-		if (Clamped >= 0.66f)
-		{
-			return FLinearColor(FColor(0x4C, 0xD9, 0x64));
-		}
-		if (Clamped >= 0.33f)
-		{
-			return FLinearColor(FColor(0xF2, 0xC2, 0x30));
-		}
-		return FLinearColor(FColor(0xE5, 0x38, 0x3B));
+		return KodWireTint::FromRemain(Fraction);
 	}
 
 	struct FKodSpecRow

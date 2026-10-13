@@ -11,19 +11,27 @@ bool FKodWireHpTintTest::RunTest(const FString& Parameters)
 	(void)Parameters;
 
 	TestTrue(TEXT("100/100 green"), KodWireTint::FromHitPoints(100, 100).Equals(KodWireTint::Healthy()));
-	TestTrue(TEXT("67/100 green"), KodWireTint::FromHitPoints(67, 100).Equals(KodWireTint::Healthy()));
-	TestTrue(TEXT("66/100 yellow"), KodWireTint::FromHitPoints(66, 100).Equals(KodWireTint::Warning()));
+	TestTrue(TEXT("66/100 green"), KodWireTint::FromHitPoints(66, 100).Equals(KodWireTint::Healthy()));
+	TestTrue(TEXT("65/100 yellow"), KodWireTint::FromHitPoints(65, 100).Equals(KodWireTint::Warning()));
 	TestTrue(TEXT("33/100 yellow"), KodWireTint::FromHitPoints(33, 100).Equals(KodWireTint::Warning()));
 	TestTrue(TEXT("32/100 red"), KodWireTint::FromHitPoints(32, 100).Equals(KodWireTint::Critical()));
 	TestTrue(TEXT("0/100 red"), KodWireTint::FromHitPoints(0, 100).Equals(KodWireTint::Critical()));
 	TestTrue(TEXT("0 max red"), KodWireTint::FromHitPoints(10, 0).Equals(KodWireTint::Critical()));
-	TestTrue(TEXT("healthy band"), KodWireTint::BandFor(100, 100) == KodWireTint::EBand::Healthy);
-	TestTrue(TEXT("warning band"), KodWireTint::BandFor(66, 100) == KodWireTint::EBand::Warning);
-	TestTrue(TEXT("critical band"), KodWireTint::BandFor(32, 100) == KodWireTint::EBand::Critical);
+	TestTrue(TEXT("remain 0.66 green"), KodWireTint::FromRemain(0.66f).Equals(KodWireTint::Healthy()));
+	TestTrue(TEXT("remain 0.50 yellow"), KodWireTint::FromRemain(0.50f).Equals(KodWireTint::Warning()));
+	TestTrue(TEXT("remain 0.33 yellow"), KodWireTint::FromRemain(0.33f).Equals(KodWireTint::Warning()));
+	TestTrue(TEXT("remain 0.32 red"), KodWireTint::FromRemain(0.32f).Equals(KodWireTint::Critical()));
+	TestTrue(TEXT("green token"), KodWireTint::Healthy().Equals(FLinearColor(FColor(0x4C, 0xD9, 0x64))));
+	TestTrue(TEXT("yellow token"), KodWireTint::Warning().Equals(FLinearColor(FColor(0xF2, 0xC2, 0x30))));
+	TestTrue(TEXT("red token"), KodWireTint::Critical().Equals(FLinearColor(FColor(0xE5, 0x38, 0x3B))));
 
 	TArray<KodWireTint::FZone> Zones;
 	KodWireTint::BuildZones(false, Zones);
-	TestEqual(TEXT("infantry zone count"), Zones.Num(), 6);
+	TestEqual(TEXT("unit zone count"), Zones.Num(), 4);
+	TestTrue(TEXT("unit head"), Zones[0].Id == KodWireTint::EZone::Head);
+	TestTrue(TEXT("unit torso"), Zones[1].Id == KodWireTint::EZone::Torso);
+	TestTrue(TEXT("unit legs"), Zones[2].Id == KodWireTint::EZone::Legs);
+	TestTrue(TEXT("unit weapon"), Zones[3].Id == KodWireTint::EZone::Weapon);
 	KodWireTint::ApplyOverallHp(Zones, 10, 100);
 	for (const KodWireTint::FZone& Zone : Zones)
 	{
@@ -35,15 +43,11 @@ bool FKodWireHpTintTest::RunTest(const FString& Parameters)
 	PerZone.Add(0.5f);
 	PerZone.Add(0.f);
 	PerZone.Add(0.66f);
-	PerZone.Add(0.33f);
-	PerZone.Add(0.32f);
 	TestTrue(TEXT("per-zone apply"), KodWireTint::ApplyPerZone(Zones, PerZone));
-	TestTrue(TEXT("zone full green"), KodWireTint::FromRemain(Zones[0].Remain).Equals(KodWireTint::Healthy()));
-	TestTrue(TEXT("zone half yellow"), KodWireTint::FromRemain(Zones[1].Remain).Equals(KodWireTint::Warning()));
-	TestTrue(TEXT("zone empty red"), KodWireTint::FromRemain(Zones[2].Remain).Equals(KodWireTint::Critical()));
-	TestTrue(TEXT("zone 0.66 yellow"), KodWireTint::FromRemain(Zones[3].Remain).Equals(KodWireTint::Warning()));
-	TestTrue(TEXT("zone 0.33 yellow"), KodWireTint::FromRemain(Zones[4].Remain).Equals(KodWireTint::Warning()));
-	TestTrue(TEXT("zone 0.32 red"), KodWireTint::FromRemain(Zones[5].Remain).Equals(KodWireTint::Critical()));
+	TestTrue(TEXT("head green"), KodWireTint::FromRemain(Zones[0].Remain).Equals(KodWireTint::Healthy()));
+	TestTrue(TEXT("torso yellow"), KodWireTint::FromRemain(Zones[1].Remain).Equals(KodWireTint::Warning()));
+	TestTrue(TEXT("legs red"), KodWireTint::FromRemain(Zones[2].Remain).Equals(KodWireTint::Critical()));
+	TestTrue(TEXT("weapon 0.66 green"), KodWireTint::FromRemain(Zones[3].Remain).Equals(KodWireTint::Healthy()));
 
 	TArray<float> Short;
 	Short.Add(1.f);
@@ -53,6 +57,9 @@ bool FKodWireHpTintTest::RunTest(const FString& Parameters)
 
 	TArray<KodWireTint::FZone> Blocks;
 	KodWireTint::BuildZones(true, Blocks);
-	TestEqual(TEXT("structure zone count"), Blocks.Num(), 4);
+	TestEqual(TEXT("building zone count"), Blocks.Num(), 3);
+	TestTrue(TEXT("building roof"), Blocks[0].Id == KodWireTint::EZone::Roof);
+	TestTrue(TEXT("building body"), Blocks[1].Id == KodWireTint::EZone::Body);
+	TestTrue(TEXT("building base"), Blocks[2].Id == KodWireTint::EZone::Base);
 	return true;
 }

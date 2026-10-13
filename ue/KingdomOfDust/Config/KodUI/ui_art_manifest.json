@@ -1,5 +1,11 @@
 {
-  "note": "Optional id to soft-path overrides. A unit or building definition soft ref wins. Otherwise the loader tries /Game/Warden/UI/Wireframes/<Id>.<Id> and /Game/Warden/UI/Icons/<Id>.<Id>. Author those textures at 128x128. Leave the maps empty until the files exist.",
-  "wireframes": {},
-  "icons": {}
+  "note": "Maps an engine id to imported file stems. wire160, wire48, and mask load from /Game/Warden/UI/Wireframes. icon loads from /Game/Warden/UI/Icons. A full /Game path is used as written. VG_Ranger is a placeholder until final Marine art replaces it. Units use zones head, torso, legs, weapon. Buildings use roof, body, base.",
+  "entries": {
+    "Ranger": {
+      "wire160": "VG_Ranger_160",
+      "wire48": "VG_Ranger_48",
+      "mask": "VG_Ranger_Mask",
+      "icon": "VG_Ranger_Icon"
+    }
+  }
 }

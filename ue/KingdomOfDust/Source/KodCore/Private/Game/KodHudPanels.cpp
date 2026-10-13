@@ -49,8 +49,7 @@ namespace
 
 	FLinearColor PanelHealthInk(float Fraction)
 	{
-		const int32 Milli = FMath::RoundToInt(FMath::Clamp(Fraction, 0.f, 1.f) * 1000.f);
-		return KodWireTint::FromHitPoints(Milli, 1000);
+		return KodWireTint::FromRemain(Fraction);
 	}
 
 	UFont* HudFont()
@@ -976,7 +975,7 @@ void AKodHUD::DrawSelectionPanel()
 		const float* HitUntil = WireHitUntil.Find(Tile.EntityId);
 		const bool bFlash = HitUntil && *HitUntil > Now;
 		DrawRect(Tok(0x1F, 0x23, 0x27, 0.92f), Wire.X, Wire.Y, Wire.W, Wire.H);
-		DrawWireSilhouette(Silhouette.X, Silhouette.Y, Silhouette.W, Silhouette.H, Tile.TypeId, ShownHP, MaxHP, Tile.bStructure, bFlash, nullptr);
+		DrawWireSilhouette(Silhouette.X, Silhouette.Y, Silhouette.W, Silhouette.H, Tile.TypeId, ShownHP, MaxHP, Tile.bStructure, bFlash, KodWireTint::ESlot::Info160, nullptr);
 		DrawRect(Tok(0xB0, 0x8D, 0x57), Wire.X, Wire.Y, Wire.W, 2.f * Scale);
 		float TextY = Info.Y + 6.f * Scale;
 		const float Line = 16.f * Scale;
@@ -1061,7 +1060,7 @@ void AKodHUD::DrawSelectionPanel()
 			KodHudLayout::GroupOriginY + KodHudLayout::GroupStepY * static_cast<float>(Row) + KodHudLayout::GroupSilhouetteInsetY,
 			KodHudLayout::GroupSilhouette,
 			KodHudLayout::GroupSilhouette);
-		DrawWireSilhouette(Silhouette.X, Silhouette.Y, Silhouette.W, Silhouette.H, Tile.TypeId, ShownHP, MaxHP, Tile.bStructure, bFlash, nullptr);
+		DrawWireSilhouette(Silhouette.X, Silhouette.Y, Silhouette.W, Silhouette.H, Tile.TypeId, ShownHP, MaxHP, Tile.bStructure, bFlash, KodWireTint::ESlot::Group48, nullptr);
 		const FLinearColor Frame = Tile.EntityId == PrimaryId ? Tok(0xD9, 0xB8, 0x78) : Tok(0x5C, 0x64, 0x6C);
 		const float Edge = FMath::Max(1.f, (Tile.EntityId == PrimaryId ? 2.f : 1.f) * Scale);
 		DrawRect(Frame, Cell.X, Cell.Y, Cell.W, Edge);

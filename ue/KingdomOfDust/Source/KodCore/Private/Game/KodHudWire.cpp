@@ -49,13 +49,19 @@ namespace
 
 UTexture2D* AKodHUD::ResolveArtTexture(FName Id, bool bWireframe)
 {
+	return ResolveArtTexture(Id, bWireframe ? FKodUiArt::EKind::Wire160 : FKodUiArt::EKind::Icon);
+}
+
+UTexture2D* AKodHUD::ResolveArtTexture(FName Id, FKodUiArt::EKind Kind)
+{
 	if (Id.IsNone())
 	{
 		return nullptr;
 	}
-	TMap<FName, TObjectPtr<UTexture2D>>& Hits = bWireframe ? WireHits : IconHits;
-	TSet<FName>& Miss = bWireframe ? WireMiss : IconMiss;
-	const FSoftObjectPath Path = bWireframe ? FKodUiArt::ResolveWireframe(Id) : FKodUiArt::ResolveIcon(Id);
+	const bool bIcon = Kind == FKodUiArt::EKind::Icon;
+	TMap<FName, TObjectPtr<UTexture2D>>& Hits = bIcon ? IconHits : WireHits;
+	TSet<FName>& Miss = bIcon ? IconMiss : WireMiss;
+	const FSoftObjectPath Path = FKodUiArt::Resolve(Id, Kind);
 	const FName PathKey(*Path.ToString());
 	if (PathKey.IsNone() || Miss.Contains(PathKey))
 	{
@@ -132,7 +138,7 @@ void AKodHUD::DrawIconSlot(FName IconId, float X, float Y, float W, float H, flo
 	DrawRect(FLinearColor(0.36f, 0.39f, 0.42f, Alpha), X, Y, W, H);
 }
 
-void AKodHUD::DrawWireSilhouette(float X, float Y, float W, float H, FName DefinitionId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash, const TArray<float>* ZoneRemain)
+void AKodHUD::DrawWireSilhouette(float X, float Y, float W, float H, FName DefinitionId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash, KodWireTint::ESlot Slot, const TArray<float>* ZoneRemain)
 {
 	if (!Canvas || W < 1.f || H < 1.f)
 	{
@@ -145,18 +151,22 @@ void AKodHUD::DrawWireSilhouette(float X, float Y, float W, float H, FName Defin
 		KodWireTint::ApplyOverallHp(Zones, Health, MaxHealth);
 	}
 
-	UTexture2D* WireTexture = ResolveArtTexture(DefinitionId, true);
+	const FKodUiArt::EKind WireKind = Slot == KodWireTint::ESlot::Group48 ? FKodUiArt::EKind::Wire48 : FKodUiArt::EKind::Wire160;
+	UTexture2D* WireTexture = ResolveArtTexture(DefinitionId, WireKind);
+	UTexture2D* ZoneMask = ResolveArtTexture(DefinitionId, FKodUiArt::EKind::ZoneMask);
 	if (UMaterialInstanceDynamic* Mid = WireTexture ? LeaseWireMaterial() : nullptr)
 	{
 		static const FName ZoneRemainName[KodWireTint::MaterialZoneCount] = {
-			TEXT("ZoneRemain0"), TEXT("ZoneRemain1"), TEXT("ZoneRemain2"),
-			TEXT("ZoneRemain3"), TEXT("ZoneRemain4"), TEXT("ZoneRemain5")
+			TEXT("ZoneRemain0"), TEXT("ZoneRemain1"), TEXT("ZoneRemain2"), TEXT("ZoneRemain3")
 		};
 		static const FName ZoneTintName[KodWireTint::MaterialZoneCount] = {
-			TEXT("ZoneTint0"), TEXT("ZoneTint1"), TEXT("ZoneTint2"),
-			TEXT("ZoneTint3"), TEXT("ZoneTint4"), TEXT("ZoneTint5")
+			TEXT("ZoneTint0"), TEXT("ZoneTint1"), TEXT("ZoneTint2"), TEXT("ZoneTint3")
 		};
 		Mid->SetTextureParameterValue(TEXT("Silhouette"), WireTexture);
+		if (ZoneMask)
+		{
+			Mid->SetTextureParameterValue(TEXT("ZoneMask"), ZoneMask);
+		}
 		for (int32 Index = 0; Index < KodWireTint::MaterialZoneCount; ++Index)
 		{
 			const bool bLive = Zones.IsValidIndex(Index);

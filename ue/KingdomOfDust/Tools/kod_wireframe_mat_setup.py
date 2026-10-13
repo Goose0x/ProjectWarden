@@ -7,25 +7,24 @@
 #
 # Parameters the HUD writes on a dynamic instance, one instance per silhouette
 # each frame so a group grid can show a different HP on every cell:
-#   Silhouette          texture, the unit wireframe (128 authored, scaled by the HUD)
-#   ZoneMaskA           rgba weights for zones 0-3. Black falls back to ZoneTint0.
-#   ZoneMaskB           rg weights for zones 4-5.
-#   ZoneRemain0..5      scalar 0..1. Today every zone is overall HP.
-#   ZoneTint0..5        linear colour. Today every zone is the same HP band.
+#   Silhouette          160 or 48 PNG for this slot
+#   ZoneMask            rgba weights. Units: R head, G torso, B legs, A weapon.
+#                       Buildings: R roof, G body, B base. A is unused.
+#   ZoneRemain0..3      scalar 0..1. Today every zone is overall HP.
+#   ZoneTint0..3        HUD HP tokens. Today every live zone is the same band.
 #
-# Bands: #3DFF6A above 66%, #FFD23D from 33% through 66%, #FF3D3D below 33%.
+# Bands: HP.Green #4CD964 at >= 66%, HP.Yellow #F2C230 from 33% up to 66%,
+# HP.Red #E5383B below 33%. Do not use the placement colours #3DFF6A / #FF3D3D.
 import unreal
 
 DST = "/Game/Warden/UI/Wireframes"
 NAME = "M_KodWireSilhouette"
 HLSL = """
-float W0 = MaskA.r;
-float W1 = MaskA.g;
-float W2 = MaskA.b;
-float W3 = MaskA.a;
-float W4 = MaskB.r;
-float W5 = MaskB.g;
-float MaskSum = W0 + W1 + W2 + W3 + W4 + W5;
+float W0 = Mask.r;
+float W1 = Mask.g;
+float W2 = Mask.b;
+float W3 = Mask.a;
+float MaskSum = W0 + W1 + W2 + W3;
 float3 Color = T0.rgb;
 float Cover = Silhouette.a;
 if (MaskSum > 1e-3)
@@ -37,8 +36,6 @@ if (MaskSum > 1e-3)
     w = W1 * R1; Acc += T1.rgb * w; Weight += w;
     w = W2 * R2; Acc += T2.rgb * w; Weight += w;
     w = W3 * R3; Acc += T3.rgb * w; Weight += w;
-    w = W4 * R4; Acc += T4.rgb * w; Weight += w;
-    w = W5 * R5; Acc += T5.rgb * w; Weight += w;
     Color = (Weight > 1e-3) ? Acc / Weight : T0.rgb;
 }
 return float4(Color, Cover);
@@ -77,7 +74,8 @@ def scalar_param(material, name, x, y):
 def vector_param(material, name, x, y):
     expr = mel.create_material_expression(material, unreal.MaterialExpressionVectorParameter, x, y)
     expr.set_editor_property("parameter_name", name)
-    expr.set_editor_property("default_value", unreal.LinearColor(0.24, 1.0, 0.42, 1.0))
+    # HP.Green #4CD964 in linear. The HUD overwrites ZoneTint each draw.
+    expr.set_editor_property("default_value", unreal.LinearColor(0.072, 0.694, 0.127, 1.0))
     return expr
 
 
@@ -88,26 +86,24 @@ material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UN
 material.set_editor_property("two_sided", True)
 
 silhouette = texture_param(material, "Silhouette", -900, -200)
-mask_a = texture_param(material, "ZoneMaskA", -900, 80)
-mask_b = texture_param(material, "ZoneMaskB", -900, 280)
+zone_mask = texture_param(material, "ZoneMask", -900, 80)
 custom = mel.create_material_expression(material, unreal.MaterialExpressionCustom, -200, 0)
 custom.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT4)
 custom.set_editor_property("description", "WireZones")
 custom.set_editor_property("code", HLSL)
 pins = []
 for pin_name in (
-    "Silhouette", "MaskA", "MaskB",
-    "R0", "R1", "R2", "R3", "R4", "R5",
-    "T0", "T1", "T2", "T3", "T4", "T5",
+    "Silhouette", "Mask",
+    "R0", "R1", "R2", "R3",
+    "T0", "T1", "T2", "T3",
 ):
     pin = unreal.CustomInput()
     pin.set_editor_property("input_name", pin_name)
     pins.append(pin)
 custom.set_editor_property("inputs", pins)
 mel.connect_material_expressions(silhouette, "", custom, "Silhouette")
-mel.connect_material_expressions(mask_a, "", custom, "MaskA")
-mel.connect_material_expressions(mask_b, "", custom, "MaskB")
-for index in range(6):
+mel.connect_material_expressions(zone_mask, "", custom, "Mask")
+for index in range(4):
     remain = scalar_param(material, f"ZoneRemain{index}", -600, -40 + index * 40)
     tint = vector_param(material, f"ZoneTint{index}", -600, 220 + index * 40)
     mel.connect_material_expressions(remain, "", custom, f"R{index}")

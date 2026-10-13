@@ -3,20 +3,41 @@
 #include "CoreMinimal.h"
 
 /**
- * HP bands for wireframe zones.
- * Green when HP is above 66%. Yellow from 33% through 66%. Red below 33%.
+ * HUD spec HP tokens for wireframe zones and the health bar.
+ * HP.Green #4CD964 at 66% and above. HP.Yellow #F2C230 from 33% up to 66%.
+ * HP.Red #E5383B below 33%.
+ * #3DFF6A and #FF3D3D are placement legality, not these bands.
  * Presentation only. Not sim state and not part of the idle hash.
  * All zones use overall HP until a caller fills per-zone Remain values.
+ * Units are head / torso / legs / weapon. Buildings are roof / body / base.
  */
 namespace KodWireTint
 {
-	constexpr int32 MaterialZoneCount = 6;
+	constexpr int32 MaterialZoneCount = 4;
 
 	enum class EBand : uint8
 	{
 		Healthy,
 		Warning,
 		Critical
+	};
+
+	enum class EZone : uint8
+	{
+		Head,
+		Torso,
+		Legs,
+		Weapon,
+		Roof,
+		Body,
+		Base
+	};
+
+	/** Which authored PNG the slot asks the manifest for. */
+	enum class ESlot : uint8
+	{
+		Info160,
+		Group48
 	};
 
 	constexpr EBand BandFor(int32 Health, int32 MaxHealth)
@@ -27,7 +48,7 @@ namespace KodWireTint
 		}
 		const int32 Hp = Health < 0 ? 0 : (Health > MaxHealth ? MaxHealth : Health);
 		const int64 Scaled = static_cast<int64>(Hp) * 100;
-		if (Scaled > static_cast<int64>(MaxHealth) * 66)
+		if (Scaled >= static_cast<int64>(MaxHealth) * 66)
 		{
 			return EBand::Healthy;
 		}
@@ -40,7 +61,8 @@ namespace KodWireTint
 
 	static_assert(BandFor(100, 100) == EBand::Healthy, "full HP is green");
 	static_assert(BandFor(67, 100) == EBand::Healthy, "above 66% is green");
-	static_assert(BandFor(66, 100) == EBand::Warning, "66% is yellow");
+	static_assert(BandFor(66, 100) == EBand::Healthy, "66% is green");
+	static_assert(BandFor(65, 100) == EBand::Warning, "below 66% is yellow");
 	static_assert(BandFor(50, 100) == EBand::Warning, "mid HP is yellow");
 	static_assert(BandFor(33, 100) == EBand::Warning, "33% is yellow");
 	static_assert(BandFor(32, 100) == EBand::Critical, "below 33% is red");
@@ -48,24 +70,27 @@ namespace KodWireTint
 	static_assert(BandFor(0, 0) == EBand::Critical, "missing max HP is red");
 	static_assert(BandFor(-4, 100) == EBand::Critical, "negative HP clamps to red");
 	static_assert(BandFor(200, 100) == EBand::Healthy, "HP above max clamps to green");
-	static_assert(BandFor(661, 1000) == EBand::Healthy, "remain above 0.66 is green");
-	static_assert(BandFor(660, 1000) == EBand::Warning, "remain 0.66 is yellow");
+	static_assert(BandFor(660, 1000) == EBand::Healthy, "remain 0.66 is green");
+	static_assert(BandFor(659, 1000) == EBand::Warning, "remain below 0.66 is yellow");
 	static_assert(BandFor(330, 1000) == EBand::Warning, "remain 0.33 is yellow");
 	static_assert(BandFor(329, 1000) == EBand::Critical, "remain below 0.33 is red");
 
+	/** HP.Green #4CD964 */
 	inline FLinearColor Healthy()
 	{
-		return FLinearColor(FColor(0x3D, 0xFF, 0x6A));
+		return FLinearColor(FColor(0x4C, 0xD9, 0x64));
 	}
 
+	/** HP.Yellow #F2C230 */
 	inline FLinearColor Warning()
 	{
-		return FLinearColor(FColor(0xFF, 0xD2, 0x3D));
+		return FLinearColor(FColor(0xF2, 0xC2, 0x30));
 	}
 
+	/** HP.Red #E5383B */
 	inline FLinearColor Critical()
 	{
-		return FLinearColor(FColor(0xFF, 0x3D, 0x3D));
+		return FLinearColor(FColor(0xE5, 0x38, 0x3B));
 	}
 
 	inline FLinearColor ColorFor(EBand Band)
@@ -86,17 +111,25 @@ namespace KodWireTint
 		return ColorFor(BandFor(Health, MaxHealth));
 	}
 
-	/** Remain is 0..1. Thousandths use the same bands as FromHitPoints. */
+	/** Same bands as the health bar: >= 66% green, >= 33% yellow, otherwise red. */
 	inline FLinearColor FromRemain(float Remain)
 	{
 		const float Clamped = Remain < 0.f ? 0.f : (Remain > 1.f ? 1.f : Remain);
-		const int32 Milli = FMath::RoundToInt(Clamped * 1000.f);
-		return FromHitPoints(Milli, 1000);
+		if (Clamped >= 0.66f)
+		{
+			return Healthy();
+		}
+		if (Clamped >= 0.33f)
+		{
+			return Warning();
+		}
+		return Critical();
 	}
 
 	/** One slice of the silhouette, in 0..1 slot space. Remain is that zone's HP fraction. */
 	struct FZone
 	{
+		EZone Id = EZone::Torso;
 		float U0 = 0.f;
 		float V0 = 0.f;
 		float U1 = 1.f;
@@ -107,9 +140,10 @@ namespace KodWireTint
 	inline void BuildZones(bool bStructure, TArray<FZone>& Out)
 	{
 		Out.Reset();
-		auto Add = [&Out](float U0, float V0, float U1, float V1)
+		auto Add = [&Out](EZone Id, float U0, float V0, float U1, float V1)
 		{
 			FZone Zone;
+			Zone.Id = Id;
 			Zone.U0 = U0;
 			Zone.V0 = V0;
 			Zone.U1 = U1;
@@ -118,18 +152,15 @@ namespace KodWireTint
 		};
 		if (bStructure)
 		{
-			Add(0.08f, 0.08f, 0.48f, 0.48f);
-			Add(0.52f, 0.08f, 0.92f, 0.48f);
-			Add(0.08f, 0.52f, 0.48f, 0.92f);
-			Add(0.52f, 0.52f, 0.92f, 0.92f);
+			Add(EZone::Roof, 0.10f, 0.06f, 0.90f, 0.34f);
+			Add(EZone::Body, 0.18f, 0.34f, 0.82f, 0.74f);
+			Add(EZone::Base, 0.08f, 0.74f, 0.92f, 0.96f);
 			return;
 		}
-		Add(0.36f, 0.06f, 0.64f, 0.26f);
-		Add(0.30f, 0.28f, 0.70f, 0.56f);
-		Add(0.08f, 0.30f, 0.28f, 0.50f);
-		Add(0.72f, 0.30f, 0.92f, 0.50f);
-		Add(0.32f, 0.58f, 0.46f, 0.94f);
-		Add(0.54f, 0.58f, 0.68f, 0.94f);
+		Add(EZone::Head, 0.34f, 0.04f, 0.66f, 0.26f);
+		Add(EZone::Torso, 0.28f, 0.26f, 0.66f, 0.58f);
+		Add(EZone::Legs, 0.30f, 0.58f, 0.70f, 0.96f);
+		Add(EZone::Weapon, 0.66f, 0.32f, 0.96f, 0.52f);
 	}
 
 	inline void ApplyOverallHp(TArray<FZone>& Zones, int32 Health, int32 MaxHealth)
