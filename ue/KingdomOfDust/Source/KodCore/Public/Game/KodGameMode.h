@@ -37,4 +37,5 @@ private:
 	TSubclassOf<APlayerController> KodSavedPlayerControllerClass;
 	TSubclassOf<APawn> KodSavedDefaultPawnClass;
 	bool bKodSpectatorSession = false;
+	FString PendingOptions;
 };
