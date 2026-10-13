@@ -20,6 +20,7 @@
 #include "Sim/KodBuildTypes.h"
 #include "StaticMeshAttributes.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "Misc/App.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "Engine/HitResult.h"
@@ -895,28 +896,36 @@ void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
 					Bits[Offset + 3] = Alpha;
 				}
 			}
-			struct FKodFogUpload
+			const bool bUpload = FApp::CanEverRender() && !bFogUploadBusy;
+			if (bUpload)
 			{
-				TArray<uint8> Bytes;
-				FUpdateTextureRegion2D Region;
-			};
-			FKodFogUpload* Upload = new FKodFogUpload();
-			const int32 ByteCount = GridW * GridH * 4;
-			Upload->Bytes.SetNumUninitialized(ByteCount);
-			FMemory::Memcpy(Upload->Bytes.GetData(), Bits, ByteCount);
+				const int32 ByteCount = GridW * GridH * 4;
+				FogUploadBytes.SetNumUninitialized(ByteCount);
+				FMemory::Memcpy(FogUploadBytes.GetData(), Bits, ByteCount);
+				FogUploadRegion = FUpdateTextureRegion2D(0, 0, 0, 0, static_cast<uint32>(GridW), static_cast<uint32>(GridH));
+			}
 			Platform->Mips[0].BulkData.Unlock();
-			Upload->Region = FUpdateTextureRegion2D(0, 0, 0, 0, static_cast<uint32>(GridW), static_cast<uint32>(GridH));
-			FogSheetTexture->UpdateTextureRegions(
-				0,
-				1,
-				&Upload->Region,
-				static_cast<uint32>(GridW * 4),
-				4,
-				Upload->Bytes.GetData(),
-				[Upload](uint8*, const FUpdateTextureRegion2D*)
-				{
-					delete Upload;
-				});
+			// Headless soaks never run the upload callback, so a new buffer every tick
+			// leaked about 24 MB per 30 s. Skip the GPU copy when nothing will render.
+			if (bUpload)
+			{
+				bFogUploadBusy = true;
+				TWeakObjectPtr<AKodHUD> Self(this);
+				FogSheetTexture->UpdateTextureRegions(
+					0,
+					1,
+					&FogUploadRegion,
+					static_cast<uint32>(GridW * 4),
+					4,
+					FogUploadBytes.GetData(),
+					[Self](uint8*, const FUpdateTextureRegion2D*)
+					{
+						if (AKodHUD* Hud = Self.Get())
+						{
+							Hud->bFogUploadBusy = false;
+						}
+					});
+			}
 		}
 		FogSheetTick = Sim->GetSimTickIndex();
 	}

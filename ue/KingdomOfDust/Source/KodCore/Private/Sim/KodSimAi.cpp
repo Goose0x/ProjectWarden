@@ -406,6 +406,42 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 	{
 		DeferTrain(CcId, DozerId);
 	}
+	const FName MarineId(KodWardenPaths::Id_Marine);
+	const FName BarracksId(KodWardenPaths::Id_Barracks);
+	int32 Combat = 0;
+	int32 QueuedMarines = 0;
+	FKodEntityId Barracks;
+	for (int32 Key : StructureKeys)
+	{
+		const FKodStructureState* Structure = Structures.Find(Key);
+		if (!Structure || Structure->TeamId != 0)
+		{
+			continue;
+		}
+		if (Structure->DefinitionId == BarracksId && Structure->bComplete && !Barracks.IsValid())
+		{
+			Barracks = Structure->Id;
+		}
+		for (const FKodProductionSlot& Slot : Structure->Slots)
+		{
+			if (Slot.UnitId == MarineId)
+			{
+				++QueuedMarines;
+			}
+		}
+	}
+	for (int32 Key : Keys)
+	{
+		const FKodSimEntityState* State = States.Find(Key);
+		if (State && State->TeamId == 0 && State->Health > 0.f && !State->bCanGather && State->WeaponDamage > 0.f)
+		{
+			++Combat;
+		}
+	}
+	if (Barracks.IsValid() && Combat + QueuedMarines < 8)
+	{
+		DeferTrain(Barracks, MarineId);
+	}
 
 	if (SimTickIndex < PlayerNextWaveTick)
 	{
@@ -433,9 +469,38 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 			Target = Structure->Id;
 		}
 	}
+	if (!bAttack && bFaultlineTraining)
+	{
+		bAttack = true;
+		AttackPoint = FVector(static_cast<float>(FaultlineOutpostX), static_cast<float>(FaultlineOutpostY), static_cast<float>(FaultlineOutpostZ));
+	}
 	if (!bAttack)
 	{
 		return;
+	}
+	if (!bAutoplaySquadSent && Combat < 4 && SimTickIndex >= 8 * 16)
+	{
+		FVector Origin = AttackPoint;
+		if (CcId.IsValid())
+		{
+			if (const FKodStructureState* CommandCenter = Structures.Find(CcId.Value))
+			{
+				Origin = CommandCenter->Position;
+			}
+		}
+		else
+		{
+			for (int32 Key : Keys)
+			{
+				const FKodSimEntityState* Worker = States.Find(Key);
+				if (Worker && Worker->TeamId == 0 && Worker->bCanGather && Worker->Health > 0.f)
+				{
+					Origin = Worker->Position;
+					break;
+				}
+			}
+		}
+		EnqueueAutoplaySquad(Origin, AttackPoint);
 	}
 	int32 Sent = 0;
 	for (int32 Key : Keys)
@@ -469,7 +534,28 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 	if (Sent > 0)
 	{
 		PlayerNextWaveTick = SimTickIndex + static_cast<int64>(AiWaveGapTicks);
+		UE_LOG(LogTemp, Log, TEXT("KodAutoplay Attack Sent=%d Tick=%lld"), Sent, static_cast<long long>(SimTickIndex));
 	}
+}
+
+void UKodSimSubsystem::EnqueueAutoplaySquad(const FVector& Origin, const FVector& AttackPoint)
+{
+	if (bAutoplaySquadSent)
+	{
+		return;
+	}
+	bAutoplaySquadSent = true;
+	for (int32 Slot = 0; Slot < 6; ++Slot)
+	{
+		FKodPendingUnitSpawn Spawn;
+		Spawn.UnitId = FName(KodWardenPaths::Id_Marine);
+		Spawn.TeamId = 0;
+		Spawn.Location = Origin + FVector(180.f * static_cast<float>(Slot - 2), 220.f, Origin.Z);
+		Spawn.bAttackMove = true;
+		Spawn.RallyPoint = AttackPoint;
+		PendingSpawns.Add(Spawn);
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodAutoplay Squad Marines=6 Target=%.0f,%.0f"), AttackPoint.X, AttackPoint.Y);
 }
 
 void UKodSimSubsystem::StepAI()
