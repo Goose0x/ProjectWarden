@@ -681,6 +681,25 @@ public:
 	/** True once the post-retreat gap has elapsed. */
 	static bool FaultlineWaveRearmDue(int64 Tick, int64 EndedTick, int32 DelayTicks);
 
+	/**
+	 * Lane finished and the wave has not been in a fight: attack the closer of the
+	 * nearest player unit and the nearest player structure. Id 0 means that side is absent.
+	 */
+	static bool FaultlineLaneEndRetarget(
+		bool bReachedLaneEnd,
+		bool bContact,
+		float FromX,
+		float FromY,
+		int32 UnitId,
+		float UnitX,
+		float UnitY,
+		int32 StructureId,
+		float StructureX,
+		float StructureY,
+		int32& OutId,
+		float& OutX,
+		float& OutY);
+
 	/** Ordered Lane 1 waypoints, player-facing. Empty when the map has no lane. */
 	void SetFaultlineLane(const TArray<FVector>& Points);
 	/** True when growth since the anchor is more than 50 MB per 5 minutes. ElapsedSeconds is time since the anchor. */
