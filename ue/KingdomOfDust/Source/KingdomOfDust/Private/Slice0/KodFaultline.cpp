@@ -42,6 +42,11 @@ namespace
 		return FJsonSerializer::Deserialize(Reader, OutRoot) && OutRoot.IsValid();
 	}
 
+	FVector CellToWorld(int32 CellX, int32 CellY, float Z);
+	bool FeatureWorldPoint(const TSharedPtr<FJsonObject>& Feature, FVector& OutPoint);
+	AActor* SpawnMarkerActor(UWorld* World, const FVector& At, const FString& Tag, const FString& Id);
+	bool ActorHasId(UWorld* World, const FString& Id);
+
 	FVector RectCenter(const TArray<TSharedPtr<FJsonValue>>* Rect, float Z)
 	{
 		int32 X = 0;
@@ -520,11 +525,17 @@ namespace
 		for (TActorIterator<AActor> It(World); It; ++It)
 		{
 			AActor* Actor = *It;
-			if (Actor && (Actor->ActorHasTag(FName(MarkerId)) || Actor->GetName().Contains(MarkerId)))
+			if (!Actor || (!Actor->ActorHasTag(FName(MarkerId)) && !Actor->GetName().Contains(MarkerId)))
 			{
-				OutPoint = Actor->GetActorLocation();
-				return true;
+				continue;
 			}
+			const FVector At = Actor->GetActorLocation();
+			if (FMath::Abs(At.X) <= 1.f && FMath::Abs(At.Y) <= 1.f)
+			{
+				continue;
+			}
+			OutPoint = At;
+			return true;
 		}
 		TSharedPtr<FJsonObject> Root;
 		if (!LoadJson(TEXT("map_features.json"), Root))
@@ -549,14 +560,10 @@ namespace
 			{
 				continue;
 			}
-			const TSharedPtr<FJsonObject>* Cells = nullptr;
-			Feature->TryGetObjectField(TEXT("cells"), Cells);
-			const TArray<TSharedPtr<FJsonValue>>* Rect = nullptr;
-			if (Cells && Cells->IsValid())
+			if (!FeatureWorldPoint(Feature, OutPoint))
 			{
-				(*Cells)->TryGetArrayField(TEXT("rect_xywh"), Rect);
+				return false;
 			}
-			OutPoint = RectCenter(Rect, 80.f);
 			return true;
 		}
 		return false;
@@ -625,26 +632,10 @@ namespace
 			}
 			if (Type == TEXT("spawn-point") || Type == TEXT("waypoint"))
 			{
-				const TArray<TSharedPtr<FJsonValue>>* Centre = nullptr;
-				FVector At = RectCenter(Rect, 80.f);
-				if (Feature->TryGetArrayField(TEXT("centre_uu"), Centre) && Centre && Centre->Num() >= 2)
+				FVector At;
+				if (FeatureWorldPoint(Feature, At) && !ActorHasId(World, Id))
 				{
-					At.X = static_cast<float>((*Centre)[0]->AsNumber());
-					At.Y = static_cast<float>((*Centre)[1]->AsNumber());
-				}
-				FActorSpawnParameters MarkerParams;
-				MarkerParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-				AActor* Marker = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform(At), MarkerParams);
-				if (Marker)
-				{
-					if (!Tag.IsEmpty())
-					{
-						Marker->Tags.Add(FName(*Tag));
-					}
-					if (!Id.IsEmpty())
-					{
-						Marker->Tags.Add(FName(*Id));
-					}
+					SpawnMarkerActor(World, At, Tag, Id);
 				}
 				continue;
 			}
@@ -752,6 +743,48 @@ namespace
 		return FVector((static_cast<float>(CellX) + 0.5f) * 200.f - 11200.f,
 			(static_cast<float>(CellY) + 0.5f) * 200.f - 11200.f,
 			Z);
+	}
+
+	bool FeatureWorldPoint(const TSharedPtr<FJsonObject>& Feature, FVector& OutPoint)
+	{
+		if (!Feature.IsValid())
+		{
+			return false;
+		}
+		const TArray<TSharedPtr<FJsonValue>>* Centre = nullptr;
+		if (Feature->TryGetArrayField(TEXT("centre_uu"), Centre) && Centre && Centre->Num() >= 2)
+		{
+			OutPoint = FVector(
+				static_cast<float>((*Centre)[0]->AsNumber()),
+				static_cast<float>((*Centre)[1]->AsNumber()),
+				80.f);
+			if (FMath::Abs(OutPoint.X) > 1.f || FMath::Abs(OutPoint.Y) > 1.f)
+			{
+				return true;
+			}
+		}
+		const TArray<TSharedPtr<FJsonValue>>* Cell = nullptr;
+		if (Feature->TryGetArrayField(TEXT("cell"), Cell) && Cell && Cell->Num() >= 2)
+		{
+			OutPoint = CellToWorld(
+				FMath::RoundToInt((*Cell)[0]->AsNumber()),
+				FMath::RoundToInt((*Cell)[1]->AsNumber()),
+				80.f);
+			return FMath::Abs(OutPoint.X) > 1.f || FMath::Abs(OutPoint.Y) > 1.f;
+		}
+		const TSharedPtr<FJsonObject>* Cells = nullptr;
+		Feature->TryGetObjectField(TEXT("cells"), Cells);
+		const TArray<TSharedPtr<FJsonValue>>* Rect = nullptr;
+		if (Cells && Cells->IsValid())
+		{
+			(*Cells)->TryGetArrayField(TEXT("rect_xywh"), Rect);
+		}
+		if (!Rect || Rect->Num() < 4)
+		{
+			return false;
+		}
+		OutPoint = RectCenter(Rect, 80.f);
+		return FMath::Abs(OutPoint.X) > 1.f || FMath::Abs(OutPoint.Y) > 1.f;
 	}
 
 	AActor* SpawnMarkerActor(UWorld* World, const FVector& At, const FString& Tag, const FString& Id)
@@ -1139,4 +1172,42 @@ void KodFaultline::Begin(UWorld* World)
 	Sim->SetFaultlineLane(LanePoints);
 	UE_LOG(LogTemp, Log, TEXT("KodFaultline Begin Map=%s Outposts=%d Spawn=%.0f,%.0f Lane=%d"),
 		*World->GetMapName(), Script.OutpostCount, SpawnAt.X, SpawnAt.Y, bLaneMarker ? 1 : 0);
+}
+
+bool KodFaultline::ReadMarkerPoint(const FString& JsonText, const FString& MarkerId, float& OutX, float& OutY)
+{
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonText);
+	if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+	{
+		return false;
+	}
+	const TArray<TSharedPtr<FJsonValue>>* Features = nullptr;
+	if (!Root->TryGetArrayField(TEXT("features"), Features) || !Features)
+	{
+		return false;
+	}
+	for (const TSharedPtr<FJsonValue>& Value : *Features)
+	{
+		const TSharedPtr<FJsonObject> Feature = Value.IsValid() ? Value->AsObject() : nullptr;
+		if (!Feature.IsValid())
+		{
+			continue;
+		}
+		FString Id;
+		Feature->TryGetStringField(TEXT("id"), Id);
+		if (!Id.Equals(MarkerId))
+		{
+			continue;
+		}
+		FVector Point;
+		if (!FeatureWorldPoint(Feature, Point))
+		{
+			return false;
+		}
+		OutX = Point.X;
+		OutY = Point.Y;
+		return true;
+	}
+	return false;
 }

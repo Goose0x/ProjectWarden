@@ -16,13 +16,16 @@ FALLBACK_MASTER = "/Engine/EngineSounds/Master.Master"
 def load_sound_class(asset_path):
     if not asset_path:
         return None
-    loaded = unreal.EditorAssetLibrary.load_asset(asset_path)
-    if isinstance(loaded, unreal.SoundClass):
-        return loaded
+    loaded = None
     try:
         loaded = unreal.load_object(None, asset_path)
     except Exception:
         loaded = None
+    if isinstance(loaded, unreal.SoundClass):
+        return loaded
+    if not unreal.EditorAssetLibrary.does_asset_exist(asset_path):
+        return None
+    loaded = unreal.EditorAssetLibrary.load_asset(asset_path)
     if isinstance(loaded, unreal.SoundClass):
         return loaded
     return None
@@ -54,7 +57,7 @@ def default_sound_class_from_config():
 
 def master_class():
     configured = default_sound_class_from_config()
-    for asset_path in (configured, FALLBACK_MASTER, "/Engine/EngineSounds/Master"):
+    for asset_path in (FALLBACK_MASTER, configured, "/Engine/EngineSounds/Master"):
         loaded = load_sound_class(asset_path)
         if loaded:
             unreal.log(f"KodAudio master {asset_path}")

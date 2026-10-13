@@ -410,15 +410,33 @@ bool UKodSimSubsystem::FaultlineWaveRearmDue(int64 Tick, int64 EndedTick, int32 
 void UKodSimSubsystem::SetFaultlineLane(const TArray<FVector>& Points)
 {
 	FaultlineLanePoints.Reset();
+	WaveLaneCursor = 0;
+	AutoplayLaneCursor = -1;
+	bool bPlaced = false;
+	for (const FVector& Point : Points)
+	{
+		if (FMath::Abs(Point.X) > 1.f || FMath::Abs(Point.Y) > 1.f)
+		{
+			bPlaced = true;
+			break;
+		}
+	}
+	if (!bPlaced)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodFaultline Lane rejected Points=%d; all zero, attacking outposts directly"), Points.Num());
+		return;
+	}
 	FaultlineLanePoints.Reserve(Points.Num());
 	for (const FVector& Point : Points)
 	{
+		if (FMath::Abs(Point.X) <= 1.f && FMath::Abs(Point.Y) <= 1.f)
+		{
+			continue;
+		}
 		FVector Kept = Point;
 		QuantizeResourcePosition(Kept);
 		FaultlineLanePoints.Add(Kept);
 	}
-	WaveLaneCursor = 0;
-	AutoplayLaneCursor = -1;
 	if (FaultlineLanePoints.Num() > 0)
 	{
 		const FVector& First = FaultlineLanePoints[0];
@@ -439,6 +457,15 @@ bool UKodSimSubsystem::NextLanePoint(int32 Direction, int32& Cursor, const FVect
 	{
 		return false;
 	}
+	// Count means the wave already left the lane for its attack. -2 means autoplay did.
+	if (Direction >= 0 && Cursor >= Count)
+	{
+		return false;
+	}
+	if (Direction < 0 && Cursor == -2)
+	{
+		return false;
+	}
 	if (Cursor < 0)
 	{
 		Cursor = Direction < 0 ? Count - 1 : 0;
@@ -451,21 +478,27 @@ bool UKodSimSubsystem::NextLanePoint(int32 Direction, int32& Cursor, const FVect
 		{
 			if (Cursor <= 0)
 			{
+				Cursor = -2;
 				return false;
 			}
 			--Cursor;
 		}
+		else if (Cursor >= Count - 1)
+		{
+			Cursor = Count;
+			return false;
+		}
 		else
 		{
-			if (Cursor >= Count - 1)
-			{
-				return false;
-			}
 			++Cursor;
 		}
 	}
+	if (!FaultlineLanePoints.IsValidIndex(Cursor))
+	{
+		return false;
+	}
 	OutPoint = FaultlineLanePoints[Cursor];
-	return true;
+	return FMath::Abs(OutPoint.X) > 1.f || FMath::Abs(OutPoint.Y) > 1.f;
 }
 
 bool UKodSimSubsystem::SoakMemoryOverBudget(uint64 AnchorBytes, uint64 NowBytes, int32 ElapsedSeconds)
