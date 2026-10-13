@@ -213,7 +213,16 @@ void UKodSimSubsystem::StepVision()
 	for (int32 Key : EntityKeys)
 	{
 		const FKodSimEntityState* State = States.Find(Key);
-		if (!State || State->Health <= 0.f || State->SightRadiusUU <= 0)
+		if (!State || State->Health <= 0.f)
+		{
+			continue;
+		}
+		int32 SightUU = State->SightRadiusUU;
+		if (SightUU <= 0 && State->bMobile && !State->bCanGather)
+		{
+			SightUU = 800;
+		}
+		if (SightUU <= 0)
 		{
 			continue;
 		}
@@ -228,11 +237,6 @@ void UKodSimSubsystem::StepVision()
 		const FString ViewerName = State->DefinitionId.ToString();
 		const bool bSpotter = ViewerName.Contains(TEXT("Isr")) || ViewerName.Contains(TEXT("Spotter"));
 		const TArray<int64>* Occupied = HighOccupied.Find(State->TeamId);
-		int32 SightUU = State->SightRadiusUU;
-		if (SightUU <= 0 && State->bMobile && !State->bCanGather)
-		{
-			SightUU = 800;
-		}
 		const int32 RadiusCells = FMath::Max(1, FMath::DivideAndRoundUp(SightUU, KodBuildGrid::CellUU));
 		const int32 RadiusSq = RadiusCells * RadiusCells;
 		for (int32 DY = -RadiusCells; DY <= RadiusCells; ++DY)
@@ -389,17 +393,15 @@ bool UKodSimSubsystem::TeamSeesPoint(int32 TeamId, float WorldX, float WorldY) c
 	{
 		return true;
 	}
-	TArray<int32> Keys;
-	States.GetKeys(Keys);
-	for (int32 Key : Keys)
+	for (const TPair<int32, FKodSimEntityState>& Pair : States)
 	{
-		const FKodSimEntityState* Viewer = States.Find(Key);
-		if (!Viewer || Viewer->TeamId != TeamId || Viewer->Health <= 0.f)
+		const FKodSimEntityState& Viewer = Pair.Value;
+		if (Viewer.TeamId != TeamId || Viewer.Health <= 0.f)
 		{
 			continue;
 		}
-		int32 Sight = Viewer->SightRadiusUU;
-		if (Sight <= 0 && Viewer->bMobile && !Viewer->bCanGather)
+		int32 Sight = Viewer.SightRadiusUU;
+		if (Sight <= 0 && Viewer.bMobile && !Viewer.bCanGather)
 		{
 			Sight = 800;
 		}
@@ -407,8 +409,8 @@ bool UKodSimSubsystem::TeamSeesPoint(int32 TeamId, float WorldX, float WorldY) c
 		{
 			continue;
 		}
-		const float DX = Viewer->Position.X - WorldX;
-		const float DY = Viewer->Position.Y - WorldY;
+		const float DX = Viewer.Position.X - WorldX;
+		const float DY = Viewer.Position.Y - WorldY;
 		if (DX * DX + DY * DY <= static_cast<float>(Sight) * static_cast<float>(Sight))
 		{
 			return true;

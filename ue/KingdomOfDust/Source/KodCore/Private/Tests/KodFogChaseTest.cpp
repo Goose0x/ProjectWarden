@@ -55,6 +55,7 @@ bool FKodFogChaseTest::RunTest(const FString& Parameters)
 	const float MovedTowardOrigin = StartX - After.Position.X;
 	TestTrue(TEXT("moves toward the unseen target"), MovedTowardTarget > 50.f);
 	TestTrue(TEXT("does not chase the origin"), MovedTowardTarget > MovedTowardOrigin);
+	TestTrue(TEXT("keeps the attack on the known target"), After.Order == EKodSimOrderType::Attack && After.AttackTarget == Victim);
 
 	World->DestroyWorld(false);
 	return true;

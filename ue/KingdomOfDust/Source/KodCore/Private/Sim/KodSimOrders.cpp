@@ -192,8 +192,8 @@ void UKodSimSubsystem::IssueOrder(
 		OrderLabel(Kind),
 		Id.Value,
 		Target.Value,
-		Point.X,
-		Point.Y,
+		State->MoveTarget.X,
+		State->MoveTarget.Y,
 		State->PathId);
 }
 

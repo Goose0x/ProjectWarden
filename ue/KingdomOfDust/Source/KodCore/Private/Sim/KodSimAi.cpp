@@ -524,8 +524,12 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 		}
 		FKodEntityId UnitId;
 		UnitId.Value = Key;
-		if (State->Order == EKodSimOrderType::AttackMove
-			|| (Target.IsValid() && State->Order == EKodSimOrderType::Attack && State->AttackTarget == Target))
+		const bool bOnTarget = Target.IsValid()
+			&& State->Order == EKodSimOrderType::Attack
+			&& State->AttackTarget == Target;
+		const bool bAlreadyMoving = State->Order == EKodSimOrderType::AttackMove
+			&& FVector::DistSquared2D(State->MoveTarget, AttackPoint) <= FMath::Square(128.f);
+		if (bOnTarget || bAlreadyMoving)
 		{
 			++Sent;
 			continue;
