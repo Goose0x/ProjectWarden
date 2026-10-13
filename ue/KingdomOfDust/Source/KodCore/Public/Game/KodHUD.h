@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
 #include "Engine/Texture2D.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "Sim/KodSimSubsystem.h"
 #include "KodHUD.generated.h"
 
@@ -208,6 +210,15 @@ protected:
 	void DrawVanguardChrome();
 	void DrawPlate(float X, float Y, float W, float H, const FLinearColor& Fill, const TCHAR* SliceName, float MarginL, float MarginT, float MarginR, float MarginB);
 	void DrawWireHeat(float X, float Y, float W, float H, int32 UnitId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash);
+	/**
+	 * Filled silhouette. ZoneRemain overrides per-zone HP (0..1, one entry per zone).
+	 * Null, or a count that does not match, drives every zone from overall HP.
+	 */
+	void DrawWireSilhouette(float X, float Y, float W, float H, FName DefinitionId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash, const TArray<float>* ZoneRemain = nullptr);
+	/** 128 source scaled to the slot. A missing texture draws the flat placeholder. */
+	void DrawIconSlot(FName IconId, float X, float Y, float W, float H, float Opacity = 1.f);
+	class UTexture2D* ResolveArtTexture(FName Id, bool bWireframe);
+	class UMaterialInstanceDynamic* LeaseWireMaterial();
 	void BindAlertFeed();
 	void HandleJuiceText(FVector Position, int32 Amount, uint8 Kind);
 	bool TryDrawIcon(FName IconId, float X, float Y, float SizeX, float SizeY);
@@ -379,6 +390,24 @@ protected:
 
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UTexture2D>> IconHits;
+
+	UPROPERTY()
+	TMap<FName, TObjectPtr<UTexture2D>> WireHits;
+
+	UPROPERTY()
+	TSet<FName> WireMiss;
+
+	UPROPERTY()
+	TObjectPtr<UTexture2D> FlatIconPlaceholder;
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> WireMaterial;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> WireMidPool;
+
+	int32 WireMidCursor = 0;
+	bool bWireMaterialMiss = false;
 
 	/** Missing /Game/UI/Vanguard slices. Cached so a miss is not reloaded every frame. */
 	UPROPERTY()

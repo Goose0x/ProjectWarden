@@ -4,6 +4,7 @@
 #include "Slice0/KodMapLife.h"
 #include "Slice0/KodSlice0PlayerController.h"
 #include "Game/KodHUD.h"
+#include "Game/KodUiArt.h"
 #include "Game/KodRTSCameraPawn.h"
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "Actors/KodUnit.h"
@@ -481,6 +482,14 @@ void AKodSlice0GameMode::StartPlay()
 				Spec.EnergyStart = Def->EnergyStart;
 				Spec.RequiresId = Def->RequiresId;
 				Sim->RegisterTrainSpec(Spec);
+				if (!Def->Wireframe.IsNull())
+				{
+					FKodUiArt::RegisterWireframe(Spec.UnitId, Def->Wireframe.ToSoftObjectPath());
+				}
+				if (!Def->CommandIcon.IsNull())
+				{
+					FKodUiArt::RegisterIcon(Spec.UnitId, Def->CommandIcon.ToSoftObjectPath());
+				}
 			};
 			if (const UKodUnitDefinition* Amp = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Dozer), this))
 			{
@@ -501,6 +510,13 @@ void AKodSlice0GameMode::StartPlay()
 				else if (const UKodAbilityDefinition* Stim = UKodSlice0Bootstrap::MakeCombatStim(this))
 				{
 					Sim->RegisterUnitAbility(Spec.UnitId, Stim->ToSpec());
+				}
+				if (const UKodAbilityDefinition* StimAsset = Cast<UKodAbilityDefinition>(UKodSlice0Bootstrap::ResolveDefinition(FName(KodWardenPaths::Id_CombatStim), this)))
+				{
+					if (!StimAsset->CommandIcon.IsNull())
+					{
+						FKodUiArt::RegisterIcon(FName(KodWardenPaths::Id_CombatStim), StimAsset->CommandIcon.ToSoftObjectPath());
+					}
 				}
 			}
 			if (const UKodUnitDefinition* Scinder = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_ScinderInfantry), this))
@@ -582,6 +598,14 @@ void AKodSlice0GameMode::StartPlay()
 					}
 				}
 				Sim->RegisterBuildSpec(Spec);
+				if (!Def->Wireframe.IsNull())
+				{
+					FKodUiArt::RegisterWireframe(Spec.TypeId, Def->Wireframe.ToSoftObjectPath());
+				}
+				if (!Def->CommandIcon.IsNull())
+				{
+					FKodUiArt::RegisterIcon(Spec.TypeId, Def->CommandIcon.ToSoftObjectPath());
+				}
 			};
 			TArray<FName> NoTrains;
 			TArray<FName> MarineTrain;

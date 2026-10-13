@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Engine/Texture2D.h"
 #include "Sim/KodAbilityTypes.h"
 #include "KodAbilityDefinition.generated.h"
 
@@ -20,6 +21,10 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Ability")
 	FName Hotkey;
+
+	/** Command-card icon. 128 source, scaled to the button. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|UI")
+	TSoftObjectPtr<UTexture2D> CommandIcon;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Ability")
 	int32 Credits = 0;

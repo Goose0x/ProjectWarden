@@ -22,6 +22,7 @@ public class KodCore : ModuleRules
 			"Slate",
 			"SlateCore",
 			"ApplicationCore",
+			"Json",
 			"MeshDescription",
 			"StaticMeshDescription"
 		});

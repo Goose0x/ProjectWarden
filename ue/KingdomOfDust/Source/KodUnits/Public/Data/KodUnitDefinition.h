@@ -8,6 +8,7 @@
 #include "Sim/KodBuildTicks.h"
 #include "Sim/KodAbilityTypes.h"
 #include "Sim/KodResourceTypes.h"
+#include "Engine/Texture2D.h"
 #include "Materials/MaterialInterface.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/KodUnitAnimInstance.h"
@@ -45,6 +46,14 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Identity")
 	FGameplayTag UnitTag;
+
+	/** Silhouette for the info panel and the 48px group cell. 128 source, scaled by the HUD. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|UI")
+	TSoftObjectPtr<UTexture2D> Wireframe;
+
+	/** Command card, queue, and group-cell icon. 128 source, scaled to the slot. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|UI")
+	TSoftObjectPtr<UTexture2D> CommandIcon;
 
 	/** HP ceiling — applied at spawn from DA only. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Combat")

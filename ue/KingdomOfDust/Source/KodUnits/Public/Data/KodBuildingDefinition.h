@@ -4,6 +4,7 @@
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraSystem.h"
 #include "Sim/KodBuildTicks.h"
@@ -32,6 +33,14 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Identity")
 	FGameplayTag BuildingTag;
+
+	/** Silhouette for a selected structure. 128 source, scaled by the HUD. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|UI")
+	TSoftObjectPtr<UTexture2D> Wireframe;
+
+	/** Command card and queue icon. 128 source, scaled to the slot. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|UI")
+	TSoftObjectPtr<UTexture2D> CommandIcon;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Combat")
 	float MaxHealth = 1000.f;

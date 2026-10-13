@@ -10,6 +10,9 @@
 namespace KodWardenPaths
 {
 	constexpr const TCHAR* DataRoot = TEXT("/Game/Warden/Data");
+	constexpr const TCHAR* UiWireframeRoot = TEXT("/Game/Warden/UI/Wireframes");
+	constexpr const TCHAR* UiIconRoot = TEXT("/Game/Warden/UI/Icons");
+	constexpr const TCHAR* WireSilhouetteMaterial = TEXT("/Game/Warden/UI/Wireframes/M_KodWireSilhouette.M_KodWireSilhouette");
 
 	constexpr const TCHAR* RangerRifle = TEXT("/Game/Warden/Data/RangerRifle.RangerRifle");
 	constexpr const TCHAR* Ranger = TEXT("/Game/Warden/Data/Ranger.Ranger");

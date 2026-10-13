@@ -1,0 +1,5 @@
+{
+  "note": "Optional id to soft-path overrides. A unit or building definition soft ref wins. Otherwise the loader tries /Game/Warden/UI/Wireframes/<Id>.<Id> and /Game/Warden/UI/Icons/<Id>.<Id>. Author those textures at 128x128. Leave the maps empty until the files exist.",
+  "wireframes": {},
+  "icons": {}
+}
