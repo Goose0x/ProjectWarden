@@ -37,6 +37,7 @@ private:
 
 	void DiscoverAssets();
 	void ScatterDressing();
+	void TickSparks(float Now);
 	void SpawnBurst(UNiagaraSystem* Niagara, UParticleSystem* Cascade, const FVector& Location, const FRotator& Rotation, float Scale) const;
 
 	bool bAmbient = true;
@@ -77,5 +78,6 @@ private:
 
 	TMap<int32, FVector> LastStep;
 	TMap<int32, float> NextStepTime;
+	TMap<int32, float> NextSparkTime;
 	TArray<TObjectPtr<USceneComponent>> Dressing;
 };
