@@ -75,6 +75,68 @@ namespace
 		return FVector(0.f, 0.f, Z);
 	}
 
+	void AddRect(TArray<int64>& Dest, int32 CellX, int32 CellY, int32 CellW, int32 CellH, int32 CellBias)
+	{
+		for (int32 Y = CellY; Y < CellY + CellH; ++Y)
+		{
+			for (int32 X = CellX; X < CellX + CellW; ++X)
+			{
+				Dest.Add(PackCell(X + CellBias, Y + CellBias));
+			}
+		}
+	}
+
+	void BlockedFromFeatures(const TArray<TSharedPtr<FJsonValue>>& Features, int32 CellBias, TArray<int64>& OutBlocked)
+	{
+		TArray<int64> Cliffs;
+		TArray<int64> Openings;
+		for (const TSharedPtr<FJsonValue>& Value : Features)
+		{
+			const TSharedPtr<FJsonObject> Feature = Value.IsValid() ? Value->AsObject() : nullptr;
+			if (!Feature.IsValid())
+			{
+				continue;
+			}
+			FString Type;
+			Feature->TryGetStringField(TEXT("type"), Type);
+			const TSharedPtr<FJsonObject>* Cells = nullptr;
+			Feature->TryGetObjectField(TEXT("cells"), Cells);
+			int32 CellX = 0;
+			int32 CellY = 0;
+			int32 CellW = 1;
+			int32 CellH = 1;
+			ReadRect(Cells ? *Cells : nullptr, CellX, CellY, CellW, CellH);
+			if (Type == TEXT("cliff-block"))
+			{
+				AddRect(Cliffs, CellX, CellY, CellW, CellH, CellBias);
+			}
+			else if (Type == TEXT("ramp") || Type == TEXT("choke"))
+			{
+				AddRect(Openings, CellX, CellY, CellW, CellH, CellBias);
+			}
+		}
+		TSet<int64> OpenSet;
+		OpenSet.Reserve(Openings.Num());
+		for (int64 Cell : Openings)
+		{
+			OpenSet.Add(Cell);
+		}
+		OutBlocked.Reset();
+		OutBlocked.Reserve(Cliffs.Num());
+		for (int64 Cell : Cliffs)
+		{
+			if (!OpenSet.Contains(Cell))
+			{
+				OutBlocked.Add(Cell);
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodMap CliffOpen Cliffs=%d RampChoke=%d Cleared=%d Walk=%d"),
+			Cliffs.Num(),
+			Openings.Num(),
+			Cliffs.Num() - OutBlocked.Num(),
+			OutBlocked.Num());
+	}
+
 	void TagActor(AActor* Actor, const FString& FeatureTag)
 	{
 		if (!Actor || FeatureTag.IsEmpty())
@@ -141,7 +203,6 @@ void KodMapLayout::Load(UWorld* World)
 		return;
 	}
 
-	TArray<int64> Cliffs;
 	TArray<int64> Vision;
 	TArray<int64> HighGround;
 	TArray<FVector2D> Sockets;
@@ -171,13 +232,6 @@ void KodMapLayout::Load(UWorld* World)
 
 		if (Type == TEXT("cliff-block"))
 		{
-			for (int32 Y = CellY; Y < CellY + CellH; ++Y)
-			{
-				for (int32 X = CellX; X < CellX + CellW; ++X)
-				{
-					Cliffs.Add(PackCell(X + CellBias, Y + CellBias));
-				}
-			}
 			const FVector Center = BoxCenter(Feature, 250.f);
 			const TSharedPtr<FJsonObject>* Box = nullptr;
 			float SpanX = 200.f;
@@ -272,10 +326,13 @@ void KodMapLayout::Load(UWorld* World)
 		}
 	}
 
+	TArray<int64> Cliffs;
+	BlockedFromFeatures(*Features, CellBias, Cliffs);
 	const int32 CliffCount = Cliffs.Num();
 	const int32 VisionCount = Vision.Num();
 	const int32 HighCount = HighGround.Num();
 	Sim->SetCliffBlockCells(MoveTemp(Cliffs));
+	Sim->ClearStoredPaths(TEXT("Layout"));
 	Sim->SetVisionBlockCells(MoveTemp(Vision));
 	Sim->SetHighGroundCells(MoveTemp(HighGround));
 	Sim->SetLayoutSockets(Sockets);
@@ -286,4 +343,21 @@ void KodMapLayout::Load(UWorld* World)
 		Destructibles,
 		Sockets.Num(),
 		Sim->LayoutSocketsMatch() ? 1 : 0);
+}
+
+void KodMapLayout::BlockedCellsFromJson(const FString& JsonText, int32 CellBias, TArray<int64>& OutBlocked)
+{
+	OutBlocked.Reset();
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonText);
+	if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+	{
+		return;
+	}
+	const TArray<TSharedPtr<FJsonValue>>* Features = nullptr;
+	if (!Root->TryGetArrayField(TEXT("features"), Features) || !Features)
+	{
+		return;
+	}
+	BlockedFromFeatures(*Features, CellBias, OutBlocked);
 }

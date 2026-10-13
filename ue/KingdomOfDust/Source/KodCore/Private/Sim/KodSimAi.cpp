@@ -477,6 +477,49 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 			}
 		}
 	}
+	FVector DirectPoint = FVector::ZeroVector;
+	FKodEntityId DirectTarget;
+	bool bDirect = false;
+	{
+		int64 Best = 0;
+		for (int32 Key : StructureKeys)
+		{
+			const FKodStructureState* Structure = Structures.Find(Key);
+			if (!Structure || Structure->TeamId == 0)
+			{
+				continue;
+			}
+			const int64 DX = static_cast<int64>(FMath::RoundToInt(Structure->Position.X - PathFrom.X));
+			const int64 DY = static_cast<int64>(FMath::RoundToInt(Structure->Position.Y - PathFrom.Y));
+			const int64 Dist = DX * DX + DY * DY;
+			if (bDirect && Dist >= Best)
+			{
+				continue;
+			}
+			if (bPathFrom && !HasMoveRoute(PathFrom, Structure->Position, 0))
+			{
+				UE_LOG(LogTemp, Log, TEXT("KodPath Skip Structure=%d From=%.0f,%.0f To=%.0f,%.0f"),
+					Structure->Id.Value,
+					PathFrom.X,
+					PathFrom.Y,
+					Structure->Position.X,
+					Structure->Position.Y);
+				continue;
+			}
+			bDirect = true;
+			Best = Dist;
+			DirectPoint = Structure->Position;
+			DirectTarget = Structure->Id;
+		}
+		if (!bDirect && bFaultlineTraining)
+		{
+			DirectPoint = FVector(static_cast<float>(FaultlineOutpostX), static_cast<float>(FaultlineOutpostY), static_cast<float>(FaultlineOutpostZ));
+			if (!bPathFrom || HasMoveRoute(PathFrom, DirectPoint, 0))
+			{
+				bDirect = true;
+			}
+		}
+	}
 	FVector AttackPoint = FVector::ZeroVector;
 	bool bAttack = false;
 	bool bOnLane = false;
@@ -519,44 +562,9 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 	}
 	if (!bOnLane)
 	{
-		int64 Best = 0;
-		for (int32 Key : StructureKeys)
-		{
-			const FKodStructureState* Structure = Structures.Find(Key);
-			if (!Structure || Structure->TeamId == 0)
-			{
-				continue;
-			}
-			const int64 DX = static_cast<int64>(FMath::RoundToInt(Structure->Position.X - PathFrom.X));
-			const int64 DY = static_cast<int64>(FMath::RoundToInt(Structure->Position.Y - PathFrom.Y));
-			const int64 Dist = DX * DX + DY * DY;
-			if (bAttack && Dist >= Best)
-			{
-				continue;
-			}
-			if (bPathFrom && !HasMoveRoute(PathFrom, Structure->Position, 0))
-			{
-				UE_LOG(LogTemp, Log, TEXT("KodPath Skip Structure=%d From=%.0f,%.0f To=%.0f,%.0f"),
-					Structure->Id.Value,
-					PathFrom.X,
-					PathFrom.Y,
-					Structure->Position.X,
-					Structure->Position.Y);
-				continue;
-			}
-			bAttack = true;
-			Best = Dist;
-			AttackPoint = Structure->Position;
-			Target = Structure->Id;
-		}
-		if (!bAttack && bFaultlineTraining)
-		{
-			AttackPoint = FVector(static_cast<float>(FaultlineOutpostX), static_cast<float>(FaultlineOutpostY), static_cast<float>(FaultlineOutpostZ));
-			if (!bPathFrom || HasMoveRoute(PathFrom, AttackPoint, 0))
-			{
-				bAttack = true;
-			}
-		}
+		bAttack = bDirect;
+		AttackPoint = DirectPoint;
+		Target = DirectTarget;
 		if (bAttack && bPathFrom && !bAutoplayRouteLogged)
 		{
 			bAutoplayRouteLogged = true;
@@ -604,10 +612,34 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 		UnitId.Value = Key;
 		const FVector* OrderMark = AutoplayOrderMarks.Find(Key);
 		const bool bStuck = OrderMark && FVector::DistSquared2D(State->Position, *OrderMark) < FMath::Square(64.f);
-		if (bStuck && bOnLane && !bLaneStepped && AutoplayLaneCursor > 0 && FaultlineLanePoints.IsValidIndex(AutoplayLaneCursor - 1))
+		if (bStuck && bOnLane && !bLaneStepped)
 		{
-			--AutoplayLaneCursor;
-			AttackPoint = FaultlineLanePoints[AutoplayLaneCursor];
+			const bool bHasNext = AutoplayLaneCursor > 0 && FaultlineLanePoints.IsValidIndex(AutoplayLaneCursor - 1);
+			const FVector NextPoint = bHasNext ? FaultlineLanePoints[AutoplayLaneCursor - 1] : FVector::ZeroVector;
+			if (bHasNext && HasMoveRoute(State->Position, NextPoint, State->TeamId))
+			{
+				--AutoplayLaneCursor;
+				AttackPoint = NextPoint;
+			}
+			else
+			{
+				AutoplayLaneCursor = -2;
+				bOnLane = false;
+				if (bDirect)
+				{
+					AttackPoint = DirectPoint;
+					Target = DirectTarget;
+				}
+				else if (bFaultlineTraining)
+				{
+					AttackPoint = FVector(static_cast<float>(FaultlineOutpostX), static_cast<float>(FaultlineOutpostY), static_cast<float>(FaultlineOutpostZ));
+					Target = FKodEntityId();
+				}
+				UE_LOG(LogTemp, Log, TEXT("KodAutoplay Lane blocked Unit=%d Direct=%.0f,%.0f"),
+					State->Id.Value,
+					AttackPoint.X,
+					AttackPoint.Y);
+			}
 			bLaneStepped = true;
 		}
 		const bool bOnTarget = Target.IsValid()
