@@ -30,9 +30,10 @@
 #include "GameFramework/PlayerController.h"
 #include "Game/KodIsrMonitor.h"
 #include "Game/KodPlayerController.h"
-#include "Game/KodApmTracker.h"
 #include "Game/KodPlayerState.h"
 #include "Audio/KodCueSubsystem.h"
+#include "Game/KodGameMode.h"
+#include "Game/KodSkirmishSetup.h"
 #include "Game/KodUserSettings.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -2794,7 +2795,7 @@ void AKodHUD::DrawMatchOutcome()
 	{
 		return;
 	}
-	if (MenuPage == 6)
+	if (MenuPage == 5 || MenuPage == 6)
 	{
 		return;
 	}
@@ -3184,8 +3185,16 @@ void AKodHUD::SubmitChat()
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
 		{
-			if (Sim->SubmitCheatPhrase(Line) == EKodCheatSubmit::Applied)
+			const EKodCheatSubmit CheatSubmit = Sim->SubmitCheatPhrase(Line);
+			if (CheatSubmit == EKodCheatSubmit::Applied)
 			{
+				return;
+			}
+			if (CheatSubmit == EKodCheatSubmit::Refused)
+			{
+				const FString Refusal = Sim->GetCheatFeedbackLine();
+				AddChatMessage(Refusal);
+				ShowAlertLine(Refusal);
 				return;
 			}
 		}
@@ -3228,7 +3237,7 @@ void AKodHUD::HandleMenuChoice(int32 Choice)
 	}
 	else if (Choice == 5 && World)
 	{
-		UGameplayStatics::OpenLevel(World, FName(*UGameplayStatics::GetCurrentLevelName(World, true)), true, TEXT("Menu=1"));
+		UGameplayStatics::OpenLevel(World, FName(TEXT("/Game/Maps/Frontend/L_MainMenu")), true, FString());
 	}
 	else if (Choice == 6)
 	{
@@ -3236,8 +3245,22 @@ void AKodHUD::HandleMenuChoice(int32 Choice)
 	}
 	else if (Choice == 7)
 	{
-		MenuPage = 5;
+		MenuPage = 6;
 		ScoreTab = 0;
+		ScoreScrub = -1;
+	}
+	else if (Choice == 70 && World)
+	{
+		FString Options;
+		if (AKodGameMode* Mode = World->GetAuthGameMode<AKodGameMode>())
+		{
+			Options = Mode->GetMatchOptions();
+		}
+		if (!Options.IsEmpty() && !Options.StartsWith(TEXT("?")) && !Options.Contains(TEXT("/")))
+		{
+			Options = FString(TEXT("?")) + Options;
+		}
+		UGameplayStatics::OpenLevel(World, FName(*UGameplayStatics::GetCurrentLevelName(World, true)), true, Options);
 	}
 	else if (Choice == 8 && World)
 	{
@@ -3260,7 +3283,7 @@ void AKodHUD::HandleMenuChoice(int32 Choice)
 		Sim->LoadSkirmishSlot(Choice - 12);
 		Resume();
 	}
-	else if (Choice >= 20 && Choice <= 24)
+	else if (Choice >= 20 && Choice <= 25)
 	{
 		ScoreTab = Choice - 20;
 	}
@@ -3348,6 +3371,307 @@ void AKodHUD::HandleMenuChoice(int32 Choice)
 	}
 }
 
+void AKodHUD::ScrubScoreGraph(float MouseX)
+{
+	const float Span = FMath::Max(1.f, ScoreGraphMaxX - ScoreGraphMinX);
+	const float Alpha = FMath::Clamp((MouseX - ScoreGraphMinX) / Span, 0.f, 1.f);
+	const int32 Last = FMath::Max(0, ScoreSampleCount - 1);
+	ScoreScrub = FMath::Clamp(FMath::RoundToInt(Alpha * static_cast<float>(Last)), 0, Last);
+}
+
+void AKodHUD::DrawPostGame(const UKodSimSubsystem* Sim)
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	const float Scale = FrameScale;
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	const FLinearColor Paper = Tok(0xE6, 0xE6, 0xE0);
+	const FLinearColor Dim = Tok(0x8E, 0x94, 0x9A);
+	const bool bVictory = Sim && Sim->GetMatchOutcome() == EKodMatchOutcome::Victory;
+	const FKodScreenRect Banner = MapSpec(40.f, 16.f, 1840.f, 100.f);
+	DrawPlate(Banner.X, Banner.Y, Banner.W, Banner.H, Tok(0x1F, 0x23, 0x27, 0.96f), TEXT("T_UI_VG_Modal_Panel"), 32.f, 32.f, 32.f, 32.f);
+	DrawText(bVictory ? TEXT("VICTORY") : TEXT("DEFEAT"), bVictory ? Tok(0xD9, 0xB8, 0x78) : Tok(0xE5, 0x38, 0x3B), Banner.X + 32.f * Scale, Banner.Y + 28.f * Scale, Font, 1.8f * Scale, false);
+
+	float CheatY = Banner.Y + Banner.H + 8.f * Scale;
+	if (Sim && Sim->IsMatchCheated())
+	{
+		CheatY = DrawCheatSummary(Sim, Banner.X + 32.f * Scale, CheatY, Banner.W - 64.f * Scale, Scale, Font);
+	}
+
+	const TCHAR* Tabs[] = { TEXT("Summary"), TEXT("Units"), TEXT("Structures"), TEXT("Production"), TEXT("Resources"), TEXT("Army") };
+	const FKodScreenRect TabProbe = MapSpec(40.f, 152.f, 300.f, 44.f);
+	const float TabY = FMath::Max(TabProbe.Y, CheatY + 8.f * Scale);
+	for (int32 TabIndex = 0; TabIndex < 6; ++TabIndex)
+	{
+		const FKodScreenRect TabRect = MapSpec(40.f + 310.f * static_cast<float>(TabIndex), 152.f, 300.f, 44.f);
+		const bool bOn = ScoreTab == TabIndex;
+		DrawPlate(TabRect.X, TabY, TabRect.W, TabProbe.H, bOn ? Tok(0xB0, 0x8D, 0x57) : Tok(0x5C, 0x64, 0x6C), TEXT("T_UI_VG_Tab_Group"), 8.f, 6.f, 8.f, 6.f);
+		DrawText(Tabs[TabIndex], Paper, TabRect.X + 12.f * Scale, TabY + 10.f * Scale, Font, 0.9f * Scale, false);
+		RememberChrome(FName(TEXT("Menu")), 20 + TabIndex, FName(), TabRect.X, TabY, TabRect.X + TabRect.W, TabY + TabProbe.H);
+	}
+
+	const FKodScreenRect ContentProbe = MapSpec(40.f, 220.f, 1840.f, 700.f);
+	const FKodScreenRect ButtonProbe = MapSpec(0.f, 980.f, 1920.f, 56.f);
+	FKodScreenRect Content;
+	Content.X = ContentProbe.X;
+	Content.Y = TabY + TabProbe.H + 8.f * Scale;
+	Content.W = ContentProbe.W;
+	Content.H = FMath::Max(160.f * Scale, ButtonProbe.Y - 12.f * Scale - Content.Y);
+	DrawPlate(Content.X, Content.Y, Content.W, Content.H, Tok(0x1F, 0x23, 0x27, 0.9f), TEXT("T_UI_VG_Modal_Panel"), 32.f, 32.f, 32.f, 32.f);
+	FKodMatchScoreTracker Board;
+	if (Sim)
+	{
+		Sim->CopyScoreboard(Board);
+	}
+	const int32 Seconds = Sim ? static_cast<int32>(Sim->GetSimTickIndex() / 16) : 0;
+	float CursorY = Content.Y + 16.f * Scale;
+	const float Left = Content.X + 16.f * Scale;
+	DrawText(FString::Printf(TEXT("Time %02d:%02d"), Seconds / 60, Seconds % 60), Paper, Left, CursorY, Font, Scale, false);
+	CursorY += 28.f * Scale;
+
+	auto ValueKind = [](const FKodScoreSample& Sample, int32 Kind) -> int32
+	{
+		switch (Kind)
+		{
+		case 0: return Sample.Workers;
+		case 1: return Sample.JadeiteCollected;
+		case 2: return Sample.LumineneCollected;
+		case 3: return Sample.ArmyValue;
+		case 4: return Sample.SupplyUsed;
+		default: return 0;
+		}
+	};
+	int32 SampleCount = 0;
+	for (const FKodScorePlayer& Player : Board.Players)
+	{
+		SampleCount = FMath::Max(SampleCount, Player.Samples.Num());
+	}
+	ScoreSampleCount = SampleCount;
+	const int32 ScrubIndex = SampleCount <= 0 ? INDEX_NONE : (ScoreScrub < 0 ? SampleCount - 1 : FMath::Clamp(ScoreScrub, 0, SampleCount - 1));
+
+	auto RateAt = [&](const FKodScorePlayer& Player, int32 Index, bool bJadeite) -> int32
+	{
+		if (!Player.Samples.IsValidIndex(Index))
+		{
+			return 0;
+		}
+		const FKodScoreSample& Newer = Player.Samples[Index];
+		int32 OlderAmount = 0;
+		int32 OlderTick = 0;
+		if (Index > 0)
+		{
+			const FKodScoreSample& Older = Player.Samples[Index - 1];
+			OlderAmount = bJadeite ? Older.JadeiteCollected : Older.LumineneCollected;
+			OlderTick = Older.Tick;
+		}
+		const int32 NewerAmount = bJadeite ? Newer.JadeiteCollected : Newer.LumineneCollected;
+		return FKodMatchScoreTracker::PerMinute(NewerAmount - OlderAmount, Newer.Tick - OlderTick);
+	};
+
+	const float ColW = (Content.W - 48.f * Scale) * 0.5f;
+	const float HeaderY = CursorY;
+	for (int32 PlayerIndex = 0; PlayerIndex < Board.Players.Num() && PlayerIndex < 2; ++PlayerIndex)
+	{
+		const FKodScorePlayer& Player = Board.Players[PlayerIndex];
+		const float ColX = Left + static_cast<float>(PlayerIndex) * (ColW + 16.f * Scale);
+		const FLinearColor Swatch = FKodSkirmishSetup::TeamSwatch(Player.ColorIndex);
+		DrawRect(Swatch, ColX, HeaderY, ColW, 28.f * Scale);
+		DrawText(PlayerIndex == 0 ? TEXT("You") : TEXT("AI"), Paper, ColX + 8.f * Scale, HeaderY + 4.f * Scale, Font, 0.9f * Scale, false);
+	}
+	CursorY += 36.f * Scale;
+
+	auto ColumnLine = [&](int32 PlayerIndex, float& LineY, const FString& Text)
+	{
+		if (!Board.Players.IsValidIndex(PlayerIndex))
+		{
+			return;
+		}
+		const float ColX = Left + static_cast<float>(PlayerIndex) * (ColW + 16.f * Scale);
+		DrawText(Text, Paper, ColX, LineY, Font, 0.85f * Scale, false);
+	};
+
+	if (ScoreTab == 0)
+	{
+		const int32 SimTick = Sim ? static_cast<int32>(FMath::Min<int64>(Sim->GetSimTickIndex(), MAX_int32)) : 0;
+		float LineY = CursorY;
+		for (int32 PlayerIndex = 0; PlayerIndex < Board.Players.Num() && PlayerIndex < 2; ++PlayerIndex)
+		{
+			const FKodScorePlayer& Player = Board.Players[PlayerIndex];
+			float RowY = LineY;
+			ColumnLine(PlayerIndex, RowY, FString::Printf(TEXT("APM %d   peak %d"), Board.AverageApm(Player.TeamId, SimTick), Board.PeakApm(Player.TeamId)));
+			RowY += 26.f * Scale;
+			ColumnLine(PlayerIndex, RowY, FString::Printf(TEXT("Units built %d   lost %d"), Player.UnitsTrained, Player.UnitsLost));
+			RowY += 26.f * Scale;
+			ColumnLine(PlayerIndex, RowY, FString::Printf(TEXT("Structures built %d   lost %d"), Player.StructuresBuilt, Player.StructuresLost));
+			RowY += 26.f * Scale;
+			ColumnLine(PlayerIndex, RowY, FString::Printf(TEXT("Gathered  Credits %d   Luminene %d"), Player.JadeiteCollected, Player.LumineneCollected));
+		}
+	}
+	else if (ScoreTab == 1 || ScoreTab == 2)
+	{
+		const bool bUnits = ScoreTab == 1;
+		TArray<FName> TypeIds;
+		for (const FKodScorePlayer& Player : Board.Players)
+		{
+			const TArray<FKodScoreTypeRow>& Rows = bUnits ? Player.Units : Player.Structures;
+			for (const FKodScoreTypeRow& Row : Rows)
+			{
+				TypeIds.AddUnique(Row.Id);
+			}
+		}
+		TypeIds.Sort([](const FName& A, const FName& B) { return A.ToString() < B.ToString(); });
+		DrawText(bUnits ? TEXT("Type") : TEXT("Structure"), Dim, Left, CursorY, Font, 0.8f * Scale, false);
+		DrawText(bUnits ? TEXT("Trained / Killed / Lost") : TEXT("Built / Razed / Lost"), Dim, Left + 280.f * Scale, CursorY, Font, 0.8f * Scale, false);
+		DrawText(bUnits ? TEXT("Trained / Killed / Lost") : TEXT("Built / Razed / Lost"), Dim, Left + 280.f * Scale + ColW, CursorY, Font, 0.8f * Scale, false);
+		CursorY += 24.f * Scale;
+		if (TypeIds.Num() == 0)
+		{
+			DrawText(TEXT("None"), Dim, Left, CursorY, Font, 0.85f * Scale, false);
+		}
+		const int32 Shown = FMath::Min(TypeIds.Num(), 16);
+		for (int32 RowIndex = 0; RowIndex < Shown; ++RowIndex)
+		{
+			const FName TypeId = TypeIds[RowIndex];
+			const FString Label = PlayerFacingName(Sim, TypeId).ToString();
+			DrawText(Label, Paper, Left, CursorY, Font, 0.85f * Scale, false);
+			for (int32 PlayerIndex = 0; PlayerIndex < Board.Players.Num() && PlayerIndex < 2; ++PlayerIndex)
+			{
+				const TArray<FKodScoreTypeRow>& Rows = bUnits ? Board.Players[PlayerIndex].Units : Board.Players[PlayerIndex].Structures;
+				int32 Trained = 0;
+				int32 Killed = 0;
+				int32 Lost = 0;
+				for (const FKodScoreTypeRow& Row : Rows)
+				{
+					if (Row.Id == TypeId)
+					{
+						Trained = Row.Trained;
+						Killed = Row.Killed;
+						Lost = Row.Lost;
+						break;
+					}
+				}
+				const float ColX = Left + 280.f * Scale + static_cast<float>(PlayerIndex) * ColW;
+				DrawText(FString::Printf(TEXT("%d / %d / %d"), Trained, Killed, Lost), Paper, ColX, CursorY, Font, 0.85f * Scale, false);
+			}
+			CursorY += 24.f * Scale;
+		}
+	}
+	else
+	{
+		float LineY = CursorY;
+		for (int32 PlayerIndex = 0; PlayerIndex < Board.Players.Num() && PlayerIndex < 2; ++PlayerIndex)
+		{
+			const FKodScorePlayer& Player = Board.Players[PlayerIndex];
+			const FKodScoreSample* Sample = (ScrubIndex != INDEX_NONE && Player.Samples.IsValidIndex(ScrubIndex)) ? &Player.Samples[ScrubIndex] : nullptr;
+			float RowY = LineY;
+			if (ScoreTab == 3)
+			{
+				ColumnLine(PlayerIndex, RowY, FString::Printf(TEXT("Workers %d"), Sample ? Sample->Workers : 0));
+			}
+			else if (ScoreTab == 4)
+			{
+				ColumnLine(PlayerIndex, RowY, FString::Printf(TEXT("Credits gathered %d   spent %d"), Player.JadeiteCollected, Player.JadeiteSpent));
+				RowY += 26.f * Scale;
+				ColumnLine(PlayerIndex, RowY, FString::Printf(TEXT("Luminene gathered %d   spent %d"), Player.LumineneCollected, Player.LumineneSpent));
+				RowY += 26.f * Scale;
+				ColumnLine(PlayerIndex, RowY, FString::Printf(TEXT("Rate  Credits %d/min   Luminene %d/min"), RateAt(Player, ScrubIndex, true), RateAt(Player, ScrubIndex, false)));
+			}
+			else
+			{
+				ColumnLine(PlayerIndex, RowY, FString::Printf(TEXT("Army %d"), Sample ? Sample->ArmyValue : 0));
+				RowY += 26.f * Scale;
+				ColumnLine(PlayerIndex, RowY, FString::Printf(TEXT("Supply %d/%d"), Sample ? Sample->SupplyUsed : 0, Sample ? Sample->SupplyCap : 0));
+			}
+		}
+		CursorY += ScoreTab == 3 ? 40.f * Scale : 90.f * Scale;
+		auto DrawKind = [&](int32 Kind, const FString& Title)
+		{
+			DrawText(Title, Dim, Left, CursorY, Font, 0.8f * Scale, false);
+			CursorY += 22.f * Scale;
+			const float GraphH = 140.f * Scale;
+			const float GraphW = Content.W - 32.f * Scale;
+			float MaxValue = 1.f;
+			for (const FKodScorePlayer& Player : Board.Players)
+			{
+				for (const FKodScoreSample& Sample : Player.Samples)
+				{
+					MaxValue = FMath::Max(MaxValue, static_cast<float>(ValueKind(Sample, Kind)));
+				}
+			}
+			for (const FKodScorePlayer& Player : Board.Players)
+			{
+				const FLinearColor Swatch = FKodSkirmishSetup::TeamSwatch(Player.ColorIndex);
+				FVector2D Prev(0.f, 0.f);
+				bool bHavePrev = false;
+				const int32 Count = Player.Samples.Num();
+				for (int32 SampleIndex = 0; SampleIndex < Count; ++SampleIndex)
+				{
+					const float Amount = static_cast<float>(ValueKind(Player.Samples[SampleIndex], Kind));
+					const float Px = Left + GraphW * (Count <= 1 ? 0.f : static_cast<float>(SampleIndex) / static_cast<float>(Count - 1));
+					const float Py = CursorY + GraphH - GraphH * (Amount / MaxValue);
+					if (bHavePrev)
+					{
+						DrawLine(Prev.X, Prev.Y, Px, Py, Swatch, 2.f);
+					}
+					Prev = FVector2D(Px, Py);
+					bHavePrev = true;
+				}
+			}
+			if (ScrubIndex != INDEX_NONE && SampleCount > 0)
+			{
+				const float Marker = Left + GraphW * (SampleCount <= 1 ? 0.f : static_cast<float>(ScrubIndex) / static_cast<float>(SampleCount - 1));
+				DrawLine(Marker, CursorY, Marker, CursorY + GraphH, Paper, 1.f);
+			}
+			ScoreGraphMinX = Left;
+			ScoreGraphMaxX = Left + GraphW;
+			CursorY += GraphH + 12.f * Scale;
+		};
+		if (ScoreTab == 3)
+		{
+			DrawKind(0, TEXT("Workers"));
+		}
+		else if (ScoreTab == 4)
+		{
+			DrawKind(1, TEXT("Jadeite Credits"));
+			DrawKind(2, TEXT("Luminene"));
+		}
+		else
+		{
+			DrawKind(3, TEXT("Army value"));
+			DrawKind(4, TEXT("Supply"));
+		}
+		const float BarW = ScoreGraphMaxX - ScoreGraphMinX;
+		DrawRect(Tok(0x5C, 0x64, 0x6C), ScoreGraphMinX, CursorY, BarW, 16.f * Scale);
+		if (ScrubIndex != INDEX_NONE && SampleCount > 0)
+		{
+			const float Marker = ScoreGraphMinX + BarW * (SampleCount <= 1 ? 0.f : static_cast<float>(ScrubIndex) / static_cast<float>(SampleCount - 1));
+			DrawRect(Paper, Marker - 2.f, CursorY, 4.f, 16.f * Scale);
+		}
+		RememberChrome(FName(TEXT("Scrub")), 0, FName(), ScoreGraphMinX, CursorY, ScoreGraphMaxX, CursorY + 16.f * Scale);
+	}
+
+	const float BtnW = 280.f * Scale;
+	const float BtnH = 56.f * Scale;
+	const float Gap = 16.f * Scale;
+	const FKodScreenRect ButtonRow = MapSpec(0.f, 980.f, 1920.f, 56.f);
+	float ButtonX = ButtonRow.X + (ButtonRow.W - (3.f * BtnW + 2.f * Gap)) * 0.5f;
+	auto MenuButton = [&](const FString& Label, int32 Choice, bool bEnabled)
+	{
+		DrawPlate(ButtonX, ButtonRow.Y, BtnW, BtnH, bEnabled ? Tok(0x5C, 0x64, 0x6C) : Tok(0x3A, 0x3F, 0x45), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
+		DrawText(Label, bEnabled ? Paper : Dim, ButtonX + 12.f * Scale, ButtonRow.Y + 16.f * Scale, Font, 0.9f * Scale, false);
+		if (bEnabled)
+		{
+			RememberChrome(FName(TEXT("Menu")), Choice, FName(), ButtonX, ButtonRow.Y, ButtonX + BtnW, ButtonRow.Y + BtnH);
+		}
+		ButtonX += BtnW + Gap;
+	};
+	MenuButton(TEXT("Main Menu"), 5, true);
+	MenuButton(TEXT("Rematch"), 70, true);
+	MenuButton(TEXT("Watch Replay"), 71, false);
+}
+
 void AKodHUD::DrawShellMenus()
 {
 	if (!Canvas)
@@ -3370,7 +3694,7 @@ void AKodHUD::DrawShellMenus()
 	}
 	const float Scale = FrameScale;
 	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
-	const bool bResults = MenuPage == 5;
+	const bool bResults = MenuPage == 5 || MenuPage == 6;
 	DrawRect(FLinearColor(0.f, 0.f, 0.f, bResults ? 0.82f : 0.6f), 0.f, 0.f, Canvas->SizeX, Canvas->SizeY);
 	auto Button = [this, Font, Scale](float X, float Y, float W, float H, const FString& Label, int32 Choice)
 	{
@@ -3456,27 +3780,7 @@ void AKodHUD::DrawShellMenus()
 	}
 	else if (MenuPage == 6)
 	{
-		const bool bVictory = Sim && Sim->GetMatchOutcome() == EKodMatchOutcome::Victory;
-		const FKodScreenRect Banner = MapSpec(360.f, 260.f, 1200.f, 160.f);
-		DrawPlate(Banner.X, Banner.Y, Banner.W, Banner.H, Tok(0x1F, 0x23, 0x27, 0.96f), TEXT("T_UI_VG_Modal_Panel"), 32.f, 32.f, 32.f, 32.f);
-		DrawText(bVictory ? TEXT("VICTORY") : TEXT("DEFEAT"), bVictory ? Tok(0xD9, 0xB8, 0x78) : Tok(0xE5, 0x38, 0x3B), Banner.X + 48.f * Scale, Banner.Y + 48.f * Scale, Font, 1.8f * Scale, false);
-		if (Sim && Sim->IsMatchCheated())
-		{
-			DrawCheatSummary(Sim, Banner.X + 48.f * Scale, Banner.Y + 100.f * Scale, Banner.W - 96.f * Scale, Scale, Font);
-		}
-		const float BtnW = 280.f * Scale;
-		const float BtnH = 56.f * Scale;
-		const float Gap = 16.f * Scale;
-		const float RowW = 4.f * BtnW + 3.f * Gap;
-		const FKodScreenRect Row = MapSpec(0.f, 760.f, 1920.f, 56.f);
-		float X = Row.X + (Row.W - RowW) * 0.5f;
-		Button(X, Row.Y, BtnW, BtnH, TEXT("Continue"), 6);
-		X += BtnW + Gap;
-		Button(X, Row.Y, BtnW, BtnH, TEXT("Results"), 7);
-		X += BtnW + Gap;
-		Button(X, Row.Y, BtnW, BtnH, TEXT("Restart"), 4);
-		X += BtnW + Gap;
-		Button(X, Row.Y, BtnW, BtnH, TEXT("Main Menu"), 5);
+		DrawPostGame(Sim);
 	}
 	else if (MenuPage == 8)
 	{
@@ -3504,85 +3808,9 @@ void AKodHUD::DrawShellMenus()
 			DrawText(FString::Printf(TEXT("%s  LOCKED"), Locked[Index]), Tok(0x8E, 0x94, 0x9A), Tile.X + 24.f * Scale, Tile.Y + 44.f * Scale, Font, Scale, false);
 		}
 	}
-	else if (MenuPage == 5 && Sim)
+	else if (MenuPage == 5)
 	{
-		const TCHAR* Tabs[] = { TEXT("APM"), TEXT("Supply"), TEXT("Production"), TEXT("Army Value"), TEXT("Resources") };
-		for (int32 Tab = 0; Tab < 5; ++Tab)
-		{
-			const FKodScreenRect TabRect = MapSpec(394.f + 228.f * static_cast<float>(Tab), 120.f, 220.f, 48.f);
-			const bool bOn = ScoreTab == Tab;
-			DrawPlate(TabRect.X, TabRect.Y, TabRect.W, TabRect.H, bOn ? Tok(0xB0, 0x8D, 0x57) : Tok(0x5C, 0x64, 0x6C), TEXT("T_UI_VG_Tab_Group"), 8.f, 6.f, 8.f, 6.f);
-			DrawText(Tabs[Tab], Tok(0xE6, 0xE6, 0xE0), TabRect.X + 12.f * Scale, TabRect.Y + 12.f * Scale, Font, 0.9f * Scale, false);
-			RememberChrome(FName(TEXT("Menu")), 20 + Tab, FName(), TabRect.X, TabRect.Y, TabRect.X + TabRect.W, TabRect.Y + TabRect.H);
-		}
-		const FKodScreenRect Content = MapSpec(160.f, 190.f, 1600.f, 760.f);
-		DrawPlate(Content.X, Content.Y, Content.W, Content.H, Tok(0x1F, 0x23, 0x27, 0.9f), TEXT("T_UI_VG_Modal_Panel"), 32.f, 32.f, 32.f, 32.f);
-		float Y = Content.Y + 16.f * Scale;
-		const float X = Content.X + 16.f * Scale;
-		if (Sim->IsMatchCheated())
-		{
-			Y = DrawCheatSummary(Sim, X, Y, Content.W - 32.f * Scale, Scale, Font);
-			Y += 8.f * Scale;
-		}
-		const int32 Seconds = static_cast<int32>(Sim->GetSimTickIndex() / 16);
-		int32 Average = 0;
-		int32 Peak = 0;
-		if (UKodApmTracker* Apm = World->GetSubsystem<UKodApmTracker>())
-		{
-			Apm->GetApm(Average, Peak);
-		}
-		int32 Collected = 0;
-		int32 Trained = 0;
-		int32 Killed = 0;
-		int32 Built = 0;
-		int32 Razed = 0;
-		Sim->GetTeamTotals(0, Collected, Trained, Killed, Built, Razed);
-		if (ScoreTab == 0)
-		{
-			DrawText(FString::Printf(TEXT("Time %02d:%02d"), Seconds / 60, Seconds % 60), Tok(0xE6, 0xE6, 0xE0), X, Y, Font, Scale, false); Y += 28.f * Scale;
-			DrawText(FString::Printf(TEXT("APM %d  peak %d"), Average, Peak), Tok(0xE6, 0xE6, 0xE0), X, Y, Font, Scale, false); Y += 28.f * Scale;
-			DrawText(FString::Printf(TEXT("Collected %d"), Collected), Tok(0xE6, 0xE6, 0xE0), X, Y, Font, Scale, false); Y += 28.f * Scale;
-			DrawText(FString::Printf(TEXT("Trained %d   Killed %d"), Trained, Killed), Tok(0xE6, 0xE6, 0xE0), X, Y, Font, Scale, false); Y += 28.f * Scale;
-			DrawText(FString::Printf(TEXT("Built %d   Razed %d"), Built, Razed), Tok(0xE6, 0xE6, 0xE0), X, Y, Font, Scale, false);
-		}
-		else if (ScoreTab == 1)
-		{
-			for (int32 TeamId = 0; TeamId <= 1; ++TeamId)
-			{
-				int32 Used = 0;
-				int32 Cap = 0;
-				Sim->TryGetSupply(TeamId, Used, Cap);
-				DrawText(FString::Printf(TEXT("Team %d supply %d/%d"), TeamId, Used, Cap), Tok(0xE6, 0xE6, 0xE0), X, Y, Font, Scale, false);
-				Y += 28.f * Scale;
-			}
-		}
-		else
-		{
-			TArray<UKodSimSubsystem::FKodStatSample> Samples;
-			Sim->CopyStatSamples(0, Samples);
-			float MaxValue = 1.f;
-			for (const UKodSimSubsystem::FKodStatSample& Sample : Samples)
-			{
-				const int32 Value = ScoreTab == 2 ? Sample.Trained + Sample.Built : (ScoreTab == 3 ? Sample.ArmyValue : Sample.Income);
-				MaxValue = FMath::Max(MaxValue, static_cast<float>(Value));
-			}
-			const float ChartW = Content.W - 32.f * Scale;
-			const float ChartH = 280.f * Scale;
-			FVector2D Prev(X, Y + ChartH);
-			for (int32 Index = 0; Index < Samples.Num(); ++Index)
-			{
-				const int32 Value = ScoreTab == 2 ? Samples[Index].Trained + Samples[Index].Built : (ScoreTab == 3 ? Samples[Index].ArmyValue : Samples[Index].Income);
-				const float Px = X + ChartW * (Samples.Num() <= 1 ? 0.f : static_cast<float>(Index) / static_cast<float>(Samples.Num() - 1));
-				const float Py = Y + ChartH - ChartH * (static_cast<float>(Value) / MaxValue);
-				if (Index > 0)
-				{
-					DrawLine(Prev.X, Prev.Y, Px, Py, Tok(0xB0, 0x8D, 0x57), 2.f);
-				}
-				Prev = FVector2D(Px, Py);
-			}
-		}
-		const FKodScreenRect Back = MapSpec(1584.f, 990.f, 240.f, 56.f);
-		Button(Back.X, Back.Y, Back.W, Back.H, TEXT("Back"), 30);
+		DrawPostGame(Sim);
 	}
 }
 

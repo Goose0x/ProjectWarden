@@ -1,4 +1,5 @@
 #include "Sim/KodSimSubsystem.h"
+#include "Game/KodGameInstance.h"
 #include "Game/KodSkirmishSetup.h"
 
 #include "Engine/DataTable.h"
@@ -285,13 +286,42 @@ void UKodSimSubsystem::SetMatchMode(EKodMatchMode Mode)
 	UE_LOG(LogTemp, Log, TEXT("KodMatch Mode=%s"), MatchModeLabel(MatchMode));
 }
 
+void UKodSimSubsystem::SetOnlineSession(bool bMarkedOnline)
+{
+	bOnlineSession = bMarkedOnline;
+	UE_LOG(LogTemp, Log, TEXT("KodMatch Online=%d"), bOnlineSession ? 1 : 0);
+}
+
+bool UKodSimSubsystem::IsOnlineSession() const
+{
+	if (bOnlineSession || MatchMode == EKodMatchMode::OnlineRanked)
+	{
+		return true;
+	}
+	const UWorld* World = GetWorld();
+	const UKodGameInstance* Instance = World ? Cast<UKodGameInstance>(World->GetGameInstance()) : nullptr;
+	return Instance && Instance->IsRemoteOnlineSession();
+}
+
 bool UKodSimSubsystem::AreCheatsAllowed() const
 {
 	if (bCompetitive)
 	{
 		return false;
 	}
-	return FKodSkirmishSetup::MatchAllowsCheats(MatchMode);
+	return FKodSkirmishSetup::CheatsAllowed(MatchMode, IsOnlineSession());
+}
+
+void UKodSimSubsystem::NoteCheatRefused()
+{
+	const bool bOnline = IsOnlineSession();
+	LastCheatLine = bOnline
+		? FString(FKodSkirmishSetup::CheatRefusalText())
+		: FString(TEXT("Cheats are not available in this match."));
+	UE_LOG(LogTemp, Log, TEXT("KodCheat Refused Mode=%s Online=%d Line=%s"),
+		MatchModeLabel(MatchMode),
+		bOnline ? 1 : 0,
+		*LastCheatLine);
 }
 
 void UKodSimSubsystem::EnsureCheatPhrases()
@@ -604,6 +634,7 @@ void UKodSimSubsystem::ApplyCheatEffect(EKodCheatEffect Effect)
 		UE_LOG(LogTemp, Log, TEXT("KodAI Match Victory"));
 		RaiseCue(FName(TEXT("victory")), FVector::ZeroVector, false);
 		RememberAiMatch();
+		CaptureScoreSnapshot();
 		NoteCheatUse(Effect, true, TEXT("Victory"));
 		break;
 	case EKodCheatEffect::Defeat:
@@ -611,6 +642,7 @@ void UKodSimSubsystem::ApplyCheatEffect(EKodCheatEffect Effect)
 		UE_LOG(LogTemp, Log, TEXT("KodAI Match Defeat"));
 		RaiseCue(FName(TEXT("defeat")), FVector::ZeroVector, false);
 		RememberAiMatch();
+		CaptureScoreSnapshot();
 		NoteCheatUse(Effect, true, TEXT("Defeat"));
 		break;
 	case EKodCheatEffect::DustToDust:
@@ -636,7 +668,7 @@ EKodCheatSubmit UKodSimSubsystem::SubmitCheatPhrase(const FString& Line)
 	}
 	if (!AreCheatsAllowed())
 	{
-		UE_LOG(LogTemp, Log, TEXT("KodCheat Refused Mode=%s"), MatchModeLabel(MatchMode));
+		NoteCheatRefused();
 		return EKodCheatSubmit::Refused;
 	}
 	ApplyCheatEffect(Effect);
@@ -658,7 +690,7 @@ bool UKodSimSubsystem::ApplyCheatLine(const FString& Line)
 	EnsureCheatPhrases();
 	if (!AreCheatsAllowed())
 	{
-		UE_LOG(LogTemp, Log, TEXT("KodCheat Refused Mode=%s"), MatchModeLabel(MatchMode));
+		NoteCheatRefused();
 		return false;
 	}
 	EKodCheatEffect PhraseEffect = EKodCheatEffect::None;

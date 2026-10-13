@@ -68,6 +68,7 @@ void AKodGameMode::StartPlay()
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
 		{
 			Sim->SetMatchMode(MatchMode);
+			Sim->SetOnlineSession(FKodSkirmishSetup::OptionsMarkOnline(PendingOptions));
 			FKodSkirmishSetup Lobby;
 			if (FKodSkirmishSetup::TryParse(PendingOptions, Lobby))
 			{
@@ -76,6 +77,8 @@ void AKodGameMode::StartPlay()
 				Sim->SetAiEnabled(Lobby.bEnableAi);
 				Sim->SetAiDifficulty(FKodSkirmishSetup::ToAiDifficulty(Lobby.Difficulty));
 				Sim->SetPlayerFaction(PlayerIndex);
+				Sim->SetScoreTeamColor(0, Lobby.PlayerColor);
+				Sim->SetScoreTeamColor(1, Lobby.AiColor);
 				UE_LOG(LogTemp, Log, TEXT("KodLobby Apply Mode=%d Map=%s Faction=%d AiFaction=%d Ai=%d Diff=%d PStart=%d AStart=%d PColor=%d AColor=%d Cheats=%d"),
 					static_cast<int32>(Lobby.Mode),
 					*Lobby.MapId.ToString(),
@@ -87,7 +90,7 @@ void AKodGameMode::StartPlay()
 					Lobby.AiStart,
 					Lobby.PlayerColor,
 					Lobby.AiColor,
-					FKodSkirmishSetup::MatchAllowsCheats(Lobby.Mode) ? 1 : 0);
+					Sim->AreCheatsAllowed() ? 1 : 0);
 			}
 		}
 	}

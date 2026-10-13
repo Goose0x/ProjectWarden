@@ -11,6 +11,7 @@
 #include "Sim/KodAbilityTypes.h"
 #include "Sim/KodBalanceRows.h"
 #include "Sim/KodCheatRows.h"
+#include "Sim/KodScoreTracker.h"
 #include "KodSimSubsystem.generated.h"
 
 class AActor;
@@ -796,6 +797,12 @@ public:
 	void CopyOlderStatSamples(int32 TeamId, TArray<FKodStatSample>& Out) const;
 	void GetTeamTotals(int32 TeamId, int32& Collected, int32& Trained, int32& Killed, int32& Built, int32& Razed) const;
 
+	/** Post-game board. Not hashed and not saved. */
+	void NoteScoreCommand(int32 TeamId);
+	void SetScoreTeamColor(int32 TeamId, int32 ColorIndex);
+	void CaptureScoreSnapshot();
+	void CopyScoreboard(FKodMatchScoreTracker& Out) const;
+
 	bool IsMatchCheated() const { return bMatchCheated; }
 	/** Last gold line, for the alert feed. Presentation only. Not hashed. */
 	FString GetCheatFeedbackLine() const { return LastCheatLine; }
@@ -806,7 +813,11 @@ public:
 
 	EKodMatchMode GetMatchMode() const { return MatchMode; }
 	void SetMatchMode(EKodMatchMode Mode);
+	/** Game-mode options marked this match online or ranked. Not hashed. */
+	void SetOnlineSession(bool bMarkedOnline);
+	bool IsOnlineSession() const;
 	bool AreCheatsAllowed() const;
+	void NoteCheatRefused();
 
 	/** Dev console alias. Non-shipping registration. Refused outside campaign and offline skirmish. */
 	bool ApplyCheatLine(const FString& Line);
@@ -814,7 +825,7 @@ public:
 	/**
 	 * Exact chat phrase, case-insensitive.
 	 * Applied raises cheat_enabled and sets the cheated flag.
-	 * Refused logs KodCheat Refused Mode= and is ordinary chat.
+	 * Refused logs KodCheat Refused and shows the refusal line.
 	 */
 	EKodCheatSubmit SubmitCheatPhrase(const FString& Line);
 
@@ -980,6 +991,7 @@ protected:
 	void StepExposed();
 	void ApplyExposedReveal();
 	void RecordMatchSample();
+	void RecordScoreSample();
 	void CollapseStatWindow(TArray<FKodStatSample>& Samples, TArray<FKodStatSample>& Older);
 	void NoteResources(int32 TeamId, int32 Amount);
 	void NoteUnitTrained(int32 TeamId);
@@ -1139,6 +1151,8 @@ protected:
 	};
 	FKodTeamTotals Totals0;
 	FKodTeamTotals Totals1;
+	/** Results screen only. Not appended by ComputeIdleHash and not saved. */
+	FKodMatchScoreTracker ScoreTracker;
 	TArray<FKodStatSample> Samples0;
 	TArray<FKodStatSample> Samples1;
 	TArray<FKodStatSample> OlderSamples0;
@@ -1147,6 +1161,8 @@ protected:
 	bool bMatchCheated = false;
 	bool bCompetitive = false;
 	EKodMatchMode MatchMode = EKodMatchMode::OfflineSkirmish;
+	/** Online=1, Session=online, or Match=ranked/online. Not hashed. Ranked mode is hashed separately. */
+	bool bOnlineSession = false;
 	TArray<FKodCheatUse> CheatUses;
 	/** Alert text for the cheat just applied. Not hashed and not saved. */
 	FString LastCheatLine;

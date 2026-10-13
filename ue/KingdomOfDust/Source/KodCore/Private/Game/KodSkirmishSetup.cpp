@@ -80,6 +80,19 @@ FString FKodSkirmishSetup::FactionName(EKodRosterFaction Faction)
 	}
 }
 
+FLinearColor FKodSkirmishSetup::TeamSwatch(int32 ColorIndex)
+{
+	const FColor Swatches[] = {
+		FColor(0xB0, 0x8D, 0x57),
+		FColor(0xE5, 0x38, 0x3B),
+		FColor(0x2F, 0x7B, 0xFF),
+		FColor(0x4C, 0xD9, 0x64),
+		FColor(0x8E, 0x6A, 0xC7),
+		FColor(0xD2, 0xC4, 0xB1)
+	};
+	return FLinearColor(Swatches[FMath::Clamp(ColorIndex, 0, 5)]);
+}
+
 FString FKodSkirmishSetup::DifficultyName(EKodLobbyDifficulty LobbyDifficulty)
 {
 	switch (LobbyDifficulty)
@@ -141,6 +154,36 @@ int32 FKodSkirmishSetup::ToAiDifficulty(EKodLobbyDifficulty LobbyDifficulty)
 bool FKodSkirmishSetup::MatchAllowsCheats(EKodMatchMode MatchMode)
 {
 	return MatchMode == EKodMatchMode::Campaign || MatchMode == EKodMatchMode::OfflineSkirmish;
+}
+
+bool FKodSkirmishSetup::CheatsAllowed(EKodMatchMode MatchMode, bool bOnlineSession)
+{
+	if (bOnlineSession)
+	{
+		return false;
+	}
+	return MatchAllowsCheats(MatchMode);
+}
+
+bool FKodSkirmishSetup::OptionsMarkOnline(const FString& Options)
+{
+	const FString MatchText = UGameplayStatics::ParseOption(Options, TEXT("Match"));
+	if (MatchText.Equals(TEXT("ranked"), ESearchCase::IgnoreCase) || MatchText.Equals(TEXT("online"), ESearchCase::IgnoreCase))
+	{
+		return true;
+	}
+	const FString OnlineText = UGameplayStatics::ParseOption(Options, TEXT("Online"));
+	if (OnlineText == TEXT("1") || OnlineText.Equals(TEXT("true"), ESearchCase::IgnoreCase))
+	{
+		return true;
+	}
+	const FString SessionText = UGameplayStatics::ParseOption(Options, TEXT("Session"));
+	return SessionText.Equals(TEXT("online"), ESearchCase::IgnoreCase) || SessionText.Equals(TEXT("ranked"), ESearchCase::IgnoreCase);
+}
+
+const TCHAR* FKodSkirmishSetup::CheatRefusalText()
+{
+	return TEXT("Cheats are not available in online or ranked play.");
 }
 
 void FKodSkirmishSetup::GetMaps(TArray<FKodLobbyMap>& OutMaps)

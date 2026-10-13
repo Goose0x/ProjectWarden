@@ -77,9 +77,11 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	OlderSamples1.Reset();
 	Totals0 = FKodTeamTotals();
 	Totals1 = FKodTeamTotals();
+	ScoreTracker.Reset();
 	bMatchCheated = false;
 	bCompetitive = false;
 	MatchMode = EKodMatchMode::OfflineSkirmish;
+	bOnlineSession = false;
 	CheatUses.Reset();
 	LastCheatLine.Reset();
 	bGeneralPowers = true;
@@ -1173,6 +1175,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 	StepExposed();
 	FlushDeferredCommands();
 	RecordMatchSample();
+	RecordScoreSample();
 }
 
 void UKodSimSubsystem::SetPlayerFaction(int32 Faction)
@@ -2680,6 +2683,7 @@ bool UKodSimSubsystem::Spend(int32 TeamId, FKodResourceCost Cost)
 	}
 	Bank->Jadeite -= NeedJadeite;
 	Bank->Luminene -= NeedLuminene;
+	ScoreTracker.NoteSpend(TeamId, NeedJadeite, NeedLuminene);
 	UE_LOG(LogTemp, Log, TEXT("KodEcon Spend Team=%d J=%d L=%d Bank=J%d,L%d"),
 		TeamId,
 		NeedJadeite,
@@ -2692,6 +2696,7 @@ bool UKodSimSubsystem::Spend(int32 TeamId, FKodResourceCost Cost)
 void UKodSimSubsystem::Deposit(int32 TeamId, FKodResourceCost Amount)
 {
 	NoteResources(TeamId, FMath::Max(0, Amount.Jadeite) + FMath::Max(0, Amount.Luminene));
+	ScoreTracker.NoteGather(TeamId, Amount.Jadeite, Amount.Luminene);
 	const int32 AddJadeite = FMath::Max(0, Amount.Jadeite);
 	const int32 AddLuminene = FMath::Max(0, Amount.Luminene);
 	FKodResourceCost& Bank = Banks.FindOrAdd(TeamId);

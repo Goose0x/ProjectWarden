@@ -30,6 +30,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Match")
 	EKodMatchMode MatchMode = EKodMatchMode::OfflineSkirmish;
 
+	FString GetMatchOptions() const { return PendingOptions; }
 	TSubclassOf<APlayerController> GetSavedPlayerControllerClass() const { return KodSavedPlayerControllerClass; }
 	TSubclassOf<APawn> GetSavedDefaultPawnClass() const { return KodSavedDefaultPawnClass; }
 

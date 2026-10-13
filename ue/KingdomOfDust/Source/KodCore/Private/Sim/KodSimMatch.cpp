@@ -206,6 +206,62 @@ void UKodSimSubsystem::RecordMatchSample()
 	CollapseStatWindow(Samples1, OlderSamples1);
 }
 
+void UKodSimSubsystem::NoteScoreCommand(int32 TeamId)
+{
+	ScoreTracker.NoteCommand(TeamId);
+}
+
+void UKodSimSubsystem::SetScoreTeamColor(int32 TeamId, int32 ColorIndex)
+{
+	ScoreTracker.SetTeamColor(TeamId, ColorIndex);
+}
+
+void UKodSimSubsystem::CopyScoreboard(FKodMatchScoreTracker& Out) const
+{
+	Out = ScoreTracker;
+}
+
+void UKodSimSubsystem::CaptureScoreSnapshot()
+{
+	if (bTestIsolation || SimTickIndex < 0)
+	{
+		return;
+	}
+	const int32 Tick = SimTickIndex > MAX_int32 ? MAX_int32 : static_cast<int32>(SimTickIndex);
+	for (int32 TeamId = 0; TeamId <= 1; ++TeamId)
+	{
+		int32 Used = 0;
+		int32 Cap = 0;
+		TryGetSupply(TeamId, Used, Cap);
+		int32 Workers = 0;
+		TArray<int32> Keys;
+		States.GetKeys(Keys);
+		Keys.Sort();
+		for (int32 Key : Keys)
+		{
+			const FKodSimEntityState* State = States.Find(Key);
+			if (State && State->TeamId == TeamId && State->Health > 0.f && State->bCanGather)
+			{
+				++Workers;
+			}
+		}
+		ScoreTracker.ConsiderSample(Tick, TeamId, Workers, ArmyValueFor(TeamId), Used, Cap);
+	}
+}
+
+void UKodSimSubsystem::RecordScoreSample()
+{
+	if (bTestIsolation || MatchOutcome != EKodMatchOutcome::None || SimTickIndex <= 0)
+	{
+		return;
+	}
+	if ((SimTickIndex % FKodMatchScoreTracker::SampleTicks) != 0)
+	{
+		return;
+	}
+	CaptureScoreSnapshot();
+}
+
 void UKodSimSubsystem::StepExposed()
 {
 	if (bTestIsolation || !bExposedRule)

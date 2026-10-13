@@ -913,6 +913,7 @@ void UKodSimSubsystem::StepConstruction()
 			}
 			RecalcSupplyCap(Structure->TeamId);
 			NoteStructureBuilt(Structure->TeamId);
+			ScoreTracker.NoteStructureBuilt(Structure->TeamId, Structure->DefinitionId);
 			UE_LOG(LogTemp, Log, TEXT("KodBuild Complete Id=%d Type=%s"),
 				Structure->Id.Value,
 				*Structure->DisplayId.ToString());

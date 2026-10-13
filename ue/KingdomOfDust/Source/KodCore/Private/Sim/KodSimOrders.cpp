@@ -476,13 +476,20 @@ void UKodSimSubsystem::FinishEntityDeath(FKodSimEntityState& Target, int32 Kille
 	NoteUnitKilled(KillerTeam);
 	if (bStructureTarget)
 	{
+		ScoreTracker.NoteStructureLost(Target.TeamId, DefinitionId);
 		if (const FKodStructureState* DeadStructure = Structures.Find(DeadId.Value))
 		{
 			if (DeadStructure->bComplete)
 			{
 				NoteStructureRazed(KillerTeam);
+				ScoreTracker.NoteStructureRazed(KillerTeam, DefinitionId);
 			}
 		}
+	}
+	else
+	{
+		ScoreTracker.NoteUnitLost(Target.TeamId, DefinitionId);
+		ScoreTracker.NoteUnitKilled(KillerTeam, DefinitionId);
 	}
 	if (DefinitionId == FName(TEXT("IsrPlatform")))
 	{

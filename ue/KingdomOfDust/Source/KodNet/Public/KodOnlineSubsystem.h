@@ -16,6 +16,7 @@ public:
 	virtual void Deinitialize() override;
 
 	IKodOnlineService& GetService();
+	bool QueryRemoteSession() const;
 
 private:
 	TUniquePtr<IKodOnlineService> Service;
