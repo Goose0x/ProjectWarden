@@ -72,7 +72,25 @@ namespace KodHudLayout
 	constexpr float ResourceIcon = 28.f;
 	constexpr float ResourceValueGap = 33.f;
 
-	/** Addendum G. Command-card wing. Help is drawn locked. */
+	/** Addendum A. Painted frame layers. Missing textures keep the flat panels. */
+	constexpr float FrameMinimapX = 0.f;
+	constexpr float FrameMinimapY = 750.f;
+	constexpr float FrameMinimapW = 517.f;
+	constexpr float FrameMinimapH = 330.f;
+	constexpr float FrameCentreX = 512.f;
+	constexpr float FrameCentreY = 824.f;
+	constexpr float FrameCentreW = 778.f;
+	constexpr float FrameCentreH = 256.f;
+	constexpr float FramePortraitX = 1290.f;
+	constexpr float FramePortraitY = 856.f;
+	constexpr float FramePortraitW = 190.f;
+	constexpr float FramePortraitH = 224.f;
+	constexpr float FrameCardX = 1474.f;
+	constexpr float FrameCardY = 770.f;
+	constexpr float FrameCardW = 446.f;
+	constexpr float FrameCardH = 310.f;
+
+	/** Addendum G. Command-card wing. Help is drawn, and its click stays locked. */
 	constexpr float WingButtonY = 788.f;
 	constexpr float WingButtonW = 56.f;
 	constexpr float WingButtonH = 28.f;

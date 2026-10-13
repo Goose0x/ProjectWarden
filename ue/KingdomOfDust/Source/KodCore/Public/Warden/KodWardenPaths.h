@@ -12,6 +12,15 @@ namespace KodWardenPaths
 	constexpr const TCHAR* DataRoot = TEXT("/Game/Warden/Data");
 	constexpr const TCHAR* UiWireframeRoot = TEXT("/Game/Warden/UI/Wireframes");
 	constexpr const TCHAR* UiIconRoot = TEXT("/Game/Warden/UI/Icons");
+	constexpr const TCHAR* UiFrameRoot = TEXT("/Game/Warden/UI/Frames");
+	constexpr const TCHAR* FrameVgMinimap = TEXT("/Game/Warden/UI/Frames/T_VG_minimap_wing.T_VG_minimap_wing");
+	constexpr const TCHAR* FrameVgCentre = TEXT("/Game/Warden/UI/Frames/T_VG_centre_info.T_VG_centre_info");
+	constexpr const TCHAR* FrameVgPortrait = TEXT("/Game/Warden/UI/Frames/T_VG_portrait_frame.T_VG_portrait_frame");
+	constexpr const TCHAR* FrameVgCard = TEXT("/Game/Warden/UI/Frames/T_VG_cmdcard_wing.T_VG_cmdcard_wing");
+	constexpr const TCHAR* FrameScMinimap = TEXT("/Game/Warden/UI/Frames/T_SC_minimap_wing.T_SC_minimap_wing");
+	constexpr const TCHAR* FrameScCentre = TEXT("/Game/Warden/UI/Frames/T_SC_centre_info.T_SC_centre_info");
+	constexpr const TCHAR* FrameScPortrait = TEXT("/Game/Warden/UI/Frames/T_SC_portrait_frame.T_SC_portrait_frame");
+	constexpr const TCHAR* FrameScCard = TEXT("/Game/Warden/UI/Frames/T_SC_cmdcard_wing.T_SC_cmdcard_wing");
 	/** Resource readout. 28 is the HUD slot. 64 is the fallback if the 28 texture is absent. */
 	constexpr const TCHAR* IconJadeite28 = TEXT("/Game/Warden/UI/Icons/T_RES_Jadeite_28.T_RES_Jadeite_28");
 	constexpr const TCHAR* IconJadeite64 = TEXT("/Game/Warden/UI/Icons/T_RES_Jadeite_64.T_RES_Jadeite_64");
