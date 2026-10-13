@@ -82,6 +82,11 @@ public:
 
 	void ToggleHotkeyLegend();
 
+	/** True when the command line carries -kod.ShotAfter=<seconds> or kod.ShotAfter=<seconds>. */
+	static bool ParseShotAfterSeconds(const TCHAR* CommandLine, float& OutSeconds);
+	/** HighResShot 1920x1080 this many seconds after the next HUD draw, then exit. */
+	static void ArmShotAfter(float Seconds);
+
 	void AddMinimapPing(const FVector& WorldPoint, float Seconds = 6.f);
 
 	/** 0 move (green), 1 attack (red), 2 build complete (gold). Presentation only. */
@@ -205,6 +210,9 @@ protected:
 	void DrawWorldFog();
 	void DrawFaultlineObjectives();
 	void DrawTopBar();
+	void DrawPaintedFrames();
+	void PollShotAfter();
+	UTexture2D* ResolveSoftTexture(const TCHAR* Path);
 	void SyncFogSheet(const class UKodSimSubsystem* Sim, int32 LocalTeam);
 	void SyncGroundRings(const TMap<AActor*, int32>& Rings, const class UKodSimSubsystem* Sim);
 	class UStaticMesh* GetPresentationQuad();
@@ -240,6 +248,17 @@ protected:
 	bool WorldToMinimap(float WorldX, float WorldY, float& OutX, float& OutY) const;
 
 	bool bLoggedFirstDraw = false;
+	bool bLoggedWingHelp = false;
+	bool bLoggedFrames = false;
+	bool bShotAfterParsed = false;
+	bool bShotQueued = false;
+	bool bShotExitArmed = false;
+	float ShotAfterSeconds = -1.f;
+	float ShotArmWorldSeconds = 0.f;
+	int32 ShotRearmSeen = 0;
+
+	UPROPERTY(Transient)
+	TMap<FName, TObjectPtr<UTexture2D>> SoftTextures;
 	int32 ShownJadeite = MIN_int32;
 	int32 ShownLuminene = MIN_int32;
 	int32 ShownSupplyUsed = 0;

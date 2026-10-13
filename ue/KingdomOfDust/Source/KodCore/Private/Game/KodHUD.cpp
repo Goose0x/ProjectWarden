@@ -1,5 +1,10 @@
 #include "Game/KodHUD.h"
 
+#include "HAL/IConsoleManager.h"
+#include "HAL/PlatformMisc.h"
+#include "HighResScreenshot.h"
+#include "Misc/Parse.h"
+#include "UnrealClient.h"
 #include "Game/KodHudLayout.h"
 #include "Game/KodUiArt.h"
 #include "Game/KodWireTint.h"
@@ -266,6 +271,7 @@ void AKodHUD::DrawVanguardChrome()
 	DrawRect(Brass, PortWell.X, PortWell.Y, PortWell.W, 2.f * FrameScale);
 	const FKodScreenRect CardWell = MapSpec(1507.f, 826.f, 404.f, 240.f);
 	DrawRect(Well, CardWell.X, CardWell.Y, CardWell.W, CardWell.H);
+	DrawPaintedFrames();
 	DrawTopBar();
 }
 
@@ -300,18 +306,175 @@ void AKodHUD::DrawTopBar()
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
 		const FKodScreenRect Tab = MapSpec(Xs[Index], KodHudLayout::WingButtonY, KodHudLayout::WingButtonW, KodHudLayout::WingButtonH);
-		const float Alpha = bLocked[Index] ? 0.45f : 1.f;
-		DrawRect(Plate.CopyWithNewOpacity(Plate.A * Alpha), Tab.X, Tab.Y, Tab.W, Tab.H);
-		DrawRect(Trim.CopyWithNewOpacity(Alpha), Tab.X, Tab.Y, Tab.W, FrameScale);
-		DrawRect(Trim.CopyWithNewOpacity(0.85f * Alpha), Tab.X, Tab.Y, FrameScale, Tab.H);
-		DrawRect(Trim.CopyWithNewOpacity(0.85f * Alpha), Tab.X + Tab.W - FrameScale, Tab.Y, FrameScale, Tab.H);
-		DrawRect(Trim.CopyWithNewOpacity(0.85f * Alpha), Tab.X, Tab.Y + Tab.H - FrameScale, Tab.W, FrameScale);
-		DrawText(Labels[Index], Ink.CopyWithNewOpacity(Alpha), Tab.X + 8.f * FrameScale, Tab.Y + 5.f * FrameScale, Font, FrameScale, false);
+		DrawRect(Plate, Tab.X, Tab.Y, Tab.W, Tab.H);
+		DrawRect(Trim, Tab.X, Tab.Y, Tab.W, FrameScale);
+		DrawRect(Trim, Tab.X, Tab.Y, FrameScale, Tab.H);
+		DrawRect(Trim, Tab.X + Tab.W - FrameScale, Tab.Y, FrameScale, Tab.H);
+		DrawRect(Trim, Tab.X, Tab.Y + Tab.H - FrameScale, Tab.W, FrameScale);
+		DrawText(Labels[Index], Ink, Tab.X + 8.f * FrameScale, Tab.Y + 5.f * FrameScale, Font, FrameScale, false);
+		if (!bLoggedWingHelp && Index == 0)
+		{
+			bLoggedWingHelp = true;
+			UE_LOG(LogTemp, Log, TEXT("KodHUD WingBtn Help x=%.0f y=%.0f w=%.0f h=%.0f spec=1730,788"), Tab.X, Tab.Y, Tab.W, Tab.H);
+		}
 		if (!bLocked[Index])
 		{
 			RememberChrome(Kinds[Index], 0, FName(), Tab.X, Tab.Y, Tab.X + Tab.W, Tab.Y + Tab.H);
 		}
 	}
+}
+
+UTexture2D* AKodHUD::ResolveSoftTexture(const TCHAR* Path)
+{
+	if (!Path)
+	{
+		return nullptr;
+	}
+	const FName Key(Path);
+	if (TObjectPtr<UTexture2D>* Cached = SoftTextures.Find(Key))
+	{
+		return Cached->Get();
+	}
+	UTexture2D* Texture = Cast<UTexture2D>(FSoftObjectPath(Path).TryLoad());
+	SoftTextures.Add(Key, Texture);
+	return Texture;
+}
+
+void AKodHUD::DrawPaintedFrames()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	const bool bScinder = HudSkin == 1;
+	struct FLayer
+	{
+		const TCHAR* Path;
+		float X;
+		float Y;
+		float W;
+		float H;
+		const TCHAR* Name;
+	};
+	const FLayer Layers[] = {
+		{ bScinder ? KodWardenPaths::FrameScMinimap : KodWardenPaths::FrameVgMinimap, KodHudLayout::FrameMinimapX, KodHudLayout::FrameMinimapY, KodHudLayout::FrameMinimapW, KodHudLayout::FrameMinimapH, TEXT("minimap_wing") },
+		{ bScinder ? KodWardenPaths::FrameScCentre : KodWardenPaths::FrameVgCentre, KodHudLayout::FrameCentreX, KodHudLayout::FrameCentreY, KodHudLayout::FrameCentreW, KodHudLayout::FrameCentreH, TEXT("centre_info") },
+		{ bScinder ? KodWardenPaths::FrameScPortrait : KodWardenPaths::FrameVgPortrait, KodHudLayout::FramePortraitX, KodHudLayout::FramePortraitY, KodHudLayout::FramePortraitW, KodHudLayout::FramePortraitH, TEXT("portrait_frame") },
+		{ bScinder ? KodWardenPaths::FrameScCard : KodWardenPaths::FrameVgCard, KodHudLayout::FrameCardX, KodHudLayout::FrameCardY, KodHudLayout::FrameCardW, KodHudLayout::FrameCardH, TEXT("cmdcard_wing") }
+	};
+	int32 Drawn = 0;
+	for (const FLayer& Layer : Layers)
+	{
+		UTexture2D* Texture = ResolveSoftTexture(Layer.Path);
+		if (!Texture)
+		{
+			continue;
+		}
+		const FKodScreenRect Rect = MapSpec(Layer.X, Layer.Y, Layer.W, Layer.H);
+		DrawTexture(Texture, Rect.X, Rect.Y, Rect.W, Rect.H, 0.f, 0.f, 1.f, 1.f);
+		++Drawn;
+	}
+	if (!bLoggedFrames)
+	{
+		bLoggedFrames = true;
+		UE_LOG(LogTemp, Log, TEXT("KodHUD Frames Faction=%s Drawn=%d/4"), bScinder ? TEXT("SC") : TEXT("VG"), Drawn);
+	}
+}
+
+namespace KodShotAfterState
+{
+	float Seconds = -1.f;
+	int32 Rearm = 0;
+}
+
+bool AKodHUD::ParseShotAfterSeconds(const TCHAR* CommandLine, float& OutSeconds)
+{
+	float Seconds = -1.f;
+	const bool bDashed = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotAfter="), Seconds);
+	const bool bPlain = !bDashed && CommandLine && FParse::Value(CommandLine, TEXT("kod.ShotAfter="), Seconds);
+	if ((!bDashed && !bPlain) || Seconds < 0.f)
+	{
+		return false;
+	}
+	OutSeconds = Seconds;
+	return true;
+}
+
+void AKodHUD::ArmShotAfter(float Seconds)
+{
+	KodShotAfterState::Seconds = FMath::Max(0.f, Seconds);
+	++KodShotAfterState::Rearm;
+}
+
+void AKodHUD::PollShotAfter()
+{
+	UWorld* World = GetWorld();
+	if (!bShotAfterParsed)
+	{
+		bShotAfterParsed = true;
+		float Seconds = 0.f;
+		if (ParseShotAfterSeconds(FCommandLine::Get(), Seconds))
+		{
+			ArmShotAfter(Seconds);
+		}
+	}
+	if (ShotRearmSeen != KodShotAfterState::Rearm)
+	{
+		ShotRearmSeen = KodShotAfterState::Rearm;
+		ShotAfterSeconds = KodShotAfterState::Seconds;
+		ShotArmWorldSeconds = World ? World->GetTimeSeconds() : 0.f;
+		bShotQueued = false;
+		bShotExitArmed = false;
+		UE_LOG(LogTemp, Log, TEXT("KodShotAfter Start Seconds=%.2f"), ShotAfterSeconds);
+	}
+	if (ShotAfterSeconds < 0.f || !World)
+	{
+		return;
+	}
+	const float Now = World->GetTimeSeconds();
+	if (!bShotQueued)
+	{
+		if ((Now - ShotArmWorldSeconds) < ShotAfterSeconds)
+		{
+			return;
+		}
+		bShotQueued = true;
+		GetHighResScreenshotConfig().SetResolution(1920, 1080);
+		if (GEngine)
+		{
+			GEngine->Exec(World, TEXT("HighResShot 1920x1080"));
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodShotAfter HighResShot 1920x1080"));
+		return;
+	}
+	if (!bShotExitArmed)
+	{
+		bShotExitArmed = true;
+		return;
+	}
+	if (FScreenshotRequest::IsScreenshotRequested() && (Now - ShotArmWorldSeconds) < ShotAfterSeconds + 8.f)
+	{
+		return;
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodShotAfter Exit"));
+	ShotAfterSeconds = -1.f;
+	FPlatformMisc::RequestExit(false);
+}
+
+namespace
+{
+	void KodShotAfterCommand(const TArray<FString>& Args, UWorld* World)
+	{
+		(void)World;
+		const float Seconds = Args.Num() > 0 ? FMath::Max(0.f, FCString::Atof(*Args[0])) : 0.f;
+		AKodHUD::ArmShotAfter(Seconds);
+		UE_LOG(LogTemp, Log, TEXT("KodShotAfter Armed Seconds=%.2f"), Seconds);
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs GKodShotAfter(
+		TEXT("kod.ShotAfter"),
+		TEXT("Take HighResShot 1920x1080 after N seconds, then exit. Usage: kod.ShotAfter 8 or -kod.ShotAfter=8"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodShotAfterCommand));
 }
 
 void AKodHUD::SetHudSkin(int32 Skin)
@@ -490,6 +653,7 @@ void AKodHUD::DrawHUD()
 			DrawText(Line, Tok(0xFF, 0xD2, 0x3F), X + 8.f * FrameScale, Y, Font, FrameScale, false);
 		}
 	}
+	PollShotAfter();
 }
 
 void AKodHUD::AddCommandMarker(const FVector& WorldPoint, int32 Kind)
