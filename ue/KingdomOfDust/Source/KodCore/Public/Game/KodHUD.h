@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
 #include "Engine/Texture2D.h"
+#include "Game/KodHudProposed.h"
 #include "Game/KodWireTint.h"
 #include "Game/KodUiArt.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -50,7 +51,7 @@ struct KODCORE_API FKodHudChromeHit
  * Hosts the in-game HUD. DrawHUD paints the resource readout, selection marquee,
  * unit HP bars, and the name/remaining label on a selected resource node
  * (engine canvas, no Content texture).
- * The readout is canvas text only: Credits, Luminene, and a grey supply line.
+ * The readout is canvas text: Workers, Jadeite, Luminene, and supply. No credit or oil line.
  * HudWidgetClass must be a Widget Blueprint parented to UKodHudRootWidget
  * (Ironstock). Expected content path: /Game/UI/HUD/WBP_KodHUD.
  * KodCore does not link KodUI; the soft class keeps that boundary.
@@ -180,6 +181,11 @@ protected:
 	void DrawPowersPanel();
 	void DrawSelectionSummary();
 	void DrawResourceFlash();
+	void DrawPlacementGrid();
+	void DrawConstructionBars();
+	void PushErrorLine(const FString& Text);
+	const UKodHudProposed& HudStyle();
+	UTexture2D* ResolveResourceIcon(const TCHAR* Size28, const TCHAR* Size64);
 	void DrawMatchOutcome();
 	void DrawPostGame(const class UKodSimSubsystem* Sim);
 	int32 ReadLocalTeamId() const;
@@ -323,6 +329,8 @@ protected:
 		FName CueId;
 		FVector World = FVector::ZeroVector;
 		float Until = 0.f;
+		float Born = 0.f;
+		int32 Count = 1;
 	};
 	float FrameScale = 1.f;
 	float FrameOriginX = 0.f;
@@ -383,6 +391,23 @@ protected:
 	float ChromeMaxY = 0.f;
 	FString FlashText;
 	float FlashUntilSeconds = -1.f;
+
+	struct FKodErrorLine
+	{
+		FString Text;
+		float Born = 0.f;
+	};
+	TArray<FKodErrorLine> ErrorLines;
+	TMap<int32, int32> LastBarHealth;
+	TMap<int32, float> BarDamagedUntil;
+	bool bSupplyErrorLatched = false;
+	TSet<int32> DimmedStructureIds;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UKodHudProposed> ProposedStyle;
+
+	UPROPERTY(Transient)
+	TMap<FName, TObjectPtr<UTexture2D>> ResourceIcons;
 	bool bChatOpen = false;
 	FString ChatLine;
 	TArray<FString> ChatLog;

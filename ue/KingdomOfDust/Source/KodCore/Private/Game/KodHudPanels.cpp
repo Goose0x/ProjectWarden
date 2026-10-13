@@ -43,9 +43,9 @@ namespace
 		return FLinearColor(FColor(0x8C, 0x5A, 0x5A));
 	}
 
-	FLinearColor PanelHealthInk(float Fraction)
+	FLinearColor PanelHealthInk(float Fraction, int32 HealthyPermille, int32 WarningPermille)
 	{
-		return KodWireTint::FromRemain(Fraction);
+		return KodWireTint::FromRemainPermille(Fraction, HealthyPermille, WarningPermille, false);
 	}
 
 	UFont* HudFont()
@@ -712,16 +712,17 @@ void AKodHUD::DrawPortrait()
 		}
 	}
 	const float HpFraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
+	const UKodHudProposed& Style = HudStyle();
 	const FKodScreenRect HP = MapSpec(1301.f, 1035.f, 173.f, 16.f);
 	const FKodScreenRect EN = MapSpec(1301.f, 1055.f, 173.f, 12.f);
 	DrawRect(Tok(0x1F, 0x23, 0x27), HP.X, HP.Y, HP.W, HP.H);
-	DrawRect(PanelHealthInk(HpFraction), HP.X, HP.Y, HP.W * HpFraction, HP.H);
+	DrawRect(PanelHealthInk(HpFraction, Style.WireHealthyPermille, Style.WireWarningPermille), HP.X, HP.Y, HP.W * HpFraction, HP.H);
 	DrawText(FString::Printf(TEXT("%d/%d"), ShownHP, MaxHP), Tok(0xE6, 0xE6, 0xE0), HP.X + 4.f * Scale, HP.Y, HudFont(), 0.65f * Scale, false);
 	DrawRect(Tok(0x1F, 0x23, 0x27), EN.X, EN.Y, EN.W, EN.H);
 	if (EnergyMax > 0)
 	{
 		const float EnergyFrac = FMath::Clamp(static_cast<float>(Energy) / static_cast<float>(EnergyMax), 0.f, 1.f);
-		DrawRect(Tok(0x2F, 0x7B, 0xFF), EN.X, EN.Y, EN.W * EnergyFrac, EN.H);
+		DrawRect(Tok(0x3D, 0xFF, 0xB0), EN.X, EN.Y, EN.W * EnergyFrac, EN.H);
 	}
 	bHasPortrait = true;
 	PortraitMinX = X;
@@ -981,7 +982,8 @@ void AKodHUD::DrawSelectionPanel()
 		const float Line = 16.f * Scale;
 		DrawText(Tile.Name, Tok(0xE6, 0xE6, 0xE0), Info.X, TextY, Font, 0.9f * Scale, false);
 		TextY += Line;
-		DrawText(FString::Printf(TEXT("HP %d/%d"), ShownHP, MaxHP), PanelHealthInk(Fraction), Info.X, TextY, Font, 0.8f * Scale, false);
+		const UKodHudProposed& PanelStyle = HudStyle();
+		DrawText(FString::Printf(TEXT("HP %d/%d"), ShownHP, MaxHP), PanelHealthInk(Fraction, PanelStyle.WireHealthyPermille, PanelStyle.WireWarningPermille), Info.X, TextY, Font, 0.8f * Scale, false);
 		TextY += Line;
 		if (!Tile.Stim.IsEmpty())
 		{

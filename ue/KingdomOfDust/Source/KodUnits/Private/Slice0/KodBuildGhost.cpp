@@ -78,8 +78,8 @@ void AKodBuildGhost::SetCells(int32 CellsX, int32 CellsY, const TArray<uint8>& C
 		}
 		const bool bOpen = !CellOk.IsValidIndex(Index) || CellOk[Index] != 0;
 		const FLinearColor Color = bOpen
-			? FLinearColor(FColor(0x3D, 0xFF, 0x6A))
-			: FLinearColor(FColor(0xFF, 0x3D, 0x3D));
+			? FLinearColor(FColor(0x3D, 0xFF, 0x6A, static_cast<uint8>(0.27f * 255.f)))
+			: FLinearColor(FColor(0xFF, 0x3D, 0x3D, static_cast<uint8>(0.27f * 255.f)));
 		if (CellTints[Index])
 		{
 			CellTints[Index]->SetVectorParameterValue(TEXT("Color"), Color);

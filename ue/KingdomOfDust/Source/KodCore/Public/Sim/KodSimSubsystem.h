@@ -774,6 +774,14 @@ public:
 
 	bool SaveSkirmishSlot(int32 Slot);
 	bool LoadSkirmishSlot(int32 Slot);
+	/**
+	 * Sim blob written as an older save. Version 12 includes the Faultline lane
+	 * and stops before the wave focus id added in version 13.
+	 */
+	TArray<uint8> ExportSimBlobAtVersion(int32 Version) const;
+	void ApplySimBlob(const TArray<uint8>& Blob);
+	int32 GetFaultlineWaveFocusId() const { return FaultlineWaveFocusId; }
+	int32 GetFaultlineLaneCount() const { return FaultlineLanePoints.Num(); }
 
 	void SetExposedRule(bool bEnabled);
 	void SetExposedTimeSeconds(int32 Seconds);

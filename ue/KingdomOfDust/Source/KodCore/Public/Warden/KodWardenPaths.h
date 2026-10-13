@@ -12,6 +12,19 @@ namespace KodWardenPaths
 	constexpr const TCHAR* DataRoot = TEXT("/Game/Warden/Data");
 	constexpr const TCHAR* UiWireframeRoot = TEXT("/Game/Warden/UI/Wireframes");
 	constexpr const TCHAR* UiIconRoot = TEXT("/Game/Warden/UI/Icons");
+	/** Resource readout. 28 is the HUD slot. 64 is the fallback if the 28 texture is absent. */
+	constexpr const TCHAR* IconJadeite28 = TEXT("/Game/Warden/UI/Icons/T_RES_Jadeite_28.T_RES_Jadeite_28");
+	constexpr const TCHAR* IconJadeite64 = TEXT("/Game/Warden/UI/Icons/T_RES_Jadeite_64.T_RES_Jadeite_64");
+	constexpr const TCHAR* IconLuminene28 = TEXT("/Game/Warden/UI/Icons/T_RES_Luminene_28.T_RES_Luminene_28");
+	constexpr const TCHAR* IconLuminene64 = TEXT("/Game/Warden/UI/Icons/T_RES_Luminene_64.T_RES_Luminene_64");
+	constexpr const TCHAR* IconSupplyVg28 = TEXT("/Game/Warden/UI/Icons/T_RES_Supply_VG_28.T_RES_Supply_VG_28");
+	constexpr const TCHAR* IconSupplyVg64 = TEXT("/Game/Warden/UI/Icons/T_RES_Supply_VG_64.T_RES_Supply_VG_64");
+	constexpr const TCHAR* IconSupplySc28 = TEXT("/Game/Warden/UI/Icons/T_RES_Supply_SC_28.T_RES_Supply_SC_28");
+	constexpr const TCHAR* IconSupplySc64 = TEXT("/Game/Warden/UI/Icons/T_RES_Supply_SC_64.T_RES_Supply_SC_64");
+	constexpr const TCHAR* IconWorkerVg28 = TEXT("/Game/Warden/UI/Icons/T_RES_Worker_VG_28.T_RES_Worker_VG_28");
+	constexpr const TCHAR* IconWorkerVg64 = TEXT("/Game/Warden/UI/Icons/T_RES_Worker_VG_64.T_RES_Worker_VG_64");
+	constexpr const TCHAR* IconWorkerSc28 = TEXT("/Game/Warden/UI/Icons/T_RES_Worker_SC_28.T_RES_Worker_SC_28");
+	constexpr const TCHAR* IconWorkerSc64 = TEXT("/Game/Warden/UI/Icons/T_RES_Worker_SC_64.T_RES_Worker_SC_64");
 	constexpr const TCHAR* WireSilhouetteMaterial = TEXT("/Game/Warden/UI/Wireframes/M_KodWireSilhouette.M_KodWireSilhouette");
 
 	constexpr const TCHAR* RangerRifle = TEXT("/Game/Warden/Data/RangerRifle.RangerRifle");

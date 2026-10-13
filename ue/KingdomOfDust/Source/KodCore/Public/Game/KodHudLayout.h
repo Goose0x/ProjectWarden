@@ -66,4 +66,25 @@ namespace KodHudLayout
 
 	/** Authored icon and wireframe textures. Drawn scaled to the slot. */
 	constexpr int32 IconSourceTexels = 128;
+
+	/** Addendum H/I. Boxless readout. No chip under the values. */
+	constexpr float ResourceOriginX[4] = { 1384.f, 1520.f, 1656.f, 1792.f };
+	constexpr float ResourceIcon = 28.f;
+	constexpr float ResourceValueGap = 33.f;
+
+	/** Addendum G. Command-card wing. Help is drawn locked. */
+	constexpr float WingButtonY = 788.f;
+	constexpr float WingButtonW = 56.f;
+	constexpr float WingButtonH = 28.f;
+	constexpr float WingHelpX = 1730.f;
+	constexpr float WingLogX = 1792.f;
+	constexpr float WingMenuX = 1854.f;
+
+	/** WORLD_UI unit bar at 1080p. Buildings use the footprint instead of this width. */
+	constexpr float UnitBarW = 44.f;
+	constexpr float UnitBarH = 4.f;
+	constexpr float BuildingBarH = 6.f;
+	constexpr float BarGapAbove = 12.f;
+	constexpr int32 UnitHpPerSegment = 25;
+	constexpr int32 BuildingSegmentCap = 20;
 }
