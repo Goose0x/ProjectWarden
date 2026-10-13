@@ -863,6 +863,7 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 	}
 	Blob.WInt(WaveLaneCursor);
 	Blob.WInt(AutoplayLaneCursor);
+	Blob.WInt(FaultlineWaveFocusId);
 	return Blob.Bytes;
 }
 
@@ -1812,6 +1813,10 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 				}
 				Blob.RInt(WaveLaneCursor);
 				Blob.RInt(AutoplayLaneCursor);
+				if (Version >= 13)
+				{
+					Blob.RInt(FaultlineWaveFocusId);
+				}
 			}
 		}
 		else

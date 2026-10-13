@@ -1078,7 +1078,7 @@ protected:
 	/** Lane 1, WP00 at the outposts through the last point near the player base. Hashed. */
 	TArray<FVector> FaultlineLanePoints;
 	int32 WaveLaneCursor = 0;
-	/** Latched lane-end attack. Not hashed. Cleared when the wave starts or the script resets. */
+	/** Latched lane-end attack. Hashed and saved. Cleared when the wave starts or the script resets. */
 	int32 FaultlineWaveFocusId = 0;
 	/** -1 snaps to the player end of the lane on the first autoplay order. Hashed. */
 	int32 AutoplayLaneCursor = -1;
