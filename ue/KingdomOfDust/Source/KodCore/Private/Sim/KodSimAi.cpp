@@ -505,18 +505,30 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 	int32 Sent = 0;
 	for (int32 Key : Keys)
 	{
-		const FKodSimEntityState* State = States.Find(Key);
+		FKodSimEntityState* State = States.Find(Key);
 		if (!State
 			|| State->TeamId != 0
 			|| State->Health <= 0.f
-			|| State->bCanGather
-			|| State->WeaponDamage <= 0.f
-			|| State->Order != EKodSimOrderType::None)
+			|| !State->bMobile
+			|| State->bCanGather)
 		{
 			continue;
 		}
+		if (State->WeaponDamage <= 0.f)
+		{
+			State->WeaponDamage = 6.f;
+			if (State->WeaponRange <= 0.f)
+			{
+				State->WeaponRange = 500.f;
+			}
+		}
 		FKodEntityId UnitId;
 		UnitId.Value = Key;
+		if (Target.IsValid() && State->Order == EKodSimOrderType::Attack && State->AttackTarget == Target)
+		{
+			++Sent;
+			continue;
+		}
 		if (Target.IsValid() && States.Contains(Target.Value))
 		{
 			DeferAttack(UnitId, Target);

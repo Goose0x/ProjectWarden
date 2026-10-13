@@ -865,6 +865,7 @@ void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
 		FogOriginX = MinX;
 		FogOriginY = MinY;
 		FogSheetTick = MIN_int64;
+		FogGpuTick = MIN_int64;
 		FogSheetMaterial = nullptr;
 	}
 	if (FogSheetTexture && FogSheetTick != Sim->GetSimTickIndex())
@@ -896,7 +897,9 @@ void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
 					Bits[Offset + 3] = Alpha;
 				}
 			}
-			const bool bUpload = FApp::CanEverRender() && !bFogUploadBusy;
+			const bool bUpload = FApp::CanEverRender()
+				&& !bFogUploadBusy
+				&& (FogGpuTick == MIN_int64 || Sim->GetSimTickIndex() - FogGpuTick >= 16);
 			if (bUpload)
 			{
 				const int32 ByteCount = GridW * GridH * 4;
@@ -910,6 +913,7 @@ void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
 			if (bUpload)
 			{
 				bFogUploadBusy = true;
+				FogGpuTick = Sim->GetSimTickIndex();
 				TWeakObjectPtr<AKodHUD> Self(this);
 				FogSheetTexture->UpdateTextureRegions(
 					0,

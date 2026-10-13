@@ -5,7 +5,9 @@
 #include "GameFramework/Actor.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Hash/CityHash.h"
+#include "UObject/UObjectArray.h"
 #include "HAL/PlatformMemory.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
@@ -336,21 +338,31 @@ void UKodSimSubsystem::PollSoak(float DeltaTime)
 			static_cast<unsigned long long>(Stats.UsedPhysical),
 			static_cast<long long>(SimTickIndex),
 			*SoakHash);
-		if (!bSoakMemoryAnchored && SoakElapsed >= 120.f)
+		if (SoakElapsed >= 120.f)
 		{
-			bSoakMemoryAnchored = true;
-			SoakMemoryAnchor = Stats.UsedPhysical;
-			SoakMemoryAnchorElapsed = SoakElapsed;
-		}
-		else if (bSoakMemoryAnchored)
-		{
-			const int32 ElapsedSeconds = FMath::FloorToInt(SoakElapsed - SoakMemoryAnchorElapsed);
-			if (SoakMemoryOverBudget(SoakMemoryAnchor, Stats.UsedPhysical, ElapsedSeconds))
+			FKodSoakMemPoint Point;
+			Point.TimeSeconds = FMath::FloorToInt(SoakElapsed);
+			Point.Bytes = Stats.UsedPhysical;
+			SoakMemPoints.Add(Point);
+			while (SoakMemPoints.Num() > 8)
 			{
-				UE_LOG(LogTemp, Error, TEXT("KodSoak MemoryBudget Anchor=%llu Now=%llu Elapsed=%d"),
-					static_cast<unsigned long long>(SoakMemoryAnchor),
-					static_cast<unsigned long long>(Stats.UsedPhysical),
-					ElapsedSeconds);
+				SoakMemPoints.RemoveAt(0);
+			}
+			TArray<int32> Times;
+			TArray<uint64> Bytes;
+			Times.Reserve(SoakMemPoints.Num());
+			Bytes.Reserve(SoakMemPoints.Num());
+			for (const FKodSoakMemPoint& Sample : SoakMemPoints)
+			{
+				Times.Add(Sample.TimeSeconds);
+				Bytes.Add(Sample.Bytes);
+			}
+			if (SoakMemorySlopeOverBudget(Times.GetData(), Bytes.GetData(), Times.Num()))
+			{
+				UE_LOG(LogTemp, Error, TEXT("KodSoak MemoryBudget Samples=%d Span=%d Now=%llu"),
+					Times.Num(),
+					Times.Last() - Times[0],
+					static_cast<unsigned long long>(Stats.UsedPhysical));
 				LogMatchPulse(TEXT("Memory"));
 				RequestSoakExit(2);
 				return;
@@ -389,6 +401,44 @@ bool UKodSimSubsystem::SoakMemoryOverBudget(uint64 AnchorBytes, uint64 NowBytes,
 	return Growth > Allowed;
 }
 
+bool UKodSimSubsystem::SoakMemorySlopeOverBudget(const int32* TimeSeconds, const uint64* Bytes, int32 Count)
+{
+	if (TimeSeconds == nullptr || Bytes == nullptr || Count < 3)
+	{
+		return false;
+	}
+	const int32 Span = TimeSeconds[Count - 1] - TimeSeconds[0];
+	if (Span < 120)
+	{
+		return false;
+	}
+	int64 SumT = 0;
+	int64 SumT2 = 0;
+	int64 SumY = 0;
+	int64 SumTY = 0;
+	const int64 Samples = Count;
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const int64 Time = static_cast<int64>(TimeSeconds[Index] - TimeSeconds[0]);
+		const int64 Kilo = static_cast<int64>(Bytes[Index] / 1024ull);
+		SumT += Time;
+		SumT2 += Time * Time;
+		SumY += Kilo;
+		SumTY += Time * Kilo;
+	}
+	const int64 Denom = Samples * SumT2 - SumT * SumT;
+	if (Denom <= 0)
+	{
+		return false;
+	}
+	const int64 Numer = Samples * SumTY - SumT * SumY;
+	if (Numer <= 0)
+	{
+		return false;
+	}
+	return Numer * 300 > Denom * 50 * 1024;
+}
+
 int32 UKodSimSubsystem::CountLivingOutposts() const
 {
 	int32 Living = 0;
@@ -411,7 +461,111 @@ int32 UKodSimSubsystem::CountLivingOutposts() const
 	return Living;
 }
 
-void UKodSimSubsystem::LogMatchPulse(const TCHAR* Reason) const
+void UKodSimSubsystem::OrderFaultlineWave()
+{
+	FVector Point(static_cast<float>(FaultlineHomeX), static_cast<float>(FaultlineHomeY), static_cast<float>(FaultlineHomeZ));
+	FKodEntityId Target;
+	bool bFound = false;
+	int64 Best = 0;
+	TArray<int32> StructureKeys;
+	Structures.GetKeys(StructureKeys);
+	StructureKeys.Sort();
+	for (int32 Key : StructureKeys)
+	{
+		const FKodStructureState* Structure = Structures.Find(Key);
+		if (!Structure || Structure->TeamId != 0)
+		{
+			continue;
+		}
+		const FKodSimEntityState* Combat = States.Find(Structure->Id.Value);
+		if (Combat && Combat->Health <= 0.f)
+		{
+			continue;
+		}
+		if (Structure->DefinitionId == FName(KodWardenPaths::Id_CommandCenter))
+		{
+			Target = Structure->Id;
+			Point = Structure->Position;
+			bFound = true;
+			break;
+		}
+		const int64 DX = static_cast<int64>(FMath::RoundToInt(Structure->Position.X));
+		const int64 DY = static_cast<int64>(FMath::RoundToInt(Structure->Position.Y));
+		const int64 Dist = DX * DX + DY * DY;
+		if (!bFound || Dist < Best)
+		{
+			bFound = true;
+			Best = Dist;
+			Target = Structure->Id;
+			Point = Structure->Position;
+		}
+	}
+	if (!Target.IsValid())
+	{
+		TArray<int32> Keys;
+		States.GetKeys(Keys);
+		Keys.Sort();
+		for (int32 Key : Keys)
+		{
+			const FKodSimEntityState* State = States.Find(Key);
+			if (!State || State->TeamId != 0 || State->Health <= 0.f || !State->bMobile)
+			{
+				continue;
+			}
+			const int64 DX = static_cast<int64>(FMath::RoundToInt(State->Position.X));
+			const int64 DY = static_cast<int64>(FMath::RoundToInt(State->Position.Y));
+			const int64 Dist = DX * DX + DY * DY;
+			if (Target.IsValid() && Dist >= Best)
+			{
+				continue;
+			}
+			Best = Dist;
+			Target = State->Id;
+			Point = State->Position;
+		}
+	}
+	int32 Ordered = 0;
+	for (FKodScriptedUnit& Row : ScriptedUnits)
+	{
+		if (Row.Role != 2)
+		{
+			continue;
+		}
+		FKodSimEntityState* State = States.Find(Row.Id);
+		if (!State || State->Health <= 0.f)
+		{
+			continue;
+		}
+		if (Target.IsValid() && State->Order == EKodSimOrderType::Attack && State->AttackTarget == Target)
+		{
+			continue;
+		}
+		if (Target.IsValid())
+		{
+			DeferAttack(State->Id, Target);
+		}
+		else if (State->Order != EKodSimOrderType::AttackMove)
+		{
+			DeferAttackMove(State->Id, Point);
+		}
+		else
+		{
+			continue;
+		}
+		Row.bOrdered = 1;
+		++Ordered;
+	}
+	if (Ordered > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Order Count=%d Target=%d X=%.0f Y=%.0f"),
+			Ordered,
+			Target.Value,
+			Point.X,
+			Point.Y);
+	}
+}
+
+void UKodSimSubsystem::LogMatchPulse(const TCHAR* Reason)
 {
 	int32 Combat = 0;
 	int32 Workers = 0;
@@ -435,11 +589,29 @@ void UKodSimSubsystem::LogMatchPulse(const TCHAR* Reason) const
 		{
 			++Workers;
 		}
-		else if (State->WeaponDamage > 0.f)
+		else if (State->bMobile)
 		{
 			++Combat;
 		}
 	}
+	const int32 Objects = GUObjectArray.GetObjectArrayNum();
+	int32 Actors = 0;
+	if (const UWorld* World = GetWorld())
+	{
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			++Actors;
+		}
+	}
+	int32 SeenCount = 0;
+	for (const TPair<int32, TArray<FKodSeenUnit>>& Pair : SeenUnits)
+	{
+		SeenCount += Pair.Value.Num();
+	}
+	const int32 States = Keys.Num();
+	const int32 Paths = StoredPaths.Num();
+	const int32 Samples = Samples0.Num() + Samples1.Num() + OlderSamples0.Num() + OlderSamples1.Num();
+	const FPlatformMemoryStats Stats = FPlatformMemory::GetStats();
 	UE_LOG(LogTemp, Log, TEXT("KodSoak %s Tick=%lld Phase=%d Outposts=%d Kills0=%d Kills1=%d Combat=%d Workers=%d Living=%d WaveSent=%d"),
 		Reason,
 		static_cast<long long>(SimTickIndex),
@@ -451,6 +623,26 @@ void UKodSimSubsystem::LogMatchPulse(const TCHAR* Reason) const
 		Workers,
 		Living,
 		bFaultlineWaveSent ? 1 : 0);
+	UE_LOG(LogTemp, Log, TEXT("KodSoak Grow Used=%llu dUsed=%lld Objects=%d dObj=%d Actors=%d States=%d dStates=%d Paths=%d dPaths=%d Samples=%d dSamples=%d Alerts=%d Pending=%d Deferred=%d Seen=%d"),
+		static_cast<unsigned long long>(Stats.UsedPhysical),
+		static_cast<long long>(Stats.UsedPhysical) - static_cast<long long>(SoakMemoryAnchor),
+		Objects,
+		Objects - SoakLastObjects,
+		Actors,
+		States,
+		States - SoakLastStates,
+		Paths,
+		Paths - SoakLastPaths,
+		Samples,
+		Samples - SoakLastSamples,
+		AttackAlerts.Num(),
+		PendingSpawns.Num(),
+		DeferredCommands.Num(),
+		SeenCount);
+	SoakLastObjects = Objects;
+	SoakLastStates = States;
+	SoakLastPaths = Paths;
+	SoakLastSamples = Samples;
 }
 
 void UKodSimSubsystem::DeferOrder(FKodEntityId Id, EKodSimOrderType Kind, FVector Point, FKodEntityId Target, bool bQueued)
@@ -1229,32 +1421,9 @@ void UKodSimSubsystem::StepFaultlineWave()
 		return;
 	}
 
-	for (FKodScriptedUnit& Row : ScriptedUnits)
-	{
-		if (Row.Role != 2 || Row.bOrdered)
-		{
-			continue;
-		}
-		FKodSimEntityState* State = States.Find(Row.Id);
-		if (!State || State->Health <= 0.f)
-		{
-			continue;
-		}
-		if (bFaultlineHasLane)
-		{
-			DeferAttackMove(State->Id, FVector(static_cast<float>(FaultlineLaneX), static_cast<float>(FaultlineLaneY), static_cast<float>(FaultlineLaneZ)));
-			DeferOrder(
-				State->Id,
-				EKodSimOrderType::AttackMove,
-				FVector(static_cast<float>(FaultlineBarracksX), static_cast<float>(FaultlineBarracksY), static_cast<float>(FaultlineBarracksZ)),
-				FKodEntityId(),
-				true);
-		}
-		Row.bOrdered = 1;
-	}
-
 	if (FaultlineWavePhase == 2)
 	{
+		OrderFaultlineWave();
 		int32 LiveHp = 0;
 		int32 Seen = 0;
 		for (const FKodScriptedUnit& Row : ScriptedUnits)
@@ -1274,10 +1443,9 @@ void UKodSimSubsystem::StepFaultlineWave()
 				LiveHp += FMath::RoundToInt(State->Health);
 			}
 		}
-		const bool bBodiesReady = Seen >= FaultlineWaveExpected || (Seen > 0 && SimTickIndex >= FaultlineWaveStartTick + 32);
-		const bool bBroken = FaultlineWaveStartHp > 0 && LiveHp * 1000 <= FaultlineWaveStartHp * 300;
-		const bool bTimedOut = SimTickIndex >= FaultlineWaveStartTick + static_cast<int64>(FaultlineRetreatTicks);
-		if (bBodiesReady && (bBroken || bTimedOut))
+		const bool bDamaged = FaultlineWaveStartHp > 0 && LiveHp < FaultlineWaveStartHp;
+		const bool bBroken = bDamaged && LiveHp * 1000 <= FaultlineWaveStartHp * 300;
+		if (Seen > 0 && bBroken)
 		{
 			FaultlineWavePhase = 3;
 			FaultlineRetreatTick = SimTickIndex;
@@ -1504,7 +1672,7 @@ namespace
 
 void UKodSimSubsystem::RebuildAcquireGrid()
 {
-	AcquireGrid.Reset();
+	AcquireGrid.Empty(FMath::Max(AcquireGrid.Num(), 64));
 	TArray<int32> Keys;
 	States.GetKeys(Keys);
 	Keys.Sort();
@@ -1519,7 +1687,7 @@ void UKodSimSubsystem::RebuildAcquireGrid()
 		const int32 CellY = FMath::FloorToInt(State->Position.Y / static_cast<float>(AcquireCellUU));
 		AcquireGrid.FindOrAdd(PackAcquireCell(CellX, CellY)).Add(Key);
 	}
-	MeleeAttackersByTarget.Reset();
+	MeleeAttackersByTarget.Empty(FMath::Max(MeleeAttackersByTarget.Num(), 32));
 }
 
 void UKodSimSubsystem::CollectAcquireCandidates(float OriginX, float OriginY, float Range, TArray<int32>& OutIds) const
