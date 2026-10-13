@@ -4,7 +4,7 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FKodSkirmishSetupTest,
 	"Kod.Lobby.Setup",
-	EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 
 bool FKodSkirmishSetupTest::RunTest(const FString& Parameters)
 {

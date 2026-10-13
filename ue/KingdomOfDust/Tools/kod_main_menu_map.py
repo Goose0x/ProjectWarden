@@ -3,7 +3,9 @@
 #
 # Creates /Game/Maps/Frontend/L_MainMenu with a PlayerStart and
 # AKodFrontEndGameMode. Does not commit the .umap.
-# GameDefaultMap points here. EditorStartupMap stays L_Slice0.
+# GameDefaultMap stays L_FaultlineTraining until this map exists.
+# After it saves, point GameDefaultMap at /Game/Maps/Frontend/L_MainMenu.
+# EditorStartupMap stays L_Slice0.
 import unreal
 
 PATH = "/Game/Maps/Frontend/L_MainMenu"

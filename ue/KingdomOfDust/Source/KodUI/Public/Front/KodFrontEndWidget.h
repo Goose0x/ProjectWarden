@@ -3,7 +3,7 @@
 #include "CommonActivatableWidget.h"
 #include "Components/Button.h"
 #include "Game/KodSkirmishSetup.h"
-#include "Front/KodFrontEndWidget.generated.h"
+#include "KodFrontEndWidget.generated.h"
 
 class UBorder;
 class UHorizontalBox;
