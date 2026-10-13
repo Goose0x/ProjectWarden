@@ -3,9 +3,9 @@
 #include "CoreMinimal.h"
 
 /**
- * HUD spec HP tokens for wireframe zones and the health bar.
+ * HUD spec HP tokens. The wireframe keeps the B33 cut:
  * HP.Green #4CD964 at 66% and above. HP.Yellow #F2C230 from 33% up to 66%.
- * HP.Red #E5383B below 33%.
+ * HP.Red #E5383B below 33%. World bars use UKodHudProposed (50% / 25%).
  * #3DFF6A and #FF3D3D are placement legality, not these bands.
  * Presentation only. Not sim state and not part of the idle hash.
  * The wireframe slot draws the unit icon through this tint.
@@ -129,9 +129,45 @@ namespace KodWireTint
 		return Critical();
 	}
 
+	/**
+	 * Data-driven cut. Permille is thousandths of max HP.
+	 * Wireframe passes 660/330 (B33). World bars pass 500/250 (WORLD_UI).
+	 */
+	/**
+	 * bAboveHealthy: world bars are green only above the healthy cut (50% is yellow).
+	 * Wireframe passes false so 66% stays green.
+	 */
+	inline EBand BandForPermille(int32 Health, int32 MaxHealth, int32 HealthyPermille, int32 WarningPermille, bool bAboveHealthy)
+	{
+		if (MaxHealth <= 0)
+		{
+			return EBand::Critical;
+		}
+		const int32 Hp = Health < 0 ? 0 : (Health > MaxHealth ? MaxHealth : Health);
+		const int32 HealthyCut = HealthyPermille < 1 ? 1 : (HealthyPermille > 1000 ? 1000 : HealthyPermille);
+		const int32 WarningCut = WarningPermille < 0 ? 0 : (WarningPermille > HealthyCut ? HealthyCut : WarningPermille);
+		const int64 Scaled = static_cast<int64>(Hp) * 1000;
+		const int64 HealthyLine = static_cast<int64>(MaxHealth) * static_cast<int64>(HealthyCut);
+		const bool bHealthy = bAboveHealthy ? (Scaled > HealthyLine) : (Scaled >= HealthyLine);
+		if (bHealthy)
+		{
+			return EBand::Healthy;
+		}
+		if (Scaled >= static_cast<int64>(MaxHealth) * static_cast<int64>(WarningCut))
+		{
+			return EBand::Warning;
+		}
+		return EBand::Critical;
+	}
+
 	inline FLinearColor FromHitPoints(int32 Health, int32 MaxHealth)
 	{
 		return ColorFor(BandFor(Health, MaxHealth));
+	}
+
+	inline FLinearColor FromHitPointsPermille(int32 Health, int32 MaxHealth, int32 HealthyPermille, int32 WarningPermille, bool bAboveHealthy)
+	{
+		return ColorFor(BandForPermille(Health, MaxHealth, HealthyPermille, WarningPermille, bAboveHealthy));
 	}
 
 	/** Same bands as the health bar: >= 66% green, >= 33% yellow, otherwise red. */
@@ -147,6 +183,13 @@ namespace KodWireTint
 			return Warning();
 		}
 		return Critical();
+	}
+
+	inline FLinearColor FromRemainPermille(float Remain, int32 HealthyPermille, int32 WarningPermille, bool bAboveHealthy)
+	{
+		const float Clamped = Remain < 0.f ? 0.f : (Remain > 1.f ? 1.f : Remain);
+		const int32 Hp = FMath::RoundToInt(Clamped * 1000.f);
+		return ColorFor(BandForPermille(Hp, 1000, HealthyPermille, WarningPermille, bAboveHealthy));
 	}
 
 	/** One slice of the silhouette, in 0..1 slot space. Remain is that zone's HP fraction. */

@@ -7,6 +7,8 @@
 #include "Algo/Sort.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/ActorComponent.h"
+#include "Components/MeshComponent.h"
 #include "Engine/Canvas.h"
 #include "CanvasItem.h"
 #include "Engine/Texture.h"
@@ -59,12 +61,6 @@ namespace
 			return FName(TEXT("AMP"));
 		}
 		return Label;
-	}
-
-	/** HP fill. Same tokens as the wireframe: HP.Green, HP.Yellow, HP.Red. */
-	FLinearColor HealthBarInk(float Fraction)
-	{
-		return KodWireTint::FromRemain(Fraction);
 	}
 
 	struct FKodSpecRow
@@ -273,6 +269,19 @@ void AKodHUD::DrawVanguardChrome()
 	DrawTopBar();
 }
 
+const UKodHudProposed& AKodHUD::HudStyle()
+{
+	if (!ProposedStyle)
+	{
+		ProposedStyle = LoadObject<UKodHudProposed>(nullptr, UKodHudProposed::AssetPath);
+	}
+	if (!ProposedStyle)
+	{
+		ProposedStyle = NewObject<UKodHudProposed>(this);
+	}
+	return *ProposedStyle;
+}
+
 void AKodHUD::DrawTopBar()
 {
 	if (!Canvas)
@@ -280,18 +289,28 @@ void AKodHUD::DrawTopBar()
 		return;
 	}
 	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
-	const FLinearColor Plate = HudSkin == 1 ? Tok(0x4F, 0x40, 0x38, 0.85f) : Tok(0x1F, 0x23, 0x27, 0.55f);
-	const FLinearColor Ink = HudSkin == 1 ? Tok(0xED, 0xE6, 0xD8) : Tok(0xE6, 0xE6, 0xE0);
-	const TCHAR* Labels[] = { TEXT("MENU  F10"), TEXT("LOG  F11"), TEXT("HELP  F12") };
-	const float Xs[] = { 0.f, 108.f, 260.f };
-	const float Ws[] = { 104.f, 148.f, 100.f };
-	const FName Kinds[] = { FName(TEXT("MenuBtn")), FName(TEXT("ChatBtn")), FName(TEXT("HelpBtn")) };
+	const bool bScinder = HudSkin == 1;
+	const FLinearColor Plate = bScinder ? Tok(0x6E, 0x5B, 0x4F, 0.94f) : Tok(0x3A, 0x3F, 0x45, 0.94f);
+	const FLinearColor Trim = bScinder ? Tok(0xE6, 0x5F, 0x2B) : Tok(0xC9, 0xA2, 0x4A);
+	const FLinearColor Ink = bScinder ? Tok(0xDF, 0xD4, 0xC0) : Tok(0xF4, 0xEE, 0xDF);
+	const TCHAR* Labels[] = { TEXT("?"), TEXT("LOG"), TEXT("MENU") };
+	const float Xs[] = { KodHudLayout::WingHelpX, KodHudLayout::WingLogX, KodHudLayout::WingMenuX };
+	const FName Kinds[] = { FName(TEXT("HelpBtn")), FName(TEXT("ChatBtn")), FName(TEXT("MenuBtn")) };
+	const bool bLocked[] = { true, false, false };
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
-		const FKodScreenRect Tab = MapSpec(Xs[Index], 0.f, Ws[Index], 28.f);
-		DrawRect(Plate, Tab.X, Tab.Y, Tab.W, Tab.H);
-		DrawText(Labels[Index], Ink, Tab.X + 8.f * FrameScale, Tab.Y + 6.f * FrameScale, Font, 0.7f * FrameScale, false);
-		RememberChrome(Kinds[Index], 0, FName(), Tab.X, Tab.Y, Tab.X + Tab.W, Tab.Y + Tab.H);
+		const FKodScreenRect Tab = MapSpec(Xs[Index], KodHudLayout::WingButtonY, KodHudLayout::WingButtonW, KodHudLayout::WingButtonH);
+		const float Alpha = bLocked[Index] ? 0.45f : 1.f;
+		DrawRect(Plate.CopyWithNewOpacity(Plate.A * Alpha), Tab.X, Tab.Y, Tab.W, Tab.H);
+		DrawRect(Trim.CopyWithNewOpacity(Alpha), Tab.X, Tab.Y, Tab.W, FrameScale);
+		DrawRect(Trim.CopyWithNewOpacity(0.85f * Alpha), Tab.X, Tab.Y, FrameScale, Tab.H);
+		DrawRect(Trim.CopyWithNewOpacity(0.85f * Alpha), Tab.X + Tab.W - FrameScale, Tab.Y, FrameScale, Tab.H);
+		DrawRect(Trim.CopyWithNewOpacity(0.85f * Alpha), Tab.X, Tab.Y + Tab.H - FrameScale, Tab.W, FrameScale);
+		DrawText(Labels[Index], Ink.CopyWithNewOpacity(Alpha), Tab.X + 8.f * FrameScale, Tab.Y + 5.f * FrameScale, Font, FrameScale, false);
+		if (!bLocked[Index])
+		{
+			RememberChrome(Kinds[Index], 0, FName(), Tab.X, Tab.Y, Tab.X + Tab.W, Tab.Y + Tab.H);
+		}
 	}
 }
 
@@ -439,6 +458,8 @@ void AKodHUD::DrawHUD()
 	DrawResourceFlash();
 	DrawMatchOutcome();
 	DrawUnitHealthBars();
+	DrawConstructionBars();
+	DrawPlacementGrid();
 	DrawClickMarkers();
 	DrawSelectionPulse();
 	DrawJuiceFloaters();
@@ -1345,7 +1366,7 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed,
 		}
 	}
 
-	const FString Credits = FString::Printf(TEXT("%d"), Jadeite);
+	const FString JadeiteText = FString::Printf(TEXT("%d"), Jadeite);
 	const FString LumineneText = FString::Printf(TEXT("%d"), Luminene);
 	bool bSupplyBlocked = SupplyCap > 0 && SupplyUsed >= SupplyCap;
 	if (!bSupplyBlocked)
@@ -1370,21 +1391,54 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed,
 		}
 	}
 	const FString WorkerText = FString::Printf(TEXT("%d"), Workers);
-	const float EdgeShift = SafeMaxX - (FrameOriginX + 1904.f * FrameScale);
-	const float ChipX[4] = { 1376.f, 1514.f, 1652.f, 1790.f };
-	const FString ChipText[4] = { WorkerText, Credits, LumineneText, Supply };
-	const FLinearColor ChipInk[4] = {
-		Tok(0xE6, 0xE6, 0xE0),
-		HudSkin == 1 ? Tok(0xDF, 0xD4, 0xC0) : Tok(0xB0, 0x8D, 0x57),
-		Tok(0xFF, 0xD2, 0x3F),
-		bSupplyBlocked ? Tok(0xE5, 0x38, 0x3B) : Tok(0xE6, 0xE6, 0xE0)
+	const bool bScinder = HudSkin == 1;
+	const FLinearColor ValueInk = bScinder ? Tok(0xEF, 0xE6, 0xD4) : Tok(0xF4, 0xEE, 0xDF);
+	const TCHAR* IconStems[4] = {
+		bScinder ? TEXT("RES_Worker_SC") : TEXT("RES_Worker_VG"),
+		TEXT("RES_Jadeite"),
+		TEXT("RES_Luminene"),
+		bScinder ? TEXT("RES_Supply_SC") : TEXT("RES_Supply_VG")
 	};
+	const TCHAR* Placeholders[4] = { TEXT("W"), TEXT("J"), TEXT("L"), TEXT("S") };
+	const FString ChipText[4] = { WorkerText, JadeiteText, LumineneText, Supply };
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+	const float SupplyPulse = bSupplyBlocked ? (1.f + 0.08f * FMath::Abs(FMath::Sin(Now * PI / 0.15f))) : 1.f;
+	if (bSupplyBlocked && !bSupplyErrorLatched)
+	{
+		PushErrorLine(TEXT("Not enough supply"));
+		bSupplyErrorLatched = true;
+	}
+	else if (!bSupplyBlocked)
+	{
+		bSupplyErrorLatched = false;
+	}
 	for (int32 Index = 0; Index < 4; ++Index)
 	{
-		const FKodScreenRect Chip = MapSpec(ChipX[Index], 0.f, 130.f, 28.f);
-		const float X = Chip.X + EdgeShift;
-		DrawPlate(X, Chip.Y, Chip.W, Chip.H, Tok(0x1F, 0x23, 0x27, 0.92f), TEXT("T_UI_VG_Chip_Resource"), 12.f, 8.f, 12.f, 8.f);
-		DrawText(ChipText[Index], ChipInk[Index], X + 10.f * FrameScale, Chip.Y + 8.f * FrameScale, Font, FrameScale, false);
+		const FKodScreenRect Icon = MapSpec(KodHudLayout::ResourceOriginX[Index], 1.f, KodHudLayout::ResourceIcon, KodHudLayout::ResourceIcon);
+		const FName IconKey(IconStems[Index]);
+		TObjectPtr<UTexture2D>* Cached = ResourceIcons.Find(IconKey);
+		UTexture2D* Texture = Cached ? Cached->Get() : nullptr;
+		if (!Cached)
+		{
+			const FString Path = FString::Printf(TEXT("%s/%s.%s"), KodWardenPaths::UiIconRoot, IconStems[Index], IconStems[Index]);
+			Texture = LoadObject<UTexture2D>(nullptr, *Path);
+			ResourceIcons.Add(IconKey, Texture);
+		}
+		if (Texture)
+		{
+			DrawTexture(Texture, Icon.X, Icon.Y, Icon.W, Icon.H, 0.f, 0.f, 1.f, 1.f);
+		}
+		else
+		{
+			DrawRect(Tok(0x3A, 0x3F, 0x45, 0.85f), Icon.X, Icon.Y, Icon.W, Icon.H);
+			DrawText(Placeholders[Index], ValueInk, Icon.X + 6.f * FrameScale, Icon.Y + 4.f * FrameScale, Font, 0.8f * FrameScale, false);
+		}
+		const bool bCap = Index == 3 && bSupplyBlocked;
+		const FLinearColor Ink = bCap ? Tok(0xFF, 0x4A, 0x4A) : ValueInk;
+		const float Scale = (bCap ? SupplyPulse : 1.f) * FrameScale;
+		const FKodScreenRect Value = MapSpec(KodHudLayout::ResourceOriginX[Index] + KodHudLayout::ResourceValueGap, 2.f, 80.f, 24.f);
+		DrawText(ChipText[Index], FLinearColor(0.f, 0.f, 0.f, 0.65f), Value.X + FrameScale, Value.Y + 2.f * FrameScale, Font, Scale, false);
+		DrawText(ChipText[Index], Ink, Value.X, Value.Y, Font, Scale, false);
 	}
 }
 
@@ -1583,8 +1637,7 @@ FName AKodHUD::PeekResourceFail(int32 Credits, int32 Luminene, int32 Supply) con
 
 void AKodHUD::ShowCenterMessage(const FString& Text)
 {
-	FlashText = Text;
-	FlashUntilSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() + 1.6f : 0.f;
+	PushErrorLine(Text);
 }
 
 void AKodHUD::SetSelectionPage(int32 Page)
@@ -1794,15 +1847,25 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 	}
 	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 	const bool bAttack = CueId == FName(TEXT("base_under_attack")) || CueId == FName(TEXT("units_under_attack"));
+	if (AlertLines.Num() > 0 && AlertLines.Last().CueId == CueId && AlertLines.Last().Text == Text && (Now - AlertLines.Last().Born) <= 4.f)
+	{
+		++AlertLines.Last().Count;
+		AlertLines.Last().Until = Now + 5.f;
+	}
+	else
+	{
 	FKodAlertLine Line;
 	Line.Text = Text;
 	Line.CueId = CueId;
 	Line.World = Location;
 	Line.Until = Now + 5.f;
+	Line.Born = Now;
+	Line.Count = 1;
 	AlertLines.Add(Line);
 	while (AlertLines.Num() > 5)
 	{
 		AlertLines.RemoveAt(0);
+	}
 	}
 	if (!Location.IsNearlyZero())
 	{
@@ -1817,7 +1880,8 @@ void AKodHUD::HandleAlertCue(FName CueId, FVector Location, bool bAtLocation)
 void AKodHUD::DrawWireHeat(float X, float Y, float W, float H, int32 UnitId, int32 Health, int32 MaxHealth, bool bStructure, bool bFlash)
 {
 	(void)UnitId;
-	const FLinearColor Shared = bFlash ? KodWireTint::Critical() : KodWireTint::FromHitPoints(Health, MaxHealth);
+	const UKodHudProposed& HeatStyle = HudStyle();
+	const FLinearColor Shared = bFlash ? KodWireTint::Critical() : KodWireTint::FromHitPointsPermille(Health, MaxHealth, HeatStyle.WireHealthyPermille, HeatStyle.WireWarningPermille, false);
 	auto ColorOf = [Shared](int32 Zone)
 	{
 		(void)Zone;
@@ -1863,7 +1927,15 @@ void AKodHUD::DrawAlertFeed()
 	const FKodScreenRect Feed = MapSpec(16.f, 420.f, 380.f, 292.f);
 	const float EdgeShift = SafeMinX - FrameOriginX;
 	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
-	const int32 MaxRows = 5;
+	int32 MaxRows = 5;
+	if (ErrorLines.Num() > 0)
+	{
+		const float ClipY = MapSpec(0.f, HudStyle().AlertClipY, 1.f, 1.f).Y;
+		const float Step = (52.f + 8.f) * FrameScale;
+		const float RowH = 52.f * FrameScale;
+		const float Room = ClipY - Feed.Y - RowH;
+		MaxRows = FMath::Clamp(FMath::FloorToInt(Room / FMath::Max(1.f, Step)) + 1, 0, 5);
+	}
 	int32 Drawn = 0;
 	for (int32 Index = AlertLines.Num() - 1; Index >= 0 && Drawn < MaxRows; --Index)
 	{
@@ -1878,6 +1950,14 @@ void AKodHUD::DrawAlertFeed()
 		DrawRect(bCheatLine ? Tok(0x3A, 0x32, 0x14, 0.9f * Alpha) : Tok(0x1F, 0x23, 0x27, 0.88f * Alpha), RowX, RowY, RowW, RowH);
 		DrawRect(bCheatLine ? Tok(0xB0, 0x8D, 0x57, Alpha) : Tok(0xE5, 0x38, 0x3B, Alpha), RowX + 6.f * FrameScale, RowY + 6.f * FrameScale, 40.f * FrameScale, 40.f * FrameScale);
 		DrawText(Glyph, Tok(0xF2, 0xF2, 0xF2, Alpha), RowX + 12.f * FrameScale, RowY + 14.f * FrameScale, Font, 0.7f * FrameScale, false);
+		if (Line.Count > 1)
+		{
+			const float Badge = 18.f * FrameScale;
+			const float BadgeX = RowX + 46.f * FrameScale - Badge * 0.5f;
+			const float BadgeY = RowY + 46.f * FrameScale - Badge * 0.5f;
+			DrawRect(Tok(0xC9, 0xA2, 0x4A, Alpha), BadgeX, BadgeY, Badge, Badge);
+			DrawText(FString::FromInt(Line.Count), Tok(0x00, 0x00, 0x00, Alpha), BadgeX + 3.f * FrameScale, BadgeY + 1.f * FrameScale, Font, 0.55f * FrameScale, false);
+		}
 		DrawText(Line.Text, bCheatLine ? Tok(0xFF, 0xD2, 0x3F, Alpha) : Tok(0xE6, 0xE6, 0xE0, Alpha), RowX + 54.f * FrameScale, RowY + 14.f * FrameScale, Font, 0.85f * FrameScale, false);
 		++Drawn;
 	}
@@ -1982,10 +2062,18 @@ void AKodHUD::ShowAlertLine(const FString& Text)
 		return;
 	}
 	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+	if (AlertLines.Num() > 0 && AlertLines.Last().Text == Text && (Now - AlertLines.Last().Born) <= 4.f)
+	{
+		++AlertLines.Last().Count;
+		AlertLines.Last().Until = Now + 5.f;
+		return;
+	}
 	FKodAlertLine Line;
 	Line.Text = Text;
 	Line.CueId = FName();
 	Line.Until = Now + 5.f;
+	Line.Born = Now;
+	Line.Count = 1;
 	AlertLines.Add(Line);
 	while (AlertLines.Num() > 5)
 	{
@@ -1998,7 +2086,7 @@ void AKodHUD::ShowResourceFlash(FName Reason)
 	FName CueId;
 	if (Reason == TEXT("Credits"))
 	{
-		FlashText = TEXT("Not enough Credits");
+		FlashText = TEXT("Not enough Jadeite");
 		CueId = FName(TEXT("not_enough_credits"));
 	}
 	else if (Reason == TEXT("Luminene"))
@@ -2015,7 +2103,8 @@ void AKodHUD::ShowResourceFlash(FName Reason)
 	{
 		return;
 	}
-	FlashUntilSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() + 1.6f : 0.f;
+	PushErrorLine(FlashText);
+	FlashText.Reset();
 	if (UWorld* World = GetWorld())
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
@@ -2817,26 +2906,84 @@ void AKodHUD::DrawMatchOutcome()
 	}
 }
 
+void AKodHUD::PushErrorLine(const FString& Text)
+{
+	if (Text.IsEmpty())
+	{
+		return;
+	}
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+	if (ErrorLines.Num() > 0 && ErrorLines.Last().Text == Text)
+	{
+		ErrorLines.Last().Born = Now;
+		return;
+	}
+	FKodErrorLine Line;
+	Line.Text = Text;
+	Line.Born = Now;
+	ErrorLines.Add(Line);
+	const int32 MaxRows = FMath::Max(1, HudStyle().ErrorMaxRows);
+	while (ErrorLines.Num() > MaxRows)
+	{
+		ErrorLines.RemoveAt(0);
+	}
+}
+
 void AKodHUD::DrawResourceFlash()
 {
-	if (!Canvas || FlashText.IsEmpty())
+	if (!Canvas)
 	{
 		return;
 	}
-	const UWorld* World = GetWorld();
-	const float Now = World ? World->GetTimeSeconds() : 0.f;
-	if (Now > FlashUntilSeconds)
+	const UKodHudProposed& Style = HudStyle();
+	const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+	const float Life = Style.ErrorHoldSeconds + Style.ErrorFadeSeconds;
+	for (int32 Index = ErrorLines.Num() - 1; Index >= 0; --Index)
+	{
+		if (Now - ErrorLines[Index].Born > Life)
+		{
+			ErrorLines.RemoveAt(Index);
+		}
+	}
+	if (ErrorLines.Num() == 0)
 	{
 		return;
 	}
-	UFont* Font = GEngine ? GEngine->GetLargeFont() : nullptr;
-	if (!Font && GEngine)
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	const FKodScreenRect Stack = MapSpec(Style.ErrorX, Style.ErrorY, Style.ErrorW, Style.ErrorH);
+	const int32 Rows = ErrorLines.Num();
+	for (int32 Index = 0; Index < Rows; ++Index)
 	{
-		Font = GEngine->GetMediumFont();
+		const int32 AgeRank = Rows - 1 - Index;
+		float RankAlpha = 1.f;
+		if (AgeRank == 1)
+		{
+			RankAlpha = Style.ErrorOlderAlpha;
+		}
+		else if (AgeRank >= 2)
+		{
+			RankAlpha = Style.ErrorOldestAlpha;
+		}
+		const float Age = Now - ErrorLines[Index].Born;
+		float Fade = 1.f;
+		if (Age > Style.ErrorHoldSeconds)
+		{
+			Fade = 1.f - (Age - Style.ErrorHoldSeconds) / FMath::Max(0.05f, Style.ErrorFadeSeconds);
+		}
+		const float Alpha = FMath::Clamp(RankAlpha * Fade, 0.f, 1.f);
+		const float RowY = Stack.Y + Stack.H - static_cast<float>(Rows - Index) * Style.ErrorRowPx * FrameScale;
+		const FLinearColor Ink = Tok(0xE5, 0x38, 0x3B, Alpha);
+		DrawText(ErrorLines[Index].Text, FLinearColor(0.f, 0.f, 0.f, 0.65f * Alpha), Stack.X + FrameScale, RowY + 2.f * FrameScale, Font, FrameScale, false);
+		DrawText(ErrorLines[Index].Text, Ink, Stack.X, RowY, Font, FrameScale, false);
 	}
+	if (FlashText.IsEmpty() || Now > FlashUntilSeconds)
+	{
+		return;
+	}
+	UFont* CenterFont = GEngine ? GEngine->GetLargeFont() : Font;
 	const FKodScreenRect Flash = MapSpec(660.f, 790.f, 600.f, 40.f);
 	DrawRect(Tok(0x1F, 0x23, 0x27, 0.9f), Flash.X, Flash.Y, Flash.W, Flash.H);
-	DrawText(FlashText, Tok(0xFF, 0xD2, 0x3F), Flash.X + 12.f * FrameScale, Flash.Y + 6.f * FrameScale, Font, FrameScale, false);
+	DrawText(FlashText, Tok(0xFF, 0xD2, 0x3F), Flash.X + 12.f * FrameScale, Flash.Y + 6.f * FrameScale, CenterFont, FrameScale, false);
 }
 
 void AKodHUD::DrawUnitHealthBars()
@@ -2891,6 +3038,16 @@ void AKodHUD::DrawUnitHealthBars()
 		}
 		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(HpState.Health));
 		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(HpState.MaxHealth));
+		const float Now = World->GetTimeSeconds();
+		if (const int32* Previous = LastBarHealth.Find(HpState.Id.Value))
+		{
+			if (ShownHP < *Previous)
+			{
+				BarDamagedUntil.Add(HpState.Id.Value, Now + 3.f);
+			}
+		}
+		LastBarHealth.Add(HpState.Id.Value, ShownHP);
+		const bool bRecentDamage = BarDamagedUntil.FindRef(HpState.Id.Value) > Now;
 		const bool bFull = ShownHP >= MaxHP;
 		const bool bSelected = Selected.Contains(BarActor);
 		const bool bShowAll = HealthBarMode == 2 || OwningPC->IsInputKeyDown(EKeys::LeftAlt) || OwningPC->IsInputKeyDown(EKeys::RightAlt);
@@ -2901,86 +3058,371 @@ void AKodHUD::DrawUnitHealthBars()
 		float MouseX = 0.f;
 		float MouseY = 0.f;
 		const bool bHaveMouse = OwningPC->GetMousePosition(MouseX, MouseY);
-
-		float ExtraZ = 120.f;
-		if (const UCapsuleComponent* Capsule = BarActor->FindComponentByClass<UCapsuleComponent>())
-		{
-			ExtraZ = Capsule->GetScaledCapsuleHalfHeight() + 24.f;
-		}
-		const FVector Anchor = BarActor->GetActorLocation() + FVector(0.f, 0.f, ExtraZ);
-
-		FVector2D Screen;
-		if (!OwningPC->ProjectWorldLocationToScreen(Anchor, Screen, true))
-		{
-			continue;
-		}
+		FVector2D Screen = FVector2D::ZeroVector;
+		const UKodHudProposed& Style = HudStyle();
 		const bool bStructureBar = FindFrameStructure(HpState.Id.Value) != nullptr;
-		float BarWidth = 40.f;
-		float BarHeight = 5.f;
+		int32 Step = KodHudLayout::UnitHpPerSegment;
+		int32 Segments = FMath::Max(1, FMath::DivideAndRoundUp(MaxHP, Step));
 		if (bStructureBar)
 		{
-			BarWidth = 128.f;
-			BarHeight = 8.f;
+			const int32 Chunks = FMath::Max(1, FMath::DivideAndRoundUp(MaxHP, 500));
+			Step = KodHudLayout::UnitHpPerSegment * Chunks;
+			Segments = FMath::Max(1, FMath::DivideAndRoundUp(MaxHP, Step));
+			if (Segments > KodHudLayout::BuildingSegmentCap)
+			{
+				Segments = KodHudLayout::BuildingSegmentCap;
+				Step = FMath::DivideAndRoundUp(MaxHP, Segments);
+			}
 		}
-		else if (HpState.BodyRadiusUU >= 48)
+		float Zoom = 1.f;
+		if (const AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(OwningPC->GetPawn()))
 		{
-			BarWidth = 96.f;
-			BarHeight = 7.f;
+			Zoom = FMath::Clamp(6800.f / FMath::Max(1.f, CameraPawn->GetCurrentArmLength()), 0.75f, 1.25f);
 		}
-		else if (HpState.BodyRadiusUU >= 24)
+		const float Ui = FrameScale * Zoom;
+		float BarWidth = KodHudLayout::UnitBarW * Ui;
+		float BarHeight = KodHudLayout::UnitBarH * Ui;
+		FVector TopWorld = BarActor->GetActorLocation();
+		if (const UCapsuleComponent* Capsule = BarActor->FindComponentByClass<UCapsuleComponent>())
 		{
-			BarWidth = 64.f;
-			BarHeight = 6.f;
+			TopWorld.Z += Capsule->GetScaledCapsuleHalfHeight();
+		}
+		else
+		{
+			FVector Origin = FVector::ZeroVector;
+			FVector Extent = FVector::ZeroVector;
+			BarActor->GetActorBounds(false, Origin, Extent);
+			TopWorld = Origin + FVector(0.f, 0.f, Extent.Z);
+		}
+		if (bStructureBar)
+		{
+			BarHeight = KodHudLayout::BuildingBarH * Ui;
+			FVector Origin = FVector::ZeroVector;
+			FVector Extent = FVector::ZeroVector;
+			BarActor->GetActorBounds(false, Origin, Extent);
+			FVector2D LeftScreen;
+			FVector2D RightScreen;
+			const bool bLeft = OwningPC->ProjectWorldLocationToScreen(Origin - FVector(Extent.X, 0.f, 0.f), LeftScreen, true);
+			const bool bRight = OwningPC->ProjectWorldLocationToScreen(Origin + FVector(Extent.X, 0.f, 0.f), RightScreen, true);
+			if (bLeft && bRight)
+			{
+				BarWidth = FMath::Max(24.f * Ui, FMath::Abs(RightScreen.X - LeftScreen.X) * 0.8f);
+			}
+			TopWorld = Origin + FVector(0.f, 0.f, Extent.Z);
+		}
+		if (!OwningPC->ProjectWorldLocationToScreen(TopWorld, Screen, true))
+		{
+			continue;
 		}
 		const bool bHover = bHaveMouse && FMath::Abs(MouseX - Screen.X) <= BarWidth * 0.5f + 8.f && FMath::Abs(MouseY - Screen.Y) <= 28.f;
-		if (HealthBarMode != 2 && bFull && !bSelected && !bHover && !bShowAll)
+		if (HealthBarMode != 2 && bFull && !bSelected && !bHover && !bShowAll && !bRecentDamage)
 		{
 			continue;
 		}
 
-		int32 Step = 25;
-		if (MaxHP > 1500)
-		{
-			Step = 250;
-		}
-		else if (MaxHP > 600)
-		{
-			Step = 100;
-		}
-		else if (MaxHP > 250)
-		{
-			Step = 50;
-		}
-		int32 Segments = FMath::Max(1, FMath::DivideAndRoundUp(MaxHP, Step));
-		while (Segments > 30)
-		{
-			Step *= 2;
-			Segments = FMath::Max(1, FMath::DivideAndRoundUp(MaxHP, Step));
-		}
-
-		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
-		const FLinearColor Fill = HealthBarInk(Fraction);
+		const FLinearColor Fill = KodWireTint::FromHitPointsPermille(ShownHP, MaxHP, Style.WorldHealthyPermille, Style.WorldWarningPermille, true);
 		const float Left = Screen.X - (BarWidth * 0.5f);
-		const float Top = Screen.Y - BarHeight;
-		DrawRect(Tok(0x1F, 0x23, 0x27), Left, Top, BarWidth, BarHeight);
-		DrawRect(Fill, Left, Top, BarWidth * Fraction, BarHeight);
-		const FLinearColor Tick(0.f, 0.f, 0.f, 0.4f);
-		for (int32 Segment = 1; Segment < Segments; ++Segment)
+		const float Top = Screen.Y - KodHudLayout::BarGapAbove * Ui - BarHeight;
+		const float FramePx = Ui;
+		const float GapPx = Ui;
+		const FLinearColor Empty = FLinearColor(FColor(0x1A, 0x1D, 0x1F));
+		const FLinearColor FrameInk(0.f, 0.f, 0.f, 1.f);
+		auto PaintSegments = [&](float RowTop, float RowHeight, int32 RowValue, int32 RowMax, const FLinearColor& RowFill)
 		{
-			const float TickX = Left + (BarWidth * static_cast<float>(Segment)) / static_cast<float>(Segments);
-			DrawRect(Tick, TickX, Top, 1.f, BarHeight);
+			DrawRect(FrameInk, Left, RowTop, BarWidth, RowHeight);
+			const float InnerW = FMath::Max(1.f, BarWidth - 2.f * FramePx);
+			const float InnerH = FMath::Max(1.f, RowHeight - 2.f * FramePx);
+			const float SegW = (InnerW - GapPx * static_cast<float>(Segments - 1)) / static_cast<float>(Segments);
+			int32 FullSegments = 0;
+			float Partial = 0.f;
+			if (RowMax > 0 && RowValue >= RowMax)
+			{
+				FullSegments = Segments;
+			}
+			else if (RowMax > 0)
+			{
+				const float Exact = static_cast<float>(FMath::Max(0, RowValue)) / static_cast<float>(RowMax) * static_cast<float>(Segments);
+				FullSegments = FMath::Clamp(FMath::FloorToInt(Exact), 0, Segments);
+				Partial = Exact - static_cast<float>(FullSegments);
+			}
+			for (int32 Segment = 0; Segment < Segments; ++Segment)
+			{
+				const float SegX = Left + FramePx + static_cast<float>(Segment) * (SegW + GapPx);
+				DrawRect(Empty, SegX, RowTop + FramePx, FMath::Max(1.f, SegW), InnerH);
+				float FillW = 0.f;
+				if (Segment < FullSegments)
+				{
+					FillW = SegW;
+				}
+				else if (Segment == FullSegments && Partial > 0.f)
+				{
+					FillW = SegW * Partial;
+				}
+				if (FillW > 0.f)
+				{
+					DrawRect(RowFill, SegX, RowTop + FramePx, FillW, InnerH);
+				}
+			}
+		};
+		if (HpState.ShieldMax > 0)
+		{
+			const float ShieldTop = Top - Style.ShieldGapPx * Ui - BarHeight;
+			PaintSegments(ShieldTop, BarHeight, FMath::Max(0, HpState.Shield), FMath::Max(1, HpState.ShieldMax), Style.ShieldColor);
 		}
-		const FLinearColor TeamCap = HpState.TeamId == ReadLocalTeamId()
-			? FLinearColor(FColor(0x59, 0x78, 0x8A))
-			: FLinearColor(FColor(0x8C, 0x5A, 0x5A));
-		DrawRect(TeamCap, Left, Top, 2.f, BarHeight);
-
+		PaintSegments(Top, BarHeight, ShownHP, MaxHP, Fill);
 		if (HpState.EnergyMax > 0)
 		{
 			const float EnergyFrac = FMath::Clamp(static_cast<float>(HpState.Energy) / static_cast<float>(HpState.EnergyMax), 0.f, 1.f);
-			const float EnergyTop = Top + BarHeight + 1.f;
-			DrawRect(Tok(0x1F, 0x23, 0x27), Left, EnergyTop, BarWidth, 3.f);
-			DrawRect(Tok(0x2F, 0x7B, 0xFF), Left, EnergyTop, BarWidth * EnergyFrac, 3.f);
+			const float EnergyTop = Top + BarHeight + Ui;
+			const float EnergyH = 3.f * Ui;
+			DrawRect(FrameInk, Left, EnergyTop, BarWidth, EnergyH);
+			DrawRect(FLinearColor(FColor(0x3D, 0xFF, 0xB0)), Left + FramePx, EnergyTop + FramePx * 0.5f, (BarWidth - 2.f * FramePx) * EnergyFrac, FMath::Max(1.f, EnergyH - FramePx));
+		}
+	}
+}
+
+void AKodHUD::DrawConstructionBars()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	APlayerController* PC = GetOwningPlayerController();
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!PC || !Sim)
+	{
+		return;
+	}
+	const UKodHudProposed& Style = HudStyle();
+	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+	for (const FKodStructureState& Structure : FrameStructures)
+	{
+		AActor* Actor = Sim->ResolveEntity(Structure.Id);
+		if (Structure.bComplete)
+		{
+			if (Actor && DimmedStructureIds.Contains(Structure.Id.Value))
+			{
+				TInlineComponentArray<UMeshComponent*> Meshes;
+				Actor->GetComponents(Meshes);
+				for (UMeshComponent* Mesh : Meshes)
+				{
+					if (Mesh)
+					{
+						Mesh->SetScalarParameterValueOnMaterials(TEXT("Opacity"), 1.f);
+					}
+				}
+				DimmedStructureIds.Remove(Structure.Id.Value);
+			}
+			continue;
+		}
+		if (Actor)
+		{
+			TInlineComponentArray<UMeshComponent*> Meshes;
+			Actor->GetComponents(Meshes);
+			for (UMeshComponent* Mesh : Meshes)
+			{
+				if (Mesh)
+				{
+					Mesh->SetScalarParameterValueOnMaterials(TEXT("Opacity"), Style.IncompleteOpacity);
+				}
+			}
+			DimmedStructureIds.Add(Structure.Id.Value);
+		}
+		if (Structure.BuildTimeTotal <= 0)
+		{
+			continue;
+		}
+		const float SpanX = static_cast<float>(FMath::Max(1, Structure.FootprintX)) * static_cast<float>(KodBuildGrid::CellUU);
+		const float SpanY = static_cast<float>(FMath::Max(1, Structure.FootprintY)) * static_cast<float>(KodBuildGrid::CellUU);
+		const FVector Center = Structure.Position;
+		const FVector Corners[4] = {
+			Center + FVector(-SpanX * 0.5f, -SpanY * 0.5f, 8.f),
+			Center + FVector(SpanX * 0.5f, -SpanY * 0.5f, 8.f),
+			Center + FVector(SpanX * 0.5f, SpanY * 0.5f, 8.f),
+			Center + FVector(-SpanX * 0.5f, SpanY * 0.5f, 8.f)
+		};
+		float MinX = 0.f;
+		float MaxX = 0.f;
+		float MaxY = 0.f;
+		bool bAny = false;
+		for (const FVector& Corner : Corners)
+		{
+			FVector2D Screen;
+			if (!PC->ProjectWorldLocationToScreen(Corner, Screen, true))
+			{
+				continue;
+			}
+			if (!bAny)
+			{
+				MinX = MaxX = Screen.X;
+				MaxY = Screen.Y;
+				bAny = true;
+			}
+			else
+			{
+				MinX = FMath::Min(MinX, Screen.X);
+				MaxX = FMath::Max(MaxX, Screen.X);
+				MaxY = FMath::Max(MaxY, Screen.Y);
+			}
+		}
+		if (!bAny)
+		{
+			continue;
+		}
+		const float Alpha = FMath::Clamp(static_cast<float>(Structure.BuildTicksDone) / static_cast<float>(Structure.BuildTimeTotal), 0.f, 1.f);
+		const float BarW = FMath::Max(24.f * FrameScale, (MaxX - MinX) * 0.8f);
+		const float BarH = 6.f * FrameScale;
+		const float BarX = (MinX + MaxX) * 0.5f - BarW * 0.5f;
+		const float BarY = MaxY + 4.f * FrameScale;
+		DrawRect(FLinearColor(0.f, 0.f, 0.f, 1.f), BarX, BarY, BarW, BarH);
+		DrawRect(Style.ConstructionColor, BarX + FrameScale, BarY + FrameScale, FMath::Max(1.f, (BarW - 2.f * FrameScale) * Alpha), FMath::Max(1.f, BarH - 2.f * FrameScale));
+		const FString Label = FString::Printf(TEXT("%d%%"), FMath::RoundToInt(Alpha * 100.f));
+		DrawText(Label, Style.ConstructionLabelColor, BarX, BarY + BarH + 16.f * FrameScale, Font, FrameScale, false);
+	}
+}
+
+void AKodHUD::DrawPlacementGrid()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	const AKodPlayerController* PC = Cast<AKodPlayerController>(GetOwningPlayerController());
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!PC || !Sim)
+	{
+		return;
+	}
+	FName PlaceType;
+	FVector PlaceCenter = FVector::ZeroVector;
+	if (!PC->TryGetPlacementAim(PlaceType, PlaceCenter))
+	{
+		return;
+	}
+	FKodBuildSpec Spec;
+	if (!Sim->TryGetBuildSpec(PlaceType, Spec))
+	{
+		return;
+	}
+	const UKodHudProposed& Style = HudStyle();
+	const FKodPlacementResult Placement = Sim->QueryPlacement(ReadLocalTeamId(), PlaceType, PlaceCenter);
+	const bool bNeedsSupply = Spec.SupplyProvided <= 0 && !Spec.bTownHall;
+	if (bNeedsSupply)
+	{
+		const FLinearColor Ring = HudSkin == 1 ? Style.ToxicBlotchColor : Style.SupplyRingColor;
+		for (const FKodStructureState& Structure : FrameStructures)
+		{
+			if (!Structure.bComplete || Structure.TeamId != ReadLocalTeamId() || Structure.SupplyProvided <= 0)
+			{
+				continue;
+			}
+			constexpr int32 Steps = 24;
+			FVector2D Previous = FVector2D::ZeroVector;
+			bool bPrevious = false;
+			for (int32 StepIndex = 0; StepIndex <= Steps; ++StepIndex)
+			{
+				const float Angle = (static_cast<float>(StepIndex) / static_cast<float>(Steps)) * 2.f * PI;
+				const FVector Point = Structure.Position + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * Style.SupplyLatticeRadiusUU;
+				FVector2D Screen;
+				if (!PC->ProjectWorldLocationToScreen(Point, Screen, true))
+				{
+					bPrevious = false;
+					continue;
+				}
+				if (bPrevious)
+				{
+					DrawLine(Previous.X, Previous.Y, Screen.X, Screen.Y, Ring, 2.f * FrameScale);
+				}
+				Previous = Screen;
+				bPrevious = true;
+			}
+		}
+	}
+	const int32 SizeX = FMath::Max(1, Spec.FootprintX);
+	const int32 SizeY = FMath::Max(1, Spec.FootprintY);
+	const FLinearColor ValidFill(FColor(0x3D, 0xFF, 0x6A, static_cast<uint8>(0.27f * 255.f)));
+	const FLinearColor InvalidFill(FColor(0xFF, 0x3D, 0x3D, static_cast<uint8>(0.27f * 255.f)));
+	const FLinearColor ValidLine(FColor(0x3D, 0xFF, 0x6A, static_cast<uint8>(0.78f * 255.f)));
+	const FLinearColor InvalidLine(FColor(0xFF, 0x3D, 0x3D, static_cast<uint8>(0.78f * 255.f)));
+	const FLinearColor Slash(FColor(0x28, 0x00, 0x00, static_cast<uint8>(0.92f * 255.f)));
+	for (int32 Y = 0; Y < SizeY; ++Y)
+	{
+		for (int32 X = 0; X < SizeX; ++X)
+		{
+			const int32 CellIndex = Y * SizeX + X;
+			const bool bOpen = !Placement.CellOk.IsValidIndex(CellIndex) || Placement.CellOk[CellIndex] != 0;
+			const int32 CellX = Placement.CellX + X;
+			const int32 CellY = Placement.CellY + Y;
+			const float X0 = static_cast<float>(CellX) * static_cast<float>(KodBuildGrid::CellUU);
+			const float Y0 = static_cast<float>(CellY) * static_cast<float>(KodBuildGrid::CellUU);
+			const float X1 = X0 + static_cast<float>(KodBuildGrid::CellUU);
+			const float Y1 = Y0 + static_cast<float>(KodBuildGrid::CellUU);
+			const FVector Corners[4] = {
+				FVector(X0, Y0, PlaceCenter.Z + 4.f),
+				FVector(X1, Y0, PlaceCenter.Z + 4.f),
+				FVector(X1, Y1, PlaceCenter.Z + 4.f),
+				FVector(X0, Y1, PlaceCenter.Z + 4.f)
+			};
+			FVector2D Screen[4];
+			bool bAll = true;
+			for (int32 Corner = 0; Corner < 4; ++Corner)
+			{
+				if (!PC->ProjectWorldLocationToScreen(Corners[Corner], Screen[Corner], true))
+				{
+					bAll = false;
+					break;
+				}
+			}
+			if (!bAll)
+			{
+				continue;
+			}
+			float MinX = Screen[0].X;
+			float MaxX = Screen[0].X;
+			float MinY = Screen[0].Y;
+			float MaxY = Screen[0].Y;
+			for (int32 Corner = 1; Corner < 4; ++Corner)
+			{
+				MinX = FMath::Min(MinX, Screen[Corner].X);
+				MaxX = FMath::Max(MaxX, Screen[Corner].X);
+				MinY = FMath::Min(MinY, Screen[Corner].Y);
+				MaxY = FMath::Max(MaxY, Screen[Corner].Y);
+			}
+			const float W = FMath::Max(1.f, MaxX - MinX);
+			const float H = FMath::Max(1.f, MaxY - MinY);
+			DrawRect(bOpen ? ValidFill : InvalidFill, MinX, MinY, W, H);
+			const FLinearColor Outline = bOpen ? ValidLine : InvalidLine;
+			DrawLine(MinX, MinY, MaxX, MinY, Outline, 2.f * FrameScale);
+			DrawLine(MaxX, MinY, MaxX, MaxY, Outline, 2.f * FrameScale);
+			DrawLine(MaxX, MaxY, MinX, MaxY, Outline, 2.f * FrameScale);
+			DrawLine(MinX, MaxY, MinX, MinY, Outline, 2.f * FrameScale);
+			if (!bOpen)
+			{
+				const float Pitch = 10.f * FrameScale;
+				for (float Offset = -H; Offset < W; Offset += Pitch)
+				{
+					float Ax = MinX;
+					float Ay = MinY + Offset;
+					float Bx = MaxX;
+					float By = MinY + Offset + W;
+					if (Ay < MinY)
+					{
+						Ax += MinY - Ay;
+						Ay = MinY;
+					}
+					if (By > MaxY)
+					{
+						Bx -= By - MaxY;
+						By = MaxY;
+					}
+					if (Ax < Bx && Ay <= MaxY && By >= MinY)
+					{
+						DrawLine(Ax, Ay, Bx, By, Slash, 3.f * FrameScale);
+					}
+				}
+			}
 		}
 	}
 }

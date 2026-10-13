@@ -155,7 +155,10 @@ void AKodHUD::DrawWireSilhouette(float X, float Y, float W, float H, FName Defin
 
 	const float Rim = KodWireTint::ShieldRimStrength(Shield, ShieldMax);
 	const FLinearColor RimColor = KodWireTint::ShieldRimColor();
-	const FLinearColor OverallTint = KodWireTint::FromHitPoints(Health, MaxHealth);
+	const UKodHudProposed& Style = HudStyle();
+	const int32 WireHealthy = Style.WireHealthyPermille;
+	const int32 WireWarning = Style.WireWarningPermille;
+	const FLinearColor OverallTint = KodWireTint::FromHitPointsPermille(Health, MaxHealth, WireHealthy, WireWarning, false);
 	UTexture2D* IconTexture = ResolveArtTexture(DefinitionId, FKodUiArt::EKind::Icon);
 	UTexture2D* ZoneMask = bPerZone ? ResolveArtTexture(DefinitionId, FKodUiArt::EKind::ZoneMask) : nullptr;
 	bool bDrewMaterial = false;
@@ -176,7 +179,7 @@ void AKodHUD::DrawWireSilhouette(float X, float Y, float W, float H, FName Defin
 		{
 			const bool bLive = bPerZone && ZoneMask && Zones.IsValidIndex(Index);
 			const float Remain = bLive ? Zones[Index].Remain : 1.f;
-			const FLinearColor Tint = bLive ? KodWireTint::FromRemain(Zones[Index].Remain) : OverallTint;
+			const FLinearColor Tint = bLive ? KodWireTint::FromRemainPermille(Zones[Index].Remain, WireHealthy, WireWarning, false) : OverallTint;
 			Mid->SetScalarParameterValue(ZoneRemainName[Index], Remain);
 			Mid->SetVectorParameterValue(ZoneTintName[Index], Tint);
 		}
@@ -194,7 +197,7 @@ void AKodHUD::DrawWireSilhouette(float X, float Y, float W, float H, FName Defin
 		for (const KodWireTint::FZone& Zone : Zones)
 		{
 			DrawRect(
-				KodWireTint::FromRemain(Zone.Remain),
+				KodWireTint::FromRemainPermille(Zone.Remain, WireHealthy, WireWarning, false),
 				X + Zone.U0 * W,
 				Y + Zone.V0 * H,
 				(Zone.U1 - Zone.U0) * W,
