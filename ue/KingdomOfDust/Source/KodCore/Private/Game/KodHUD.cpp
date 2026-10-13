@@ -3185,8 +3185,16 @@ void AKodHUD::SubmitChat()
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
 		{
-			if (Sim->SubmitCheatPhrase(Line) == EKodCheatSubmit::Applied)
+			const EKodCheatSubmit CheatSubmit = Sim->SubmitCheatPhrase(Line);
+			if (CheatSubmit == EKodCheatSubmit::Applied)
 			{
+				return;
+			}
+			if (CheatSubmit == EKodCheatSubmit::Refused)
+			{
+				const FString Refusal = Sim->GetCheatFeedbackLine();
+				AddChatMessage(Refusal);
+				ShowAlertLine(Refusal);
 				return;
 			}
 		}

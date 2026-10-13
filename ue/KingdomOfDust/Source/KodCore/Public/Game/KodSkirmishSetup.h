@@ -52,6 +52,11 @@ struct KODCORE_API FKodSkirmishSetup
 	static bool IsSelectableFaction(EKodRosterFaction Faction);
 	static int32 ToAiDifficulty(EKodLobbyDifficulty LobbyDifficulty);
 	static bool MatchAllowsCheats(EKodMatchMode MatchMode);
+	/** False when the session is online, or the mode is not offline campaign or offline skirmish. */
+	static bool CheatsAllowed(EKodMatchMode MatchMode, bool bOnlineSession);
+	/** True for Match=ranked, Match=online, Online=1, or Session=online/ranked. */
+	static bool OptionsMarkOnline(const FString& Options);
+	static const TCHAR* CheatRefusalText();
 	/** Vanguard is 0, Scinder is 1. Random uses Salt (player uses Seed, AI uses Seed + 17). */
 	int32 ResolveRosterIndex(EKodRosterFaction Faction, int32 Salt) const;
 	int32 ResolvePlayerFactionIndex() const;

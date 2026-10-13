@@ -4,6 +4,8 @@
 #include "Engine/GameInstance.h"
 #include "KodGameInstance.generated.h"
 
+DECLARE_DELEGATE_RetVal(bool, FKodRemoteSessionQuery);
+
 /**
  * Primary game instance for Kingdom of Dust.
  * Owns long-lived match/session state beyond a single world.
@@ -18,4 +20,12 @@ public:
 
 	virtual void Init() override;
 	virtual void Shutdown() override;
+
+	/** Bound by UKodOnlineSubsystem to IKodOnlineService::IsRemoteBackend. */
+	void BindRemoteSessionQuery(FKodRemoteSessionQuery Query);
+	void ClearRemoteSessionQuery();
+	bool IsRemoteOnlineSession() const;
+
+private:
+	FKodRemoteSessionQuery RemoteSessionQuery;
 };

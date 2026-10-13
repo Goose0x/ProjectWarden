@@ -81,6 +81,7 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	bMatchCheated = false;
 	bCompetitive = false;
 	MatchMode = EKodMatchMode::OfflineSkirmish;
+	bOnlineSession = false;
 	CheatUses.Reset();
 	LastCheatLine.Reset();
 	bGeneralPowers = true;

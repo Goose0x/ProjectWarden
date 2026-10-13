@@ -68,6 +68,7 @@ void AKodGameMode::StartPlay()
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
 		{
 			Sim->SetMatchMode(MatchMode);
+			Sim->SetOnlineSession(FKodSkirmishSetup::OptionsMarkOnline(PendingOptions));
 			FKodSkirmishSetup Lobby;
 			if (FKodSkirmishSetup::TryParse(PendingOptions, Lobby))
 			{
@@ -89,7 +90,7 @@ void AKodGameMode::StartPlay()
 					Lobby.AiStart,
 					Lobby.PlayerColor,
 					Lobby.AiColor,
-					FKodSkirmishSetup::MatchAllowsCheats(Lobby.Mode) ? 1 : 0);
+					Sim->AreCheatsAllowed() ? 1 : 0);
 			}
 		}
 	}

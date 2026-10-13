@@ -156,6 +156,36 @@ bool FKodSkirmishSetup::MatchAllowsCheats(EKodMatchMode MatchMode)
 	return MatchMode == EKodMatchMode::Campaign || MatchMode == EKodMatchMode::OfflineSkirmish;
 }
 
+bool FKodSkirmishSetup::CheatsAllowed(EKodMatchMode MatchMode, bool bOnlineSession)
+{
+	if (bOnlineSession)
+	{
+		return false;
+	}
+	return MatchAllowsCheats(MatchMode);
+}
+
+bool FKodSkirmishSetup::OptionsMarkOnline(const FString& Options)
+{
+	const FString MatchText = UGameplayStatics::ParseOption(Options, TEXT("Match"));
+	if (MatchText.Equals(TEXT("ranked"), ESearchCase::IgnoreCase) || MatchText.Equals(TEXT("online"), ESearchCase::IgnoreCase))
+	{
+		return true;
+	}
+	const FString OnlineText = UGameplayStatics::ParseOption(Options, TEXT("Online"));
+	if (OnlineText == TEXT("1") || OnlineText.Equals(TEXT("true"), ESearchCase::IgnoreCase))
+	{
+		return true;
+	}
+	const FString SessionText = UGameplayStatics::ParseOption(Options, TEXT("Session"));
+	return SessionText.Equals(TEXT("online"), ESearchCase::IgnoreCase) || SessionText.Equals(TEXT("ranked"), ESearchCase::IgnoreCase);
+}
+
+const TCHAR* FKodSkirmishSetup::CheatRefusalText()
+{
+	return TEXT("Cheats are not available in online or ranked play.");
+}
+
 void FKodSkirmishSetup::GetMaps(TArray<FKodLobbyMap>& OutMaps)
 {
 	OutMaps.Reset();

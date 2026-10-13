@@ -813,7 +813,11 @@ public:
 
 	EKodMatchMode GetMatchMode() const { return MatchMode; }
 	void SetMatchMode(EKodMatchMode Mode);
+	/** Game-mode options marked this match online or ranked. Not hashed. */
+	void SetOnlineSession(bool bMarkedOnline);
+	bool IsOnlineSession() const;
 	bool AreCheatsAllowed() const;
+	void NoteCheatRefused();
 
 	/** Dev console alias. Non-shipping registration. Refused outside campaign and offline skirmish. */
 	bool ApplyCheatLine(const FString& Line);
@@ -821,7 +825,7 @@ public:
 	/**
 	 * Exact chat phrase, case-insensitive.
 	 * Applied raises cheat_enabled and sets the cheated flag.
-	 * Refused logs KodCheat Refused Mode= and is ordinary chat.
+	 * Refused logs KodCheat Refused and shows the refusal line.
 	 */
 	EKodCheatSubmit SubmitCheatPhrase(const FString& Line);
 
@@ -1157,6 +1161,8 @@ protected:
 	bool bMatchCheated = false;
 	bool bCompetitive = false;
 	EKodMatchMode MatchMode = EKodMatchMode::OfflineSkirmish;
+	/** Online=1, Session=online, or Match=ranked/online. Not hashed. Ranked mode is hashed separately. */
+	bool bOnlineSession = false;
 	TArray<FKodCheatUse> CheatUses;
 	/** Alert text for the cheat just applied. Not hashed and not saved. */
 	FString LastCheatLine;

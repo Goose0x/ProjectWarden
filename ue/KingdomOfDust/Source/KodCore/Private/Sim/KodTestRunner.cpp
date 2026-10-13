@@ -191,6 +191,7 @@ bool UKodSimSubsystem::RunScriptedTest(FName Scenario, int32 Runs, int32 Seed)
 		bCheatReveal = false;
 		bCheatNoCooldown = false;
 		bCompetitive = false;
+		bOnlineSession = false;
 		bGeneralPowers = false;
 		bPowerStartGranted = false;
 		PowerPoints0 = 0;
