@@ -212,6 +212,7 @@ protected:
 	void DrawTopBar();
 	void DrawPaintedFrames();
 	void PollShotAfter();
+	void LogShotScene();
 	UTexture2D* ResolveSoftTexture(const TCHAR* Path);
 	void SyncFogSheet(const class UKodSimSubsystem* Sim, int32 LocalTeam);
 	void SyncGroundRings(const TMap<AActor*, int32>& Rings, const class UKodSimSubsystem* Sim);
@@ -251,6 +252,7 @@ protected:
 	bool bLoggedWingHelp = false;
 	bool bLoggedFrames = false;
 	bool bShotAfterParsed = false;
+	bool bShotPrepared = false;
 	bool bShotQueued = false;
 	bool bShotExitArmed = false;
 	float ShotAfterSeconds = -1.f;
