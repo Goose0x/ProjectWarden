@@ -18,9 +18,23 @@ bool FKodSoakWaveBudgetTest::RunTest(const FString& Parameters)
 
 	const uint64 Megabyte = 1024ull * 1024ull;
 	TestFalse(TEXT("no elapsed"), UKodSimSubsystem::SoakMemoryOverBudget(1000, 1000 + 80ull * Megabyte, 0));
-	TestFalse(TEXT("no growth"), UKodSimSubsystem::SoakMemoryOverBudget(1000, 1000, 300));
 	TestFalse(TEXT("under 50MB in 5 min"), UKodSimSubsystem::SoakMemoryOverBudget(0, 40ull * Megabyte, 300));
 	TestTrue(TEXT("over 50MB in 5 min"), UKodSimSubsystem::SoakMemoryOverBudget(0, 51ull * Megabyte, 300));
-	TestTrue(TEXT("over the 30s rate"), UKodSimSubsystem::SoakMemoryOverBudget(0, 8ull * Megabyte, 30));
+
+	const int32 FlatTimes[] = {120, 150, 180, 210, 240};
+	const uint64 FlatBytes[] = {2000ull * Megabyte, 2001ull * Megabyte, 2000ull * Megabyte, 2002ull * Megabyte, 2001ull * Megabyte};
+	TestFalse(TEXT("flat slope"), UKodSimSubsystem::SoakMemorySlopeOverBudget(FlatTimes, FlatBytes, 5));
+
+	const int32 ShortTimes[] = {120, 150};
+	const uint64 ShortBytes[] = {1000ull * Megabyte, 1100ull * Megabyte};
+	TestFalse(TEXT("window too short"), UKodSimSubsystem::SoakMemorySlopeOverBudget(ShortTimes, ShortBytes, 2));
+
+	const int32 LeakTimes[] = {120, 150, 180, 210, 240};
+	uint64 LeakBytes[5];
+	for (int32 Index = 0; Index < 5; ++Index)
+	{
+		LeakBytes[Index] = 1900ull * Megabyte + static_cast<uint64>(Index) * 14ull * Megabyte;
+	}
+	TestTrue(TEXT("14MB per 30s slope"), UKodSimSubsystem::SoakMemorySlopeOverBudget(LeakTimes, LeakBytes, 5));
 	return true;
 }

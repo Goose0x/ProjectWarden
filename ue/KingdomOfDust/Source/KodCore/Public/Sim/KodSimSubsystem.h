@@ -666,6 +666,11 @@ public:
 	static bool FaultlineWaveDue(int32 Phase, int32 LivingOutposts, int64 Tick, int32 DelayTicks, bool bAutoplay);
 	/** True when growth since the anchor is more than 50 MB per 5 minutes. ElapsedSeconds is time since the anchor. */
 	static bool SoakMemoryOverBudget(uint64 AnchorBytes, uint64 NowBytes, int32 ElapsedSeconds);
+	/**
+	 * Least-squares slope over the samples. Needs a span of at least 120 seconds.
+	 * True when the slope is steeper than 50 MB per 5 minutes.
+	 */
+	static bool SoakMemorySlopeOverBudget(const int32* TimeSeconds, const uint64* Bytes, int32 Count);
 	/** Applied on the next sim tick boundary. Not hashed. */
 	void DeferMove(FKodEntityId Id, FVector Point);
 	void DeferAttackMove(FKodEntityId Id, FVector Point);
@@ -912,7 +917,8 @@ protected:
 	void StepPlayerAutoplay();
 	void EnqueueAutoplaySquad(const FVector& Origin, const FVector& AttackPoint);
 	int32 CountLivingOutposts() const;
-	void LogMatchPulse(const TCHAR* Reason) const;
+	void LogMatchPulse(const TCHAR* Reason);
+	void OrderFaultlineWave();
 	void PollSoak(float DeltaTime);
 	void ChooseAiOpener();
 	void RememberAiMatch();
@@ -1024,6 +1030,16 @@ protected:
 	uint64 SoakMemoryAnchor = 0;
 	float SoakMemoryAnchorElapsed = 0.f;
 	float SoakPulseAt = 0.f;
+	struct FKodSoakMemPoint
+	{
+		int32 TimeSeconds = 0;
+		uint64 Bytes = 0;
+	};
+	TArray<FKodSoakMemPoint> SoakMemPoints;
+	int32 SoakLastObjects = 0;
+	int32 SoakLastStates = 0;
+	int32 SoakLastPaths = 0;
+	int32 SoakLastSamples = 0;
 	struct FKodDeferredCommand
 	{
 		uint8 Kind = 1;
