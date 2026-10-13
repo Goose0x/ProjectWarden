@@ -392,6 +392,82 @@ bool UKodSimSubsystem::FaultlineWaveDue(int32 Phase, int32 LivingOutposts, int64
 	return bAutoplay && DelayTicks > 0 && Tick >= static_cast<int64>(DelayTicks);
 }
 
+bool UKodSimSubsystem::FaultlineWaveShouldRetreat(int32 LiveHp, int32 StartHp, int32 PlayerCombat, int64 ElapsedTicks)
+{
+	constexpr int64 MaxFieldTicks = 90 * 16;
+	const bool bBroken = StartHp > 0 && LiveHp < StartHp && LiveHp * 1000 <= StartHp * 300;
+	const bool bWon = PlayerCombat <= 0;
+	const bool bTimedOut = ElapsedTicks >= MaxFieldTicks;
+	return bBroken || bWon || bTimedOut;
+}
+
+bool UKodSimSubsystem::FaultlineWaveRearmDue(int64 Tick, int64 EndedTick, int32 DelayTicks)
+{
+	const int64 Gap = static_cast<int64>(FMath::Max(DelayTicks, 16 * 20));
+	return Tick >= EndedTick + Gap;
+}
+
+void UKodSimSubsystem::SetFaultlineLane(const TArray<FVector>& Points)
+{
+	FaultlineLanePoints.Reset();
+	FaultlineLanePoints.Reserve(Points.Num());
+	for (const FVector& Point : Points)
+	{
+		FVector Kept = Point;
+		QuantizeResourcePosition(Kept);
+		FaultlineLanePoints.Add(Kept);
+	}
+	WaveLaneCursor = 0;
+	AutoplayLaneCursor = -1;
+	if (FaultlineLanePoints.Num() > 0)
+	{
+		const FVector& First = FaultlineLanePoints[0];
+		const FVector& Last = FaultlineLanePoints.Last();
+		UE_LOG(LogTemp, Log, TEXT("KodFaultline Lane Points=%d First=%.0f,%.0f Last=%.0f,%.0f"),
+			FaultlineLanePoints.Num(),
+			First.X,
+			First.Y,
+			Last.X,
+			Last.Y);
+	}
+}
+
+bool UKodSimSubsystem::NextLanePoint(int32 Direction, int32& Cursor, const FVector& From, FVector& OutPoint) const
+{
+	const int32 Count = FaultlineLanePoints.Num();
+	if (Count <= 0)
+	{
+		return false;
+	}
+	if (Cursor < 0)
+	{
+		Cursor = Direction < 0 ? Count - 1 : 0;
+	}
+	Cursor = FMath::Clamp(Cursor, 0, Count - 1);
+	const bool bReached = FVector::DistSquared2D(From, FaultlineLanePoints[Cursor]) <= FMath::Square(350.f);
+	if (bReached)
+	{
+		if (Direction < 0)
+		{
+			if (Cursor <= 0)
+			{
+				return false;
+			}
+			--Cursor;
+		}
+		else
+		{
+			if (Cursor >= Count - 1)
+			{
+				return false;
+			}
+			++Cursor;
+		}
+	}
+	OutPoint = FaultlineLanePoints[Cursor];
+	return true;
+}
+
 bool UKodSimSubsystem::SoakMemoryOverBudget(uint64 AnchorBytes, uint64 NowBytes, int32 ElapsedSeconds)
 {
 	if (ElapsedSeconds <= 0 || NowBytes <= AnchorBytes)
@@ -525,6 +601,38 @@ void UKodSimSubsystem::OrderFaultlineWave()
 			Target = State->Id;
 			Point = State->Position;
 		}
+	}
+	FVector MarchFrom(static_cast<float>(FaultlineWaveX), static_cast<float>(FaultlineWaveY), static_cast<float>(FaultlineWaveZ));
+	if (FaultlineLanePoints.IsValidIndex(WaveLaneCursor))
+	{
+		float BestLead = 0.f;
+		bool bLead = false;
+		const FVector Mark = FaultlineLanePoints[WaveLaneCursor];
+		for (const FKodScriptedUnit& Row : ScriptedUnits)
+		{
+			if (Row.Role != 2)
+			{
+				continue;
+			}
+			const FKodSimEntityState* State = States.Find(Row.Id);
+			if (!State || State->Health <= 0.f)
+			{
+				continue;
+			}
+			const float Dist = FVector::DistSquared2D(State->Position, Mark);
+			if (!bLead || Dist < BestLead)
+			{
+				bLead = true;
+				BestLead = Dist;
+				MarchFrom = State->Position;
+			}
+		}
+	}
+	FVector LanePoint;
+	if (NextLanePoint(1, WaveLaneCursor, MarchFrom, LanePoint))
+	{
+		Target = FKodEntityId();
+		Point = LanePoint;
 	}
 	int32 Ordered = 0;
 	for (FKodScriptedUnit& Row : ScriptedUnits)
@@ -925,6 +1033,9 @@ void UKodSimSubsystem::ResetFaultlineScript()
 	FaultlineLaneY = 0;
 	FaultlineLaneZ = 0;
 	bFaultlineHasLane = 0;
+	FaultlineLanePoints.Reset();
+	WaveLaneCursor = 0;
+	AutoplayLaneCursor = -1;
 	FaultlineBarracksX = 0;
 	FaultlineBarracksY = 0;
 	FaultlineBarracksZ = 0;
@@ -1447,9 +1558,22 @@ void UKodSimSubsystem::StepFaultlineWave()
 				LiveHp += FMath::RoundToInt(State->Health);
 			}
 		}
-		const bool bDamaged = FaultlineWaveStartHp > 0 && LiveHp < FaultlineWaveStartHp;
-		const bool bBroken = bDamaged && LiveHp * 1000 <= FaultlineWaveStartHp * 300;
-		if (Seen > 0 && bBroken)
+		int32 PlayerCombat = 0;
+		{
+			TArray<int32> Keys;
+			States.GetKeys(Keys);
+			for (int32 Key : Keys)
+			{
+				const FKodSimEntityState* State = States.Find(Key);
+				if (State && State->TeamId == 0 && State->Health > 0.f && State->bMobile && !State->bCanGather)
+				{
+					++PlayerCombat;
+				}
+			}
+		}
+		const int64 Elapsed = SimTickIndex - FaultlineWaveStartTick;
+		const bool bBroken = FaultlineWaveStartHp > 0 && LiveHp < FaultlineWaveStartHp && LiveHp * 1000 <= FaultlineWaveStartHp * 300;
+		if (Seen > 0 && FaultlineWaveShouldRetreat(LiveHp, FaultlineWaveStartHp, PlayerCombat, Elapsed))
 		{
 			FaultlineWavePhase = 3;
 			FaultlineRetreatTick = SimTickIndex;
@@ -1466,7 +1590,13 @@ void UKodSimSubsystem::StepFaultlineWave()
 					DeferMove(State->Id, Back);
 				}
 			}
-			UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Retreat LiveHp=%d StartHp=%d"), LiveHp, FaultlineWaveStartHp);
+			const TCHAR* Reason = bBroken ? TEXT("Hp") : (PlayerCombat <= 0 ? TEXT("Win") : TEXT("Time"));
+			UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Retreat Reason=%s LiveHp=%d StartHp=%d Combat=%d Elapsed=%lld"),
+				Reason,
+				LiveHp,
+				FaultlineWaveStartHp,
+				PlayerCombat,
+				static_cast<long long>(Elapsed));
 		}
 		return;
 	}
@@ -1509,8 +1639,7 @@ void UKodSimSubsystem::StepFaultlineWave()
 	}
 	if (FaultlineWavePhase == 4)
 	{
-		const int64 RearmTicks = static_cast<int64>(FMath::Max(FaultlineDelayTicks, 16 * 20));
-		if (SimTickIndex < FaultlineRetreatTick + RearmTicks)
+		if (!FaultlineWaveRearmDue(SimTickIndex, FaultlineRetreatTick, FaultlineDelayTicks))
 		{
 			return;
 		}
@@ -1546,7 +1675,7 @@ void UKodSimSubsystem::StepEntityMove(FKodSimEntityState& State, float FixedDt)
 				const FVector Next = State.PatrolAnchor;
 				State.PatrolAnchor = State.MoveTarget;
 				State.MoveTarget = Next;
-				State.PathId = PlanMovePath(State.Position, State.MoveTarget, State.TeamId);
+				State.PathId = FMath::Max(0, PlanMovePath(State.Position, State.MoveTarget, State.TeamId));
 				State.PathCursor = 0;
 				QuantizePose(State);
 				return;
@@ -3966,6 +4095,17 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&Scripted.bOrdered, sizeof(Scripted.bOrdered));
 		Append(&Scripted.LastHealth, sizeof(Scripted.LastHealth));
 	}
+	const int32 LaneCount = FaultlineLanePoints.Num();
+	Append(&LaneCount, sizeof(LaneCount));
+	for (const FVector& LanePoint : FaultlineLanePoints)
+	{
+		const int32 LaneX = FMath::RoundToInt(LanePoint.X);
+		const int32 LaneY = FMath::RoundToInt(LanePoint.Y);
+		Append(&LaneX, sizeof(LaneX));
+		Append(&LaneY, sizeof(LaneY));
+	}
+	Append(&WaveLaneCursor, sizeof(WaveLaneCursor));
+	Append(&AutoplayLaneCursor, sizeof(AutoplayLaneCursor));
 
 	const uint64 Hash = Bytes.Num() > 0
 		? CityHash64(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num())

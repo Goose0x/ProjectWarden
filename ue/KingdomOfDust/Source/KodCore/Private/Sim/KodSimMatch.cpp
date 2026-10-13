@@ -799,6 +799,14 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 		Blob.WU8(Scripted.bOrdered);
 		Blob.WInt(Scripted.LastHealth);
 	}
+	Blob.WInt(FaultlineLanePoints.Num());
+	for (const FVector& LanePoint : FaultlineLanePoints)
+	{
+		Blob.WInt(FMath::RoundToInt(LanePoint.X));
+		Blob.WInt(FMath::RoundToInt(LanePoint.Y));
+	}
+	Blob.WInt(WaveLaneCursor);
+	Blob.WInt(AutoplayLaneCursor);
 	return Blob.Bytes;
 }
 
@@ -1729,6 +1737,26 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 				ScriptedUnits.Add(Scripted);
 			}
 			ScriptedUnits.Sort([](const FKodScriptedUnit& A, const FKodScriptedUnit& B) { return A.Id < B.Id; });
+			if (Version >= 12)
+			{
+				int32 LaneCount = 0;
+				FaultlineLanePoints.Reset();
+				if (Blob.RInt(LaneCount) && LaneCount >= 0 && LaneCount <= 64)
+				{
+					for (int32 LaneIndex = 0; LaneIndex < LaneCount; ++LaneIndex)
+					{
+						int32 LaneX = 0;
+						int32 LaneY = 0;
+						if (!Blob.RInt(LaneX) || !Blob.RInt(LaneY))
+						{
+							break;
+						}
+						FaultlineLanePoints.Add(FVector(static_cast<float>(LaneX), static_cast<float>(LaneY), 0.f));
+					}
+				}
+				Blob.RInt(WaveLaneCursor);
+				Blob.RInt(AutoplayLaneCursor);
+			}
 		}
 		else
 		{

@@ -107,6 +107,10 @@ namespace
 
 	bool IsSlice0CommandCenter(const AActor* Actor)
 	{
+		if (Actor && Actor->ActorHasTag(FName(TEXT("KodBuildingCommandCenter"))))
+		{
+			return true;
+		}
 		return ActorNameOrLabelMatches(Actor, &IsSlice0CommandCenterName);
 	}
 

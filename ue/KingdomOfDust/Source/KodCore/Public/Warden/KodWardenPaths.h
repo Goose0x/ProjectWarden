@@ -35,8 +35,8 @@ namespace KodWardenPaths
 	/** Legacy infantry id. Ranger is Marine. Used only to read blobs older than version 11. */
 	constexpr const TCHAR* Id_Ranger = TEXT("Ranger");
 
-	/** Current sim blob. Version 11 writes Marine. Older blobs say Ranger for that infantry. */
-	inline constexpr int32 SimSaveVersion = 11;
+	/** Current sim blob. Version 11 writes Marine. Version 12 adds the Faultline lane. */
+	inline constexpr int32 SimSaveVersion = 12;
 
 	/**
 	 * Saves and replays below SimSaveVersion stored the Marine as Ranger.
@@ -44,7 +44,7 @@ namespace KodWardenPaths
 	 */
 	inline FName AliasLegacyMarineId(FName Id, int32 LoadedVersion)
 	{
-		if (LoadedVersion < SimSaveVersion && Id == FName(Id_Ranger))
+		if (LoadedVersion < 11 && Id == FName(Id_Ranger))
 		{
 			return FName(Id_Marine);
 		}

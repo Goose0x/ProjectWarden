@@ -168,7 +168,7 @@ void UKodSimSubsystem::IssueOrder(
 	}
 	else if (Kind == EKodSimOrderType::Move || Kind == EKodSimOrderType::AttackMove || Kind == EKodSimOrderType::Patrol)
 	{
-		State->PathId = PlanMovePath(State->Position, Point, State->TeamId);
+		State->PathId = FMath::Max(0, PlanMovePath(State->Position, Point, State->TeamId));
 	}
 	else
 	{
