@@ -97,7 +97,7 @@ void UKodSimSubsystem::IssueStop(FKodEntityId Id)
 		State->PathCursor = 0;
 		State->BackswingTicksRemaining = 0;
 		QuantizePose(*State);
-		UE_LOG(LogTemp, Log, TEXT("KodOrder Stop Unit=%d"), Id.Value);
+		UE_LOG(LogTemp, Verbose, TEXT("KodOrder Stop Unit=%d"), Id.Value);
 	}
 }
 
@@ -121,7 +121,7 @@ void UKodSimSubsystem::IssueOrder(
 	{
 		if (State->OrderQueue.Num() >= OrderQueueCap)
 		{
-			UE_LOG(LogTemp, Log, TEXT("KodOrder QueueFull Unit=%d"), Id.Value);
+			UE_LOG(LogTemp, Verbose, TEXT("KodOrder QueueFull Unit=%d"), Id.Value);
 			return;
 		}
 		FKodQueuedOrder Step;
@@ -133,7 +133,7 @@ void UKodSimSubsystem::IssueOrder(
 		Step.OffsetX = OffsetX;
 		Step.OffsetY = OffsetY;
 		State->OrderQueue.Add(Step);
-		UE_LOG(LogTemp, Log, TEXT("KodOrder Queue Unit=%d Kind=%s Target=%d"),
+		UE_LOG(LogTemp, Verbose, TEXT("KodOrder Queue Unit=%d Kind=%s Target=%d"),
 			Id.Value,
 			OrderLabel(Kind),
 			Target.Value);
@@ -184,16 +184,11 @@ void UKodSimSubsystem::IssueOrder(
 			}
 			else
 			{
-				FVector SeenPoint;
-				if (TryGetLastSeenPoint(State->TeamId, Target.Value, SeenPoint))
-				{
-					SeenPoint.Z = State->Position.Z;
-					State->MoveTarget = SeenPoint;
-				}
+				State->MoveTarget = HiddenTargetPoint(State->TeamId, *Victim, State->Position.Z);
 			}
 		}
 	}
-	UE_LOG(LogTemp, Log, TEXT("KodOrder %s Unit=%d Target=%d Dest=%.0f,%.0f Path=%d"),
+	UE_LOG(LogTemp, Verbose, TEXT("KodOrder %s Unit=%d Target=%d Dest=%.0f,%.0f Path=%d"),
 		OrderLabel(Kind),
 		Id.Value,
 		Target.Value,
@@ -228,7 +223,7 @@ void UKodSimSubsystem::CompleteCurrentOrder(FKodSimEntityState& State, float Fix
 		{
 			Live->OrderQueue = Rest;
 		}
-		UE_LOG(LogTemp, Log, TEXT("KodOrder QueuePop Unit=%d Kind=%s"), SelfId, OrderLabel(Step.Order));
+		UE_LOG(LogTemp, Verbose, TEXT("KodOrder QueuePop Unit=%d Kind=%s"), SelfId, OrderLabel(Step.Order));
 		return;
 	}
 	State.Order = EKodSimOrderType::None;

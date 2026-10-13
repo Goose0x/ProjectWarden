@@ -524,7 +524,8 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 		}
 		FKodEntityId UnitId;
 		UnitId.Value = Key;
-		if (Target.IsValid() && State->Order == EKodSimOrderType::Attack && State->AttackTarget == Target)
+		if (State->Order == EKodSimOrderType::AttackMove
+			|| (Target.IsValid() && State->Order == EKodSimOrderType::Attack && State->AttackTarget == Target))
 		{
 			++Sent;
 			continue;

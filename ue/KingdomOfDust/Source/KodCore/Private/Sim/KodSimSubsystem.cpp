@@ -536,6 +536,10 @@ void UKodSimSubsystem::OrderFaultlineWave()
 		{
 			continue;
 		}
+		if (State->Order == EKodSimOrderType::AttackMove)
+		{
+			continue;
+		}
 		if (Target.IsValid() && State->Order == EKodSimOrderType::Attack && State->AttackTarget == Target)
 		{
 			continue;
@@ -544,13 +548,9 @@ void UKodSimSubsystem::OrderFaultlineWave()
 		{
 			DeferAttack(State->Id, Target);
 		}
-		else if (State->Order != EKodSimOrderType::AttackMove)
-		{
-			DeferAttackMove(State->Id, Point);
-		}
 		else
 		{
-			continue;
+			DeferAttackMove(State->Id, Point);
 		}
 		Row.bOrdered = 1;
 		++Ordered;
@@ -608,7 +608,7 @@ void UKodSimSubsystem::LogMatchPulse(const TCHAR* Reason)
 	{
 		SeenCount += Pair.Value.Num();
 	}
-	const int32 States = Keys.Num();
+	const int32 StateCount = Keys.Num();
 	const int32 Paths = StoredPaths.Num();
 	const int32 Samples = Samples0.Num() + Samples1.Num() + OlderSamples0.Num() + OlderSamples1.Num();
 	const FPlatformMemoryStats Stats = FPlatformMemory::GetStats();
@@ -629,8 +629,8 @@ void UKodSimSubsystem::LogMatchPulse(const TCHAR* Reason)
 		Objects,
 		Objects - SoakLastObjects,
 		Actors,
-		States,
-		States - SoakLastStates,
+		StateCount,
+		StateCount - SoakLastStates,
 		Paths,
 		Paths - SoakLastPaths,
 		Samples,
@@ -640,7 +640,7 @@ void UKodSimSubsystem::LogMatchPulse(const TCHAR* Reason)
 		DeferredCommands.Num(),
 		SeenCount);
 	SoakLastObjects = Objects;
-	SoakLastStates = States;
+	SoakLastStates = StateCount;
 	SoakLastPaths = Paths;
 	SoakLastSamples = Samples;
 }
@@ -1575,18 +1575,12 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 		QuantizePose(State);
 		return;
 	}
-	if (Target->TeamId != State.TeamId && !CanTeamSeeWorld(State.TeamId, Target->Position.X, Target->Position.Y))
+	if (Target->TeamId != State.TeamId && !TeamSeesPoint(State.TeamId, Target->Position.X, Target->Position.Y))
 	{
 		State.BackswingTicksRemaining = 0;
 		if (State.bExplicitAttack && State.bMobile)
 		{
-			FVector Dest = State.MoveTarget;
-			FVector Seen;
-			if (TryGetLastSeenPoint(State.TeamId, Target->Id.Value, Seen))
-			{
-				Dest = Seen;
-			}
-			Dest.Z = State.Position.Z;
+			const FVector Dest = HiddenTargetPoint(State.TeamId, *Target, State.Position.Z);
 			const int32 SelfId = State.Id.Value;
 			TArray<FKodQueuedOrder> Rest = State.OrderQueue;
 			IssueOrder(State.Id, EKodSimOrderType::AttackMove, Dest, FKodEntityId(), false);
@@ -1595,7 +1589,7 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 				Live->OrderQueue = Rest;
 				Live->bExplicitAttack = false;
 			}
-			UE_LOG(LogTemp, Log, TEXT("KodOrder FogChase Unit=%d Dest=%.0f,%.0f"), SelfId, Dest.X, Dest.Y);
+			UE_LOG(LogTemp, Verbose, TEXT("KodOrder FogChase Unit=%d Dest=%.0f,%.0f"), SelfId, Dest.X, Dest.Y);
 			return;
 		}
 		State.AttackTarget = FKodEntityId();
