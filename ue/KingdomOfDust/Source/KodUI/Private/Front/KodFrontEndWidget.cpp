@@ -160,9 +160,9 @@ void UKodFrontEndWidget::AddButton(UVerticalBox* Box, const FText& Label, FName 
 		Button->SetBackgroundColor(bEnabled ? UKodUIStyleLibrary::GetHpGreen() : UKodUIStyleLibrary::GetAlertRed());
 	}
 	Button->BindMenu(this, Action);
-	if (UVerticalBoxSlot* Slot = Box->AddChildToVerticalBox(Button))
+	if (UVerticalBoxSlot* ButtonSlot = Box->AddChildToVerticalBox(Button))
 	{
-		Slot->SetPadding(FMargin(0.f, 6.f));
+		ButtonSlot->SetPadding(FMargin(0.f, 6.f));
 	}
 }
 
@@ -205,9 +205,9 @@ void UKodFrontEndWidget::AddPortrait(UHorizontalBox* Row, const FText& Title, co
 		SizeSlot->SetHorizontalAlignment(HAlign_Fill);
 		SizeSlot->SetVerticalAlignment(VAlign_Fill);
 	}
-	if (UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(Size))
+	if (UHorizontalBoxSlot* SizeSlot = Row->AddChildToHorizontalBox(Size))
 	{
-		Slot->SetPadding(FMargin(8.f, 8.f));
+		SizeSlot->SetPadding(FMargin(8.f, 8.f));
 	}
 }
 
