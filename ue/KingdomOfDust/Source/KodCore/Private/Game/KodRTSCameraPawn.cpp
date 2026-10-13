@@ -1,5 +1,8 @@
 #include "Game/KodRTSCameraPawn.h"
 
+#include "Game/KodCameraSettings.h"
+#include "Camera/CameraTypes.h"
+
 #include "Camera/CameraComponent.h"
 #include "Math/RotationMatrix.h"
 #include "CollisionQueryParams.h"
@@ -44,7 +47,7 @@ AKodRTSCameraPawn::AKodRTSCameraPawn()
 	CameraBoom->bInheritPitch = false;
 	CameraBoom->bInheritRoll = false;
 	CameraBoom->bUsePawnControlRotation = false;
-	CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, 0.f));
+	CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, RollDegrees));
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
@@ -57,6 +60,7 @@ AKodRTSCameraPawn::AKodRTSCameraPawn()
 void AKodRTSCameraPawn::BeginPlay()
 {
 	Super::BeginPlay();
+	ApplyTunables();
 
 	if (!bViewCopied)
 	{
@@ -89,10 +93,56 @@ void AKodRTSCameraPawn::BeginPlay()
 	{
 		bLoggedInit = true;
 		const float Height = CurrentArmLength * FMath::Sin(FMath::DegreesToRadians(FMath::Abs(PitchDegrees)));
-		UE_LOG(LogTemp, Log, TEXT("KodCam Init Pitch=%.0f FOV=%.0f Height=%.0f"),
+		const FKodCameraTunables Tunables = FKodCameraTunables::Read();
+		UE_LOG(LogTemp, Log, TEXT("KodCam Init Pitch=%.0f Yaw=%.0f Roll=%.0f FOV=%.0f Height=%.0f %s"),
 			PitchDegrees,
+			YawDegrees,
+			RollDegrees,
 			VerticalFovDegrees,
-			Height);
+			Height,
+			*Tunables.DescribeScale());
+	}
+}
+
+void AKodRTSCameraPawn::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
+{
+	Super::CalcCamera(DeltaTime, OutResult);
+	if (ActiveNearClipUU > 0.f)
+	{
+		OutResult.PerspectiveNearClipPlane = ActiveNearClipUU;
+	}
+}
+
+void AKodRTSCameraPawn::ApplyTunables()
+{
+	const FKodCameraTunables Tunables = FKodCameraTunables::Read();
+	PitchDegrees = Tunables.Pitch;
+	VerticalFovDegrees = Tunables.Fov;
+	RollDegrees = Tunables.Roll;
+	ZoomReturnSpeed = FMath::Max(0.f, Tunables.ZoomReturnSpeed);
+	ZoomStep = KodCameraSettings::ToUU(FMath::Max(0.f, Tunables.ZoomStepSc2), Tunables.UnitScaleUU);
+	TargetZOffsetUU = KodCameraSettings::ToUU(Tunables.TargetZSc2, Tunables.UnitScaleUU);
+	ActiveNearClipUU = FMath::Max(0.01f, KodCameraSettings::ToUU(Tunables.NearSc2, Tunables.UnitScaleUU));
+	ActiveFarClipUU = FMath::Max(ActiveNearClipUU, KodCameraSettings::ToUU(Tunables.FarSc2, Tunables.UnitScaleUU));
+	DefaultArmLength = KodCameraSettings::ToUU(Tunables.DistanceSc2, Tunables.UnitScaleUU);
+	const bool bSpectator = IsA(AKodSpectatorPawn::StaticClass());
+	if (!bSpectator)
+	{
+		YawDegrees = Tunables.Yaw;
+		MinArmLength = KodCameraSettings::ToUU(Tunables.DistanceMinSc2, Tunables.UnitScaleUU);
+		MaxArmLength = DefaultArmLength;
+		if (!bAllowAltDragRotate)
+		{
+			SetActorRotation(FRotator(0.f, YawDegrees, 0.f));
+		}
+	}
+	if (!FMath::IsNearlyEqual(LoggedUnitScale, Tunables.UnitScaleUU))
+	{
+		LoggedUnitScale = Tunables.UnitScaleUU;
+		UE_LOG(LogTemp, Log, TEXT("KodCam %s NearUU=%.1f FarUU=%.0f"),
+			*Tunables.DescribeScale(),
+			ActiveNearClipUU,
+			ActiveFarClipUU);
 	}
 }
 
@@ -138,6 +188,7 @@ void AKodRTSCameraPawn::Tick(float DeltaSeconds)
 		ShakeApplied = FVector::ZeroVector;
 	}
 	const float Dt = FMath::Max(0.f, DeltaSeconds);
+	ApplyTunables();
 
 	ApplyVerticalFov();
 	MaintainBoom();
@@ -159,6 +210,11 @@ void AKodRTSCameraPawn::Tick(float DeltaSeconds)
 		UpdateFollow(Dt);
 	}
 
+	if (ZoomCeiling() <= DefaultArmLength + 1.f && !bZoomInThisFrame)
+	{
+		TargetArmLength = FMath::FInterpTo(TargetArmLength, DefaultArmLength, Dt, ZoomReturnSpeed);
+	}
+	bZoomInThisFrame = false;
 	CurrentArmLength = FMath::FInterpTo(CurrentArmLength, TargetArmLength, Dt, ZoomInterpSpeed);
 	if (CameraBoom)
 	{
@@ -194,6 +250,16 @@ void AKodRTSCameraPawn::Zoom(float AxisValue)
 {
 	if (FMath::IsNearlyZero(AxisValue))
 	{
+		return;
+	}
+	const bool bLocked = ZoomCeiling() <= DefaultArmLength + 1.f;
+	if (bLocked)
+	{
+		if (AxisValue > 0.f)
+		{
+			bZoomInThisFrame = true;
+			TargetArmLength = FMath::Clamp(TargetArmLength - AxisValue * ZoomStep, MinArmLength, DefaultArmLength);
+		}
 		return;
 	}
 	if (AxisValue < 0.f && ZoomCeiling() <= DefaultArmLength + 1.f)
@@ -385,9 +451,7 @@ void AKodRTSCameraPawn::MaintainBoom()
 	{
 		return;
 	}
-	const float ClosePitch = -50.f;
-	const float UsePitch = CurrentArmLength <= MinArmLength + 1.f ? ClosePitch : PitchDegrees;
-	CameraBoom->SetRelativeRotation(FRotator(UsePitch, 0.f, 0.f));
+	CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, RollDegrees));
 	CameraBoom->bEnableCameraLag = false;
 	CameraBoom->bEnableCameraRotationLag = false;
 }
@@ -634,7 +698,7 @@ void AKodRTSCameraPawn::ResetZoomAndPitch()
 	if (CameraBoom)
 	{
 		CameraBoom->TargetArmLength = CurrentArmLength;
-		CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, 0.f));
+		CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, RollDegrees));
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodCam Reset Arm=%.0f Pitch=%.0f"), CurrentArmLength, PitchDegrees);
 }
@@ -692,21 +756,38 @@ void AKodRTSCameraPawn::PollZoom()
 		}
 	}
 	const float Ceiling = ZoomCeiling();
-	if (Wheel > 0.f || (Wheel < 0.f && Ceiling > DefaultArmLength + 1.f))
+	const bool bLocked = Ceiling <= DefaultArmLength + 1.f;
+	if (bLocked)
+	{
+		if (Wheel > 0.f)
+		{
+			bZoomInThisFrame = true;
+			TargetArmLength = FMath::Clamp(TargetArmLength - Wheel * ZoomStep, MinArmLength, DefaultArmLength);
+		}
+	}
+	else if (Wheel > 0.f || (Wheel < 0.f && Ceiling > DefaultArmLength + 1.f))
 	{
 		TargetArmLength = FMath::Clamp(TargetArmLength - Wheel * ZoomStep, MinArmLength, Ceiling);
 	}
 	if (PC->WasInputKeyJustPressed(EKeys::End))
 	{
-		const bool bAtClose = FMath::Abs(TargetArmLength - MinArmLength) <= 1.f;
-		const float Next = bAtClose ? DefaultArmLength : MinArmLength;
-		TargetArmLength = FMath::Clamp(Next, MinArmLength, Ceiling);
-		CurrentArmLength = TargetArmLength;
-		if (CameraBoom)
+		if (bLocked)
 		{
-			CameraBoom->TargetArmLength = CurrentArmLength;
+			bZoomInThisFrame = true;
+			TargetArmLength = MinArmLength;
 		}
-		UE_LOG(LogTemp, Log, TEXT("KodCam Zoom End Arm=%.0f"), CurrentArmLength);
+		else
+		{
+			const bool bAtClose = FMath::Abs(TargetArmLength - MinArmLength) <= 1.f;
+			const float Next = bAtClose ? DefaultArmLength : MinArmLength;
+			TargetArmLength = FMath::Clamp(Next, MinArmLength, Ceiling);
+			CurrentArmLength = TargetArmLength;
+			if (CameraBoom)
+			{
+				CameraBoom->TargetArmLength = CurrentArmLength;
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodCam Zoom End Arm=%.0f"), TargetArmLength);
 	}
 	if (Ceiling > DefaultArmLength + 1.f && PC->WasInputKeyJustPressed(EKeys::Z) && !HasLiftableSelection())
 	{
@@ -877,11 +958,20 @@ void AKodRTSCameraPawn::UpdateTerrain(float DeltaSeconds, bool bInstant)
 	Params.AddIgnoredActor(this);
 	const FVector Start(Loc.X, Loc.Y, Loc.Z + 8000.f);
 	const FVector End(Loc.X, Loc.Y, Loc.Z - 16000.f);
-	FHitResult Hit;
-	if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+	TArray<FHitResult> Hits;
+	if (World->LineTraceMultiByChannel(Hits, Start, End, ECC_WorldStatic, Params) && Hits.Num() > 0)
 	{
-		TargetGroundZ = Hit.ImpactPoint.Z;
+		TargetGroundZ = Hits.Last().ImpactPoint.Z + TargetZOffsetUU;
 		bHaveGround = true;
+	}
+	else
+	{
+		FHitResult Hit;
+		if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+		{
+			TargetGroundZ = Hit.ImpactPoint.Z + TargetZOffsetUU;
+			bHaveGround = true;
+		}
 	}
 	if (!bHaveGround)
 	{

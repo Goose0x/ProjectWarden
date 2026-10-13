@@ -26,6 +26,7 @@ public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaSeconds) override;
+	virtual void CalcCamera(float DeltaTime, struct FMinimalViewInfo& OutResult) override;
 
 	/** One-shot world pan. X is right, Y is forward, in camera yaw. */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Camera")
@@ -72,20 +73,24 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Kod|Camera")
 	TObjectPtr<UCameraComponent> Camera;
 
-	/** Degrees below the horizon. SC2 is about -56. Negative looks down. */
+	/** Degrees below the horizon. Negative looks down. kod.Cam.Pitch. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
 	float PitchDegrees = -56.f;
 
-	/** World yaw. 0 looks north (+X). */
+	/** World yaw. 90 puts map north at the top of the screen. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
-	float YawDegrees = 0.f;
+	float YawDegrees = 90.f;
+
+	/** Camera roll. The Director default is 0. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
+	float RollDegrees = 0.f;
 
 	/**
 	 * Vertical field of view. Applied as the matching horizontal FOV for the current viewport.
-	 * 42 puts a 180 cm Marine in an SC2-like amount of ground.
+	 * kod.Cam.Fov retunes it live.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
-	float VerticalFovDegrees = 40.f;
+	float VerticalFovDegrees = 35.f;
 
 	/** World units per second at full scroll. SC2 "Scroll speed". */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
@@ -111,22 +116,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
 	float EdgeScrollMarginPx = 2.f;
 
-	/** Arm-length change per mouse-wheel notch. */
+	/** Arm-length change per mouse-wheel notch, in uu. kod.Cam.ZoomStep is in SC2 units. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
-	float ZoomStep = 420.f;
+	float ZoomStep = 400.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
 	float ZoomInterpSpeed = 12.f;
 
+	/** How fast a gameplay zoom-in eases back to DefaultArmLength. kod.Cam.ZoomReturn. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
-	float MinArmLength = 1800.f;
+	float ZoomReturnSpeed = 1.75f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
-	float MaxArmLength = 3200.f;
+	float MinArmLength = 3200.f;
 
-	/** Match zoom-out stops here. 15% tighter than 3600 so units read larger. Config can retune it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
-	float DefaultArmLength = 2600.f;
+	float MaxArmLength = 6800.f;
+
+	/** Resting distance. Gameplay is locked here. 34 SC2 units at 200 uu each. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
+	float DefaultArmLength = 6800.f;
 
 	/** How fast the look-at point settles onto the ground under it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
@@ -168,6 +177,7 @@ protected:
 	void HandleTrainCompleted(FVector Location, int32 TeamId);
 
 	void ApplyVerticalFov();
+	void ApplyTunables();
 	void MaintainBoom();
 	void FocusCommandCenter();
 	void PollMoveInput(float DeltaSeconds, bool& bOutManualPan);
@@ -194,8 +204,13 @@ protected:
 	void SaveBookmark(int32 SlotNumber);
 	void RecallBookmark(int32 SlotNumber);
 
-	float CurrentArmLength = 2600.f;
-	float TargetArmLength = 2600.f;
+	float CurrentArmLength = 6800.f;
+	float TargetArmLength = 6800.f;
+	float TargetZOffsetUU = 0.f;
+	float ActiveNearClipUU = 20.f;
+	float ActiveFarClipUU = 30000.f;
+	float LoggedUnitScale = -1.f;
+	bool bZoomInThisFrame = false;
 	FVector PanVelocity = FVector::ZeroVector;
 	bool bGrabbing = false;
 	bool bGrabMoved = false;
