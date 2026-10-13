@@ -524,14 +524,16 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 		}
 		FKodEntityId UnitId;
 		UnitId.Value = Key;
+		const FVector* OrderMark = AutoplayOrderMarks.Find(Key);
+		const bool bStuck = OrderMark && FVector::DistSquared2D(State->Position, *OrderMark) < FMath::Square(64.f);
 		const bool bOnTarget = Target.IsValid()
 			&& State->Order == EKodSimOrderType::Attack
 			&& State->AttackTarget == Target;
 		const bool bAlreadyMoving = State->Order == EKodSimOrderType::AttackMove
 			&& FVector::DistSquared2D(State->MoveTarget, AttackPoint) <= FMath::Square(128.f);
-		if (bOnTarget || bAlreadyMoving)
+		if ((bOnTarget || bAlreadyMoving) && !bStuck)
 		{
-			++Sent;
+			AutoplayOrderMarks.Add(Key, State->Position);
 			continue;
 		}
 		if (Target.IsValid() && States.Contains(Target.Value))
@@ -542,6 +544,7 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 		{
 			DeferAttackMove(UnitId, AttackPoint);
 		}
+		AutoplayOrderMarks.Add(Key, State->Position);
 		++Sent;
 		if (Sent >= 8)
 		{

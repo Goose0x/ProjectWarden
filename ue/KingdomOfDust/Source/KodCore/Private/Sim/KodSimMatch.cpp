@@ -804,6 +804,7 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 
 void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 {
+	AutoplayOrderMarks.Reset();
 	FBlob Blob;
 	Blob.Bytes = Bytes;
 	int32 Version = 0;

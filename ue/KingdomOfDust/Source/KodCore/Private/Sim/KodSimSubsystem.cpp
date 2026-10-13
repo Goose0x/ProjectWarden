@@ -43,6 +43,7 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	SoakMemoryAnchorElapsed = 0.f;
 	SoakPulseAt = 0.f;
 	bAutoplaySquadSent = false;
+	AutoplayOrderMarks.Reset();
 	bHasPlayable = false;
 	TimeAccumulator = 0.f;
 	SimTickIndex = 0;
@@ -175,6 +176,7 @@ void UKodSimSubsystem::Deinitialize()
 	bHasPlayable = false;
 	PrevPositions.Reset();
 	PrevYaws.Reset();
+	AutoplayOrderMarks.Reset();
 	bAiEnabled = true;
 	AiDifficulty = 1;
 	bAiSeeded = false;
@@ -1496,12 +1498,25 @@ void UKodSimSubsystem::StepFaultlineWave()
 		{
 			DespawnFaultlineRole(2);
 			FaultlineWavePhase = 4;
+			FaultlineRetreatTick = SimTickIndex;
 			UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave End Tick=%lld Kills0=%d Kills1=%d Living=%d"),
 				static_cast<long long>(SimTickIndex),
 				Totals0.Killed,
 				Totals1.Killed,
 				Living);
 		}
+		return;
+	}
+	if (FaultlineWavePhase == 4)
+	{
+		const int64 RearmTicks = static_cast<int64>(FMath::Max(FaultlineDelayTicks, 16 * 20));
+		if (SimTickIndex < FaultlineRetreatTick + RearmTicks)
+		{
+			return;
+		}
+		bFaultlineWaveSent = false;
+		FaultlineWavePhase = 0;
+		UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Rearm Tick=%lld WaveSent=0"), static_cast<long long>(SimTickIndex));
 	}
 }
 

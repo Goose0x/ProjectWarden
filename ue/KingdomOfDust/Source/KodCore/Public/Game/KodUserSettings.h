@@ -4,6 +4,10 @@
 #include "UObject/Object.h"
 #include "KodUserSettings.generated.h"
 
+class USoundClass;
+class USoundMix;
+class UWorld;
+
 /** Persisted under GameUserSettings.ini. Volumes are 0 to 1. */
 UCLASS(Config = GameUserSettings)
 class KODCORE_API UKodUserSettings : public UObject
@@ -13,7 +17,7 @@ class KODCORE_API UKodUserSettings : public UObject
 public:
 	static UKodUserSettings* Get();
 
-	void Apply(UWorld* World) const;
+	void Apply(UWorld* World);
 	void SaveNow();
 
 	UPROPERTY(Config)
@@ -55,4 +59,24 @@ public:
 	/** Floating damage numbers. Off until the player turns them on. */
 	UPROPERTY(Config)
 	bool bShowDamageNumbers = false;
+
+private:
+	/** Real bus assets. Transient NewObject classes make the audio device log every frame. */
+	bool EnsureVolumeMix();
+	void ApplyVolumes(UWorld* World);
+
+	UPROPERTY(Transient)
+	TObjectPtr<USoundMix> VolumeMix;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USoundClass> MusicClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USoundClass> SfxClass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USoundClass> VoiceClass;
+
+	TWeakObjectPtr<UWorld> VolumeMixWorld;
+	bool bLoggedMissingBuses = false;
 };
