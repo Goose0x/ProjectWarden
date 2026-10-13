@@ -5,29 +5,61 @@
 # project master sound class. Does not commit a .uasset. UKodUserSettings soft-loads
 # these paths and skips the volume mix when they are missing or audio is off,
 # so a headless soak does not push transient classes.
+import os
 import unreal
 
 PATH = "/Game/Audio/Classes"
 NAMES = ("KodMusic", "KodSFX", "KodVoice")
+FALLBACK_MASTER = "/Engine/EngineSounds/Master.Master"
+
+
+def load_sound_class(asset_path):
+    if not asset_path:
+        return None
+    loaded = unreal.EditorAssetLibrary.load_asset(asset_path)
+    if isinstance(loaded, unreal.SoundClass):
+        return loaded
+    try:
+        loaded = unreal.load_object(None, asset_path)
+    except Exception:
+        loaded = None
+    if isinstance(loaded, unreal.SoundClass):
+        return loaded
+    return None
+
+
+def default_sound_class_from_config():
+    roots = []
+    try:
+        roots.append(unreal.Paths.project_config_dir())
+    except Exception:
+        pass
+    try:
+        roots.append(unreal.Paths.engine_config_dir())
+    except Exception:
+        pass
+    names = ("DefaultEngine.ini", "BaseEngine.ini")
+    for root in roots:
+        for name in names:
+            ini_path = os.path.join(root, name)
+            if not os.path.isfile(ini_path):
+                continue
+            with open(ini_path, "r", encoding="utf-8", errors="ignore") as handle:
+                for line in handle:
+                    stripped = line.strip()
+                    if stripped.startswith("DefaultSoundClassName="):
+                        return stripped.split("=", 1)[1].strip().strip('"')
+    return ""
 
 
 def master_class():
-    candidates = (
-        "/Engine/EngineSounds/Master.Master",
-        "/Engine/EngineSounds/Master",
-    )
-    for asset_path in candidates:
-        loaded = unreal.EditorAssetLibrary.load_asset(asset_path)
+    configured = default_sound_class_from_config()
+    for asset_path in (configured, FALLBACK_MASTER, "/Engine/EngineSounds/Master"):
+        loaded = load_sound_class(asset_path)
         if loaded:
+            unreal.log(f"KodAudio master {asset_path}")
             return loaded
-    try:
-        settings = unreal.AudioSettings.get_default_object()
-        soft = settings.get_editor_property("default_sound_class")
-        loaded = soft.load_synchronous() if soft else None
-        if loaded:
-            return loaded
-    except Exception as exc:
-        unreal.log_warning(f"KodAudio master lookup skipped: {exc}")
+    unreal.log_warning("KodAudio master sound class was not found; buses will have no parent")
     return None
 
 

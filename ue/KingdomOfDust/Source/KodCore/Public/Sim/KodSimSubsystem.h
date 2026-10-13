@@ -435,8 +435,16 @@ public:
 		int32 OffsetX = 0,
 		int32 OffsetY = 0);
 
-	/** Grid A* around structure footprints. 0 means go straight. TeamId walks its own lowered depots. */
-	int32 PlanMovePath(FVector From, FVector To, int32 TeamId = -1);
+	/**
+	 * Grid A* around structure footprints.
+	 * 0 means the straight line is clear, or a probe found a route and did not store it.
+	 * A stored route is a positive id. -1 means no route.
+	 * TeamId walks its own lowered depots. bStore false only tests reachability.
+	 */
+	int32 PlanMovePath(FVector From, FVector To, int32 TeamId = -1, bool bStore = true);
+
+	/** True when a straight line or an A* route connects the two points. */
+	bool HasMoveRoute(FVector From, FVector To, int32 TeamId = -1);
 
 	/** 0 unexplored, 1 explored, 2 visible. Local and AI teams share this grid. */
 	uint8 GetTeamVision(int32 TeamId, float WorldX, float WorldY) const;
@@ -664,6 +672,15 @@ public:
 	bool RunAutoplayDeterminismCheck(int32 Ticks);
 	/** Phase 0 starts when the outposts are gone, or when autoplay has waited out DelayTicks. */
 	static bool FaultlineWaveDue(int32 Phase, int32 LivingOutposts, int64 Tick, int32 DelayTicks, bool bAutoplay);
+
+	/** Retreat on a broken wave, a dead player army, or 90 seconds in the field. */
+	static bool FaultlineWaveShouldRetreat(int32 LiveHp, int32 StartHp, int32 PlayerCombat, int64 ElapsedTicks);
+
+	/** True once the post-retreat gap has elapsed. */
+	static bool FaultlineWaveRearmDue(int64 Tick, int64 EndedTick, int32 DelayTicks);
+
+	/** Ordered Lane 1 waypoints, player-facing. Empty when the map has no lane. */
+	void SetFaultlineLane(const TArray<FVector>& Points);
 	/** True when growth since the anchor is more than 50 MB per 5 minutes. ElapsedSeconds is time since the anchor. */
 	static bool SoakMemoryOverBudget(uint64 AnchorBytes, uint64 NowBytes, int32 ElapsedSeconds);
 	/**
@@ -919,6 +936,8 @@ protected:
 	int32 CountLivingOutposts() const;
 	void LogMatchPulse(const TCHAR* Reason);
 	void OrderFaultlineWave();
+	/** Direction +1 walks toward the player. Direction -1 walks back toward the outposts. */
+	bool NextLanePoint(int32 Direction, int32& Cursor, const FVector& From, FVector& OutPoint) const;
 	bool TeamSeesPoint(int32 TeamId, float WorldX, float WorldY) const;
 	FVector HiddenTargetPoint(int32 ViewerTeam, const FKodSimEntityState& Victim, float Z) const;
 	void PollSoak(float DeltaTime);
@@ -1023,6 +1042,12 @@ protected:
 	bool bAutoplaySquadSent = false;
 	/** Position at the last autoplay attack check. Not hashed. */
 	TMap<int32, FVector> AutoplayOrderMarks;
+	/** Lane 1, WP00 at the outposts through the last point near the player base. Hashed. */
+	TArray<FVector> FaultlineLanePoints;
+	int32 WaveLaneCursor = 0;
+	/** -1 snaps to the player end of the lane on the first autoplay order. Hashed. */
+	int32 AutoplayLaneCursor = -1;
+	bool bAutoplayRouteLogged = false;
 	bool bSoakParsed = false;
 	int32 SoakSeconds = 0;
 	float SoakElapsed = 0.f;

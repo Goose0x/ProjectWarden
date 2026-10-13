@@ -4,6 +4,7 @@
 #include "Actors/KodResourceNode.h"
 #include "Actors/KodUnit.h"
 #include "Components/BoxComponent.h"
+#include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Data/KodBuildingDefinition.h"
 #include "Data/KodResourceNodeDefinition.h"
@@ -762,6 +763,10 @@ namespace
 		{
 			return nullptr;
 		}
+		USceneComponent* Root = NewObject<USceneComponent>(Marker, TEXT("Root"));
+		Marker->SetRootComponent(Root);
+		Root->RegisterComponent();
+		Marker->SetActorLocation(At);
 		if (!Tag.IsEmpty())
 		{
 			Marker->Tags.Add(FName(*Tag));
@@ -942,7 +947,10 @@ namespace
 				}
 				if (!LaneId.IsEmpty() && !ActorHasId(World, LaneId))
 				{
-					SpawnMarkerActor(World, FVector::ZeroVector, TEXT("KodWaypoint"), LaneId);
+					FVector LaneMark = FVector::ZeroVector;
+					const FString FirstWaypoint = LaneId + TEXT("_WP00");
+					FindMarker(World, *FirstWaypoint, LaneMark);
+					SpawnMarkerActor(World, LaneMark, TEXT("KodWaypoint"), LaneId);
 				}
 			}
 		}
@@ -975,6 +983,44 @@ namespace
 	{
 		const FString Leaf = FPaths::GetBaseFilename(Entry);
 		return !Leaf.IsEmpty() && MapName.EndsWith(Leaf);
+	}
+
+	void SpawnPlayerStart(UWorld* World, UKodSimSubsystem* Sim)
+	{
+		if (!World || !Sim || ActorHasId(World, TEXT("P1_SPAWN")))
+		{
+			return;
+		}
+		const FVector At = CellToWorld(18, 18, 80.f);
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AKodBuilding* Building = World->SpawnActor<AKodBuilding>(AKodBuilding::StaticClass(), FTransform(At), Params);
+		if (!Building)
+		{
+			return;
+		}
+		Building->Tags.Add(FName(TEXT("KodBuildingCommandCenter")));
+		Building->Tags.Add(FName(TEXT("P1_SPAWN")));
+		Building->Tags.Add(FName(TEXT("KodStartSpot_0")));
+		Building->TeamId = 0;
+		UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(FName(KodWardenPaths::Id_CommandCenter), Building);
+		if (Def)
+		{
+			Building->Definition = Def;
+		}
+		FKodStructureSpec Spec;
+		Spec.DefinitionId = FName(KodWardenPaths::Id_CommandCenter);
+		Spec.DisplayId = FName(TEXT("CC"));
+		Spec.TeamId = 0;
+		Spec.bIsDropOff = true;
+		Spec.SupplyProvided = Def ? Def->SupplyProvided : 10;
+		Spec.FootprintX = Def ? FMath::Max(1, Def->FootprintX) : 5;
+		Spec.FootprintY = Def ? FMath::Max(1, Def->FootprintY) : 5;
+		Spec.MaxHealth = Def ? Def->MaxHealth : 1500.f;
+		Spec.Trains.Add(FName(KodWardenPaths::Id_Dozer));
+		const FKodEntityId Id = Sim->RegisterStructure(Building, Spec);
+		Building->EntityId = Id;
+		UE_LOG(LogTemp, Log, TEXT("KodFaultline Player HQ Id=%d X=%.0f Y=%.0f"), Id.Value, At.X, At.Y);
 	}
 }
 
@@ -1037,6 +1083,7 @@ void KodFaultline::Begin(UWorld* World)
 			Sim->SetPlayerFaction(HUD->GetHudSkin());
 		}
 	}
+	SpawnPlayerStart(World, Sim);
 	PlaceResources(World, Sim);
 	SeatOctagon(World);
 	const bool bEasy = Sim->GetAiDifficulty() <= 1;
@@ -1077,7 +1124,19 @@ void KodFaultline::Begin(UWorld* World)
 	Script.LaneX = FMath::RoundToInt(LaneAt.X);
 	Script.LaneY = FMath::RoundToInt(LaneAt.Y);
 	Script.LaneZ = FMath::RoundToInt(LaneAt.Z);
+	TArray<FVector> LanePoints;
+	for (int32 Index = 0; Index < 32; ++Index)
+	{
+		FVector At = FVector::ZeroVector;
+		const FString Id = FString::Printf(TEXT("QRF_LANE_01_WP%02d"), Index);
+		if (!FindMarker(World, *Id, At))
+		{
+			break;
+		}
+		LanePoints.Add(At);
+	}
 	Sim->ArmFaultlineScript(Script);
+	Sim->SetFaultlineLane(LanePoints);
 	UE_LOG(LogTemp, Log, TEXT("KodFaultline Begin Map=%s Outposts=%d Spawn=%.0f,%.0f Lane=%d"),
 		*World->GetMapName(), Script.OutpostCount, SpawnAt.X, SpawnAt.Y, bLaneMarker ? 1 : 0);
 }

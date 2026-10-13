@@ -443,36 +443,132 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 		DeferTrain(Barracks, MarineId);
 	}
 
+	if (bAutoplaySquadSent && Combat == 0)
+	{
+		bAutoplaySquadSent = false;
+		AutoplayLaneCursor = -1;
+		AutoplayOrderMarks.Reset();
+		PlayerNextWaveTick = SimTickIndex;
+	}
 	if (SimTickIndex < PlayerNextWaveTick)
 	{
 		return;
 	}
+	FVector PathFrom = FVector::ZeroVector;
+	bool bPathFrom = false;
+	if (CcId.IsValid())
+	{
+		if (const FKodStructureState* CommandCenter = Structures.Find(CcId.Value))
+		{
+			PathFrom = CommandCenter->Position;
+			bPathFrom = true;
+		}
+	}
+	if (!bPathFrom)
+	{
+		for (int32 Key : Keys)
+		{
+			const FKodSimEntityState* Worker = States.Find(Key);
+			if (Worker && Worker->TeamId == 0 && Worker->bCanGather && Worker->Health > 0.f)
+			{
+				PathFrom = Worker->Position;
+				bPathFrom = true;
+				break;
+			}
+		}
+	}
 	FVector AttackPoint = FVector::ZeroVector;
 	bool bAttack = false;
-	int64 Best = 0;
+	bool bOnLane = false;
 	FKodEntityId Target;
-	for (int32 Key : StructureKeys)
+	if (FaultlineLanePoints.Num() > 0)
 	{
-		const FKodStructureState* Structure = Structures.Find(Key);
-		if (!Structure || Structure->TeamId == 0)
+		if (AutoplayLaneCursor < 0)
 		{
-			continue;
+			AutoplayLaneCursor = FaultlineLanePoints.Num() - 1;
 		}
-		const int64 DX = static_cast<int64>(FMath::RoundToInt(Structure->Position.X));
-		const int64 DY = static_cast<int64>(FMath::RoundToInt(Structure->Position.Y));
-		const int64 Dist = DX * DX + DY * DY;
-		if (!bAttack || Dist < Best)
+		FVector Lead = bPathFrom ? PathFrom : FVector::ZeroVector;
+		if (FaultlineLanePoints.IsValidIndex(AutoplayLaneCursor))
 		{
+			float BestLead = 0.f;
+			bool bLead = false;
+			const FVector Mark = FaultlineLanePoints[AutoplayLaneCursor];
+			for (int32 Key : Keys)
+			{
+				const FKodSimEntityState* State = States.Find(Key);
+				if (!State || State->TeamId != 0 || State->Health <= 0.f || !State->bMobile || State->bCanGather)
+				{
+					continue;
+				}
+				const float Dist = FVector::DistSquared2D(State->Position, Mark);
+				if (!bLead || Dist < BestLead)
+				{
+					bLead = true;
+					BestLead = Dist;
+					Lead = State->Position;
+				}
+			}
+		}
+		FVector LanePoint;
+		if (NextLanePoint(-1, AutoplayLaneCursor, Lead, LanePoint))
+		{
+			AttackPoint = LanePoint;
+			bAttack = true;
+			bOnLane = true;
+		}
+	}
+	if (!bOnLane)
+	{
+		int64 Best = 0;
+		for (int32 Key : StructureKeys)
+		{
+			const FKodStructureState* Structure = Structures.Find(Key);
+			if (!Structure || Structure->TeamId == 0)
+			{
+				continue;
+			}
+			const int64 DX = static_cast<int64>(FMath::RoundToInt(Structure->Position.X - PathFrom.X));
+			const int64 DY = static_cast<int64>(FMath::RoundToInt(Structure->Position.Y - PathFrom.Y));
+			const int64 Dist = DX * DX + DY * DY;
+			if (bAttack && Dist >= Best)
+			{
+				continue;
+			}
+			if (bPathFrom && !HasMoveRoute(PathFrom, Structure->Position, 0))
+			{
+				UE_LOG(LogTemp, Log, TEXT("KodPath Skip Structure=%d From=%.0f,%.0f To=%.0f,%.0f"),
+					Structure->Id.Value,
+					PathFrom.X,
+					PathFrom.Y,
+					Structure->Position.X,
+					Structure->Position.Y);
+				continue;
+			}
 			bAttack = true;
 			Best = Dist;
 			AttackPoint = Structure->Position;
 			Target = Structure->Id;
 		}
-	}
-	if (!bAttack && bFaultlineTraining)
-	{
-		bAttack = true;
-		AttackPoint = FVector(static_cast<float>(FaultlineOutpostX), static_cast<float>(FaultlineOutpostY), static_cast<float>(FaultlineOutpostZ));
+		if (!bAttack && bFaultlineTraining)
+		{
+			AttackPoint = FVector(static_cast<float>(FaultlineOutpostX), static_cast<float>(FaultlineOutpostY), static_cast<float>(FaultlineOutpostZ));
+			if (!bPathFrom || HasMoveRoute(PathFrom, AttackPoint, 0))
+			{
+				bAttack = true;
+			}
+		}
+		if (bAttack && bPathFrom && !bAutoplayRouteLogged)
+		{
+			bAutoplayRouteLogged = true;
+			const int32 Reach = HasMoveRoute(PathFrom, AttackPoint, 0) ? 1 : 0;
+			UE_LOG(LogTemp, Log, TEXT("KodPath Probe From=%.0f,%.0f To=%.0f,%.0f Reach=%d Lane=%d"),
+				PathFrom.X,
+				PathFrom.Y,
+				AttackPoint.X,
+				AttackPoint.Y,
+				Reach,
+				FaultlineLanePoints.Num());
+		}
 	}
 	if (!bAttack)
 	{
@@ -480,29 +576,11 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 	}
 	if (!bAutoplaySquadSent && Combat < 4 && SimTickIndex >= 8 * 16)
 	{
-		FVector Origin = AttackPoint;
-		if (CcId.IsValid())
-		{
-			if (const FKodStructureState* CommandCenter = Structures.Find(CcId.Value))
-			{
-				Origin = CommandCenter->Position;
-			}
-		}
-		else
-		{
-			for (int32 Key : Keys)
-			{
-				const FKodSimEntityState* Worker = States.Find(Key);
-				if (Worker && Worker->TeamId == 0 && Worker->bCanGather && Worker->Health > 0.f)
-				{
-					Origin = Worker->Position;
-					break;
-				}
-			}
-		}
+		const FVector Origin = bPathFrom ? PathFrom : AttackPoint;
 		EnqueueAutoplaySquad(Origin, AttackPoint);
 	}
 	int32 Sent = 0;
+	bool bLaneStepped = false;
 	for (int32 Key : Keys)
 	{
 		FKodSimEntityState* State = States.Find(Key);
@@ -526,6 +604,12 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 		UnitId.Value = Key;
 		const FVector* OrderMark = AutoplayOrderMarks.Find(Key);
 		const bool bStuck = OrderMark && FVector::DistSquared2D(State->Position, *OrderMark) < FMath::Square(64.f);
+		if (bStuck && bOnLane && !bLaneStepped && AutoplayLaneCursor > 0 && FaultlineLanePoints.IsValidIndex(AutoplayLaneCursor - 1))
+		{
+			--AutoplayLaneCursor;
+			AttackPoint = FaultlineLanePoints[AutoplayLaneCursor];
+			bLaneStepped = true;
+		}
 		const bool bOnTarget = Target.IsValid()
 			&& State->Order == EKodSimOrderType::Attack
 			&& State->AttackTarget == Target;

@@ -313,7 +313,7 @@ void UKodCommandSubsystem::IssueGroundOrders(const FKodCommand& Command, EKodSim
 					PathTeam = Lead.TeamId;
 				}
 			}
-			SharedPath = Sim->PlanMovePath(Sum / static_cast<float>(Count), Command.TargetLocation, PathTeam);
+			SharedPath = FMath::Max(0, Sim->PlanMovePath(Sum / static_cast<float>(Count), Command.TargetLocation, PathTeam));
 		}
 	}
 	const int32 Total = Command.SourceEntities.Num();

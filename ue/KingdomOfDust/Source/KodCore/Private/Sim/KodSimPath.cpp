@@ -47,7 +47,7 @@ bool UKodSimSubsystem::IsPathCellClear(int32 X0, int32 Y0, int32 X1, int32 Y1, i
 	return true;
 }
 
-int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To, int32 TeamId)
+int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To, int32 TeamId, bool bStore)
 {
 	int32 StartX = KodBuildGrid::CellOf(From.X);
 	int32 StartY = KodBuildGrid::CellOf(From.Y);
@@ -263,7 +263,19 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To, int32 TeamId)
 
 	if (Found == INDEX_NONE)
 	{
-		UE_LOG(LogTemp, Log, TEXT("KodPath Miss From=%d,%d To=%d,%d"), StartX, StartY, GoalX, GoalY);
+		UE_LOG(LogTemp, Log, TEXT("KodPath Miss FromCell=%d,%d ToCell=%d,%d From=%.0f,%.0f To=%.0f,%.0f"),
+			StartX,
+			StartY,
+			GoalX,
+			GoalY,
+			From.X,
+			From.Y,
+			To.X,
+			To.Y);
+		return -1;
+	}
+	if (!bStore)
+	{
 		return 0;
 	}
 
@@ -333,6 +345,11 @@ int32 UKodSimSubsystem::PlanMovePath(FVector From, FVector To, int32 TeamId)
 	return Path.Id;
 }
 
+bool UKodSimSubsystem::HasMoveRoute(FVector From, FVector To, int32 TeamId)
+{
+	return PlanMovePath(From, To, TeamId, false) >= 0;
+}
+
 void UKodSimSubsystem::InvalidatePathsOverFootprint(int32 CellX, int32 CellY, int32 SizeX, int32 SizeY)
 {
 	for (int32 Index = StoredPaths.Num() - 1; Index >= 0; --Index)
@@ -374,7 +391,7 @@ FVector UKodSimSubsystem::GetSteeredGoal(FKodSimEntityState& State)
 	}
 	if (!Path || Path->CellX.Num() == 0)
 	{
-		State.PathId = PlanMovePath(State.Position, State.MoveTarget, State.TeamId);
+		State.PathId = FMath::Max(0, PlanMovePath(State.Position, State.MoveTarget, State.TeamId));
 		State.PathCursor = 0;
 		UE_LOG(LogTemp, Log, TEXT("KodPath Replan Unit=%d Path=%d"), State.Id.Value, State.PathId);
 		if (State.PathId == 0)
