@@ -6,6 +6,7 @@
 #include "Game/KodRTSCameraPawn.h"
 #include "Game/KodSpectatorController.h"
 #include "Game/KodSpectatorPawn.h"
+#include "Game/KodSkirmishSetup.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sim/KodSimSubsystem.h"
 
@@ -20,6 +21,12 @@ AKodGameMode::AKodGameMode()
 
 void AKodGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
 {
+	PendingOptions = Options;
+	FKodSkirmishSetup Lobby;
+	if (FKodSkirmishSetup::TryParse(Options, Lobby))
+	{
+		MatchMode = Lobby.Mode;
+	}
 	const FString SpectateOpt = UGameplayStatics::ParseOption(Options, TEXT("Spectate"));
 	const FString MatchOpt = UGameplayStatics::ParseOption(Options, TEXT("Match")).ToLower();
 	if (MatchOpt == TEXT("campaign"))
@@ -61,6 +68,27 @@ void AKodGameMode::StartPlay()
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
 		{
 			Sim->SetMatchMode(MatchMode);
+			FKodSkirmishSetup Lobby;
+			if (FKodSkirmishSetup::TryParse(PendingOptions, Lobby))
+			{
+				const int32 PlayerIndex = Lobby.ResolvePlayerFactionIndex();
+				const int32 AiIndex = Lobby.ResolveRosterIndex(Lobby.AiFaction, Lobby.Seed + 17);
+				Sim->SetAiEnabled(Lobby.bEnableAi);
+				Sim->SetAiDifficulty(FKodSkirmishSetup::ToAiDifficulty(Lobby.Difficulty));
+				Sim->SetPlayerFaction(PlayerIndex);
+				UE_LOG(LogTemp, Log, TEXT("KodLobby Apply Mode=%d Map=%s Faction=%d AiFaction=%d Ai=%d Diff=%d PStart=%d AStart=%d PColor=%d AColor=%d Cheats=%d"),
+					static_cast<int32>(Lobby.Mode),
+					*Lobby.MapId.ToString(),
+					PlayerIndex,
+					AiIndex,
+					Lobby.bEnableAi ? 1 : 0,
+					FKodSkirmishSetup::ToAiDifficulty(Lobby.Difficulty),
+					Lobby.PlayerStart,
+					Lobby.AiStart,
+					Lobby.PlayerColor,
+					Lobby.AiColor,
+					FKodSkirmishSetup::MatchAllowsCheats(Lobby.Mode) ? 1 : 0);
+			}
 		}
 	}
 	if (bKodSpectatorSession)

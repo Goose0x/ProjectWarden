@@ -1,4 +1,5 @@
 #include "Sim/KodSimSubsystem.h"
+#include "Game/KodSkirmishSetup.h"
 
 #include "Engine/DataTable.h"
 #include "Engine/Engine.h"
@@ -290,7 +291,7 @@ bool UKodSimSubsystem::AreCheatsAllowed() const
 	{
 		return false;
 	}
-	return MatchMode == EKodMatchMode::Campaign || MatchMode == EKodMatchMode::OfflineSkirmish;
+	return FKodSkirmishSetup::MatchAllowsCheats(MatchMode);
 }
 
 void UKodSimSubsystem::EnsureCheatPhrases()

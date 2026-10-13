@@ -11,7 +11,8 @@ public class KodNet : ModuleRules
 			"Core",
 			"CoreUObject",
 			"Engine",
-			"KodCore"
+			"KodCore",
+			"OnlineSubsystem"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[]
