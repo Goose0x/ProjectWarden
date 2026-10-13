@@ -6,6 +6,9 @@
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
 #include "Hash/CityHash.h"
+#include "HAL/PlatformMemory.h"
+#include "HAL/PlatformMisc.h"
+#include "Misc/CommandLine.h"
 #include "Misc/Crc.h"
 
 void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -246,6 +249,73 @@ void UKodSimSubsystem::Tick(float DeltaTime)
 
 	const float Alpha = FixedDt > 0.f ? FMath::Clamp(TimeAccumulator / FixedDt, 0.f, 1.f) : 1.f;
 	SyncActorPresentation(Alpha);
+	PollSoak(DeltaTime);
+}
+
+void UKodSimSubsystem::AdvanceSimTicks(int32 Ticks)
+{
+	const int32 Count = FMath::Max(0, Ticks);
+	const float FixedDt = (SimHz > 0) ? (1.f / static_cast<float>(SimHz)) : KodBuildTicks::SimDt;
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		StepSim(FixedDt);
+		++SimTickIndex;
+	}
+}
+
+void UKodSimSubsystem::PollSoak(float DeltaTime)
+{
+	if (!bSoakParsed)
+	{
+		bSoakParsed = true;
+		int32 Seconds = 0;
+		if (FParse::Value(FCommandLine::Get(), TEXT("-KodSoakSeconds="), Seconds)
+			|| FParse::Value(FCommandLine::Get(), TEXT("KodSoakSeconds="), Seconds))
+		{
+			SoakSeconds = FMath::Max(0, Seconds);
+		}
+		int32 Autoplay = 0;
+		if (FParse::Value(FCommandLine::Get(), TEXT("kod.Autoplay="), Autoplay) && Autoplay != 0)
+		{
+			SetPlayerAutoplay(true);
+		}
+		if (SoakSeconds > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodSoak Start Seconds=%d Autoplay=%d"), SoakSeconds, bPlayerAutoplay ? 1 : 0);
+		}
+	}
+	if (SoakSeconds <= 0)
+	{
+		return;
+	}
+	if (bPlayerAutoplay && !AreCheatsAllowed())
+	{
+		SetPlayerAutoplay(false);
+	}
+	SoakElapsed += FMath::Max(0.f, DeltaTime);
+	const FString Hash = ComputeIdleHash();
+	if (SoakHashTick == SimTickIndex && !SoakHash.IsEmpty() && Hash != SoakHash)
+	{
+		UE_LOG(LogTemp, Error, TEXT("KodSoak Desync Tick=%lld"), static_cast<long long>(SimTickIndex));
+		FPlatformMisc::RequestExitWithStatus(false, 2, TEXT("KodSoak"));
+		return;
+	}
+	SoakHashTick = SimTickIndex;
+	SoakHash = Hash;
+	if (SoakElapsed - SoakMemoryMark >= 30.f)
+	{
+		SoakMemoryMark = SoakElapsed;
+		const FPlatformMemoryStats Stats = FPlatformMemory::GetStats();
+		UE_LOG(LogTemp, Log, TEXT("KodSoak Memory UsedPhysical=%llu Tick=%lld Hash=%s"),
+			static_cast<unsigned long long>(Stats.UsedPhysical),
+			static_cast<long long>(SimTickIndex),
+			*Hash);
+	}
+	if (SoakElapsed >= static_cast<float>(SoakSeconds))
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodSoak Done Seconds=%d Tick=%lld"), SoakSeconds, static_cast<long long>(SimTickIndex));
+		FPlatformMisc::RequestExitWithStatus(false, 0, TEXT("KodSoak"));
+	}
 }
 
 void UKodSimSubsystem::StepSim(float FixedDt)

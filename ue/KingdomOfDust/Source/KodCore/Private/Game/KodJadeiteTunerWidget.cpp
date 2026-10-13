@@ -133,9 +133,9 @@ void UKodJadeiteTunerWidget::BuildTree()
 	UImage* SwatchList[] = { ShadowSwatch, BaseSwatch, LitSwatch, RimSwatch, CoreSwatch };
 	for (UImage* Swatch : SwatchList)
 	{
-		if (UHorizontalBoxSlot* Slot = Swatches->AddChildToHorizontalBox(Swatch))
+		if (UHorizontalBoxSlot* SwatchSlot = Swatches->AddChildToHorizontalBox(Swatch))
 		{
-			Slot->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
+			SwatchSlot->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
 		}
 	}
 	AddV(Column, Swatches, 8.f);

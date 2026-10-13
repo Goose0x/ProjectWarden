@@ -157,9 +157,11 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	}
 
 	Id = FindIdForActor(Actor);
-	if (Id.IsValid() && States.Contains(Id.Value))
+	// BeginPlay registers a bare entity. That is not a structure yet.
+	// A second RegisterStructure call returns the structure that already exists.
+	if (Id.IsValid() && Structures.Contains(Id.Value))
 	{
-		return FKodEntityId();
+		return Id;
 	}
 	if (!Id.IsValid())
 	{
@@ -204,7 +206,22 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	EnsureStructureDropOff(Structure, Spec.DropOffStandUU);
 
 	RecalcSupplyCap(Spec.TeamId);
-	if (!States.Contains(Id.Value))
+	if (FKodSimEntityState* Existing = States.Find(Id.Value))
+	{
+		Existing->DefinitionId = Structure.DefinitionId;
+		Existing->Position = Structure.Position;
+		Existing->YawDegrees = Actor->GetActorRotation().Yaw;
+		Existing->MaxHealth = Structure.MaxHealth;
+		Existing->Health = Structure.MaxHealth;
+		Existing->bMobile = false;
+		Existing->MoveSpeed = 0.f;
+		Existing->TeamId = Structure.TeamId;
+		Existing->SightRadiusUU = 2000;
+		QuantizePose(*Existing);
+		PrevPositions.Add(Id.Value, Existing->Position);
+		PrevYaws.Add(Id.Value, Existing->YawDegrees);
+	}
+	else
 	{
 		FKodSimEntityState Combat;
 		Combat.Id = Id;

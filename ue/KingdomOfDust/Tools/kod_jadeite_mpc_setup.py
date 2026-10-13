@@ -25,7 +25,6 @@
 # EyeGlow, EyeColor, RegenGlow, or RegenEmissive, the tuner also writes the
 # tuned colour into that parameter. Remove the parameter once the function
 # output is connected, or the parameter override wins over the function.
-import uuid
 import unreal
 
 DST = "/Game/Warden/Materials"
@@ -90,9 +89,6 @@ mel = unreal.MaterialEditingLibrary
 def log(message):
     unreal.log("[KodJadeite] " + message)
 
-def new_guid():
-    return unreal.Guid.from_string(str(uuid.uuid4()))
-
 def recreate(name, asset_class, factory):
     path = f"{DST}/{name}"
     if eal.does_asset_exist(path):
@@ -100,13 +96,8 @@ def recreate(name, asset_class, factory):
     eal.make_directory(DST)
     return at.create_asset(name, DST, asset_class, factory)
 
-def param_id(collection, name, scalar):
-    key = "scalar_parameters" if scalar else "vector_parameters"
-    for entry in collection.get_editor_property(key):
-        if str(entry.get_editor_property("parameter_name")) == name:
-            return entry.get_editor_property("id")
-    return None
-
+# 5.8 Python rejects Collection parameter Id and parameter_id writes.
+# unreal.GuidLibrary.new_guid() is the guid API; these assets leave Id to the editor.
 log("creating MPC_KodJadeite")
 mpc = recreate("MPC_KodJadeite", unreal.MaterialParameterCollection, unreal.MaterialParameterCollectionFactoryNew())
 scalars = []
@@ -114,14 +105,12 @@ for name, value in SCALARS:
     entry = unreal.CollectionScalarParameter()
     entry.set_editor_property("parameter_name", name)
     entry.set_editor_property("default_value", value)
-    entry.set_editor_property("id", new_guid())
     scalars.append(entry)
 vectors = []
 for name, value in VECTORS:
     entry = unreal.CollectionVectorParameter()
     entry.set_editor_property("parameter_name", name)
     entry.set_editor_property("default_value", value)
-    entry.set_editor_property("id", new_guid())
     vectors.append(entry)
 mpc.set_editor_property("scalar_parameters", scalars)
 mpc.set_editor_property("vector_parameters", vectors)
@@ -134,9 +123,6 @@ def collection_param(owner, name, scalar, x, y, in_function):
         expr = mel.create_material_expression(owner, unreal.MaterialExpressionCollectionParameter, x, y)
     expr.set_editor_property("collection", mpc)
     expr.set_editor_property("parameter_name", name)
-    found = param_id(mpc, name, scalar)
-    if found:
-        expr.set_editor_property("parameter_id", found)
     return expr
 
 log("creating MF_KodJadeiteTint")

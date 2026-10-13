@@ -317,9 +317,172 @@ void UKodSimSubsystem::RememberAiMatch()
 		Record->Losses);
 }
 
+void UKodSimSubsystem::SetPlayerAutoplay(bool bEnabled)
+{
+	if (bEnabled && !AreCheatsAllowed())
+	{
+		bPlayerAutoplay = false;
+		UE_LOG(LogTemp, Log, TEXT("KodAutoplay refused (campaign and offline only)"));
+		return;
+	}
+	bPlayerAutoplay = bEnabled;
+	UE_LOG(LogTemp, Log, TEXT("KodAutoplay %d"), bPlayerAutoplay ? 1 : 0);
+}
+
+void UKodSimSubsystem::StepPlayerAutoplay()
+{
+	if (!bPlayerAutoplay || !AreCheatsAllowed() || MatchOutcome != EKodMatchOutcome::None)
+	{
+		return;
+	}
+	if (AiThinkPeriod <= 0 || (SimTickIndex % AiThinkPeriod) != 0)
+	{
+		return;
+	}
+
+	const FName DozerId(KodWardenPaths::Id_Dozer);
+	const FName CcTypeId(KodWardenPaths::Id_CommandCenter);
+	TArray<int32> Keys;
+	States.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		FKodSimEntityState* State = States.Find(Key);
+		if (!State
+			|| State->TeamId != 0
+			|| !State->bCanGather
+			|| State->Health <= 0.f
+			|| State->Order != EKodSimOrderType::None
+			|| State->GatherPhase != EKodGatherPhase::None
+			|| State->BuildSite.IsValid())
+		{
+			continue;
+		}
+		FKodEntityId Node = FindNearestResourceNodeOfType(State->Position, EKodResourceType::Jadeite, true);
+		if (!Node.IsValid())
+		{
+			Node = FindNearestResourceNodeOfType(State->Position, EKodResourceType::Luminene, false);
+		}
+		if (Node.IsValid())
+		{
+			IssueGather(State->Id, Node);
+		}
+	}
+
+	int32 Workers = 0;
+	int32 Queued = 0;
+	FKodEntityId CcId;
+	TArray<int32> StructureKeys;
+	Structures.GetKeys(StructureKeys);
+	StructureKeys.Sort();
+	for (int32 Key : StructureKeys)
+	{
+		const FKodStructureState* Structure = Structures.Find(Key);
+		if (!Structure || Structure->TeamId != 0)
+		{
+			continue;
+		}
+		if (Structure->DefinitionId == CcTypeId && Structure->bComplete && !CcId.IsValid())
+		{
+			CcId = Structure->Id;
+		}
+		for (const FKodProductionSlot& Slot : Structure->Slots)
+		{
+			if (Slot.UnitId == DozerId)
+			{
+				++Queued;
+			}
+		}
+	}
+	for (int32 Key : Keys)
+	{
+		const FKodSimEntityState* State = States.Find(Key);
+		if (State && State->TeamId == 0 && State->Health > 0.f && State->bCanGather)
+		{
+			++Workers;
+		}
+	}
+	if (CcId.IsValid() && Workers + Queued < 8)
+	{
+		EnqueueTrain(CcId, DozerId);
+	}
+
+	if (SimTickIndex < PlayerNextWaveTick)
+	{
+		return;
+	}
+	FVector AttackPoint = FVector::ZeroVector;
+	bool bAttack = false;
+	int64 Best = 0;
+	FKodEntityId Target;
+	for (int32 Key : StructureKeys)
+	{
+		const FKodStructureState* Structure = Structures.Find(Key);
+		if (!Structure || Structure->TeamId == 0)
+		{
+			continue;
+		}
+		const int64 DX = static_cast<int64>(FMath::RoundToInt(Structure->Position.X));
+		const int64 DY = static_cast<int64>(FMath::RoundToInt(Structure->Position.Y));
+		const int64 Dist = DX * DX + DY * DY;
+		if (!bAttack || Dist < Best)
+		{
+			bAttack = true;
+			Best = Dist;
+			AttackPoint = Structure->Position;
+			Target = Structure->Id;
+		}
+	}
+	if (!bAttack)
+	{
+		return;
+	}
+	int32 Sent = 0;
+	for (int32 Key : Keys)
+	{
+		const FKodSimEntityState* State = States.Find(Key);
+		if (!State
+			|| State->TeamId != 0
+			|| State->Health <= 0.f
+			|| State->bCanGather
+			|| State->WeaponDamage <= 0.f
+			|| State->Order != EKodSimOrderType::None)
+		{
+			continue;
+		}
+		FKodEntityId UnitId;
+		UnitId.Value = Key;
+		if (Target.IsValid() && States.Contains(Target.Value))
+		{
+			IssueAttack(UnitId, Target);
+		}
+		else
+		{
+			IssueAttackMove(UnitId, AttackPoint);
+		}
+		++Sent;
+		if (Sent >= 8)
+		{
+			break;
+		}
+	}
+	if (Sent > 0)
+	{
+		PlayerNextWaveTick = SimTickIndex + static_cast<int64>(AiWaveGapTicks);
+	}
+}
+
 void UKodSimSubsystem::StepAI()
 {
-	if (bTestIsolation || !bAiEnabled || !bAiSeeded || MatchOutcome != EKodMatchOutcome::None)
+	if (bTestIsolation || MatchOutcome != EKodMatchOutcome::None)
+	{
+		return;
+	}
+	if (bPlayerAutoplay)
+	{
+		StepPlayerAutoplay();
+	}
+	if (!bAiEnabled || !bAiSeeded)
 	{
 		return;
 	}
