@@ -4,7 +4,7 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FKodWireHpTintTest,
 	"Kod.Hud.WireHpTint",
-	EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 
 bool FKodWireHpTintTest::RunTest(const FString& Parameters)
 {

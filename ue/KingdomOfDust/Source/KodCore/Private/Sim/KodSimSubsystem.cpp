@@ -33,6 +33,9 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	UnitAbilities.Reset();
 	PendingSpawns.Reset();
 	PendingBuildingSpawns.Reset();
+	DeferredCommands.Reset();
+	DeferredSequence = 0;
+	bSoakDeterminismDone = false;
 	bHasPlayable = false;
 	TimeAccumulator = 0.f;
 	SimTickIndex = 0;
@@ -292,16 +295,21 @@ void UKodSimSubsystem::PollSoak(float DeltaTime)
 	{
 		SetPlayerAutoplay(false);
 	}
-	SoakElapsed += FMath::Max(0.f, DeltaTime);
-	const FString Hash = ComputeIdleHash();
-	if (SoakHashTick == SimTickIndex && !SoakHash.IsEmpty() && Hash != SoakHash)
+	if (!bSoakDeterminismDone)
 	{
-		UE_LOG(LogTemp, Error, TEXT("KodSoak Desync Tick=%lld"), static_cast<long long>(SimTickIndex));
-		FPlatformMisc::RequestExitWithStatus(false, 2, TEXT("KodSoak"));
-		return;
+		bSoakDeterminismDone = true;
+		if (!RunAutoplayDeterminismCheck(32))
+		{
+			RequestSoakExit(2);
+			return;
+		}
 	}
-	SoakHashTick = SimTickIndex;
-	SoakHash = Hash;
+	SoakElapsed += FMath::Max(0.f, DeltaTime);
+	if (SoakHashTick != SimTickIndex)
+	{
+		SoakHashTick = SimTickIndex;
+		SoakHash = ComputeIdleHash();
+	}
 	if (SoakElapsed - SoakMemoryMark >= 30.f)
 	{
 		SoakMemoryMark = SoakElapsed;
@@ -309,17 +317,170 @@ void UKodSimSubsystem::PollSoak(float DeltaTime)
 		UE_LOG(LogTemp, Log, TEXT("KodSoak Memory UsedPhysical=%llu Tick=%lld Hash=%s"),
 			static_cast<unsigned long long>(Stats.UsedPhysical),
 			static_cast<long long>(SimTickIndex),
-			*Hash);
+			*SoakHash);
 	}
 	if (SoakElapsed >= static_cast<float>(SoakSeconds))
 	{
 		UE_LOG(LogTemp, Log, TEXT("KodSoak Done Seconds=%d Tick=%lld"), SoakSeconds, static_cast<long long>(SimTickIndex));
-		FPlatformMisc::RequestExitWithStatus(false, 0, TEXT("KodSoak"));
+		RequestSoakExit(0);
 	}
+}
+
+void UKodSimSubsystem::DeferOrder(FKodEntityId Id, EKodSimOrderType Kind, FVector Point, FKodEntityId Target, bool bQueued)
+{
+	FKodDeferredCommand Command;
+	Command.Kind = 1;
+	Command.Order = static_cast<uint8>(Kind);
+	Command.bQueued = bQueued ? 1 : 0;
+	Command.Sequence = DeferredSequence++;
+	Command.Unit = Id.Value;
+	Command.Target = Target.Value;
+	Command.X = FMath::RoundToInt(Point.X);
+	Command.Y = FMath::RoundToInt(Point.Y);
+	Command.Z = FMath::RoundToInt(Point.Z);
+	DeferredCommands.Add(Command);
+}
+
+void UKodSimSubsystem::DeferMove(FKodEntityId Id, FVector Point)
+{
+	DeferOrder(Id, EKodSimOrderType::Move, Point, FKodEntityId(), false);
+}
+
+void UKodSimSubsystem::DeferAttackMove(FKodEntityId Id, FVector Point)
+{
+	DeferOrder(Id, EKodSimOrderType::AttackMove, Point, FKodEntityId(), false);
+}
+
+void UKodSimSubsystem::DeferAttack(FKodEntityId Id, FKodEntityId Target)
+{
+	DeferOrder(Id, EKodSimOrderType::Attack, FVector::ZeroVector, Target, false);
+}
+
+void UKodSimSubsystem::DeferGather(FKodEntityId Id, FKodEntityId Node)
+{
+	FKodDeferredCommand Command;
+	Command.Kind = 3;
+	Command.Sequence = DeferredSequence++;
+	Command.Unit = Id.Value;
+	Command.Target = Node.Value;
+	DeferredCommands.Add(Command);
+}
+
+void UKodSimSubsystem::DeferTrain(FKodEntityId StructureId, FName UnitId)
+{
+	FKodDeferredCommand Command;
+	Command.Kind = 2;
+	Command.Sequence = DeferredSequence++;
+	Command.Unit = StructureId.Value;
+	Command.TrainId = UnitId;
+	DeferredCommands.Add(Command);
+}
+
+void UKodSimSubsystem::DeferScriptAdopt(FKodEntityId Id, const FKodPendingUnitSpawn& Request)
+{
+	FKodDeferredCommand Command;
+	Command.Kind = 0;
+	Command.Sequence = DeferredSequence++;
+	Command.Unit = Id.Value;
+	Command.Spawn = Request;
+	DeferredCommands.Add(Command);
+}
+
+void UKodSimSubsystem::FlushDeferredCommands()
+{
+	if (DeferredCommands.Num() == 0)
+	{
+		return;
+	}
+	DeferredCommands.Sort([](const FKodDeferredCommand& A, const FKodDeferredCommand& B)
+	{
+		return A.Sequence < B.Sequence;
+	});
+	const TArray<FKodDeferredCommand> Batch = DeferredCommands;
+	DeferredCommands.Reset();
+	for (const FKodDeferredCommand& Command : Batch)
+	{
+		FKodEntityId Unit;
+		Unit.Value = Command.Unit;
+		FKodEntityId Target;
+		Target.Value = Command.Target;
+		const FVector Point(static_cast<float>(Command.X), static_cast<float>(Command.Y), static_cast<float>(Command.Z));
+		if (Command.Kind == 0)
+		{
+			AdoptScriptedSpawn(Unit, Command.Spawn);
+		}
+		else if (Command.Kind == 2)
+		{
+			EnqueueTrain(Unit, Command.TrainId);
+		}
+		else if (Command.Kind == 3)
+		{
+			IssueGather(Unit, Target);
+		}
+		else
+		{
+			IssueOrder(Unit, static_cast<EKodSimOrderType>(Command.Order), Point, Target, Command.bQueued != 0);
+		}
+	}
+}
+
+void UKodSimSubsystem::RequestSoakExit(uint8 Code)
+{
+	if (Code != 0)
+	{
+		GIsCriticalError = true;
+	}
+	FPlatformMisc::RequestExitWithStatus(true, Code, TEXT("KodSoak"));
+}
+
+bool UKodSimSubsystem::RunAutoplayDeterminismCheck(int32 Ticks)
+{
+	const int32 Count = FMath::Clamp(Ticks, 1, 256);
+	const bool bSavedAutoplay = bPlayerAutoplay;
+	const int32 SavedNextId = NextId;
+	const int64 SavedPlayerWave = PlayerNextWaveTick;
+	DeferredCommands.Reset();
+	const TArray<uint8> Baseline = ExportSimBlob();
+	auto Restore = [this, &Baseline, SavedNextId, SavedPlayerWave]()
+	{
+		DeferredCommands.Reset();
+		ImportSimBlob(Baseline);
+		NextId = SavedNextId;
+		PlayerNextWaveTick = SavedPlayerWave;
+	};
+	SetPlayerAutoplay(true);
+	AdvanceSimTicks(Count);
+	const FString FirstHash = ComputeIdleHash();
+	const int64 FirstTick = SimTickIndex;
+	Restore();
+	SetPlayerAutoplay(true);
+	AdvanceSimTicks(Count);
+	const FString SecondHash = ComputeIdleHash();
+	const int64 SecondTick = SimTickIndex;
+	const bool bSame = FirstHash == SecondHash && FirstTick == SecondTick;
+	Restore();
+	if (bSavedAutoplay)
+	{
+		SetPlayerAutoplay(true);
+	}
+	else
+	{
+		bPlayerAutoplay = false;
+	}
+	if (!bSame)
+	{
+		UE_LOG(LogTemp, Error, TEXT("KodSoak Desync Tick=%lld"), static_cast<long long>(FirstTick));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodSoak Determinism Ticks=%d Hash=%s"), Count, *FirstHash);
+	}
+	return bSame;
 }
 
 void UKodSimSubsystem::StepSim(float FixedDt)
 {
+	FlushDeferredCommands();
 	RebuildAcquireGrid();
 	// Stamp before orders so the first tick can see units that just spawned.
 	// The stamp after separation matches the poses presentation hides against.
@@ -416,6 +577,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 	StepLiftoff();
 	StepPowers();
 	StepExposed();
+	FlushDeferredCommands();
 	RecordMatchSample();
 }
 
@@ -802,7 +964,7 @@ void UKodSimSubsystem::StepFaultlineWave()
 					Away = FVector(1.f, 0.f, 0.f);
 				}
 				Away = Away.GetSafeNormal2D() * 600.f;
-				IssueMove(State->Id, Home + Away);
+				DeferMove(State->Id, Home + Away);
 			}
 			Row.LastHealth = HpNow;
 			continue;
@@ -811,7 +973,7 @@ void UKodSimSubsystem::StepFaultlineWave()
 		{
 			if (State->Order != EKodSimOrderType::Move)
 			{
-				IssueMove(State->Id, Home);
+				DeferMove(State->Id, Home);
 			}
 			Row.LastHealth = HpNow;
 			continue;
@@ -848,12 +1010,12 @@ void UKodSimSubsystem::StepFaultlineWave()
 		{
 			if (State->Order != EKodSimOrderType::Attack || State->AttackTarget != Nearest)
 			{
-				IssueAttack(State->Id, Nearest);
+				DeferAttack(State->Id, Nearest);
 			}
 		}
 		else if (DistHome > 180.f && State->Order != EKodSimOrderType::Move)
 		{
-			IssueMove(State->Id, Home);
+			DeferMove(State->Id, Home);
 		}
 		Row.LastHealth = HpNow;
 	}
@@ -962,8 +1124,8 @@ void UKodSimSubsystem::StepFaultlineWave()
 		}
 		if (bFaultlineHasLane)
 		{
-			IssueAttackMove(State->Id, FVector(static_cast<float>(FaultlineLaneX), static_cast<float>(FaultlineLaneY), static_cast<float>(FaultlineLaneZ)));
-			IssueOrder(
+			DeferAttackMove(State->Id, FVector(static_cast<float>(FaultlineLaneX), static_cast<float>(FaultlineLaneY), static_cast<float>(FaultlineLaneZ)));
+			DeferOrder(
 				State->Id,
 				EKodSimOrderType::AttackMove,
 				FVector(static_cast<float>(FaultlineBarracksX), static_cast<float>(FaultlineBarracksY), static_cast<float>(FaultlineBarracksZ)),
@@ -1011,7 +1173,7 @@ void UKodSimSubsystem::StepFaultlineWave()
 				const FKodSimEntityState* State = States.Find(Row.Id);
 				if (State && State->Health > 0.f)
 				{
-					IssueMove(State->Id, Back);
+					DeferMove(State->Id, Back);
 				}
 			}
 			UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Retreat LiveHp=%d StartHp=%d"), LiveHp, FaultlineWaveStartHp);

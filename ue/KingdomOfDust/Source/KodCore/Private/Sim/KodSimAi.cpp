@@ -365,7 +365,7 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 		}
 		if (Node.IsValid())
 		{
-			IssueGather(State->Id, Node);
+			DeferGather(State->Id, Node);
 		}
 	}
 
@@ -404,7 +404,7 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 	}
 	if (CcId.IsValid() && Workers + Queued < 8)
 	{
-		EnqueueTrain(CcId, DozerId);
+		DeferTrain(CcId, DozerId);
 	}
 
 	if (SimTickIndex < PlayerNextWaveTick)
@@ -454,11 +454,11 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 		UnitId.Value = Key;
 		if (Target.IsValid() && States.Contains(Target.Value))
 		{
-			IssueAttack(UnitId, Target);
+			DeferAttack(UnitId, Target);
 		}
 		else
 		{
-			IssueAttackMove(UnitId, AttackPoint);
+			DeferAttackMove(UnitId, AttackPoint);
 		}
 		++Sent;
 		if (Sent >= 8)
@@ -525,7 +525,7 @@ void UKodSimSubsystem::StepAI()
 		}
 		if (Node.IsValid())
 		{
-			IssueGather(State->Id, Node);
+			DeferGather(State->Id, Node);
 		}
 	}
 

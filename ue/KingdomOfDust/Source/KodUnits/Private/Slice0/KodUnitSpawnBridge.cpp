@@ -91,24 +91,24 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 	UE_LOG(LogTemp, Log, TEXT("KodProd Complete Spawned=%s"), *Unit->GetName());
 	if (Request.ScriptRole != 0)
 	{
-		Sim->AdoptScriptedSpawn(Unit->EntityId, Request);
+		Sim->DeferScriptAdopt(Unit->EntityId, Request);
 	}
 
 	if (Request.RallyUnit.IsValid())
 	{
 		const FVector At = Unit->GetActorLocation();
-		Sim->IssueOrder(Unit->EntityId, EKodSimOrderType::Follow, At, Request.RallyUnit, false);
+		Sim->DeferOrder(Unit->EntityId, EKodSimOrderType::Follow, At, Request.RallyUnit, false);
 	}
 	else if (Request.bRallyNode && Request.RallyNode.IsValid())
 	{
-		Sim->IssueGather(Unit->EntityId, Request.RallyNode);
+		Sim->DeferGather(Unit->EntityId, Request.RallyNode);
 	}
 	else if (Request.bAttackMove)
 	{
-		Sim->IssueAttackMove(Unit->EntityId, Request.RallyPoint);
+		Sim->DeferAttackMove(Unit->EntityId, Request.RallyPoint);
 	}
 	else if (!Request.RallyPoint.IsNearlyZero())
 	{
-		Sim->IssueMove(Unit->EntityId, Request.RallyPoint);
+		Sim->DeferMove(Unit->EntityId, Request.RallyPoint);
 	}
 }

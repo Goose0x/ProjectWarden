@@ -1,12 +1,15 @@
 #include "Abilities/GA_KodPower_DustStorm.h"
 #include "Tags/KodGameplayTags.h"
 #include "AbilitySystemComponent.h"
+#include "GameplayTagContainer.h"
 
 UGA_KodPower_DustStorm::UGA_KodPower_DustStorm()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 	NetExecutionPolicy = EGameplayAbilityNetExecutionPolicy::LocalPredicted;
-	AbilityTags.AddTag(KodGameplayTags::Kod_Power_DustStorm);
+	FGameplayTagContainer DustTags;
+	DustTags.AddTag(KodGameplayTags::Kod_Power_DustStorm);
+	SetAssetTags(DustTags);
 }
 
 void UGA_KodPower_DustStorm::ActivateAbility(
