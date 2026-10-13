@@ -1021,6 +1021,8 @@ protected:
 	/** Team 0 AI. Not hashed and not saved. */
 	bool bPlayerAutoplay = false;
 	bool bAutoplaySquadSent = false;
+	/** Position at the last autoplay attack check. Not hashed. */
+	TMap<int32, FVector> AutoplayOrderMarks;
 	bool bSoakParsed = false;
 	int32 SoakSeconds = 0;
 	float SoakElapsed = 0.f;

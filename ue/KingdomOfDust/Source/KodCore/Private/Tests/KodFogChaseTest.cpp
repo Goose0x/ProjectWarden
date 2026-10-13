@@ -1,3 +1,4 @@
+#include "Components/SceneComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -39,15 +40,24 @@ bool FKodFogChaseTest::RunTest(const FString& Parameters)
 		World->DestroyWorld(false);
 		return false;
 	}
-	AttackerActor->SetActorLocation(FVector(2000.f, 0.f, 0.f));
-	TargetActor->SetActorLocation(FVector(6000.f, 0.f, 0.f));
+	auto PlaceActor = [](AActor* Actor, const FVector& At)
+	{
+		USceneComponent* Root = NewObject<USceneComponent>(Actor, TEXT("Root"));
+		Actor->SetRootComponent(Root);
+		Root->RegisterComponent();
+		Actor->SetActorLocation(At);
+	};
+	PlaceActor(AttackerActor, FVector(2000.f, 0.f, 0.f));
+	PlaceActor(TargetActor, FVector(6000.f, 0.f, 0.f));
 	const FKodEntityId Attacker = Sim->RegisterEntity(AttackerActor);
 	const FKodEntityId Victim = Sim->RegisterEntity(TargetActor);
 	Sim->ConfigureEntity(Attacker, FName(TEXT("Marine")), 120.f, 400.f, 40.f, true, 6.f, 100.f, 0.5f, 1, false, 16, 100);
 	Sim->ConfigureEntity(Victim, FName(TEXT("CommandCenter")), 1500.f, 0.f, 40.f, false, 0.f, 0.f, 0.f, 0, false, 64, 0);
 
+	FKodSimEntityState Placed;
+	TestTrue(TEXT("attacker placed off the origin"), Sim->TryGetState(Attacker, Placed) && Placed.Position.X > 1500.f);
 	Sim->IssueAttack(Attacker, Victim);
-	const float StartX = 2000.f;
+	const float StartX = Placed.Position.X;
 	Sim->AdvanceSimTicks(20);
 	FKodSimEntityState After;
 	TestTrue(TEXT("attacker still registered"), Sim->TryGetState(Attacker, After));
