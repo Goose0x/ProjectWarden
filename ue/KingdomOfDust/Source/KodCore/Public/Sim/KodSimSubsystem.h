@@ -919,6 +919,8 @@ protected:
 	int32 CountLivingOutposts() const;
 	void LogMatchPulse(const TCHAR* Reason);
 	void OrderFaultlineWave();
+	bool TeamSeesPoint(int32 TeamId, float WorldX, float WorldY) const;
+	FVector HiddenTargetPoint(int32 ViewerTeam, const FKodSimEntityState& Victim, float Z) const;
 	void PollSoak(float DeltaTime);
 	void ChooseAiOpener();
 	void RememberAiMatch();

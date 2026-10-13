@@ -540,17 +540,19 @@ void UKodSimSubsystem::OrderFaultlineWave()
 		{
 			continue;
 		}
+		if (!Target.IsValid()
+			&& State->Order == EKodSimOrderType::AttackMove
+			&& FVector::DistSquared2D(State->MoveTarget, Point) <= FMath::Square(128.f))
+		{
+			continue;
+		}
 		if (Target.IsValid())
 		{
 			DeferAttack(State->Id, Target);
 		}
-		else if (State->Order != EKodSimOrderType::AttackMove)
-		{
-			DeferAttackMove(State->Id, Point);
-		}
 		else
 		{
-			continue;
+			DeferAttackMove(State->Id, Point);
 		}
 		Row.bOrdered = 1;
 		++Ordered;
@@ -608,7 +610,7 @@ void UKodSimSubsystem::LogMatchPulse(const TCHAR* Reason)
 	{
 		SeenCount += Pair.Value.Num();
 	}
-	const int32 States = Keys.Num();
+	const int32 StateCount = Keys.Num();
 	const int32 Paths = StoredPaths.Num();
 	const int32 Samples = Samples0.Num() + Samples1.Num() + OlderSamples0.Num() + OlderSamples1.Num();
 	const FPlatformMemoryStats Stats = FPlatformMemory::GetStats();
@@ -629,8 +631,8 @@ void UKodSimSubsystem::LogMatchPulse(const TCHAR* Reason)
 		Objects,
 		Objects - SoakLastObjects,
 		Actors,
-		States,
-		States - SoakLastStates,
+		StateCount,
+		StateCount - SoakLastStates,
 		Paths,
 		Paths - SoakLastPaths,
 		Samples,
@@ -640,7 +642,7 @@ void UKodSimSubsystem::LogMatchPulse(const TCHAR* Reason)
 		DeferredCommands.Num(),
 		SeenCount);
 	SoakLastObjects = Objects;
-	SoakLastStates = States;
+	SoakLastStates = StateCount;
 	SoakLastPaths = Paths;
 	SoakLastSamples = Samples;
 }
@@ -1575,27 +1577,27 @@ void UKodSimSubsystem::StepEntityAttack(FKodSimEntityState& State, float FixedDt
 		QuantizePose(State);
 		return;
 	}
-	if (Target->TeamId != State.TeamId && !CanTeamSeeWorld(State.TeamId, Target->Position.X, Target->Position.Y))
+	if (Target->TeamId != State.TeamId && !TeamSeesPoint(State.TeamId, Target->Position.X, Target->Position.Y))
 	{
 		State.BackswingTicksRemaining = 0;
-		if (State.bExplicitAttack && State.bMobile)
+		if (State.bExplicitAttack && State.bMobile && State.MoveSpeed > 0.f)
 		{
-			FVector Dest = State.MoveTarget;
-			FVector Seen;
-			if (TryGetLastSeenPoint(State.TeamId, Target->Id.Value, Seen))
+			// Keep the attack. Attack-move would forget the target, and the vision
+			// grid is what failed to record it. Walk to last-seen, or the unit itself.
+			const FVector Dest = HiddenTargetPoint(State.TeamId, *Target, State.Position.Z);
+			const FKodEntityId KeptTarget = Target->Id;
+			const bool bDestChanged = FVector::DistSquared2D(State.MoveTarget, Dest) > FMath::Square(64.f);
+			State.MoveTarget = Dest;
+			State.PathId = 0;
+			State.Order = EKodSimOrderType::Attack;
+			StepEntityMove(State, FixedDt);
+			State.Order = EKodSimOrderType::Attack;
+			State.AttackTarget = KeptTarget;
+			State.bExplicitAttack = true;
+			if (bDestChanged)
 			{
-				Dest = Seen;
+				UE_LOG(LogTemp, Verbose, TEXT("KodOrder FogChase Unit=%d Dest=%.0f,%.0f"), State.Id.Value, Dest.X, Dest.Y);
 			}
-			Dest.Z = State.Position.Z;
-			const int32 SelfId = State.Id.Value;
-			TArray<FKodQueuedOrder> Rest = State.OrderQueue;
-			IssueOrder(State.Id, EKodSimOrderType::AttackMove, Dest, FKodEntityId(), false);
-			if (FKodSimEntityState* Live = States.Find(SelfId))
-			{
-				Live->OrderQueue = Rest;
-				Live->bExplicitAttack = false;
-			}
-			UE_LOG(LogTemp, Log, TEXT("KodOrder FogChase Unit=%d Dest=%.0f,%.0f"), SelfId, Dest.X, Dest.Y);
 			return;
 		}
 		State.AttackTarget = FKodEntityId();
@@ -1743,7 +1745,7 @@ FKodEntityId UKodSimSubsystem::FindNearestEnemyInRange(const FKodSimEntityState&
 		{
 			continue;
 		}
-		if (!CanTeamSeeWorld(State.TeamId, Other->Position.X, Other->Position.Y))
+		if (!TeamSeesPoint(State.TeamId, Other->Position.X, Other->Position.Y))
 		{
 			continue;
 		}
@@ -1785,7 +1787,7 @@ FKodEntityId UKodSimSubsystem::FindNearestEnemyStructureInRange(const FKodSimEnt
 		{
 			continue;
 		}
-		if (!CanTeamSeeWorld(State.TeamId, Other->Position.X, Other->Position.Y))
+		if (!TeamSeesPoint(State.TeamId, Other->Position.X, Other->Position.Y))
 		{
 			continue;
 		}
@@ -1821,7 +1823,7 @@ bool UKodSimSubsystem::TryAutoAcquire(FKodSimEntityState& State, float FixedDt)
 		if (const FKodSimEntityState* Aggro = States.Find(Pending.Value))
 		{
 			if (Aggro->Health > 0.f && Aggro->TeamId != State.TeamId && Aggro->Id.Value != State.Id.Value
-				&& CanTeamSeeWorld(State.TeamId, Aggro->Position.X, Aggro->Position.Y))
+				&& TeamSeesPoint(State.TeamId, Aggro->Position.X, Aggro->Position.Y))
 			{
 				Chosen = Aggro->Id;
 				Reason = TEXT("Retaliate");
@@ -2232,7 +2234,7 @@ void UKodSimSubsystem::StepAttackMove(FKodSimEntityState& State, float FixedDt)
 	{
 		const FKodSimEntityState* Aggro = States.Find(State.RetaliateTarget.Value);
 		if (Aggro && Aggro->Health > 0.f && Aggro->TeamId != State.TeamId
-			&& CanTeamSeeWorld(State.TeamId, Aggro->Position.X, Aggro->Position.Y))
+			&& TeamSeesPoint(State.TeamId, Aggro->Position.X, Aggro->Position.Y))
 		{
 			Threat = Aggro->Id;
 			bFromHit = true;
@@ -2266,7 +2268,7 @@ void UKodSimSubsystem::StepAttackMove(FKodSimEntityState& State, float FixedDt)
 				if (bFromHit)
 				{
 					const FKodSimEntityState* Still = States.Find(Threat.Value);
-					if (!Still || Still->Health <= 0.f || !CanTeamSeeWorld(Live->TeamId, Still->Position.X, Still->Position.Y))
+					if (!Still || Still->Health <= 0.f || !TeamSeesPoint(Live->TeamId, Still->Position.X, Still->Position.Y))
 					{
 						Live->RetaliateTarget = FKodEntityId();
 					}

@@ -213,7 +213,16 @@ void UKodSimSubsystem::StepVision()
 	for (int32 Key : EntityKeys)
 	{
 		const FKodSimEntityState* State = States.Find(Key);
-		if (!State || State->Health <= 0.f || State->SightRadiusUU <= 0)
+		if (!State || State->Health <= 0.f)
+		{
+			continue;
+		}
+		int32 SightUU = State->SightRadiusUU;
+		if (SightUU <= 0 && State->bMobile && !State->bCanGather)
+		{
+			SightUU = 800;
+		}
+		if (SightUU <= 0)
 		{
 			continue;
 		}
@@ -228,7 +237,7 @@ void UKodSimSubsystem::StepVision()
 		const FString ViewerName = State->DefinitionId.ToString();
 		const bool bSpotter = ViewerName.Contains(TEXT("Isr")) || ViewerName.Contains(TEXT("Spotter"));
 		const TArray<int64>* Occupied = HighOccupied.Find(State->TeamId);
-		const int32 RadiusCells = FMath::Max(1, FMath::DivideAndRoundUp(State->SightRadiusUU, KodBuildGrid::CellUU));
+		const int32 RadiusCells = FMath::Max(1, FMath::DivideAndRoundUp(SightUU, KodBuildGrid::CellUU));
 		const int32 RadiusSq = RadiusCells * RadiusCells;
 		for (int32 DY = -RadiusCells; DY <= RadiusCells; ++DY)
 		{
@@ -280,7 +289,7 @@ void UKodSimSubsystem::StepVision()
 			{
 				continue;
 			}
-			if (!CanTeamSeeWorld(TeamId, Structure->Position.X, Structure->Position.Y))
+			if (!TeamSeesPoint(TeamId, Structure->Position.X, Structure->Position.Y))
 			{
 				continue;
 			}
@@ -334,7 +343,7 @@ void UKodSimSubsystem::StepVision()
 			{
 				continue;
 			}
-			if (!CanTeamSeeWorld(TeamId, State->Position.X, State->Position.Y))
+			if (!TeamSeesPoint(TeamId, State->Position.X, State->Position.Y))
 			{
 				continue;
 			}
@@ -376,4 +385,49 @@ void UKodSimSubsystem::StepVision()
 	}
 	ApplyExposedReveal();
 	ApplyReconVision();
+}
+
+bool UKodSimSubsystem::TeamSeesPoint(int32 TeamId, float WorldX, float WorldY) const
+{
+	if (CanTeamSeeWorld(TeamId, WorldX, WorldY))
+	{
+		return true;
+	}
+	for (const TPair<int32, FKodSimEntityState>& Pair : States)
+	{
+		const FKodSimEntityState& Viewer = Pair.Value;
+		if (Viewer.TeamId != TeamId || Viewer.Health <= 0.f)
+		{
+			continue;
+		}
+		int32 Sight = Viewer.SightRadiusUU;
+		if (Sight <= 0 && Viewer.bMobile && !Viewer.bCanGather)
+		{
+			Sight = 800;
+		}
+		if (Sight <= 0)
+		{
+			continue;
+		}
+		const float DX = Viewer.Position.X - WorldX;
+		const float DY = Viewer.Position.Y - WorldY;
+		if (DX * DX + DY * DY <= static_cast<float>(Sight) * static_cast<float>(Sight))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+FVector UKodSimSubsystem::HiddenTargetPoint(int32 ViewerTeam, const FKodSimEntityState& Victim, float Z) const
+{
+	FVector Seen;
+	if (TryGetLastSeenPoint(ViewerTeam, Victim.Id.Value, Seen))
+	{
+		Seen.Z = Z;
+		return Seen;
+	}
+	FVector At = Victim.Position;
+	At.Z = Z;
+	return At;
 }
