@@ -407,6 +407,53 @@ bool UKodSimSubsystem::FaultlineWaveRearmDue(int64 Tick, int64 EndedTick, int32 
 	return Tick >= EndedTick + Gap;
 }
 
+bool UKodSimSubsystem::FaultlineLaneEndRetarget(
+	bool bReachedLaneEnd,
+	bool bContact,
+	float FromX,
+	float FromY,
+	int32 UnitId,
+	float UnitX,
+	float UnitY,
+	int32 StructureId,
+	float StructureX,
+	float StructureY,
+	int32& OutId,
+	float& OutX,
+	float& OutY)
+{
+	if (!bReachedLaneEnd || bContact)
+	{
+		return false;
+	}
+	const bool bUnit = UnitId > 0;
+	const bool bStructure = StructureId > 0;
+	if (!bUnit && !bStructure)
+	{
+		return false;
+	}
+	auto Dist = [FromX, FromY](float X, float Y)
+	{
+		const float DX = X - FromX;
+		const float DY = Y - FromY;
+		return DX * DX + DY * DY;
+	};
+	const bool bUseUnit = bUnit && (!bStructure || Dist(UnitX, UnitY) <= Dist(StructureX, StructureY));
+	if (bUseUnit)
+	{
+		OutId = UnitId;
+		OutX = UnitX;
+		OutY = UnitY;
+	}
+	else
+	{
+		OutId = StructureId;
+		OutX = StructureX;
+		OutY = StructureY;
+	}
+	return true;
+}
+
 void UKodSimSubsystem::SetFaultlineLane(const TArray<FVector>& Points)
 {
 	FaultlineLanePoints.Reset();
@@ -662,10 +709,92 @@ void UKodSimSubsystem::OrderFaultlineWave()
 		}
 	}
 	FVector LanePoint;
-	if (NextLanePoint(1, WaveLaneCursor, MarchFrom, LanePoint))
+	bool bRetarget = false;
+	const bool bOnLane = NextLanePoint(1, WaveLaneCursor, MarchFrom, LanePoint);
+	if (bOnLane)
 	{
 		Target = FKodEntityId();
 		Point = LanePoint;
+	}
+	else
+	{
+		int32 WaveHp = 0;
+		for (const FKodScriptedUnit& Row : ScriptedUnits)
+		{
+			if (Row.Role != 2)
+			{
+				continue;
+			}
+			const FKodSimEntityState* State = States.Find(Row.Id);
+			if (State && State->Health > 0.f)
+			{
+				WaveHp += FMath::RoundToInt(State->Health);
+			}
+		}
+		const bool bContact = FaultlineWaveStartHp > 0 && WaveHp < FaultlineWaveStartHp;
+		int32 NearUnit = 0;
+		float NearUnitX = 0.f;
+		float NearUnitY = 0.f;
+		float BestUnit = 0.f;
+		int32 NearStructure = 0;
+		float NearStructureX = 0.f;
+		float NearStructureY = 0.f;
+		float BestStructure = 0.f;
+		TArray<int32> Keys;
+		States.GetKeys(Keys);
+		for (int32 Key : Keys)
+		{
+			const FKodSimEntityState* State = States.Find(Key);
+			if (!State || State->TeamId != 0 || State->Health <= 0.f)
+			{
+				continue;
+			}
+			const float DX = State->Position.X - MarchFrom.X;
+			const float DY = State->Position.Y - MarchFrom.Y;
+			const float Dist = DX * DX + DY * DY;
+			if (State->bMobile)
+			{
+				if (NearUnit == 0 || Dist < BestUnit)
+				{
+					NearUnit = State->Id.Value;
+					NearUnitX = State->Position.X;
+					NearUnitY = State->Position.Y;
+					BestUnit = Dist;
+				}
+			}
+			else if (Structures.Contains(Key))
+			{
+				if (NearStructure == 0 || Dist < BestStructure)
+				{
+					NearStructure = State->Id.Value;
+					NearStructureX = State->Position.X;
+					NearStructureY = State->Position.Y;
+					BestStructure = Dist;
+				}
+			}
+		}
+		int32 RetargetId = 0;
+		float RetargetX = 0.f;
+		float RetargetY = 0.f;
+		if (FaultlineLaneEndRetarget(
+			true,
+			bContact,
+			MarchFrom.X,
+			MarchFrom.Y,
+			NearUnit,
+			NearUnitX,
+			NearUnitY,
+			NearStructure,
+			NearStructureX,
+			NearStructureY,
+			RetargetId,
+			RetargetX,
+			RetargetY))
+		{
+			Target.Value = RetargetId;
+			Point = FVector(RetargetX, RetargetY, MarchFrom.Z);
+			bRetarget = true;
+		}
 	}
 	int32 Ordered = 0;
 	for (FKodScriptedUnit& Row : ScriptedUnits)
@@ -702,11 +831,12 @@ void UKodSimSubsystem::OrderFaultlineWave()
 	}
 	if (Ordered > 0)
 	{
-		UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Order Count=%d Target=%d X=%.0f Y=%.0f"),
+		UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Order Count=%d Target=%d X=%.0f Y=%.0f Retarget=%d"),
 			Ordered,
 			Target.Value,
 			Point.X,
-			Point.Y);
+			Point.Y,
+			bRetarget ? 1 : 0);
 	}
 }
 

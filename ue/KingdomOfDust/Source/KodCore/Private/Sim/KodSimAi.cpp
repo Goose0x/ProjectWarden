@@ -443,14 +443,15 @@ void UKodSimSubsystem::StepPlayerAutoplay()
 		DeferTrain(Barracks, MarineId);
 	}
 
-	if (bAutoplaySquadSent && Combat == 0)
+	if (bAutoplaySquadSent && Combat < 4 && SimTickIndex >= PlayerNextWaveTick)
 	{
 		bAutoplaySquadSent = false;
 		AutoplayLaneCursor = -1;
 		AutoplayOrderMarks.Reset();
-		PlayerNextWaveTick = SimTickIndex;
+		PlayerNextWaveTick = SimTickIndex + static_cast<int64>(AiWaveGapTicks);
+		UE_LOG(LogTemp, Log, TEXT("KodAutoplay Reinforce Combat=%d Tick=%lld"), Combat, static_cast<long long>(SimTickIndex));
 	}
-	if (SimTickIndex < PlayerNextWaveTick)
+	else if (SimTickIndex < PlayerNextWaveTick)
 	{
 		return;
 	}
