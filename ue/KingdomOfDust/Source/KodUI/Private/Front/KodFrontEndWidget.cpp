@@ -28,15 +28,7 @@ namespace
 
 	FLinearColor TeamColorAt(int32 Index)
 	{
-		const FColor Swatches[] = {
-			FColor(0xB0, 0x8D, 0x57),
-			FColor(0xE5, 0x38, 0x3B),
-			FColor(0x2F, 0x7B, 0xFF),
-			FColor(0x4C, 0xD9, 0x64),
-			FColor(0x8E, 0x6A, 0xC7),
-			FColor(0xD2, 0xC4, 0xB1)
-		};
-		return FLinearColor(Swatches[FMath::Clamp(Index, 0, 5)]);
+		return FKodSkirmishSetup::TeamSwatch(Index);
 	}
 
 	const TCHAR* StartName(int32 Index)

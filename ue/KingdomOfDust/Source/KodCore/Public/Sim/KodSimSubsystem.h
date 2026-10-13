@@ -11,6 +11,7 @@
 #include "Sim/KodAbilityTypes.h"
 #include "Sim/KodBalanceRows.h"
 #include "Sim/KodCheatRows.h"
+#include "Sim/KodScoreTracker.h"
 #include "KodSimSubsystem.generated.h"
 
 class AActor;
@@ -796,6 +797,12 @@ public:
 	void CopyOlderStatSamples(int32 TeamId, TArray<FKodStatSample>& Out) const;
 	void GetTeamTotals(int32 TeamId, int32& Collected, int32& Trained, int32& Killed, int32& Built, int32& Razed) const;
 
+	/** Post-game board. Not hashed and not saved. */
+	void NoteScoreCommand(int32 TeamId);
+	void SetScoreTeamColor(int32 TeamId, int32 ColorIndex);
+	void CaptureScoreSnapshot();
+	void CopyScoreboard(FKodMatchScoreTracker& Out) const;
+
 	bool IsMatchCheated() const { return bMatchCheated; }
 	/** Last gold line, for the alert feed. Presentation only. Not hashed. */
 	FString GetCheatFeedbackLine() const { return LastCheatLine; }
@@ -980,6 +987,7 @@ protected:
 	void StepExposed();
 	void ApplyExposedReveal();
 	void RecordMatchSample();
+	void RecordScoreSample();
 	void CollapseStatWindow(TArray<FKodStatSample>& Samples, TArray<FKodStatSample>& Older);
 	void NoteResources(int32 TeamId, int32 Amount);
 	void NoteUnitTrained(int32 TeamId);
@@ -1139,6 +1147,8 @@ protected:
 	};
 	FKodTeamTotals Totals0;
 	FKodTeamTotals Totals1;
+	/** Results screen only. Not appended by ComputeIdleHash and not saved. */
+	FKodMatchScoreTracker ScoreTracker;
 	TArray<FKodStatSample> Samples0;
 	TArray<FKodStatSample> Samples1;
 	TArray<FKodStatSample> OlderSamples0;

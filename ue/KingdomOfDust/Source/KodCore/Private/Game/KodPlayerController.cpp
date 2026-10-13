@@ -1686,6 +1686,14 @@ bool AKodPlayerController::ConsumeChromeClick()
 		}
 		return true;
 	}
+	if (Hit.Kind == FName(TEXT("Scrub")))
+	{
+		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))
+		{
+			MutableHUD->ScrubScoreGraph(MouseX);
+		}
+		return true;
+	}
 	if (Hit.Kind == FName(TEXT("Page")))
 	{
 		if (AKodHUD* MutableHUD = Cast<AKodHUD>(GetHUD()))

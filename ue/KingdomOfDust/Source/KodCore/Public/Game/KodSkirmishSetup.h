@@ -60,4 +60,5 @@ struct KODCORE_API FKodSkirmishSetup
 	static void GetMaps(TArray<FKodLobbyMap>& OutMaps);
 	static FString FactionName(EKodRosterFaction Faction);
 	static FString DifficultyName(EKodLobbyDifficulty LobbyDifficulty);
+	static FLinearColor TeamSwatch(int32 ColorIndex);
 };

@@ -116,6 +116,7 @@ public:
 	int32 GetHudSkin() const { return HudSkin; }
 	void SetMenuPage(int32 Page);
 	void HandleMenuChoice(int32 Choice);
+	void ScrubScoreGraph(float MouseX);
 	void SetHealthBarMode(int32 Mode) { HealthBarMode = FMath::Clamp(Mode, 0, 2); }
 	void SetHotkeyGrid(bool bShow) { bHotkeyLegend = bShow; }
 	int32 GetHealthBarMode() const { return HealthBarMode; }
@@ -180,6 +181,7 @@ protected:
 	void DrawSelectionSummary();
 	void DrawResourceFlash();
 	void DrawMatchOutcome();
+	void DrawPostGame(const class UKodSimSubsystem* Sim);
 	int32 ReadLocalTeamId() const;
 	bool ReadTeamBank(int32& OutJadeite, int32& OutLuminene) const;
 	void DrawUnitHealthBars();
@@ -304,6 +306,11 @@ protected:
 	int32 HudSkin = 0;
 	uint8 ObjectiveDoneMask = 0;
 	int32 ScoreTab = 0;
+	/** -1 keeps the scrubber on the last sample. */
+	int32 ScoreScrub = -1;
+	float ScoreGraphMinX = 0.f;
+	float ScoreGraphMaxX = 1.f;
+	int32 ScoreSampleCount = 0;
 	int32 HealthBarMode = 1;
 	float PortraitCaptureAccum = 0.f;
 	TWeakObjectPtr<AActor> PortraitSubject;

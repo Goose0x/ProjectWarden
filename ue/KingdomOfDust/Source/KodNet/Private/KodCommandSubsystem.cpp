@@ -45,6 +45,10 @@ int32 UKodCommandSubsystem::Enqueue(FKodCommand Command)
 		{
 			Apm->NoteCommand();
 		}
+		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			Sim->NoteScoreCommand(0);
+		}
 	}
 	OnCommandEnqueued.Broadcast(Command);
 	return Command.CommandId;

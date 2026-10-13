@@ -179,6 +179,7 @@ void UKodSimSubsystem::EvaluateMatch()
 		UE_LOG(LogTemp, Log, TEXT("KodAI Match Defeat"));
 		RaiseCue(FName(TEXT("defeat")), FVector::ZeroVector, false);
 		RememberAiMatch();
+		CaptureScoreSnapshot();
 	}
 	else if (bTeam1HadStructure && Team1 == 0)
 	{
@@ -186,6 +187,7 @@ void UKodSimSubsystem::EvaluateMatch()
 		UE_LOG(LogTemp, Log, TEXT("KodAI Match Victory"));
 		RaiseCue(FName(TEXT("victory")), FVector::ZeroVector, false);
 		RememberAiMatch();
+		CaptureScoreSnapshot();
 	}
 }
 
@@ -715,6 +717,8 @@ void UKodSimSubsystem::StepAI()
 	}
 
 	ChooseAiOpener();
+	// One counted action per think, so AI APM stays on the sim clock.
+	ScoreTracker.NoteCommand(AiTeamId);
 
 	const FName DozerId(KodWardenPaths::Id_Dozer);
 	const FName MarineUnitId(KodWardenPaths::Id_Marine);

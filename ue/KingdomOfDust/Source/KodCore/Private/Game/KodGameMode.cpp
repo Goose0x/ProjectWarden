@@ -76,6 +76,8 @@ void AKodGameMode::StartPlay()
 				Sim->SetAiEnabled(Lobby.bEnableAi);
 				Sim->SetAiDifficulty(FKodSkirmishSetup::ToAiDifficulty(Lobby.Difficulty));
 				Sim->SetPlayerFaction(PlayerIndex);
+				Sim->SetScoreTeamColor(0, Lobby.PlayerColor);
+				Sim->SetScoreTeamColor(1, Lobby.AiColor);
 				UE_LOG(LogTemp, Log, TEXT("KodLobby Apply Mode=%d Map=%s Faction=%d AiFaction=%d Ai=%d Diff=%d PStart=%d AStart=%d PColor=%d AColor=%d Cheats=%d"),
 					static_cast<int32>(Lobby.Mode),
 					*Lobby.MapId.ToString(),

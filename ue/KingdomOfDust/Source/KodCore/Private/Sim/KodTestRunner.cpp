@@ -208,6 +208,7 @@ bool UKodSimSubsystem::RunScriptedTest(FName Scenario, int32 Runs, int32 Seed)
 		bAiRetreating = false;
 		Totals0 = FKodTeamTotals();
 		Totals1 = FKodTeamTotals();
+		ScoreTracker.Reset();
 	};
 
 	auto Living = [this](int32 TeamId) -> int32
