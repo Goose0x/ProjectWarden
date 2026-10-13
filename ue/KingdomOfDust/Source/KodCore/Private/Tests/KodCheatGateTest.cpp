@@ -4,7 +4,7 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FKodCheatGateTest,
 	"Kod.Cheat.OfflineOnly",
-	EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 
 bool FKodCheatGateTest::RunTest(const FString& Parameters)
 {

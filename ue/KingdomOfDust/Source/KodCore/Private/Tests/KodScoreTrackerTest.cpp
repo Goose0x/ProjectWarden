@@ -4,7 +4,7 @@
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FKodScoreTrackerTest,
 	"Kod.Score.Totals",
-	EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 
 bool FKodScoreTrackerTest::RunTest(const FString& Parameters)
 {
