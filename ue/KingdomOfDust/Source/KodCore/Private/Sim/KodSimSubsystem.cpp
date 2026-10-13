@@ -36,6 +36,11 @@ void UKodSimSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	DeferredCommands.Reset();
 	DeferredSequence = 0;
 	bSoakDeterminismDone = false;
+	bSoakMemoryAnchored = false;
+	SoakMemoryAnchor = 0;
+	SoakMemoryAnchorElapsed = 0.f;
+	SoakPulseAt = 0.f;
+	bAutoplaySquadSent = false;
 	bHasPlayable = false;
 	TimeAccumulator = 0.f;
 	SimTickIndex = 0;
@@ -202,6 +207,33 @@ TStatId UKodSimSubsystem::GetStatId() const
 
 void UKodSimSubsystem::Tick(float DeltaTime)
 {
+	if (!bSoakParsed)
+	{
+		bSoakParsed = true;
+		int32 Seconds = 0;
+		if (FParse::Value(FCommandLine::Get(), TEXT("-KodSoakSeconds="), Seconds)
+			|| FParse::Value(FCommandLine::Get(), TEXT("KodSoakSeconds="), Seconds))
+		{
+			SoakSeconds = FMath::Max(0, Seconds);
+		}
+		int32 AutoplayValue = 0;
+		const FString CommandLine = FCommandLine::Get();
+		const bool bAutoplayFlag = (FParse::Value(FCommandLine::Get(), TEXT("kod.Autoplay="), AutoplayValue) && AutoplayValue != 0)
+			|| CommandLine.Contains(TEXT("kod.Autoplay 1"))
+			|| CommandLine.Contains(TEXT("kod.Autoplay=1"));
+		if (bAutoplayFlag)
+		{
+			SetPlayerAutoplay(true);
+		}
+		else if (SoakSeconds > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodSoak Autoplay off. Pass -kod.Autoplay=1. -ExecCmds is read here too when it contains kod.Autoplay 1."));
+		}
+		if (SoakSeconds > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodSoak Start Seconds=%d Autoplay=%d"), SoakSeconds, bPlayerAutoplay ? 1 : 0);
+		}
+	}
 	if (bLoadRespawn)
 	{
 		if (PendingSpawns.Num() == 0 && PendingBuildingSpawns.Num() == 0)
@@ -268,25 +300,6 @@ void UKodSimSubsystem::AdvanceSimTicks(int32 Ticks)
 
 void UKodSimSubsystem::PollSoak(float DeltaTime)
 {
-	if (!bSoakParsed)
-	{
-		bSoakParsed = true;
-		int32 Seconds = 0;
-		if (FParse::Value(FCommandLine::Get(), TEXT("-KodSoakSeconds="), Seconds)
-			|| FParse::Value(FCommandLine::Get(), TEXT("KodSoakSeconds="), Seconds))
-		{
-			SoakSeconds = FMath::Max(0, Seconds);
-		}
-		int32 Autoplay = 0;
-		if (FParse::Value(FCommandLine::Get(), TEXT("kod.Autoplay="), Autoplay) && Autoplay != 0)
-		{
-			SetPlayerAutoplay(true);
-		}
-		if (SoakSeconds > 0)
-		{
-			UE_LOG(LogTemp, Log, TEXT("KodSoak Start Seconds=%d Autoplay=%d"), SoakSeconds, bPlayerAutoplay ? 1 : 0);
-		}
-	}
 	if (SoakSeconds <= 0)
 	{
 		return;
@@ -310,6 +323,11 @@ void UKodSimSubsystem::PollSoak(float DeltaTime)
 		SoakHashTick = SimTickIndex;
 		SoakHash = ComputeIdleHash();
 	}
+	if (SoakElapsed - SoakPulseAt >= 60.f)
+	{
+		SoakPulseAt = SoakElapsed;
+		LogMatchPulse(TEXT("Pulse"));
+	}
 	if (SoakElapsed - SoakMemoryMark >= 30.f)
 	{
 		SoakMemoryMark = SoakElapsed;
@@ -318,12 +336,121 @@ void UKodSimSubsystem::PollSoak(float DeltaTime)
 			static_cast<unsigned long long>(Stats.UsedPhysical),
 			static_cast<long long>(SimTickIndex),
 			*SoakHash);
+		if (!bSoakMemoryAnchored && SoakElapsed >= 120.f)
+		{
+			bSoakMemoryAnchored = true;
+			SoakMemoryAnchor = Stats.UsedPhysical;
+			SoakMemoryAnchorElapsed = SoakElapsed;
+		}
+		else if (bSoakMemoryAnchored)
+		{
+			const int32 ElapsedSeconds = FMath::FloorToInt(SoakElapsed - SoakMemoryAnchorElapsed);
+			if (SoakMemoryOverBudget(SoakMemoryAnchor, Stats.UsedPhysical, ElapsedSeconds))
+			{
+				UE_LOG(LogTemp, Error, TEXT("KodSoak MemoryBudget Anchor=%llu Now=%llu Elapsed=%d"),
+					static_cast<unsigned long long>(SoakMemoryAnchor),
+					static_cast<unsigned long long>(Stats.UsedPhysical),
+					ElapsedSeconds);
+				LogMatchPulse(TEXT("Memory"));
+				RequestSoakExit(2);
+				return;
+			}
+		}
 	}
 	if (SoakElapsed >= static_cast<float>(SoakSeconds))
 	{
 		UE_LOG(LogTemp, Log, TEXT("KodSoak Done Seconds=%d Tick=%lld"), SoakSeconds, static_cast<long long>(SimTickIndex));
+		LogMatchPulse(TEXT("Final"));
 		RequestSoakExit(0);
 	}
+}
+
+bool UKodSimSubsystem::FaultlineWaveDue(int32 Phase, int32 LivingOutposts, int64 Tick, int32 DelayTicks, bool bAutoplay)
+{
+	if (Phase != 0)
+	{
+		return false;
+	}
+	if (LivingOutposts <= 0)
+	{
+		return true;
+	}
+	return bAutoplay && DelayTicks > 0 && Tick >= static_cast<int64>(DelayTicks);
+}
+
+bool UKodSimSubsystem::SoakMemoryOverBudget(uint64 AnchorBytes, uint64 NowBytes, int32 ElapsedSeconds)
+{
+	if (ElapsedSeconds <= 0 || NowBytes <= AnchorBytes)
+	{
+		return false;
+	}
+	const uint64 Growth = NowBytes - AnchorBytes;
+	const uint64 Allowed = (static_cast<uint64>(ElapsedSeconds) * 50ull * 1024ull * 1024ull) / 300ull;
+	return Growth > Allowed;
+}
+
+int32 UKodSimSubsystem::CountLivingOutposts() const
+{
+	int32 Living = 0;
+	TArray<int32> StructureKeys;
+	Structures.GetKeys(StructureKeys);
+	StructureKeys.Sort();
+	for (int32 StructureKey : StructureKeys)
+	{
+		const FKodStructureState* Found = Structures.Find(StructureKey);
+		if (!Found || Found->TeamId != 1 || Found->DefinitionId != FName(TEXT("KodEnemyOutpost")))
+		{
+			continue;
+		}
+		const FKodSimEntityState* Combat = States.Find(StructureKey);
+		if (Combat && Combat->Health > 0.f)
+		{
+			++Living;
+		}
+	}
+	return Living;
+}
+
+void UKodSimSubsystem::LogMatchPulse(const TCHAR* Reason) const
+{
+	int32 Combat = 0;
+	int32 Workers = 0;
+	int32 Living = 0;
+	TArray<int32> Keys;
+	States.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		const FKodSimEntityState* State = States.Find(Key);
+		if (!State || State->Health <= 0.f)
+		{
+			continue;
+		}
+		++Living;
+		if (State->TeamId != 0)
+		{
+			continue;
+		}
+		if (State->bCanGather)
+		{
+			++Workers;
+		}
+		else if (State->WeaponDamage > 0.f)
+		{
+			++Combat;
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodSoak %s Tick=%lld Phase=%d Outposts=%d Kills0=%d Kills1=%d Combat=%d Workers=%d Living=%d WaveSent=%d"),
+		Reason,
+		static_cast<long long>(SimTickIndex),
+		static_cast<int32>(FaultlineWavePhase),
+		CountLivingOutposts(),
+		Totals0.Killed,
+		Totals1.Killed,
+		Combat,
+		Workers,
+		Living,
+		bFaultlineWaveSent ? 1 : 0);
 }
 
 void UKodSimSubsystem::DeferOrder(FKodEntityId Id, EKodSimOrderType Kind, FVector Point, FKodEntityId Target, bool bQueued)
@@ -1022,28 +1149,18 @@ void UKodSimSubsystem::StepFaultlineWave()
 
 	if (FaultlineWavePhase == 0)
 	{
-		int32 LivingOutposts = 0;
-		TArray<int32> StructureKeys;
-		Structures.GetKeys(StructureKeys);
-		StructureKeys.Sort();
-		for (int32 StructureKey : StructureKeys)
+		const int32 LivingOutposts = CountLivingOutposts();
+		if (FaultlineWaveDue(FaultlineWavePhase, LivingOutposts, SimTickIndex, FaultlineDelayTicks, bPlayerAutoplay))
 		{
-			const FKodStructureState* Found = Structures.Find(StructureKey);
-			if (!Found || Found->TeamId != 1 || Found->DefinitionId != FName(TEXT("KodEnemyOutpost")))
-			{
-				continue;
-			}
-			const FKodSimEntityState* Combat = States.Find(StructureKey);
-			if (Combat && Combat->Health > 0.f)
-			{
-				++LivingOutposts;
-			}
-		}
-		if (LivingOutposts == 0)
-		{
+			const bool bOutpostsDown = LivingOutposts <= 0;
 			FaultlineWavePhase = 1;
-			FaultlineWaveDueTick = SimTickIndex + static_cast<int64>(FaultlineDelayTicks);
-			UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Scheduled DueTick=%lld"), FaultlineWaveDueTick);
+			FaultlineWaveDueTick = bOutpostsDown
+				? SimTickIndex + static_cast<int64>(FaultlineDelayTicks)
+				: SimTickIndex;
+			UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Scheduled DueTick=%lld Reason=%s Outposts=%d"),
+				static_cast<long long>(FaultlineWaveDueTick),
+				bOutpostsDown ? TEXT("Outposts") : TEXT("Autoplay"),
+				LivingOutposts);
 		}
 		return;
 	}
@@ -1106,8 +1223,9 @@ void UKodSimSubsystem::StepFaultlineWave()
 		FaultlineWaveStartTick = SimTickIndex;
 		FaultlineWaveExpected = FaultlineWaveFighters + FaultlineWaveBlades;
 		FaultlineWaveStartHp = Scaled(FaultlineFighterHp) * FaultlineWaveFighters + Scaled(FaultlineBladeHp) * FaultlineWaveBlades;
-		UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Spawn Fighters=%d Blades=%d Hp=%d Lane=%d"),
-			FaultlineWaveFighters, FaultlineWaveBlades, FaultlineWaveStartHp, bFaultlineHasLane ? 1 : 0);
+		UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Start Fighters=%d Blades=%d Hp=%d Lane=%d Tick=%lld"),
+			FaultlineWaveFighters, FaultlineWaveBlades, FaultlineWaveStartHp, bFaultlineHasLane ? 1 : 0,
+			static_cast<long long>(SimTickIndex));
 		return;
 	}
 
@@ -1208,7 +1326,11 @@ void UKodSimSubsystem::StepFaultlineWave()
 		{
 			DespawnFaultlineRole(2);
 			FaultlineWavePhase = 4;
-			UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave Despawn"));
+			UE_LOG(LogTemp, Log, TEXT("KodFaultline Wave End Tick=%lld Kills0=%d Kills1=%d Living=%d"),
+				static_cast<long long>(SimTickIndex),
+				Totals0.Killed,
+				Totals1.Killed,
+				Living);
 		}
 	}
 }

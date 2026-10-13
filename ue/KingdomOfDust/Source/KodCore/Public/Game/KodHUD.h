@@ -357,6 +357,9 @@ protected:
 
 	TWeakObjectPtr<AStaticMeshActor> FogSheetActor;
 	int64 FogSheetTick = MIN_int64;
+	bool bFogUploadBusy = false;
+	TArray<uint8> FogUploadBytes;
+	FUpdateTextureRegion2D FogUploadRegion;
 	int32 FogOriginX = 0;
 	int32 FogOriginY = 0;
 	int32 FogCellsX = 0;

@@ -662,6 +662,10 @@ public:
 	 * instead of comparing a live idle hash to itself between frames.
 	 */
 	bool RunAutoplayDeterminismCheck(int32 Ticks);
+	/** Phase 0 starts when the outposts are gone, or when autoplay has waited out DelayTicks. */
+	static bool FaultlineWaveDue(int32 Phase, int32 LivingOutposts, int64 Tick, int32 DelayTicks, bool bAutoplay);
+	/** True when growth since the anchor is more than 50 MB per 5 minutes. ElapsedSeconds is time since the anchor. */
+	static bool SoakMemoryOverBudget(uint64 AnchorBytes, uint64 NowBytes, int32 ElapsedSeconds);
 	/** Applied on the next sim tick boundary. Not hashed. */
 	void DeferMove(FKodEntityId Id, FVector Point);
 	void DeferAttackMove(FKodEntityId Id, FVector Point);
@@ -906,6 +910,9 @@ protected:
 	void StepAbilities();
 	void StepAI();
 	void StepPlayerAutoplay();
+	void EnqueueAutoplaySquad(const FVector& Origin, const FVector& AttackPoint);
+	int32 CountLivingOutposts() const;
+	void LogMatchPulse(const TCHAR* Reason) const;
 	void PollSoak(float DeltaTime);
 	void ChooseAiOpener();
 	void RememberAiMatch();
@@ -1005,6 +1012,7 @@ protected:
 	bool bAiEnabled = true;
 	/** Team 0 AI. Not hashed and not saved. */
 	bool bPlayerAutoplay = false;
+	bool bAutoplaySquadSent = false;
 	bool bSoakParsed = false;
 	int32 SoakSeconds = 0;
 	float SoakElapsed = 0.f;
@@ -1012,6 +1020,10 @@ protected:
 	int64 SoakHashTick = -1;
 	FString SoakHash;
 	bool bSoakDeterminismDone = false;
+	bool bSoakMemoryAnchored = false;
+	uint64 SoakMemoryAnchor = 0;
+	float SoakMemoryAnchorElapsed = 0.f;
+	float SoakPulseAt = 0.f;
 	struct FKodDeferredCommand
 	{
 		uint8 Kind = 1;
