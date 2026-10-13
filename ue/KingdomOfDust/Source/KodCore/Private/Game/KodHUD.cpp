@@ -1393,11 +1393,17 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed,
 	const FString WorkerText = FString::Printf(TEXT("%d"), Workers);
 	const bool bScinder = HudSkin == 1;
 	const FLinearColor ValueInk = bScinder ? Tok(0xEF, 0xE6, 0xD4) : Tok(0xF4, 0xEE, 0xDF);
-	const TCHAR* IconStems[4] = {
-		bScinder ? TEXT("RES_Worker_SC") : TEXT("RES_Worker_VG"),
-		TEXT("RES_Jadeite"),
-		TEXT("RES_Luminene"),
-		bScinder ? TEXT("RES_Supply_SC") : TEXT("RES_Supply_VG")
+	const TCHAR* Icon28[4] = {
+		bScinder ? KodWardenPaths::IconWorkerSc28 : KodWardenPaths::IconWorkerVg28,
+		KodWardenPaths::IconJadeite28,
+		KodWardenPaths::IconLuminene28,
+		bScinder ? KodWardenPaths::IconSupplySc28 : KodWardenPaths::IconSupplyVg28
+	};
+	const TCHAR* Icon64[4] = {
+		bScinder ? KodWardenPaths::IconWorkerSc64 : KodWardenPaths::IconWorkerVg64,
+		KodWardenPaths::IconJadeite64,
+		KodWardenPaths::IconLuminene64,
+		bScinder ? KodWardenPaths::IconSupplySc64 : KodWardenPaths::IconSupplyVg64
 	};
 	const TCHAR* Placeholders[4] = { TEXT("W"), TEXT("J"), TEXT("L"), TEXT("S") };
 	const FString ChipText[4] = { WorkerText, JadeiteText, LumineneText, Supply };
@@ -1415,15 +1421,7 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed,
 	for (int32 Index = 0; Index < 4; ++Index)
 	{
 		const FKodScreenRect Icon = MapSpec(KodHudLayout::ResourceOriginX[Index], 1.f, KodHudLayout::ResourceIcon, KodHudLayout::ResourceIcon);
-		const FName IconKey(IconStems[Index]);
-		TObjectPtr<UTexture2D>* Cached = ResourceIcons.Find(IconKey);
-		UTexture2D* Texture = Cached ? Cached->Get() : nullptr;
-		if (!Cached)
-		{
-			const FString Path = FString::Printf(TEXT("%s/%s.%s"), KodWardenPaths::UiIconRoot, IconStems[Index], IconStems[Index]);
-			Texture = LoadObject<UTexture2D>(nullptr, *Path);
-			ResourceIcons.Add(IconKey, Texture);
-		}
+		UTexture2D* Texture = ResolveResourceIcon(Icon28[Index], Icon64[Index]);
 		if (Texture)
 		{
 			DrawTexture(Texture, Icon.X, Icon.Y, Icon.W, Icon.H, 0.f, 0.f, 1.f, 1.f);
@@ -2904,6 +2902,22 @@ void AKodHUD::DrawMatchOutcome()
 		UFont* SummaryFont = GEngine ? GEngine->GetMediumFont() : Font;
 		DrawCheatSummary(Sim, Banner.X + 48.f * FrameScale, Banner.Y + 100.f * FrameScale, Banner.W - 96.f * FrameScale, FrameScale, SummaryFont);
 	}
+}
+
+UTexture2D* AKodHUD::ResolveResourceIcon(const TCHAR* Size28, const TCHAR* Size64)
+{
+	const FName Key(Size28);
+	if (TObjectPtr<UTexture2D>* Cached = ResourceIcons.Find(Key))
+	{
+		return Cached->Get();
+	}
+	UTexture2D* Texture = Cast<UTexture2D>(FSoftObjectPath(Size28).TryLoad());
+	if (!Texture && Size64)
+	{
+		Texture = Cast<UTexture2D>(FSoftObjectPath(Size64).TryLoad());
+	}
+	ResourceIcons.Add(Key, Texture);
+	return Texture;
 }
 
 void AKodHUD::PushErrorLine(const FString& Text)

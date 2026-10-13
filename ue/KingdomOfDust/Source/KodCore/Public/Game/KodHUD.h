@@ -185,6 +185,7 @@ protected:
 	void DrawConstructionBars();
 	void PushErrorLine(const FString& Text);
 	const UKodHudProposed& HudStyle();
+	UTexture2D* ResolveResourceIcon(const TCHAR* Size28, const TCHAR* Size64);
 	void DrawMatchOutcome();
 	void DrawPostGame(const class UKodSimSubsystem* Sim);
 	int32 ReadLocalTeamId() const;

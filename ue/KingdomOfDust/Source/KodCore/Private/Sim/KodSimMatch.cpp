@@ -390,8 +390,18 @@ void UKodSimSubsystem::ResyncActors() const
 
 TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 {
+	return ExportSimBlobAtVersion(KodWardenPaths::SimSaveVersion);
+}
+
+void UKodSimSubsystem::ApplySimBlob(const TArray<uint8>& Blob)
+{
+	ImportSimBlob(Blob);
+}
+
+TArray<uint8> UKodSimSubsystem::ExportSimBlobAtVersion(int32 Version) const
+{
 	FBlob Blob;
-	const int32 Version = KodWardenPaths::SimSaveVersion;
+	Version = FMath::Clamp(Version, 12, KodWardenPaths::SimSaveVersion);
 	Blob.WInt(Version);
 	Blob.W(&SimTickIndex, sizeof(SimTickIndex));
 	TArray<int32> Keys;
@@ -863,7 +873,10 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlob() const
 	}
 	Blob.WInt(WaveLaneCursor);
 	Blob.WInt(AutoplayLaneCursor);
-	Blob.WInt(FaultlineWaveFocusId);
+	if (Version >= 13)
+	{
+		Blob.WInt(FaultlineWaveFocusId);
+	}
 	return Blob.Bytes;
 }
 
