@@ -4303,6 +4303,7 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	}
 	Append(&WaveLaneCursor, sizeof(WaveLaneCursor));
 	Append(&AutoplayLaneCursor, sizeof(AutoplayLaneCursor));
+	Append(&FaultlineWaveFocusId, sizeof(FaultlineWaveFocusId));
 
 	const uint64 Hash = Bytes.Num() > 0
 		? CityHash64(reinterpret_cast<const char*>(Bytes.GetData()), Bytes.Num())
