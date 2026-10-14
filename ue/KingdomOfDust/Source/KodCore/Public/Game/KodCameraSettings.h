@@ -32,6 +32,14 @@ namespace KodCameraSettings
 		return Sc2Units * ScaleUU;
 	}
 
+	/** SC2 near/far (0.1 / 150) in Unreal units. 150 uu would clip past 1.5 m. */
+	inline void ResolveClipUU(float InNearSc2, float InFarSc2, float ScaleUU, float& OutNearUU, float& OutFarUU)
+	{
+		const float Scale = ScaleUU > 0.f ? ScaleUU : UnitScaleUU;
+		OutNearUU = FMath::Max(0.01f, ToUU(InNearSc2, Scale));
+		OutFarUU = FMath::Max(OutNearUU + 1.f, ToUU(InFarSc2, Scale));
+	}
+
 	inline constexpr float DepotSpanUU()
 	{
 		return UnitScaleUU * static_cast<float>(DepotFootprintCells);

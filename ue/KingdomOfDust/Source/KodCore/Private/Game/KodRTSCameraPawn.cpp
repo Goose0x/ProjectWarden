@@ -2,6 +2,9 @@
 
 #include "Game/KodCameraSettings.h"
 #include "Camera/CameraTypes.h"
+#include "Math/PerspectiveMatrix.h"
+#include "SceneView.h"
+#include "SceneViewExtension.h"
 
 #include "Camera/CameraComponent.h"
 #include "Math/RotationMatrix.h"
@@ -27,6 +30,79 @@
 #include "Game/KodSpectatorPawn.h"
 #include "Warden/KodWardenPaths.h"
 #include "UnrealClient.h"
+
+namespace
+{
+	bool GKodApplyGameClip = false;
+
+	/**
+	 * Reversed-Z perspective is infinite unless a finite far was written.
+	 * A finite far shorter than the converted SC2 far (150 * 200 = 30000 uu)
+	 * clips the map. Rewrite only that short plane, using the engine matrix
+	 * so the Z row matches this Unreal version.
+	 */
+	class FKodClipPlaneExtension : public FSceneViewExtensionBase
+	{
+	public:
+		FKodClipPlaneExtension(const FAutoRegister& AutoReg)
+			: FSceneViewExtensionBase(AutoReg)
+		{
+		}
+
+		virtual void SetupViewProjectionMatrix(FSceneViewProjectionData& InOutProjectionData) override
+		{
+			if (!GKodApplyGameClip)
+			{
+				return;
+			}
+			FMatrix& Projection = InOutProjectionData.ProjectionMatrix;
+			const bool bPerspective = FMath::IsNearlyEqual(Projection.M[2][3], 1.f, 0.01f)
+				&& FMath::IsNearlyZero(Projection.M[3][3], 0.01f);
+			if (!bPerspective)
+			{
+				return;
+			}
+			const FKodCameraTunables Tunables = FKodCameraTunables::Read();
+			float NearUU = 0.f;
+			float FarUU = 0.f;
+			KodCameraSettings::ResolveClipUU(Tunables.NearSc2, Tunables.FarSc2, Tunables.UnitScaleUU, NearUU, FarUU);
+			if (FarUU < 1000.f)
+			{
+				return;
+			}
+			const float ZScale = Projection.M[2][2];
+			// UE5 infinite reversed-Z uses a Z scale of ~0. The older form sits at ~1.
+			if (FMath::Abs(ZScale) < 0.01f || ZScale <= 1.001f)
+			{
+				return;
+			}
+			const float ImpliedFar = (ZScale * NearUU) / (ZScale - 1.f);
+			if (ImpliedFar >= FarUU * 0.5f)
+			{
+				return;
+			}
+			const FMatrix Finite = FReversedZPerspectiveMatrix(
+				FMath::DegreesToRadians(45.f),
+				FMath::DegreesToRadians(45.f),
+				1.f,
+				1.f,
+				NearUU,
+				FarUU);
+			Projection.M[2][2] = Finite.M[2][2];
+			Projection.M[3][2] = Finite.M[3][2];
+			Projection.M[2][3] = Finite.M[2][3];
+			Projection.M[3][3] = Finite.M[3][3];
+			static bool bLoggedReplace = false;
+			if (!bLoggedReplace)
+			{
+				bLoggedReplace = true;
+				UE_LOG(LogTemp, Log, TEXT("KodClip FarReplaced ImpliedUU=%.0f NearUU=%.1f FarUU=%.0f"), ImpliedFar, NearUU, FarUU);
+			}
+		}
+	};
+
+	TSharedPtr<FKodClipPlaneExtension, ESPMode::ThreadSafe> GKodClipExtension;
+}
 
 AKodRTSCameraPawn::AKodRTSCameraPawn()
 {
@@ -61,6 +137,17 @@ AKodRTSCameraPawn::AKodRTSCameraPawn()
 void AKodRTSCameraPawn::BeginPlay()
 {
 	Super::BeginPlay();
+	if (const UWorld* World = GetWorld())
+	{
+		if (World->IsGameWorld())
+		{
+			GKodApplyGameClip = true;
+			if (!GKodClipExtension.IsValid())
+			{
+				GKodClipExtension = FSceneViewExtensions::NewExtension<FKodClipPlaneExtension>();
+			}
+		}
+	}
 	ApplyTunables();
 
 	if (!bViewCopied)
@@ -108,7 +195,8 @@ void AKodRTSCameraPawn::BeginPlay()
 void AKodRTSCameraPawn::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
 {
 	Super::CalcCamera(DeltaTime, OutResult);
-	if (ActiveNearClipUU > 0.f)
+	// Near and far cvars are SC2 units. 150 uu would hide everything past 1.5 m.
+	if (ActiveNearClipUU > 0.f && ActiveFarClipUU > ActiveNearClipUU)
 	{
 		OutResult.PerspectiveNearClipPlane = ActiveNearClipUU;
 	}
@@ -123,8 +211,12 @@ void AKodRTSCameraPawn::ApplyTunables()
 	ZoomReturnSpeed = FMath::Max(0.f, Tunables.ZoomReturnSpeed);
 	ZoomStep = KodCameraSettings::ToUU(FMath::Max(0.f, Tunables.ZoomStepSc2), Tunables.UnitScaleUU);
 	TargetZOffsetUU = KodCameraSettings::ToUU(Tunables.TargetZSc2, Tunables.UnitScaleUU);
-	ActiveNearClipUU = FMath::Max(0.01f, KodCameraSettings::ToUU(Tunables.NearSc2, Tunables.UnitScaleUU));
-	ActiveFarClipUU = FMath::Max(ActiveNearClipUU, KodCameraSettings::ToUU(Tunables.FarSc2, Tunables.UnitScaleUU));
+	KodCameraSettings::ResolveClipUU(
+		Tunables.NearSc2,
+		Tunables.FarSc2,
+		Tunables.UnitScaleUU,
+		ActiveNearClipUU,
+		ActiveFarClipUU);
 	DefaultArmLength = KodCameraSettings::ToUU(Tunables.DistanceSc2, Tunables.UnitScaleUU);
 	const bool bSpectator = IsA(AKodSpectatorPawn::StaticClass());
 	if (!bSpectator)

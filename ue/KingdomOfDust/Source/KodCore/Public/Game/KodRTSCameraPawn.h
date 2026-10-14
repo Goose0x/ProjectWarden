@@ -69,6 +69,8 @@ public:
 	void CopyViewFrom(const AKodRTSCameraPawn* Other);
 
 	float GetCurrentArmLength() const { return CurrentArmLength; }
+	float GetActiveNearClipUU() const { return ActiveNearClipUU; }
+	float GetActiveFarClipUU() const { return ActiveFarClipUU; }
 
 	/** True while alt is held and alt-drag rotate is enabled. Player select should yield. */
 	bool ConsumesAltDrag() const;

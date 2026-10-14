@@ -55,7 +55,7 @@ namespace
 	TAutoConsoleVariable<float> CVarCamFar(
 		TEXT("kod.Cam.Far"),
 		KodCameraSettings::FarSc2,
-		TEXT("Far clip in SC2 game units. Converted with kod.Cam.UnitScale and logged. UE reversed-Z perspective applies the near plane per view."),
+		TEXT("Far clip in SC2 game units. Converted with kod.Cam.UnitScale (150 -> 30000 uu). Never applied as raw uu."),
 		ECVF_Default);
 
 	TAutoConsoleVariable<float> CVarCamZoomStep(

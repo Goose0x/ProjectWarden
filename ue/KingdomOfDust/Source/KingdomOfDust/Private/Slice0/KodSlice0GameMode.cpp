@@ -356,9 +356,27 @@ int32 AKodSlice0GameMode::KeepSingleDirectionalSun(UWorld* World, bool bTutorial
 	{
 		UDirectionalLightComponent* KeptComponent = Cast<UDirectionalLightComponent>(KeptSun->GetLightComponent());
 		const bool bPlacedStatic = !bSpawned && KeptComponent && KeptComponent->Mobility == EComponentMobility::Static;
-		if (bPlacedStatic)
+		if (KeptComponent && KeptComponent->Mobility != EComponentMobility::Movable)
 		{
-			UE_LOG(LogTemp, Log, TEXT("KodSun PlacedStatic Name=%s"), *KeptSun->GetName());
+			// PIE previews a static sun. Standalone -game does not, and an unbuilt
+			// lightmap leaves the world black. Promote the one kept sun.
+			const float AuthoredIntensity = KeptComponent->Intensity;
+			const float IntensityFloor = bTutorialLook ? 6.5f : 4.f;
+			if (bPlacedStatic)
+			{
+				UE_LOG(LogTemp, Log, TEXT("KodSun PlacedStatic Name=%s"), *KeptSun->GetName());
+			}
+			UE_LOG(LogTemp, Log, TEXT("KodSun PromoteMovable Name=%s Intensity=%.2f Floor=%.2f"),
+				*KeptSun->GetName(),
+				AuthoredIntensity,
+				IntensityFloor);
+			KeptComponent->SetMobility(EComponentMobility::Movable);
+			KeptComponent->SetAtmosphereSunLight(true);
+			KeptComponent->SetVisibility(true);
+			KeptComponent->SetCastShadows(true);
+			KeptComponent->bAffectsWorld = true;
+			KeptComponent->SetIntensity(FMath::Max(AuthoredIntensity, IntensityFloor));
+			KeptComponent->SetDynamicShadowDistanceMovableLight(30000.f);
 		}
 		else if (KeptComponent)
 		{
@@ -472,6 +490,7 @@ static void ApplySc2Look(UWorld* World)
 		}
 	}
 	bool bHaveSky = false;
+	bool bPromotedPlacedSky = false;
 	for (TActorIterator<ASkyLight> It(World); It; ++It)
 	{
 		bHaveSky = true;
@@ -480,6 +499,14 @@ static void ApplySc2Look(UWorld* World)
 			if (Sky->Mobility == EComponentMobility::Static)
 			{
 				UE_LOG(LogTemp, Log, TEXT("KodLight PlacedStatic Name=%s"), *It->GetName());
+				Sky->SetMobility(EComponentMobility::Movable);
+				if (Sky->Intensity < 0.05f)
+				{
+					Sky->SetIntensity(0.4f);
+				}
+				Sky->RecaptureSky();
+				bPromotedPlacedSky = true;
+				UE_LOG(LogTemp, Log, TEXT("KodLight SkyPromoted Name=%s"), *It->GetName());
 			}
 			else
 			{
@@ -543,9 +570,24 @@ static void ApplySc2Look(UWorld* World)
 	{
 		if (USkyLightComponent* Sky = SkyActor->GetLightComponent())
 		{
-			if (Sky->Mobility == EComponentMobility::Static)
+			if (Sky->Mobility == EComponentMobility::Static || bPromotedPlacedSky)
 			{
-				UE_LOG(LogTemp, Log, TEXT("KodLight PlacedStatic Name=%s"), *SkyActor->GetName());
+				if (Sky->Mobility == EComponentMobility::Static)
+				{
+					UE_LOG(LogTemp, Log, TEXT("KodLight PlacedStatic Name=%s"), *SkyActor->GetName());
+					Sky->SetMobility(EComponentMobility::Movable);
+					if (Sky->Intensity < 0.05f)
+					{
+						Sky->SetIntensity(0.8f);
+					}
+					Sky->SetRealTimeCapture(false);
+					Sky->RecaptureSky();
+					UE_LOG(LogTemp, Log, TEXT("KodLight SkyPromoted Name=%s"), *SkyActor->GetName());
+				}
+				else if (bShotAfter)
+				{
+					Sky->RecaptureSky();
+				}
 			}
 			else
 			{
