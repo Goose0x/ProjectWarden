@@ -725,12 +725,6 @@ void AKodHUD::LogShotScene()
 	if (IConsoleVariable* Override = IConsoleManager::Get().FindConsoleVariable(TEXT("r.EyeAdaptation.PreExposureOverride")))
 	{
 		PreExposure = Override->GetFloat();
-		if (AutoExposure == 0 && PreExposure == 0.f)
-		{
-			Override->Set(1.f, ECVF_SetByCode);
-			PreExposure = 1.f;
-			UE_LOG(LogTemp, Log, TEXT("KodShotAfter PreExposureOverride=1 because AutoExposure is off"));
-		}
 	}
 	int32 Directional = 0;
 	int32 Sky = 0;
@@ -2112,7 +2106,8 @@ void AKodHUD::DrawSc2WorldMarks()
 					++Working;
 				}
 			}
-			else if (State.GatherDropOff == Structure.Id && State.GatherType != EKodResourceType::Luminene)
+			else if (State.GatherType != EKodResourceType::Luminene
+				&& (State.GatherDropOff == Structure.Id || FVector::Dist2D(State.Position, Structure.Position) < 1400.f))
 			{
 				++Working;
 			}
@@ -2205,13 +2200,14 @@ void AKodHUD::DrawSc2WorldMarks()
 		{
 			continue;
 		}
-		FVector2D From;
-		FVector2D To;
-		if (Project(State->Position + FVector(0.f, 0.f, 20.f), From) && Project(State->MoveTarget + FVector(0.f, 0.f, 20.f), To))
+		FVector2D From = FVector2D::ZeroVector;
+		FVector2D To = FVector2D::ZeroVector;
+		const bool bDrewMove = Project(State->Position + FVector(0.f, 0.f, 20.f), From) && Project(State->MoveTarget + FVector(0.f, 0.f, 20.f), To);
+		if (bDrewMove)
 		{
 			Dash(From.X, From.Y, To.X, To.Y, Green, 1.5f);
 		}
-		FVector2D Prev = To;
+		FVector2D Prev = FVector2D::ZeroVector;
 		bool bHavePrev = Project(State->MoveTarget + FVector(0.f, 0.f, 20.f), Prev);
 		for (const FKodQueuedOrder& Queued : State->OrderQueue)
 		{

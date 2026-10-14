@@ -437,12 +437,15 @@ int32 AKodSlice0GameMode::KeepSingleDirectionalSun(UWorld* World, bool bTutorial
 			// Light travels toward screen top-left (about 10 o'clock) so shadows fall that way.
 			// A small source angle keeps the shadow edge sharp. Low sky fill keeps the ground dark.
 			KeptSun->SetActorRotation(FRotator(-37.f, 150.f, 0.f));
-			KeptComponent->SetIntensity(5.f);
+			const float Authored = KeptComponent->Intensity;
+			const float FinalIntensity = FMath::Clamp(FMath::Max(Authored, 6.5f), 6.5f, 10.f);
+			KeptComponent->SetIntensity(FinalIntensity);
 			KeptComponent->SetLightColor(FLinearColor::FromSRGBColor(FColor(0xC8, 0xBE, 0xA8)));
 			KeptComponent->SetTemperature(5200.f);
 			KeptComponent->SetUseTemperature(true);
 			KeptComponent->SetLightSourceAngle(0.35f);
 			KeptComponent->SetDynamicShadowDistanceMovableLight(30000.f);
+			UE_LOG(LogTemp, Log, TEXT("KodSun Intensity=%.2f Authored=%.2f"), FinalIntensity, Authored);
 		}
 		if (KeptComponent && KeptComponent->IsVisible())
 		{
@@ -455,6 +458,67 @@ int32 AKodSlice0GameMode::KeepSingleDirectionalSun(UWorld* World, bool bTutorial
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodSun Directional=%d Enabled=%d"), Suns.Num(), Enabled);
 	return Enabled;
+}
+
+namespace
+{
+	TAutoConsoleVariable<float> CVarKodExposure(
+		TEXT("kod.Exposure"),
+		1.f,
+		TEXT("EV100 bias on the match post-process volume. Manual exposure, no pre-exposure override. Tuned for a sun of 6.5 to 10."),
+		ECVF_Default);
+}
+
+void AKodSlice0GameMode::ApplyMatchExposure(UWorld* World)
+{
+	if (IConsoleVariable* AutoExposure = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DefaultFeature.AutoExposure")))
+	{
+		AutoExposure->Set(0, ECVF_SetByCode);
+	}
+	if (IConsoleVariable* PreExposure = IConsoleManager::Get().FindConsoleVariable(TEXT("r.EyeAdaptation.PreExposureOverride")))
+	{
+		PreExposure->Set(0.f, ECVF_SetByCode);
+	}
+	if (!World)
+	{
+		return;
+	}
+	const float Bias = CVarKodExposure.GetValueOnGameThread();
+	APostProcessVolume* UnboundPost = nullptr;
+	for (TActorIterator<APostProcessVolume> It(World); It; ++It)
+	{
+		if (It->bUnbound)
+		{
+			UnboundPost = *It;
+			break;
+		}
+	}
+	if (!UnboundPost)
+	{
+		UnboundPost = World->SpawnActor<APostProcessVolume>();
+	}
+	if (!UnboundPost)
+	{
+		return;
+	}
+	UnboundPost->bUnbound = true;
+	UnboundPost->bEnabled = true;
+	UnboundPost->Priority = 100.f;
+	UnboundPost->BlendWeight = 1.f;
+	FPostProcessSettings& Settings = UnboundPost->Settings;
+	Settings.bOverride_AutoExposureMethod = true;
+	Settings.AutoExposureMethod = AEM_Manual;
+	Settings.bOverride_AutoExposureBias = true;
+	Settings.AutoExposureBias = Bias;
+	Settings.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+	Settings.AutoExposureApplyPhysicalCameraExposure = false;
+	Settings.bOverride_AutoExposureMinBrightness = false;
+	Settings.bOverride_AutoExposureMaxBrightness = false;
+	Settings.bOverride_BloomIntensity = true;
+	Settings.BloomIntensity = 0.4f;
+	Settings.bOverride_MotionBlurAmount = true;
+	Settings.MotionBlurAmount = 0.f;
+	UE_LOG(LogTemp, Log, TEXT("KodLook Exposure Manual Bias=%.2f PreExposureOverride=0"), Bias);
 }
 
 static void ApplySc2Look(UWorld* World)
@@ -473,66 +537,11 @@ static void ApplySc2Look(UWorld* World)
 	SetCVar(TEXT("r.DynamicGlobalIlluminationMethod"), 0);
 	SetCVar(TEXT("r.ReflectionMethod"), 0);
 	SetCVar(TEXT("r.DefaultFeature.MotionBlur"), 0);
+	SetCVar(TEXT("r.DefaultFeature.AutoExposure"), 0);
 	float ShotSeconds = -1.f;
 	const bool bShotAfter = FParse::Value(FCommandLine::Get(), TEXT("-kod.ShotAfter="), ShotSeconds)
 		|| FParse::Value(FCommandLine::Get(), TEXT("kod.ShotAfter="), ShotSeconds);
-	bool bHavePost = false;
-	for (TActorIterator<APostProcessVolume> It(World); It; ++It)
-	{
-		bHavePost = true;
-		break;
-	}
-	if (bShotAfter || !bHavePost)
-	{
-		APostProcessVolume* UnboundPost = nullptr;
-		for (TActorIterator<APostProcessVolume> It(World); It; ++It)
-		{
-			if (It->bUnbound)
-			{
-				UnboundPost = *It;
-				break;
-			}
-		}
-		if (!UnboundPost)
-		{
-			UnboundPost = World->SpawnActor<APostProcessVolume>();
-			if (UnboundPost)
-			{
-				UnboundPost->bUnbound = true;
-			}
-		}
-		if (UnboundPost)
-		{
-			FPostProcessSettings& Settings = UnboundPost->Settings;
-			Settings.bOverride_AutoExposureMethod = true;
-			Settings.AutoExposureMethod = AEM_Manual;
-			Settings.bOverride_AutoExposureBias = true;
-			Settings.bOverride_AutoExposureMinBrightness = true;
-			Settings.bOverride_AutoExposureMaxBrightness = true;
-			if (bShotAfter)
-			{
-				Settings.AutoExposureBias = 1.f;
-				Settings.AutoExposureMinBrightness = 1.f;
-				Settings.AutoExposureMaxBrightness = 1.f;
-				if (IConsoleVariable* Override = IConsoleManager::Get().FindConsoleVariable(TEXT("r.EyeAdaptation.PreExposureOverride")))
-				{
-					Override->Set(1.f, ECVF_SetByCode);
-					UE_LOG(LogTemp, Log, TEXT("KodLook PreExposureOverride=1 for kod.ShotAfter"));
-				}
-			}
-			else
-			{
-				Settings.AutoExposureBias = 0.f;
-				Settings.AutoExposureMinBrightness = 1.f;
-				Settings.AutoExposureMaxBrightness = 1.f;
-				Settings.bOverride_BloomIntensity = true;
-				Settings.BloomIntensity = 0.4f;
-				Settings.bOverride_MotionBlurAmount = true;
-				Settings.MotionBlurAmount = 0.f;
-				UE_LOG(LogTemp, Log, TEXT("KodLook ManualExposure Bias=0 no post volume"));
-			}
-		}
-	}
+	AKodSlice0GameMode::ApplyMatchExposure(World);
 	bool bHaveSky = false;
 	bool bPromotedPlacedSky = false;
 	for (TActorIterator<ASkyLight> It(World); It; ++It)
@@ -1820,44 +1829,63 @@ void AKodSlice0GameMode::SpawnResourceField()
 
 static void ApplyPrototypeStructureMesh(AActor* Actor, const UKodBuildingDefinition* Def)
 {
+	(void)Def;
+	AKodSlice0GameMode::ApplyCommandCenterMesh(Actor);
+}
+
+void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
+{
 	if (!Actor)
 	{
 		return;
 	}
-	TSoftObjectPtr<UStaticMesh> MeshRef = (Def && !Def->Mesh.IsNull())
-		? Def->Mesh
-		: TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(KodWardenPaths::ProtoHqMesh));
-	UStaticMesh* Mesh = MeshRef.LoadSynchronous();
+	constexpr float Footprint = 5.f * static_cast<float>(KodBuildGrid::CellUU);
+	if (AKodBuilding* Building = Cast<AKodBuilding>(Actor))
+	{
+		if (UKodBuildingDefinition* Def = Building->GetDefinition())
+		{
+			Building->ApplyDefinition(Def);
+			const bool bPrototype = Def->Mesh.LoadSynchronous() != nullptr;
+			UE_LOG(LogTemp, Log, TEXT("KodCC Mesh=%s Span=%.0f Actor=%s"),
+				bPrototype ? TEXT("SM_general") : TEXT("Placeholder"),
+				Footprint,
+				*Actor->GetActorNameOrLabel());
+			return;
+		}
+	}
+	constexpr float BodyHeight = Footprint * 0.45f;
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, KodWardenPaths::ProtoHqMesh);
+	const bool bPrototype = Mesh != nullptr;
+	if (!Mesh)
+	{
+		Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	}
 	if (!Mesh)
 	{
 		return;
 	}
-	UMaterialInterface* Material = nullptr;
-	if (Def && !Def->Material.IsNull())
-	{
-		Material = Def->Material.LoadSynchronous();
-	}
-	const FVector Scale = Def ? Def->MeshScale : FVector::OneVector;
+	const FVector Extent = Mesh->GetBounds().BoxExtent * 2.f;
+	const float SafeX = FMath::Max(1.f, Extent.X);
+	const float SafeY = FMath::Max(1.f, Extent.Y);
+	const float SafeZ = FMath::Max(1.f, Extent.Z);
+	const FVector Scale(Footprint / SafeX, Footprint / SafeY, BodyHeight / SafeZ);
 	TInlineComponentArray<UStaticMeshComponent*> Meshes;
 	Actor->GetComponents(Meshes);
 	for (UStaticMeshComponent* Comp : Meshes)
 	{
-		if (!Comp)
+		if (!Comp || Comp->ComponentHasTag(FName(TEXT("KodFx"))))
 		{
 			continue;
 		}
 		Comp->SetMobility(EComponentMobility::Movable);
 		Comp->SetStaticMesh(Mesh);
-		if (!Scale.Equals(FVector::OneVector, 0.01f))
-		{
-			Comp->SetRelativeScale3D(Scale);
-		}
-		if (Material)
-		{
-			Comp->SetMaterial(0, Material);
-		}
+		Comp->SetRelativeScale3D(Scale);
 		break;
 	}
+	UE_LOG(LogTemp, Log, TEXT("KodCC Mesh=%s Span=%.0f Actor=%s"),
+		bPrototype ? TEXT("SM_general") : TEXT("Placeholder"),
+		Footprint,
+		*Actor->GetActorNameOrLabel());
 }
 
 void AKodSlice0GameMode::RegisterCommandCenterDropOff()
@@ -1937,33 +1965,6 @@ void AKodSlice0GameMode::SpawnWorkersIfNeeded()
 		return;
 	}
 
-	int32 Placed = 0;
-	for (TActorIterator<AKodUnit> It(World); It; ++It)
-	{
-		AKodUnit* Unit = *It;
-		if (!Unit || Unit->TeamId != 0)
-		{
-			continue;
-		}
-		if (Unit->ActorHasTag(FName(TEXT("KodUnitDozer"))))
-		{
-			++Placed;
-			continue;
-		}
-		if (const UKodUnitDefinition* Def = Unit->GetDefinition())
-		{
-			if (Def->bCanGather || Def->DefinitionId == FName(KodWardenPaths::Id_Dozer))
-			{
-				++Placed;
-			}
-		}
-	}
-	if (Placed > 0)
-	{
-		UE_LOG(LogTemp, Log, TEXT("KodEcon Workers Spawned=0 Reason=Placed Count=%d"), Placed);
-		return;
-	}
-
 	AActor* Anchor = nullptr;
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
@@ -1972,13 +1973,42 @@ void AKodSlice0GameMode::SpawnWorkersIfNeeded()
 		{
 			continue;
 		}
-		if (!Anchor || Actor->GetName() < Anchor->GetName())
+		const bool bStart = Actor->ActorHasTag(FName(TEXT("KodStartSpot_0")));
+		const bool bAnchorStart = Anchor && Anchor->ActorHasTag(FName(TEXT("KodStartSpot_0")));
+		if (!Anchor || (bStart && !bAnchorStart) || (bStart == bAnchorStart && Actor->GetName() < Anchor->GetName()))
 		{
 			Anchor = Actor;
 		}
 	}
 
 	const FVector AnchorLocation = Anchor ? Anchor->GetActorLocation() : SmokeRangerOffset;
+	int32 Nearby = 0;
+	for (TActorIterator<AKodUnit> It(World); It; ++It)
+	{
+		AKodUnit* Unit = *It;
+		if (!Unit || Unit->TeamId != 0)
+		{
+			continue;
+		}
+		bool bWorker = Unit->ActorHasTag(FName(TEXT("KodUnitDozer")));
+		if (!bWorker)
+		{
+			if (const UKodUnitDefinition* Def = Unit->GetDefinition())
+			{
+				bWorker = Def->bCanGather || Def->DefinitionId == FName(KodWardenPaths::Id_Dozer);
+			}
+		}
+		if (bWorker && FVector::Dist2D(Unit->GetActorLocation(), AnchorLocation) < 1500.f)
+		{
+			++Nearby;
+		}
+	}
+	const int32 Want = FMath::Clamp(WorkerSpawnCount, 1, 12);
+	if (Nearby >= Want)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Workers Spawned=0 Reason=Placed Count=%d"), Nearby);
+		return;
+	}
 	FVector FieldDir = FVector(1.f, 0.f, 0.f);
 	{
 		FVector Sum = FVector::ZeroVector;
@@ -2003,8 +2033,7 @@ void AKodSlice0GameMode::SpawnWorkersIfNeeded()
 		}
 	}
 
-	const int32 Count = FMath::Clamp(WorkerSpawnCount, 1, 12);
-	const int32 Spawned = SpawnWorkerFan(AnchorLocation, FieldDir, /*TeamId*/ 0, Count);
+	const int32 Spawned = SpawnWorkerFan(AnchorLocation, FieldDir, /*TeamId*/ 0, Want - Nearby);
 
 	UE_LOG(LogTemp, Log, TEXT("KodEcon Workers Spawned=%d Anchor=%s"),
 		Spawned,
