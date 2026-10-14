@@ -11,6 +11,7 @@
 #include "CollisionQueryParams.h"
 #include "Components/SceneComponent.h"
 #include "Engine/Engine.h"
+#include "UnrealClient.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/HitResult.h"
 #include "Engine/World.h"
@@ -345,6 +346,16 @@ void AKodRTSCameraPawn::Zoom(float AxisValue)
 	NoteZoomTarget(TEXT("Wheel"));
 }
 
+void AKodRTSCameraPawn::CommitZoomSteps(float Steps)
+{
+	Zoom(Steps);
+	CurrentArmLength = TargetArmLength;
+	if (CameraBoom)
+	{
+		CameraBoom->TargetArmLength = CurrentArmLength;
+	}
+}
+
 void AKodRTSCameraPawn::OrbitYaw(float AxisValue)
 {
 	if (!bAllowAltDragRotate || FMath::IsNearlyZero(AxisValue))
@@ -372,6 +383,13 @@ void AKodRTSCameraPawn::SnapToStartView(FVector WorldLocation)
 	ApplyVerticalFov();
 	JumpTo(WorldLocation);
 	LoggedZoomArm = TargetArmLength;
+	bStartViewSnapped = true;
+	StartViewFrame = GFrameCounter;
+}
+
+bool AKodRTSCameraPawn::HasStartViewSettled() const
+{
+	return bStartViewSnapped && GFrameCounter > StartViewFrame;
 }
 
 void AKodRTSCameraPawn::LogOpeningCamera()

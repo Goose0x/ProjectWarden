@@ -25,6 +25,9 @@ public:
 	/** Apply Vanguard (0) or Scinder (1), unpause, and look at the player base. */
 	virtual void ApplyStartFaction(int32 FactionIndex);
 
+	/** Drop a faction-select camera fade so the view is not held black or tinted. */
+	void ClearMatchCameraFade();
+
 	/** PIE waits on the faction prompt until the player picks. Cleared by ApplyStartFaction. */
 	void SetAwaitFactionPrompt(bool bAwait);
 	bool IsAwaitingFactionPrompt() const { return bAwaitFactionPrompt; }

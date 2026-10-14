@@ -4,6 +4,7 @@
 #include "Game/KodPlayerState.h"
 #include "Game/KodHUD.h"
 #include "Game/KodRTSCameraPawn.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Game/KodSpectatorController.h"
 #include "Game/KodSpectatorPawn.h"
 #include "Game/KodSkirmishSetup.h"
@@ -105,6 +106,27 @@ void AKodGameMode::SetAwaitFactionPrompt(bool bAwait)
 	bAwaitFactionPrompt = bAwait;
 }
 
+void AKodGameMode::ClearMatchCameraFade()
+{
+	UWorld* World = GetWorld();
+	APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+	APlayerCameraManager* Manager = PC ? PC->PlayerCameraManager : nullptr;
+	if (!Manager)
+	{
+		return;
+	}
+	const float Before = Manager->FadeAmount;
+	const int32 WasFading = Manager->bEnableFading ? 1 : 0;
+	Manager->StopCameraFade();
+	Manager->SetManualCameraFade(0.f, FLinearColor::Black, false);
+	Manager->FadeAmount = 0.f;
+	Manager->bEnableFading = false;
+	if (Before > 0.001f || WasFading != 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodFaction FadeClear Before=%.3f Fading=%d"), Before, WasFading);
+	}
+}
+
 void AKodGameMode::ApplyStartFaction(int32 FactionIndex)
 {
 	const int32 Index = FactionIndex == 1 ? 1 : 0;
@@ -123,12 +145,15 @@ void AKodGameMode::ApplyStartFaction(int32 FactionIndex)
 	APlayerController* PC = World->GetFirstPlayerController();
 	if (!PC)
 	{
+		UE_LOG(LogTemp, Log, TEXT("KodFaction Apply Index=%d Name=%s"), Index, Index == 1 ? TEXT("Scinder") : TEXT("Vanguard"));
 		return;
 	}
+	ClearMatchCameraFade();
 	if (AKodHUD* HUD = Cast<AKodHUD>(PC->GetHUD()))
 	{
 		HUD->SetHudSkin(Index);
 		HUD->CloseFactionPrompt();
+		HUD->ClearFullScreenOverlay();
 	}
 	if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(PC->GetPawn()))
 	{

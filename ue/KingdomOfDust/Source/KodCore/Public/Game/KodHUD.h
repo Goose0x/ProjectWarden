@@ -188,6 +188,12 @@ public:
 	void HideStoryWindow();
 	float GetHudFrameScale() const { return FrameScale; }
 
+	/** Full-screen painted lights are not drawn. An additive sheet washes the HUD and the world. */
+	static bool DrawsFullScreenLights() { return false; }
+	float GetFullScreenOverlayAlpha() const { return FullScreenOverlayAlpha; }
+	void SetFullScreenOverlayAlpha(float Alpha);
+	void ClearFullScreenOverlay();
+
 protected:
 	void RefreshReadout();
 	void DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed, int32 SupplyCap);
@@ -226,6 +232,7 @@ protected:
 	void DrawFactionPrompt();
 	void DrawPaintedFrames();
 	void DrawPaintedV3();
+	void NoteFullScreenOverlay(float Alpha);
 	void PollShotAfter();
 	void LogShotScene();
 	void LogRenderDiag();
@@ -265,6 +272,8 @@ protected:
 	bool WorldToMinimap(float WorldX, float WorldY, float& OutX, float& OutY) const;
 
 	bool bLoggedFirstDraw = false;
+	bool bClearedMatchFade = false;
+	float FullScreenOverlayAlpha = 0.f;
 	bool bLoggedWingHelp = false;
 	bool bFactionPrompt = false;
 	bool bFactionPromptDrawn = false;

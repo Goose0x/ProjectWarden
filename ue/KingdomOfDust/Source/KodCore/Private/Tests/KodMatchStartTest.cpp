@@ -24,5 +24,13 @@ bool FKodMatchStartTest::RunTest(const FString& Parameters)
 	const FKodMatchStart Lobby = FKodSkirmishSetup::ResolveMatchStart(TEXT(""), TEXT("?Match=skirmish?PFaction=Scinder"));
 	TestFalse(TEXT("front end skips the prompt"), Lobby.bPrompt);
 	TestEqual(TEXT("front end faction"), Lobby.FactionIndex, 1);
+
+	const FKodMatchStart Zoom = FKodSkirmishSetup::ResolveMatchStart(TEXT("-kod.ShotZoom=1 -kod.Faction=VG"), FString());
+	TestFalse(TEXT("zoom shot skips the prompt"), Zoom.bPrompt);
+	TestEqual(TEXT("zoom shot vanguard"), Zoom.FactionIndex, 0);
+
+	const FKodMatchStart Select = FKodSkirmishSetup::ResolveMatchStart(TEXT("-kod.ShotSelectMove=1 -kod.Faction=SC"), FString());
+	TestFalse(TEXT("select shot skips the prompt"), Select.bPrompt);
+	TestEqual(TEXT("select shot scinder"), Select.FactionIndex, 1);
 	return true;
 }
