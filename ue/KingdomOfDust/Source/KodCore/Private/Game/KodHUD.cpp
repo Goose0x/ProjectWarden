@@ -323,7 +323,7 @@ void AKodHUD::DrawTopBar()
 		if (!bLoggedWingHelp && Index == 0)
 		{
 			bLoggedWingHelp = true;
-			UE_LOG(LogTemp, Log, TEXT("KodHUD WingBtn Help spec=%.0f,%.0f %.0fx%.0f viewport=%.0f,%.0f %.0fx%.0f canvas=%.0fx%.0f scale=%.3f"),
+			UE_LOG(LogTemp, Log, TEXT("KodHUD WingBtn Help spec=%.0f,%.0f %.0fx%.0f viewport=%.0f,%.0f %.0fx%.0f canvas=%dx%d scale=%.3f"),
 				KodHudLayout::WingHelpX, KodHudLayout::WingButtonY, KodHudLayout::WingButtonW, KodHudLayout::WingButtonH,
 				Tab.X, Tab.Y, Tab.W, Tab.H,
 				Canvas->SizeX, Canvas->SizeY, FrameScale);
