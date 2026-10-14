@@ -20,6 +20,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Game/KodHUD.h"
 #include "GameFramework/PlayerController.h"
+#include "Sim/KodBuildTypes.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "Slice0/KodSlice0GameMode.h"
@@ -87,7 +88,11 @@ namespace
 		}
 		Mesh->SetMobility(EComponentMobility::Movable);
 		Mesh->SetStaticMesh(Cylinder);
-		Mesh->SetWorldScale3D(FVector(18.f, 18.f, 0.4f));
+		const FVector Extent = Cylinder->GetBounds().BoxExtent * 2.f;
+		const float Footprint = 5.f * static_cast<float>(KodBuildGrid::CellUU);
+		const float Diameter = FMath::Max(1.f, Extent.X);
+		const float Height = FMath::Max(1.f, Extent.Z);
+		Mesh->SetWorldScale3D(FVector(Footprint / Diameter, Footprint / Diameter, 20.f / Height));
 		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Mesh->SetCanEverAffectNavigation(false);
 	}
@@ -198,6 +203,7 @@ namespace
 			Root->SetMobility(EComponentMobility::Movable);
 		}
 		Anchor->SetActorLocation(Socket, false, nullptr, ETeleportType::TeleportPhysics);
+		AKodSlice0GameMode::ApplyCommandCenterMesh(Anchor);
 		const FVector Seated = Anchor->GetActorLocation();
 		UE_LOG(LogTemp, Log, TEXT("KodFaultline CC Octagon Loc=%.0f,%.0f,%.0f"), Seated.X, Seated.Y, Seated.Z);
 	}
@@ -1041,6 +1047,7 @@ namespace
 		{
 			Building->Definition = Def;
 		}
+		AKodSlice0GameMode::ApplyCommandCenterMesh(Building);
 		FKodStructureSpec Spec;
 		Spec.DefinitionId = FName(KodWardenPaths::Id_CommandCenter);
 		Spec.DisplayId = FName(TEXT("CC"));

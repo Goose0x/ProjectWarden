@@ -30,6 +30,12 @@ public:
 	/** Leaves one atmosphere directional light. Spawned suns are movable. Returns the enabled count. */
 	static int32 KeepSingleDirectionalSun(UWorld* World, bool bTutorialLook);
 
+	/** One unbound manual exposure for PIE, -game, and shots. kod.Exposure is the EV100 bias. */
+	static void ApplyMatchExposure(UWorld* World);
+
+	/** SM_general when it loads, otherwise a cube whose footprint is 1000 cm. */
+	static void ApplyCommandCenterMesh(AActor* Actor);
+
 	/** When true, spawn one Ranger at origin+offset for walk gate smoke. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Slice0")
 	bool bSpawnSmokeRanger = false;
