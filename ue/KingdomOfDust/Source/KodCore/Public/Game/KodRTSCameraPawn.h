@@ -132,7 +132,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
 	float ZoomInterpSpeed = 12.f;
 
-	/** How fast a gameplay zoom-in eases back to DefaultArmLength. kod.Cam.ZoomReturn. */
+	/** Kept for kod.Cam.ZoomReturn. Wheel zoom holds; it does not ease back to the default. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
 	float ZoomReturnSpeed = 1.75f;
 
@@ -219,7 +219,6 @@ protected:
 	float ActiveNearClipUU = 20.f;
 	float ActiveFarClipUU = 30000.f;
 	float LoggedUnitScale = -1.f;
-	bool bZoomInThisFrame = false;
 	FVector PanVelocity = FVector::ZeroVector;
 	bool bGrabbing = false;
 	bool bGrabMoved = false;

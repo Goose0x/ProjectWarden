@@ -211,11 +211,6 @@ void AKodRTSCameraPawn::Tick(float DeltaSeconds)
 		UpdateFollow(Dt);
 	}
 
-	if (ZoomCeiling() <= DefaultArmLength + 1.f && !bZoomInThisFrame)
-	{
-		TargetArmLength = FMath::FInterpTo(TargetArmLength, DefaultArmLength, Dt, ZoomReturnSpeed);
-	}
-	bZoomInThisFrame = false;
 	CurrentArmLength = FMath::FInterpTo(CurrentArmLength, TargetArmLength, Dt, ZoomInterpSpeed);
 	if (CameraBoom)
 	{
@@ -253,21 +248,8 @@ void AKodRTSCameraPawn::Zoom(float AxisValue)
 	{
 		return;
 	}
-	const bool bLocked = ZoomCeiling() <= DefaultArmLength + 1.f;
-	if (bLocked)
-	{
-		if (AxisValue > 0.f)
-		{
-			bZoomInThisFrame = true;
-			TargetArmLength = FMath::Clamp(TargetArmLength - AxisValue * ZoomStep, MinArmLength, DefaultArmLength);
-		}
-		return;
-	}
-	if (AxisValue < 0.f && ZoomCeiling() <= DefaultArmLength + 1.f)
-	{
-		return;
-	}
-	TargetArmLength = FMath::Clamp(TargetArmLength - AxisValue * ZoomStep, MinArmLength, ZoomCeiling());
+	const float Ceiling = ZoomCeiling();
+	TargetArmLength = FMath::Clamp(TargetArmLength - AxisValue * ZoomStep, MinArmLength, Ceiling);
 }
 
 void AKodRTSCameraPawn::OrbitYaw(float AxisValue)
@@ -830,37 +812,15 @@ void AKodRTSCameraPawn::PollZoom()
 		}
 	}
 	const float Ceiling = ZoomCeiling();
-	const bool bLocked = Ceiling <= DefaultArmLength + 1.f;
-	if (bLocked)
-	{
-		if (Wheel > 0.f)
-		{
-			bZoomInThisFrame = true;
-			TargetArmLength = FMath::Clamp(TargetArmLength - Wheel * ZoomStep, MinArmLength, DefaultArmLength);
-		}
-	}
-	else if (Wheel > 0.f || (Wheel < 0.f && Ceiling > DefaultArmLength + 1.f))
+	if (!FMath::IsNearlyZero(Wheel))
 	{
 		TargetArmLength = FMath::Clamp(TargetArmLength - Wheel * ZoomStep, MinArmLength, Ceiling);
 	}
 	if (PC->WasInputKeyJustPressed(EKeys::End))
 	{
-		if (bLocked)
-		{
-			bZoomInThisFrame = true;
-			TargetArmLength = MinArmLength;
-		}
-		else
-		{
-			const bool bAtClose = FMath::Abs(TargetArmLength - MinArmLength) <= 1.f;
-			const float Next = bAtClose ? DefaultArmLength : MinArmLength;
-			TargetArmLength = FMath::Clamp(Next, MinArmLength, Ceiling);
-			CurrentArmLength = TargetArmLength;
-			if (CameraBoom)
-			{
-				CameraBoom->TargetArmLength = CurrentArmLength;
-			}
-		}
+		const bool bAtClose = FMath::Abs(TargetArmLength - MinArmLength) <= 1.f;
+		const float Next = bAtClose ? DefaultArmLength : MinArmLength;
+		TargetArmLength = FMath::Clamp(Next, MinArmLength, Ceiling);
 		UE_LOG(LogTemp, Log, TEXT("KodCam Zoom End Arm=%.0f"), TargetArmLength);
 	}
 	if (Ceiling > DefaultArmLength + 1.f && PC->WasInputKeyJustPressed(EKeys::Z) && !HasLiftableSelection())
