@@ -135,7 +135,7 @@ FKodHudV3 FKodHudV3::ForFaction(bool bScinder)
 		Layout.MapButton[0] = Box(307.f, 817.f, 49.f, 20.f);
 		Layout.MapButton[1] = Box(308.f, 868.f, 52.f, 16.f);
 		Layout.MapButton[2] = Box(307.f, 919.f, 53.f, 12.f);
-		Layout.Banner = Box(771.f, 0.f, 368.f, 82.f);
+		Layout.Banner = Box(730.f, 0.f, 458.f, 82.f);
 		Layout.Clock = Box(267.f, 748.f, 81.f, 36.f);
 		Layout.bClockBox = true;
 		const float TabX[10] = { 375.f, 443.f, 511.f, 579.f, 647.f, 715.f, 783.f, 852.f, 921.f, 989.f };
