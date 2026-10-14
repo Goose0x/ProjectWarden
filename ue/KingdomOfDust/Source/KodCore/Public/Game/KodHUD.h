@@ -220,6 +220,7 @@ protected:
 	void DrawMinimap();
 	void DrawClickMarkers();
 	void DrawSelectionPulse();
+	void DrawSc2WorldMarks();
 	void DrawJuiceFloaters();
 	void DrawIdleWorkerButton();
 	void DrawPortrait();

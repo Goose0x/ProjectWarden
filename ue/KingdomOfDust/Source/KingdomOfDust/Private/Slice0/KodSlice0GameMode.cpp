@@ -378,7 +378,8 @@ int32 AKodSlice0GameMode::KeepSingleDirectionalSun(UWorld* World, bool bTutorial
 	bool bSpawned = false;
 	if (!KeptSun)
 	{
-		const FRotator SpawnRotation = bTutorialLook ? FRotator(-32.f, 225.f, 0.f) : FRotator(-45.f, 35.f, 0.f);
+		const FRotator SpawnRotation(-37.f, 150.f, 0.f);
+		(void)bTutorialLook;
 		KeptSun = World->SpawnActor<ADirectionalLight>(ADirectionalLight::StaticClass(), FTransform(SpawnRotation));
 		bSpawned = KeptSun != nullptr;
 	}
@@ -427,33 +428,21 @@ int32 AKodSlice0GameMode::KeepSingleDirectionalSun(UWorld* World, bool bTutorial
 			KeptComponent->SetIntensity(FMath::Max(AuthoredIntensity, IntensityFloor));
 			KeptComponent->SetDynamicShadowDistanceMovableLight(30000.f);
 		}
-		else if (KeptComponent)
+		if (KeptComponent)
 		{
 			KeptComponent->SetMobility(EComponentMobility::Movable);
 			KeptComponent->SetAtmosphereSunLight(true);
 			KeptComponent->SetVisibility(true);
 			KeptComponent->SetCastShadows(true);
-			const float LiveFloor = bTutorialLook ? 6.5f : 4.f;
-			if (KeptComponent->Intensity < LiveFloor)
-			{
-				KeptComponent->SetIntensity(LiveFloor);
-			}
+			// Light travels toward screen top-left (about 10 o'clock) so shadows fall that way.
+			// A small source angle keeps the shadow edge sharp. Low sky fill keeps the ground dark.
+			KeptSun->SetActorRotation(FRotator(-37.f, 150.f, 0.f));
+			KeptComponent->SetIntensity(5.f);
+			KeptComponent->SetLightColor(FLinearColor::FromSRGBColor(FColor(0xC8, 0xBE, 0xA8)));
+			KeptComponent->SetTemperature(5200.f);
+			KeptComponent->SetUseTemperature(true);
+			KeptComponent->SetLightSourceAngle(0.35f);
 			KeptComponent->SetDynamicShadowDistanceMovableLight(30000.f);
-			if (bTutorialLook)
-			{
-				KeptSun->SetActorRotation(FRotator(-32.f, 225.f, 0.f));
-				KeptComponent->SetIntensity(6.5f);
-				KeptComponent->SetLightColor(FLinearColor::FromSRGBColor(FColor(0xFF, 0xD8, 0xA8)));
-				KeptComponent->SetTemperature(4200.f);
-				KeptComponent->SetUseTemperature(true);
-				KeptComponent->SetDynamicShadowDistanceMovableLight(30000.f);
-			}
-			else if (bSpawned)
-			{
-				KeptComponent->SetIntensity(4.f);
-				KeptComponent->SetTemperature(6500.f);
-				KeptComponent->SetUseTemperature(true);
-			}
 		}
 		if (KeptComponent && KeptComponent->IsVisible())
 		{
@@ -566,7 +555,7 @@ static void ApplySc2Look(UWorld* World)
 			else
 			{
 				Sky->SetMobility(EComponentMobility::Movable);
-				Sky->SetIntensity(0.4f);
+				Sky->SetIntensity(0.15f);
 				Sky->SetLightColor(FLinearColor(0.55f, 0.62f, 0.72f));
 			}
 		}
@@ -580,7 +569,7 @@ static void ApplySc2Look(UWorld* World)
 			if (USkyLightComponent* Sky = SkyActor->GetLightComponent())
 			{
 				Sky->SetMobility(EComponentMobility::Movable);
-				Sky->SetIntensity(0.4f);
+				Sky->SetIntensity(0.15f);
 				Sky->SetLightColor(FLinearColor(0.55f, 0.62f, 0.72f));
 			}
 		}
@@ -597,7 +586,7 @@ static void ApplySc2Look(UWorld* World)
 		if (Fog && Fog->GetComponent())
 		{
 			UExponentialHeightFogComponent* FogComp = Fog->GetComponent();
-			FogComp->SetFogDensity(0.015f);
+			FogComp->SetFogDensity(0.004f);
 			FogComp->SetFogHeightFalloff(0.2f);
 			FogComp->SetFogInscatteringColor(FLinearColor(0.45f, 0.5f, 0.58f));
 			FogComp->SetVolumetricFog(false);
@@ -647,7 +636,7 @@ static void ApplySc2Look(UWorld* World)
 			else
 			{
 				Sky->SetMobility(EComponentMobility::Movable);
-				Sky->SetIntensity(0.8f);
+				Sky->SetIntensity(0.15f);
 				Sky->SetLightColor(SkyColor);
 				Sky->SetRealTimeCapture(false);
 				if (bShotAfter)
@@ -670,7 +659,7 @@ static void ApplySc2Look(UWorld* World)
 	if (FogActor && FogActor->GetComponent())
 	{
 		UExponentialHeightFogComponent* FogComp = FogActor->GetComponent();
-		FogComp->SetFogDensity(0.006f);
+		FogComp->SetFogDensity(0.002f);
 		FogComp->SetFogInscatteringColor(HazeColor);
 		FogComp->SetStartDistance(4000.f);
 		FogComp->SetVolumetricFog(false);

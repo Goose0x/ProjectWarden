@@ -134,6 +134,7 @@ protected:
 	void KeepSelectCollision();
 	/** Downward KodGround trace, then capsule half-height. No-op when the floor does not block that channel. */
 	void SnapToGround();
+	float MirrorBodyHeightUU() const;
 
 	/** Bob + visual yaw. Runs after sim presentation sync. Never writes sim state. */
 	void UpdateLifePresentation(float DeltaSeconds);

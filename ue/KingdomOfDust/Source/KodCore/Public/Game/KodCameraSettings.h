@@ -7,7 +7,8 @@
  * Director SC2 camera defaults, in SC2 game units except the angles.
  * 1 SC2 cell equals one build cell. SupplyDepot is 2x2 and KodBuildGrid::CellUU
  * is 200, so the depot is 400 cm and KodCameraUnitScale is 200 uu per SC2 unit.
- * Gameplay distance rests at 34. Wheel zoom may come in to 16, then eases back.
+ * Gameplay distance rests at 28 so a 5x5 HQ is about 16% of a 16:9 view.
+ * Wheel zoom may come in to 16 and stays there. kod.Cam.Distance is the cvar.
  */
 namespace KodCameraSettings
 {
@@ -15,7 +16,8 @@ namespace KodCameraSettings
 	inline constexpr float YawDegrees = 90.f;
 	inline constexpr float RollDegrees = 0.f;
 	inline constexpr float FovDegrees = 35.f;
-	inline constexpr float DistanceSc2 = 34.f;
+	/** SC2 units. 28 * 200 uu puts a 1000 cm HQ at ~16% of a 1280-wide view. */
+	inline constexpr float DistanceSc2 = 28.f;
 	inline constexpr float DistanceMinSc2 = 16.f;
 	inline constexpr float TargetZSc2 = 0.f;
 	inline constexpr float NearSc2 = 0.1f;
@@ -23,6 +25,11 @@ namespace KodCameraSettings
 	inline constexpr float ZoomStepSc2 = 2.f;
 	inline constexpr float ZoomReturnSpeed = 1.75f;
 	inline constexpr int32 DepotFootprintCells = 2;
+	inline constexpr int32 HqFootprintCells = 5;
+	/** Standing height that reads as ~27.5 px at 720p at DistanceSc2. */
+	inline constexpr float WorkerBodyUU = 242.f;
+	/** Standing height that reads as ~32.5 px at 720p at DistanceSc2. */
+	inline constexpr float MarineBodyUU = 286.f;
 
 	/** uu per SC2 game unit. One build cell. */
 	inline constexpr float UnitScaleUU = static_cast<float>(KodBuildGrid::CellUU);
@@ -43,6 +50,39 @@ namespace KodCameraSettings
 	inline constexpr float DepotSpanUU()
 	{
 		return UnitScaleUU * static_cast<float>(DepotFootprintCells);
+	}
+
+	inline constexpr float HqSpanUU()
+	{
+		return UnitScaleUU * static_cast<float>(HqFootprintCells);
+	}
+
+	/** Horizontal field of view from the vertical fov and the viewport aspect. */
+	inline float HorizontalFovDegrees(float VerticalFov, float Aspect)
+	{
+		const float HalfVertical = FMath::DegreesToRadians(FMath::Max(1.f, VerticalFov) * 0.5f);
+		const float HalfHorizontal = FMath::Atan(FMath::Tan(HalfVertical) * FMath::Max(0.1f, Aspect));
+		return FMath::RadiansToDegrees(HalfHorizontal * 2.f);
+	}
+
+	/**
+	 * Width of a ground edge at the look-at point, as a fraction of the viewport width.
+	 * The edge is measured along camera-right, so pitch does not foreshorten it.
+	 */
+	inline float ScreenWidthFraction(float WorldWidthUU, float ArmUU, float VerticalFov, float Aspect)
+	{
+		const float HalfHorizontal = FMath::DegreesToRadians(HorizontalFovDegrees(VerticalFov, Aspect) * 0.5f);
+		const float Visible = 2.f * FMath::Max(1.f, ArmUU) * FMath::Tan(HalfHorizontal);
+		return WorldWidthUU / FMath::Max(1.f, Visible);
+	}
+
+	/** On-screen pixels of a vertical body at the look-at point. Pitch foreshortens world up. */
+	inline float BodyPixels(float BodyUU, float ArmUU, float VerticalFov, float Pitch, float ViewHeightPx)
+	{
+		const float HalfVertical = FMath::Tan(FMath::DegreesToRadians(FMath::Max(1.f, VerticalFov) * 0.5f));
+		const float Perpendicular = BodyUU * FMath::Cos(FMath::DegreesToRadians(FMath::Abs(Pitch)));
+		const float Fraction = (Perpendicular / FMath::Max(1.f, ArmUU)) / (2.f * HalfVertical);
+		return Fraction * ViewHeightPx;
 	}
 
 	/** Gameplay lock: no closer than the minimum, no farther than the resting distance. */

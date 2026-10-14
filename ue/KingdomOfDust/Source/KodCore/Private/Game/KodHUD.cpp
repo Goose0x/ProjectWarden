@@ -14,6 +14,7 @@
 #include "HighResScreenshot.h"
 #include "Misc/Parse.h"
 #include "UnrealClient.h"
+#include "Game/KodCameraSettings.h"
 #include "Game/KodHudLayout.h"
 #include "Game/KodUiArt.h"
 #include "Game/KodWireTint.h"
@@ -286,10 +287,10 @@ void AKodHUD::DrawVanguardChrome()
 		return;
 	}
 	const float Bottom = Canvas->SizeY;
-	const float TopRaised = MapSpec(0.f, 756.f, 1.f, 1.f).Y;
-	const float TopWell = MapSpec(0.f, 862.f, 1.f, 1.f).Y;
-	const float SeamX = MapSpec(442.f, 0.f, 1.f, 1.f).X;
-	const float PortX = MapSpec(1474.f, 0.f, 1.f, 1.f).X;
+	const float TopRaised = MapSpec(0.f, KodHudLayout::HudBandTop, 1.f, 1.f).Y;
+	const float TopWell = MapSpec(0.f, KodHudLayout::InfoY, 1.f, 1.f).Y;
+	const float SeamX = MapSpec(KodHudLayout::MinimapX + KodHudLayout::MinimapSize, 0.f, 1.f, 1.f).X;
+	const float PortX = MapSpec(KodHudLayout::PortraitX, 0.f, 1.f, 1.f).X;
 	const bool bScinder = HudSkin == 1;
 	const FLinearColor Gunmetal = bScinder ? Tok(0x6E, 0x5B, 0x4F, 0.97f) : Tok(0x3A, 0x3F, 0x45, 0.97f);
 	const FLinearColor Steel = bScinder ? Tok(0xA0, 0x78, 0x55, 0.96f) : Tok(0x5C, 0x64, 0x6C, 0.96f);
@@ -1479,6 +1480,7 @@ void AKodHUD::DrawHUD()
 	DrawPlacementGrid();
 	DrawClickMarkers();
 	DrawSelectionPulse();
+	DrawSc2WorldMarks();
 	DrawJuiceFloaters();
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
@@ -1833,7 +1835,7 @@ void AKodHUD::SyncGroundRings(const TMap<AActor*, int32>& Rings, const UKodSimSu
 		}
 		else if (const FKodSimEntityState* State = FindFrameState(Id.Value))
 		{
-			Radius = static_cast<float>(FMath::Max(16, State->BodyRadiusUU));
+			Radius = static_cast<float>(FMath::Max(16, State->BodyRadiusUU)) * 1.08f;
 		}
 		const float RingScale = FMath::Max(0.05f, (Radius * 2.f) / 100.f);
 		Comp->SetWorldLocation(FVector(RootPoint.X, RootPoint.Y, FloorZ));
@@ -2041,6 +2043,191 @@ void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
 		if (FogSheetMaterial)
 		{
 			SheetMesh->SetMaterial(0, FogSheetMaterial);
+		}
+	}
+}
+
+void AKodHUD::DrawSc2WorldMarks()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	APlayerController* PC = GetOwningPlayerController();
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!PC || !Sim)
+	{
+		return;
+	}
+	auto Dash = [this](float X0, float Y0, float X1, float Y1, const FLinearColor& Ink, float Width)
+	{
+		const FVector2D Delta(X1 - X0, Y1 - Y0);
+		const float Len = Delta.Size();
+		if (Len < 2.f)
+		{
+			return;
+		}
+		const FVector2D Step = Delta / Len;
+		constexpr float DashPx = 10.f;
+		constexpr float GapPx = 7.f;
+		for (float Travel = 0.f; Travel < Len; Travel += DashPx + GapPx)
+		{
+			const float End = FMath::Min(Len, Travel + DashPx);
+			DrawLine(X0 + Step.X * Travel, Y0 + Step.Y * Travel, X0 + Step.X * End, Y0 + Step.Y * End, Ink, Width);
+		}
+	};
+	auto Project = [PC](const FVector& WorldPoint, FVector2D& Out) -> bool
+	{
+		return PC->ProjectWorldLocationToScreen(WorldPoint, Out, true);
+	};
+	const int32 LocalTeam = ReadLocalTeamId();
+	const FLinearColor Green(FColor(0x4C, 0xD9, 0x64));
+	const FLinearColor White(0.95f, 0.95f, 0.95f, 0.95f);
+	UFont* Font = GEngine ? GEngine->GetSmallFont() : nullptr;
+
+	for (const FKodStructureState& Structure : FrameStructures)
+	{
+		if (!Structure.bComplete || Structure.TeamId != LocalTeam)
+		{
+			continue;
+		}
+		const bool bHq = Structure.DefinitionId == FName(KodWardenPaths::Id_CommandCenter) || Structure.bIsDropOff;
+		const bool bGas = Structure.DefinitionId == FName(KodWardenPaths::Id_Rig);
+		if (!bHq && !bGas)
+		{
+			continue;
+		}
+		int32 Working = 0;
+		for (const FKodSimEntityState& State : FrameStates)
+		{
+			if (!State.bCanGather || State.TeamId != LocalTeam || State.Health <= 0.f)
+			{
+				continue;
+			}
+			if (bGas)
+			{
+				if (State.GatherType == EKodResourceType::Luminene && FVector::Dist2D(State.Position, Structure.Position) < 800.f)
+				{
+					++Working;
+				}
+			}
+			else if (State.GatherDropOff == Structure.Id && State.GatherType != EKodResourceType::Luminene)
+			{
+				++Working;
+			}
+		}
+		const int32 Cap = bGas ? 3 : 16;
+		FVector2D Screen;
+		const FVector LabelAt = Structure.Position + FVector(0.f, 0.f, 220.f);
+		if (Project(LabelAt, Screen))
+		{
+			const FString Label = FString::Printf(TEXT("Workers: %d/%d"), Working, Cap);
+			const float BoxW = 118.f * FMath::Max(0.5f, FrameScale);
+			const float BoxH = 18.f * FMath::Max(0.5f, FrameScale);
+			DrawRect(FLinearColor(0.02f, 0.03f, 0.04f, 0.72f), Screen.X - BoxW * 0.5f, Screen.Y - BoxH, BoxW, BoxH);
+			DrawText(Label, White, Screen.X - BoxW * 0.5f + 6.f, Screen.Y - BoxH + 2.f, Font, FMath::Max(0.5f, FrameScale), false);
+		}
+		if (FVector::Dist2D(Structure.RallyPoint, Structure.Position) > 80.f)
+		{
+			FVector2D From;
+			FVector2D To;
+			if (Project(Structure.Position + FVector(0.f, 0.f, 40.f), From) && Project(Structure.RallyPoint, To))
+			{
+				Dash(From.X, From.Y, To.X, To.Y, White, 1.5f);
+				DrawLine(To.X - 8.f, To.Y, To.X + 8.f, To.Y, White, 1.5f);
+				DrawLine(To.X, To.Y - 8.f, To.X, To.Y + 8.f, White, 1.5f);
+			}
+		}
+	}
+
+	const AKodPlayerController* KodPC = Cast<AKodPlayerController>(PC);
+	TSet<const AActor*> SelectedActors;
+	if (KodPC)
+	{
+		for (const AActor* SelectedActor : KodPC->GetLocalSelection())
+		{
+			if (SelectedActor)
+			{
+				SelectedActors.Add(SelectedActor);
+			}
+		}
+	}
+	for (const FKodStructureState& Structure : FrameStructures)
+	{
+		AActor* Actor = Sim->ResolveEntity(Structure.Id);
+		if (!Actor || !SelectedActors.Contains(Actor))
+		{
+			continue;
+		}
+		const float Half = 0.5f * static_cast<float>(FMath::Max(Structure.FootprintX, Structure.FootprintY)) * static_cast<float>(KodBuildGrid::CellUU);
+		const FVector Center = Structure.Position + FVector(0.f, 0.f, 8.f);
+		const FVector Out[4] = {
+			Center + FVector(Half, 0.f, 0.f),
+			Center + FVector(-Half, 0.f, 0.f),
+			Center + FVector(0.f, Half, 0.f),
+			Center + FVector(0.f, -Half, 0.f)
+		};
+		FVector2D CenterScreen;
+		if (!Project(Center, CenterScreen))
+		{
+			continue;
+		}
+		for (const FVector& Outer : Out)
+		{
+			const FVector Inner = FMath::Lerp(Outer, Center, 0.28f);
+			FVector2D A;
+			FVector2D B;
+			if (!Project(Outer, A) || !Project(Inner, B))
+			{
+				continue;
+			}
+			const FVector2D Side = FVector2D(B.Y - A.Y, A.X - B.X).GetSafeNormal() * 5.f;
+			DrawLine(A.X, A.Y, B.X + Side.X, B.Y + Side.Y, Green, 1.5f);
+			DrawLine(A.X, A.Y, B.X - Side.X, B.Y - Side.Y, Green, 1.5f);
+			DrawLine(B.X + Side.X, B.Y + Side.Y, B.X - Side.X, B.Y - Side.Y, Green, 1.5f);
+		}
+	}
+
+	if (!KodPC)
+	{
+		return;
+	}
+	for (AActor* Actor : KodPC->GetLocalSelection())
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+		const FKodEntityId Id = Sim->FindIdForActor(Actor);
+		const FKodSimEntityState* State = FindFrameState(Id.Value);
+		if (!State || !State->bMobile || State->Order != EKodSimOrderType::Move)
+		{
+			continue;
+		}
+		FVector2D From;
+		FVector2D To;
+		if (Project(State->Position + FVector(0.f, 0.f, 20.f), From) && Project(State->MoveTarget + FVector(0.f, 0.f, 20.f), To))
+		{
+			Dash(From.X, From.Y, To.X, To.Y, Green, 1.5f);
+		}
+		FVector2D Prev = To;
+		bool bHavePrev = Project(State->MoveTarget + FVector(0.f, 0.f, 20.f), Prev);
+		for (const FKodQueuedOrder& Queued : State->OrderQueue)
+		{
+			if (Queued.Order != EKodSimOrderType::Move && Queued.Order != EKodSimOrderType::AttackMove)
+			{
+				continue;
+			}
+			FVector2D Next;
+			const FVector Point(static_cast<float>(Queued.X), static_cast<float>(Queued.Y), State->Position.Z);
+			if (!bHavePrev || !Project(Point, Next))
+			{
+				bHavePrev = Project(Point, Prev);
+				continue;
+			}
+			Dash(Prev.X, Prev.Y, Next.X, Next.Y, Green, 1.5f);
+			Prev = Next;
 		}
 	}
 }
@@ -2464,7 +2651,7 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed,
 	}
 	for (int32 Index = 0; Index < 4; ++Index)
 	{
-		const FKodScreenRect Icon = MapSpec(KodHudLayout::ResourceOriginX[Index], 1.f, KodHudLayout::ResourceIcon, KodHudLayout::ResourceIcon);
+		const FKodScreenRect Icon = MapSpec(KodHudLayout::ResourceOriginX[Index], KodHudLayout::ResourceY, KodHudLayout::ResourceIcon, KodHudLayout::ResourceIcon);
 		UTexture2D* Texture = ResolveResourceIcon(Icon28[Index], Icon64[Index]);
 		if (Texture)
 		{
@@ -2478,7 +2665,7 @@ void AKodHUD::DrawCanvasReadout(int32 Jadeite, int32 Luminene, int32 SupplyUsed,
 		const bool bCap = Index == 3 && bSupplyBlocked;
 		const FLinearColor Ink = bCap ? Tok(0xFF, 0x4A, 0x4A) : ValueInk;
 		const float Scale = (bCap ? SupplyPulse : 1.f) * FrameScale;
-		const FKodScreenRect Value = MapSpec(KodHudLayout::ResourceOriginX[Index] + KodHudLayout::ResourceValueGap, 2.f, 80.f, 24.f);
+		const FKodScreenRect Value = MapSpec(KodHudLayout::ResourceOriginX[Index] + KodHudLayout::ResourceValueGap, KodHudLayout::ResourceY + 4.f, 80.f, 24.f);
 		DrawText(ChipText[Index], FLinearColor(0.f, 0.f, 0.f, 0.65f), Value.X + FrameScale, Value.Y + 2.f * FrameScale, Font, Scale, false);
 		DrawText(ChipText[Index], Ink, Value.X, Value.Y, Font, Scale, false);
 	}
@@ -4137,7 +4324,7 @@ void AKodHUD::DrawUnitHealthBars()
 		float Zoom = 1.f;
 		if (const AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(OwningPC->GetPawn()))
 		{
-			Zoom = FMath::Clamp(6800.f / FMath::Max(1.f, CameraPawn->GetCurrentArmLength()), 0.75f, 1.25f);
+			Zoom = FMath::Clamp(KodCameraSettings::ToUU(KodCameraSettings::DistanceSc2) / FMath::Max(1.f, CameraPawn->GetCurrentArmLength()), 0.75f, 1.25f);
 		}
 		const float Ui = FrameScale * Zoom;
 		float BarWidth = KodHudLayout::UnitBarW * Ui;

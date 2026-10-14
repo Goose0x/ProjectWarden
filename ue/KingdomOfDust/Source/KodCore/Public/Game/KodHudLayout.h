@@ -57,40 +57,56 @@ namespace KodHudLayout
 	constexpr float QueueProgW = 72.f;
 	constexpr float QueueProgH = 6.f;
 
-	constexpr float CommandCardX = 1507.f;
-	constexpr float CommandCardY = 826.f;
-	constexpr float CommandCardW = 404.f;
-	constexpr float CommandCardH = 240.f;
-	constexpr float CommandButton = 76.f;
-	constexpr float CommandGap = 6.f;
+	constexpr float CommandCardX = 1588.f;
+	constexpr float CommandCardY = 868.f;
+	constexpr float CommandCardW = 316.f;
+	constexpr float CommandCardH = 196.f;
+	constexpr float CommandButton = 56.f;
+	constexpr float CommandGap = 8.f;
 	constexpr int32 CommandCols = 5;
 	constexpr int32 CommandRows = 3;
 
 	/** Authored icon and wireframe textures. Drawn scaled to the slot. */
 	constexpr int32 IconSourceTexels = 128;
 
-	/** Addendum H/I. Boxless readout. No chip under the values. */
-	constexpr float ResourceOriginX[4] = { 1384.f, 1520.f, 1656.f, 1792.f };
-	constexpr float ResourceIcon = 28.f;
-	constexpr float ResourceValueGap = 33.f;
+	/** Top-right strip. 43/1080 is 4% of the screen height. */
+	constexpr float ResourceOriginX[4] = { 1344.f, 1488.f, 1632.f, 1776.f };
+	constexpr float ResourceY = 10.f;
+	constexpr float ResourceStripH = 43.f;
+	constexpr float ResourceIcon = 32.f;
+	constexpr float ResourceValueGap = 36.f;
+
+	/** Bottom HUD band is 25% of 1080. Minimap is square in that band. */
+	constexpr float HudBandTop = 810.f;
+	constexpr float MinimapX = 16.f;
+	constexpr float MinimapY = 814.f;
+	constexpr float MinimapSize = 250.f;
+	constexpr float InfoX = 290.f;
+	constexpr float InfoY = 848.f;
+	constexpr float InfoW = 720.f;
+	constexpr float InfoH = 210.f;
+	constexpr float PortraitX = 1040.f;
+	constexpr float PortraitY = 838.f;
+	constexpr float PortraitW = 210.f;
+	constexpr float PortraitH = 220.f;
 
 	/** Addendum A. Painted frame layers. Missing textures keep the flat panels. */
-	constexpr float FrameMinimapX = 0.f;
-	constexpr float FrameMinimapY = 750.f;
-	constexpr float FrameMinimapW = 517.f;
-	constexpr float FrameMinimapH = 330.f;
-	constexpr float FrameCentreX = 512.f;
-	constexpr float FrameCentreY = 824.f;
-	constexpr float FrameCentreW = 778.f;
-	constexpr float FrameCentreH = 256.f;
-	constexpr float FramePortraitX = 1290.f;
-	constexpr float FramePortraitY = 856.f;
-	constexpr float FramePortraitW = 190.f;
-	constexpr float FramePortraitH = 224.f;
-	constexpr float FrameCardX = 1474.f;
-	constexpr float FrameCardY = 770.f;
-	constexpr float FrameCardW = 446.f;
-	constexpr float FrameCardH = 310.f;
+	constexpr float FrameMinimapX = MinimapX;
+	constexpr float FrameMinimapY = MinimapY;
+	constexpr float FrameMinimapW = MinimapSize;
+	constexpr float FrameMinimapH = MinimapSize;
+	constexpr float FrameCentreX = InfoX;
+	constexpr float FrameCentreY = InfoY;
+	constexpr float FrameCentreW = InfoW;
+	constexpr float FrameCentreH = InfoH;
+	constexpr float FramePortraitX = PortraitX;
+	constexpr float FramePortraitY = PortraitY;
+	constexpr float FramePortraitW = PortraitW;
+	constexpr float FramePortraitH = PortraitH;
+	constexpr float FrameCardX = CommandCardX;
+	constexpr float FrameCardY = CommandCardY;
+	constexpr float FrameCardW = CommandCardW;
+	constexpr float FrameCardH = CommandCardH;
 
 	/** Addendum G. Command-card wing. Help is drawn, and its click stays locked. */
 	constexpr float WingButtonY = 788.f;
