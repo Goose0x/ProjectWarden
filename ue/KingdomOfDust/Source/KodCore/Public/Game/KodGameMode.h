@@ -22,6 +22,9 @@ public:
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void StartPlay() override;
 
+	/** Apply Vanguard (0) or Scinder (1), unpause, and look at the player base. */
+	virtual void ApplyStartFaction(int32 FactionIndex);
+
 	/** GameMode default, or the `Spectate=1` URL option. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Camera")
 	bool bStartAsSpectator = false;

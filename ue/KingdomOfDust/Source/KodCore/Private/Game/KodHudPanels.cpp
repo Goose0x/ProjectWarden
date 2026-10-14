@@ -1145,6 +1145,10 @@ const FKodStructureState* AKodHUD::FindFrameStructure(int32 EntityId) const
 
 bool AKodHUD::BlocksWorldSelect(float MouseX, float MouseY) const
 {
+	if (bFactionPrompt)
+	{
+		return true;
+	}
 	if (MenuPage != 0)
 	{
 		return true;

@@ -228,6 +228,7 @@ namespace
 					Spot->Tags.Add(FName(*Id));
 					if (USpotLightComponent* SpotComp = Cast<USpotLightComponent>(Spot->GetLightComponent()))
 					{
+						SpotComp->SetMobility(EComponentMobility::Movable);
 						SpotComp->SetInnerConeAngle(static_cast<float>(Inner));
 						SpotComp->SetOuterConeAngle(static_cast<float>(Outer));
 						Component = SpotComp;
@@ -241,7 +242,11 @@ namespace
 				{
 					Point->Tags.Add(FName(TEXT("KodAccentLight")));
 					Point->Tags.Add(FName(*Id));
-					Component = Cast<ULocalLightComponent>(Point->GetLightComponent());
+					if (ULocalLightComponent* PointComp = Cast<ULocalLightComponent>(Point->GetLightComponent()))
+					{
+						PointComp->SetMobility(EComponentMobility::Movable);
+						Component = PointComp;
+					}
 				}
 			}
 			if (!Component)

@@ -125,6 +125,7 @@ public:
 	virtual void AddToControlGroup(int32 GroupIndex);
 
 	void SetLocalSelectionFromIds(const TArray<FKodEntityId>& Ids, bool bAdd);
+	void SelectPlayerCommandCenter();
 	void SelectIdleWorker();
 
 	/** Ground order from the minimap. Combat units attack-move. Others move. */
@@ -263,6 +264,7 @@ protected:
 	bool bMinimapDrag = false;
 	int32 CommandSubgroupIndex = 0;
 	int32 LastIdleWorkerId = 0;
+	float LastBaseCameraTap = -1.f;
 	TArray<int32> CommandSelectionIds;
 	FVector2D MarqueeStart = FVector2D::ZeroVector;
 	FVector2D MarqueeEnd = FVector2D::ZeroVector;

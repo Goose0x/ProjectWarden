@@ -22,6 +22,7 @@
 #include "Game/KodUserSettings.h"
 #include "InputCoreTypes.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Warden/KodWardenPaths.h"
 #include "Sim/KodCheatRows.h"
 #include "Game/KodSpectatorPawn.h"
 #include "Warden/KodWardenPaths.h"
@@ -73,7 +74,7 @@ void AKodRTSCameraPawn::BeginPlay()
 
 	if (WantsCommandCenterFraming())
 	{
-		FocusCommandCenter();
+		SnapToPlayerStart();
 	}
 	CachePlayableBounds();
 	UpdateTerrain(0.f, true);
@@ -276,6 +277,79 @@ void AKodRTSCameraPawn::OrbitYaw(float AxisValue)
 		return;
 	}
 	AddActorWorldRotation(FRotator(0.f, AxisValue, 0.f));
+}
+
+void AKodRTSCameraPawn::SnapToStartView(FVector WorldLocation)
+{
+	YawDegrees = 90.f;
+	PitchDegrees = -56.f;
+	VerticalFovDegrees = 35.f;
+	DefaultArmLength = 6800.f;
+	if (MinArmLength > DefaultArmLength)
+	{
+		MinArmLength = 3200.f;
+	}
+	MaxArmLength = DefaultArmLength;
+	CurrentArmLength = DefaultArmLength;
+	TargetArmLength = DefaultArmLength;
+	SetActorRotation(FRotator(0.f, YawDegrees, 0.f));
+	MaintainBoom();
+	ApplyVerticalFov();
+	JumpTo(WorldLocation);
+}
+
+AActor* AKodRTSCameraPawn::FindCommandCenter() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+	if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+	{
+		TArray<FKodStructureState> Structures;
+		Sim->CopyStructures(Structures);
+		for (const FKodStructureState& Structure : Structures)
+		{
+			if (Structure.TeamId != 0 || Structure.DefinitionId != FName(KodWardenPaths::Id_CommandCenter))
+			{
+				continue;
+			}
+			if (AActor* Actor = Sim->ResolveEntity(Structure.Id))
+			{
+				return Actor;
+			}
+		}
+	}
+	AActor* Best = nullptr;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!Actor || Actor == this)
+		{
+			continue;
+		}
+		const bool bCc = Actor->ActorHasTag(FName(TEXT("KodBuildingCommandCenter")))
+			|| Actor->ActorHasTag(FName(TEXT("P1_SPAWN")))
+			|| Actor->GetActorNameOrLabel().Contains(TEXT("PROXY_CC"));
+		if (!bCc)
+		{
+			continue;
+		}
+		if (!Best || Actor->GetName() < Best->GetName())
+		{
+			Best = Actor;
+		}
+	}
+	return Best;
+}
+
+void AKodRTSCameraPawn::SnapToPlayerStart()
+{
+	if (AActor* Anchor = FindCommandCenter())
+	{
+		SnapToStartView(Anchor->GetActorLocation());
+	}
 }
 
 void AKodRTSCameraPawn::JumpTo(FVector WorldLocation)

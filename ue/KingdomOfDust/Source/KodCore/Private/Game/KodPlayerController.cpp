@@ -3,6 +3,7 @@
 #include "Game/KodJadeiteTunerWidget.h"
 #include "Misc/Char.h"
 #include "Components/PrimitiveComponent.h"
+#include "Game/KodGameMode.h"
 #include "Game/KodHUD.h"
 #include "Game/KodPortraitStage.h"
 #include "Game/KodRTSCameraPawn.h"
@@ -171,6 +172,40 @@ void AKodPlayerController::UpdateHiddenComponents(const FVector& ViewLocation, T
 void AKodPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
+	if (AKodHUD* PromptHUD = Cast<AKodHUD>(GetHUD()))
+	{
+		if (PromptHUD->IsFactionPromptOpen())
+		{
+			if (WasInputKeyJustPressed(EKeys::One) || WasInputKeyJustPressed(EKeys::V))
+			{
+				PromptHUD->SetFactionPromptIndex(0);
+			}
+			if (WasInputKeyJustPressed(EKeys::Two) || WasInputKeyJustPressed(EKeys::S))
+			{
+				PromptHUD->SetFactionPromptIndex(1);
+			}
+			bool bConfirm = WasInputKeyJustPressed(EKeys::Enter);
+			if (WasInputKeyJustPressed(EKeys::LeftMouseButton))
+			{
+				float MouseX = 0.f;
+				float MouseY = 0.f;
+				FKodHudChromeHit Hit;
+				if (GetMousePosition(MouseX, MouseY) && PromptHUD->GetChromeHit(MouseX, MouseY, Hit) && Hit.Kind == FName(TEXT("FactionPrompt")))
+				{
+					PromptHUD->SetFactionPromptIndex(Hit.IntParam);
+					bConfirm = true;
+				}
+			}
+			if (bConfirm)
+			{
+				if (AKodGameMode* Mode = GetWorld() ? GetWorld()->GetAuthGameMode<AKodGameMode>() : nullptr)
+				{
+					Mode->ApplyStartFaction(PromptHUD->GetFactionPromptIndex());
+				}
+			}
+			return;
+		}
+	}
 	if (AKodHUD* ChatHUD = Cast<AKodHUD>(GetHUD()))
 	{
 		if (ChatHUD->IsChatOpen())
@@ -225,6 +260,22 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 				}
 			}
 			return;
+		}
+		if (WasInputKeyJustPressed(EKeys::BackSpace) && !ChatHUD->IsMenuOpen())
+		{
+			const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+			if (LastBaseCameraTap >= 0.f && (Now - LastBaseCameraTap) <= 0.3f)
+			{
+				LastBaseCameraTap = -1.f;
+				if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn()))
+				{
+					CameraPawn->SnapToPlayerStart();
+				}
+			}
+			else
+			{
+				LastBaseCameraTap = Now;
+			}
 		}
 		if (WasInputKeyJustPressed(EKeys::Enter) && !ChatHUD->IsMenuOpen())
 		{
@@ -1464,6 +1515,51 @@ void AKodPlayerController::SetLocalSelectionFromIds(const TArray<FKodEntityId>& 
 		}
 	}
 	ApplySelectionHighlight();
+	if (!bAdd && LocalSelection.Num() == 1)
+	{
+		AActor* Only = LocalSelection[0].Get();
+		bool bCommandCenter = Only && Only->ActorHasTag(FName(TEXT("KodBuildingCommandCenter")));
+		if (!bCommandCenter && Only && Sim)
+		{
+			FKodStructureState Structure;
+			const FKodEntityId Id = Sim->FindIdForActor(Only);
+			if (Sim->TryGetStructure(Id, Structure) && Structure.DefinitionId == FName(TEXT("CommandCenter")))
+			{
+				bCommandCenter = true;
+			}
+		}
+		if (bCommandCenter)
+		{
+			if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn()))
+			{
+				CameraPawn->SnapToPlayerStart();
+			}
+		}
+	}
+}
+
+void AKodPlayerController::SelectPlayerCommandCenter()
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn());
+	if (!Sim || !CameraPawn)
+	{
+		return;
+	}
+	AActor* Anchor = CameraPawn->FindCommandCenter();
+	if (!Anchor)
+	{
+		return;
+	}
+	const FKodEntityId Id = Sim->FindIdForActor(Anchor);
+	if (!Id.IsValid())
+	{
+		return;
+	}
+	TArray<FKodEntityId> Ids;
+	Ids.Add(Id);
+	SetLocalSelectionFromIds(Ids, false);
 }
 
 void AKodPlayerController::SelectIdleWorker()

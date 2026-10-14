@@ -44,6 +44,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Camera")
 	void JumpTo(FVector WorldLocation);
 
+	/** Locked SC2 start: pitch -56, yaw 90, FOV 35, arm 6800, centred on the point. */
+	void SnapToStartView(FVector WorldLocation);
+
+	/** Player command center, or the P1 start tag. */
+	AActor* FindCommandCenter() const;
+
+	/** Snap the look-at point onto the player command center. */
+	void SnapToPlayerStart();
+
 	/** Last alert (unit hit or train complete). Space jumps here. */
 	void NoteAlert(FVector WorldLocation, float VisibleSeconds = 4.f);
 

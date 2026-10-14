@@ -120,6 +120,11 @@ public:
 	void TogglePauseMenu();
 	void SetHudSkin(int32 Skin);
 	int32 GetHudSkin() const { return HudSkin; }
+	void OpenFactionPrompt();
+	void CloseFactionPrompt();
+	bool IsFactionPromptOpen() const { return bFactionPrompt; }
+	int32 GetFactionPromptIndex() const { return FactionPromptIndex; }
+	void SetFactionPromptIndex(int32 Index);
 	void SetMenuPage(int32 Page);
 	void HandleMenuChoice(int32 Choice);
 	void ScrubScoreGraph(float MouseX);
@@ -210,6 +215,7 @@ protected:
 	void DrawWorldFog();
 	void DrawFaultlineObjectives();
 	void DrawTopBar();
+	void DrawFactionPrompt();
 	void DrawPaintedFrames();
 	void PollShotAfter();
 	void LogShotScene();
@@ -250,6 +256,8 @@ protected:
 
 	bool bLoggedFirstDraw = false;
 	bool bLoggedWingHelp = false;
+	bool bFactionPrompt = false;
+	int32 FactionPromptIndex = 0;
 	bool bLoggedFrames = false;
 	bool bShotAfterParsed = false;
 	bool bShotPrepared = false;

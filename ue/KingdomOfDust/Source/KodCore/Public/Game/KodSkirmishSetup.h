@@ -28,6 +28,13 @@ struct KODCORE_API FKodLobbyMap
 	bool bPlayable = false;
 };
 
+/** How a match chooses Vanguard or Scinder. Index 0 is Vanguard, 1 is Scinder. */
+struct KODCORE_API FKodMatchStart
+{
+	bool bPrompt = true;
+	int32 FactionIndex = 0;
+};
+
 /**
  * Skirmish and campaign travel payload.
  * URL options are the only channel into the match. Not sim state until applied.
@@ -66,4 +73,10 @@ struct KODCORE_API FKodSkirmishSetup
 	static FString FactionName(EKodRosterFaction Faction);
 	static FString DifficultyName(EKodLobbyDifficulty LobbyDifficulty);
 	static FLinearColor TeamSwatch(int32 ColorIndex);
+
+	/**
+	 * Prompt is skipped for -kod.Autoplay, -kod.ShotAfter, or a front-end PFaction option.
+	 * Autoplay and shots use -kod.Faction and default to Vanguard.
+	 */
+	static FKodMatchStart ResolveMatchStart(const TCHAR* CommandLine, const FString& Options);
 };
