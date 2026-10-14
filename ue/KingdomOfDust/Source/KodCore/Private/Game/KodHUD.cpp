@@ -602,6 +602,56 @@ namespace
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&KodShotAfterCommand));
 }
 
+void AKodHUD::OpenFactionPrompt()
+{
+	bFactionPrompt = true;
+	FactionPromptIndex = 0;
+}
+
+void AKodHUD::CloseFactionPrompt()
+{
+	bFactionPrompt = false;
+}
+
+void AKodHUD::SetFactionPromptIndex(int32 Index)
+{
+	FactionPromptIndex = Index == 1 ? 1 : 0;
+}
+
+void AKodHUD::DrawFactionPrompt()
+{
+	if (!Canvas || !bFactionPrompt)
+	{
+		return;
+	}
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	if (!Font && GEngine)
+	{
+		Font = GEngine->GetSmallFont();
+	}
+	DrawRect(FLinearColor(0.02f, 0.03f, 0.04f, 0.72f), 0.f, 0.f, Canvas->SizeX, Canvas->SizeY);
+	const FKodScreenRect Title = MapSpec(560.f, 220.f, 800.f, 48.f);
+	DrawText(TEXT("CHOOSE A FACTION"), Tok(0xF4, 0xEE, 0xDF), Title.X, Title.Y, Font, FrameScale, false);
+	const TCHAR* Names[] = { TEXT("VANGUARD"), TEXT("SCINDER") };
+	const TCHAR* Marks[] = { TEXT("V"), TEXT("S") };
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		const FKodScreenRect Tile = MapSpec(660.f, 300.f + 160.f * static_cast<float>(Index), 600.f, 140.f);
+		const bool bOn = FactionPromptIndex == Index;
+		const FLinearColor Fill = bOn
+			? (Index == 0 ? Tok(0x3A, 0x3F, 0x45, 0.95f) : Tok(0x6E, 0x5B, 0x4F, 0.95f))
+			: Tok(0x14, 0x16, 0x18, 0.92f);
+		const FLinearColor Trim = bOn ? Tok(0xC9, 0xA2, 0x4A) : Tok(0x5C, 0x64, 0x6C);
+		DrawRect(Fill, Tile.X, Tile.Y, Tile.W, Tile.H);
+		DrawRect(Trim, Tile.X, Tile.Y, Tile.W, 2.f * FrameScale);
+		DrawText(Marks[Index], Tok(0xF4, 0xEE, 0xDF), Tile.X + 24.f * FrameScale, Tile.Y + 36.f * FrameScale, Font, 1.6f * FrameScale, false);
+		DrawText(Names[Index], Tok(0xF4, 0xEE, 0xDF), Tile.X + 90.f * FrameScale, Tile.Y + 48.f * FrameScale, Font, FrameScale, false);
+		RememberChrome(FName(TEXT("FactionPrompt")), Index, FName(), Tile.X, Tile.Y, Tile.X + Tile.W, Tile.Y + Tile.H);
+	}
+	const FKodScreenRect Hint = MapSpec(660.f, 640.f, 600.f, 32.f);
+	DrawText(TEXT("1 Vanguard    2 Scinder    Enter"), Tok(0xC9, 0xA2, 0x4A), Hint.X, Hint.Y, Font, 0.8f * FrameScale, false);
+}
+
 void AKodHUD::SetHudSkin(int32 Skin)
 {
 	HudSkin = Skin == 1 ? 1 : 0;
@@ -778,6 +828,7 @@ void AKodHUD::DrawHUD()
 			DrawText(Line, Tok(0xFF, 0xD2, 0x3F), X + 8.f * FrameScale, Y, Font, FrameScale, false);
 		}
 	}
+	DrawFactionPrompt();
 	PollShotAfter();
 }
 

@@ -44,6 +44,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Camera")
 	void JumpTo(FVector WorldLocation);
 
+	/** Locked SC2 start: pitch -56, yaw 90, FOV 35, arm 6800, centred on the point. */
+	void SnapToStartView(FVector WorldLocation);
+
+	/** Player command center, or the P1 start tag. */
+	AActor* FindCommandCenter() const;
+
+	/** Snap the look-at point onto the player command center. */
+	void SnapToPlayerStart();
+
 	/** Last alert (unit hit or train complete). Space jumps here. */
 	void NoteAlert(FVector WorldLocation, float VisibleSeconds = 4.f);
 
@@ -123,7 +132,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
 	float ZoomInterpSpeed = 12.f;
 
-	/** How fast a gameplay zoom-in eases back to DefaultArmLength. kod.Cam.ZoomReturn. */
+	/** Kept for kod.Cam.ZoomReturn. Wheel zoom holds; it does not ease back to the default. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Kod|Camera")
 	float ZoomReturnSpeed = 1.75f;
 
@@ -210,7 +219,6 @@ protected:
 	float ActiveNearClipUU = 20.f;
 	float ActiveFarClipUU = 30000.f;
 	float LoggedUnitScale = -1.f;
-	bool bZoomInThisFrame = false;
 	FVector PanVelocity = FVector::ZeroVector;
 	bool bGrabbing = false;
 	bool bGrabMoved = false;

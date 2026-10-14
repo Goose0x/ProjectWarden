@@ -1,6 +1,7 @@
 #include "Game/KodSkirmishSetup.h"
 
 #include "Kismet/GameplayStatics.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -332,4 +333,49 @@ bool FKodSkirmishSetup::TryParse(const FString& Options, FKodSkirmishSetup& Out)
 	}
 	Out = Parsed;
 	return true;
+}
+
+FKodMatchStart FKodSkirmishSetup::ResolveMatchStart(const TCHAR* CommandLine, const FString& Options)
+{
+	FKodMatchStart Start;
+	const FString Line = CommandLine ? FString(CommandLine) : FString();
+	float ShotSeconds = -1.f;
+	const bool bShot = FParse::Value(*Line, TEXT("-kod.ShotAfter="), ShotSeconds)
+		|| FParse::Value(*Line, TEXT("kod.ShotAfter="), ShotSeconds);
+	int32 AutoplayValue = 0;
+	const bool bAutoplay = (FParse::Value(*Line, TEXT("-kod.Autoplay="), AutoplayValue) && AutoplayValue != 0)
+		|| (FParse::Value(*Line, TEXT("kod.Autoplay="), AutoplayValue) && AutoplayValue != 0)
+		|| Line.Contains(TEXT("kod.Autoplay 1"))
+		|| Line.Contains(TEXT("kod.Autoplay=1"));
+	auto IndexFromText = [](const FString& Text) -> int32
+	{
+		EKodRosterFaction Faction = EKodRosterFaction::Vanguard;
+		if (TryParseFaction(Text, Faction) && Faction == EKodRosterFaction::Scinder)
+		{
+			return 1;
+		}
+		return 0;
+	};
+	if (bShot || bAutoplay)
+	{
+		FString FactionText;
+		FParse::Value(*Line, TEXT("-kod.Faction="), FactionText);
+		if (FactionText.IsEmpty())
+		{
+			FParse::Value(*Line, TEXT("kod.Faction="), FactionText);
+		}
+		Start.bPrompt = false;
+		Start.FactionIndex = IndexFromText(FactionText);
+		return Start;
+	}
+	const FString OptionFaction = UGameplayStatics::ParseOption(Options, TEXT("PFaction"));
+	if (!OptionFaction.IsEmpty())
+	{
+		Start.bPrompt = false;
+		Start.FactionIndex = IndexFromText(OptionFaction);
+		return Start;
+	}
+	Start.bPrompt = true;
+	Start.FactionIndex = 0;
+	return Start;
 }

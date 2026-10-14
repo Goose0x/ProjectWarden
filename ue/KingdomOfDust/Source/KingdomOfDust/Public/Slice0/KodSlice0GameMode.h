@@ -27,6 +27,9 @@ public:
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void StartPlay() override;
 
+	/** Leaves one atmosphere directional light. Spawned suns are movable. Returns the enabled count. */
+	static int32 KeepSingleDirectionalSun(UWorld* World, bool bTutorialLook);
+
 	/** When true, spawn one Ranger at origin+offset for walk gate smoke. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Slice0")
 	bool bSpawnSmokeRanger = false;

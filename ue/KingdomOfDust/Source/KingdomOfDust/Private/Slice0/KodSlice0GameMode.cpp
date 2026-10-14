@@ -4,6 +4,8 @@
 #include "Slice0/KodMapLife.h"
 #include "Slice0/KodSlice0PlayerController.h"
 #include "Game/KodHUD.h"
+#include "Game/KodSkirmishSetup.h"
+#include "Engine/Light.h"
 #include "Game/KodUiArt.h"
 #include "Game/KodRTSCameraPawn.h"
 #include "Slice0/KodSlice0Bootstrap.h"
@@ -309,6 +311,90 @@ void AKodSlice0GameMode::MuteGreyboxProxyCollision()
 	}
 }
 
+int32 AKodSlice0GameMode::KeepSingleDirectionalSun(UWorld* World, bool bTutorialLook)
+{
+	if (!World)
+	{
+		return 0;
+	}
+	TArray<ADirectionalLight*> Suns;
+	for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+	{
+		if (*It)
+		{
+			Suns.Add(*It);
+		}
+	}
+	ADirectionalLight* KeptSun = Suns.Num() > 0 ? Suns[0] : nullptr;
+	bool bSpawned = false;
+	if (!KeptSun)
+	{
+		const FRotator SpawnRotation = bTutorialLook ? FRotator(-32.f, 225.f, 0.f) : FRotator(-45.f, 35.f, 0.f);
+		KeptSun = World->SpawnActor<ADirectionalLight>(ADirectionalLight::StaticClass(), FTransform(SpawnRotation));
+		bSpawned = KeptSun != nullptr;
+	}
+	int32 Enabled = 0;
+	for (ADirectionalLight* Sun : Suns)
+	{
+		UDirectionalLightComponent* SunComponent = Sun ? Cast<UDirectionalLightComponent>(Sun->GetLightComponent()) : nullptr;
+		if (!Sun || !SunComponent || Sun == KeptSun)
+		{
+			continue;
+		}
+		SunComponent->SetAtmosphereSunLight(false);
+		SunComponent->ForwardShadingPriority = 0;
+		SunComponent->SetCastShadows(false);
+		SunComponent->SetVisibility(false);
+		Sun->SetActorHiddenInGame(true);
+		UE_LOG(LogTemp, Log, TEXT("KodSun ExtraDisabled Name=%s"), *Sun->GetName());
+	}
+	if (Suns.Num() == 0 && KeptSun)
+	{
+		Suns.Add(KeptSun);
+	}
+	if (KeptSun)
+	{
+		UDirectionalLightComponent* KeptComponent = Cast<UDirectionalLightComponent>(KeptSun->GetLightComponent());
+		const bool bPlacedStatic = !bSpawned && KeptComponent && KeptComponent->Mobility == EComponentMobility::Static;
+		if (bPlacedStatic)
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodSun PlacedStatic Name=%s"), *KeptSun->GetName());
+		}
+		else if (KeptComponent)
+		{
+			KeptComponent->SetMobility(EComponentMobility::Movable);
+			KeptComponent->SetAtmosphereSunLight(true);
+			KeptComponent->SetVisibility(true);
+			KeptComponent->SetCastShadows(true);
+			if (bTutorialLook)
+			{
+				KeptSun->SetActorRotation(FRotator(-32.f, 225.f, 0.f));
+				KeptComponent->SetIntensity(6.5f);
+				KeptComponent->SetLightColor(FLinearColor::FromSRGBColor(FColor(0xFF, 0xD8, 0xA8)));
+				KeptComponent->SetTemperature(4200.f);
+				KeptComponent->SetUseTemperature(true);
+				KeptComponent->SetDynamicShadowDistanceMovableLight(30000.f);
+			}
+			else if (bSpawned)
+			{
+				KeptComponent->SetIntensity(4.f);
+				KeptComponent->SetTemperature(6500.f);
+				KeptComponent->SetUseTemperature(true);
+			}
+		}
+		if (KeptComponent && KeptComponent->IsVisible())
+		{
+			++Enabled;
+		}
+		else if (bPlacedStatic)
+		{
+			++Enabled;
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodSun Directional=%d Enabled=%d"), Suns.Num(), Enabled);
+	return Enabled;
+}
+
 static void ApplySc2Look(UWorld* World)
 {
 	if (!World)
@@ -325,98 +411,63 @@ static void ApplySc2Look(UWorld* World)
 	SetCVar(TEXT("r.DynamicGlobalIlluminationMethod"), 0);
 	SetCVar(TEXT("r.ReflectionMethod"), 0);
 	SetCVar(TEXT("r.DefaultFeature.MotionBlur"), 0);
+	float ShotSeconds = -1.f;
+	const bool bShotAfter = FParse::Value(FCommandLine::Get(), TEXT("-kod.ShotAfter="), ShotSeconds)
+		|| FParse::Value(FCommandLine::Get(), TEXT("kod.ShotAfter="), ShotSeconds);
 	bool bHavePost = false;
-	APostProcessVolume* UnboundPost = nullptr;
 	for (TActorIterator<APostProcessVolume> It(World); It; ++It)
 	{
 		bHavePost = true;
-		if (!UnboundPost && It->bUnbound)
-		{
-			UnboundPost = *It;
-		}
-	}
-	if (!bHavePost)
-	{
-		UnboundPost = World->SpawnActor<APostProcessVolume>();
-		if (UnboundPost)
-		{
-			UnboundPost->bUnbound = true;
-			FPostProcessSettings& Settings = UnboundPost->Settings;
-			Settings.bOverride_BloomIntensity = true;
-			Settings.BloomIntensity = 0.6f;
-			Settings.bOverride_BloomThreshold = true;
-			Settings.BloomThreshold = 1.f;
-			Settings.bOverride_VignetteIntensity = true;
-			Settings.VignetteIntensity = 0.3f;
-			Settings.bOverride_ColorContrast = true;
-			Settings.ColorContrast = FVector4(1.05f, 1.05f, 1.05f, 1.f);
-			Settings.bOverride_ColorSaturation = true;
-			Settings.ColorSaturation = FVector4(0.9f, 0.9f, 0.9f, 1.f);
-			Settings.bOverride_MotionBlurAmount = true;
-			Settings.MotionBlurAmount = 0.f;
-			Settings.bOverride_FilmGrainIntensity = true;
-			Settings.FilmGrainIntensity = 0.f;
-		}
-	}
-	else if (!UnboundPost)
-	{
-		UnboundPost = World->SpawnActor<APostProcessVolume>();
-		if (UnboundPost)
-		{
-			UnboundPost->bUnbound = true;
-		}
-	}
-	if (UnboundPost)
-	{
-		FPostProcessSettings& Settings = UnboundPost->Settings;
-		Settings.bOverride_AutoExposureMethod = true;
-		Settings.AutoExposureMethod = AEM_Manual;
-		Settings.bOverride_AutoExposureBias = true;
-		Settings.AutoExposureBias = 1.f;
-		Settings.bOverride_AutoExposureMinBrightness = true;
-		Settings.bOverride_AutoExposureMaxBrightness = true;
-		Settings.AutoExposureMinBrightness = 1.f;
-		Settings.AutoExposureMaxBrightness = 1.f;
-	}
-	if (IConsoleVariable* Exposure = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DefaultFeature.AutoExposure")))
-	{
-		if (Exposure->GetInt() == 0)
-		{
-			if (IConsoleVariable* Override = IConsoleManager::Get().FindConsoleVariable(TEXT("r.EyeAdaptation.PreExposureOverride")))
-			{
-				if (Override->GetFloat() == 0.f)
-				{
-					Override->Set(1.f, ECVF_SetByCode);
-					UE_LOG(LogTemp, Log, TEXT("KodLook PreExposureOverride=1 because AutoExposure is off"));
-				}
-			}
-		}
-	}
-	bool bHaveSun = false;
-	for (TActorIterator<ADirectionalLight> It(World); It; ++It)
-	{
-		bHaveSun = true;
-		if (UDirectionalLightComponent* Light = Cast<UDirectionalLightComponent>(It->GetLightComponent()))
-		{
-			Light->SetMobility(EComponentMobility::Movable);
-			Light->SetIntensity(4.f);
-			Light->SetTemperature(6500.f);
-			Light->SetUseTemperature(true);
-		}
 		break;
 	}
-	if (!bHaveSun)
+	if (bShotAfter || !bHavePost)
 	{
-		ADirectionalLight* Sun = World->SpawnActor<ADirectionalLight>(ADirectionalLight::StaticClass(), FTransform(FRotator(-45.f, 35.f, 0.f)));
-		if (Sun)
+		APostProcessVolume* UnboundPost = nullptr;
+		for (TActorIterator<APostProcessVolume> It(World); It; ++It)
 		{
-			if (UDirectionalLightComponent* Light = Cast<UDirectionalLightComponent>(Sun->GetLightComponent()))
+			if (It->bUnbound)
 			{
-				Light->SetMobility(EComponentMobility::Movable);
-				Light->SetIntensity(4.f);
-				Light->SetTemperature(6500.f);
-				Light->SetUseTemperature(true);
-				Light->SetAtmosphereSunLight(true);
+				UnboundPost = *It;
+				break;
+			}
+		}
+		if (!UnboundPost)
+		{
+			UnboundPost = World->SpawnActor<APostProcessVolume>();
+			if (UnboundPost)
+			{
+				UnboundPost->bUnbound = true;
+			}
+		}
+		if (UnboundPost)
+		{
+			FPostProcessSettings& Settings = UnboundPost->Settings;
+			Settings.bOverride_AutoExposureMethod = true;
+			Settings.AutoExposureMethod = AEM_Manual;
+			Settings.bOverride_AutoExposureBias = true;
+			Settings.bOverride_AutoExposureMinBrightness = true;
+			Settings.bOverride_AutoExposureMaxBrightness = true;
+			if (bShotAfter)
+			{
+				Settings.AutoExposureBias = 1.f;
+				Settings.AutoExposureMinBrightness = 1.f;
+				Settings.AutoExposureMaxBrightness = 1.f;
+				if (IConsoleVariable* Override = IConsoleManager::Get().FindConsoleVariable(TEXT("r.EyeAdaptation.PreExposureOverride")))
+				{
+					Override->Set(1.f, ECVF_SetByCode);
+					UE_LOG(LogTemp, Log, TEXT("KodLook PreExposureOverride=1 for kod.ShotAfter"));
+				}
+			}
+			else
+			{
+				Settings.AutoExposureBias = 0.f;
+				Settings.AutoExposureMinBrightness = 1.f;
+				Settings.AutoExposureMaxBrightness = 1.f;
+				Settings.bOverride_BloomIntensity = true;
+				Settings.BloomIntensity = 0.4f;
+				Settings.bOverride_MotionBlurAmount = true;
+				Settings.MotionBlurAmount = 0.f;
+				UE_LOG(LogTemp, Log, TEXT("KodLook ManualExposure Bias=0 no post volume"));
 			}
 		}
 	}
@@ -426,9 +477,16 @@ static void ApplySc2Look(UWorld* World)
 		bHaveSky = true;
 		if (USkyLightComponent* Sky = It->GetLightComponent())
 		{
-			Sky->SetMobility(EComponentMobility::Movable);
-			Sky->SetIntensity(0.4f);
-			Sky->SetLightColor(FLinearColor(0.55f, 0.62f, 0.72f));
+			if (Sky->Mobility == EComponentMobility::Static)
+			{
+				UE_LOG(LogTemp, Log, TEXT("KodLight PlacedStatic Name=%s"), *It->GetName());
+			}
+			else
+			{
+				Sky->SetMobility(EComponentMobility::Movable);
+				Sky->SetIntensity(0.4f);
+				Sky->SetLightColor(FLinearColor(0.55f, 0.62f, 0.72f));
+			}
 		}
 		break;
 	}
@@ -463,38 +521,14 @@ static void ApplySc2Look(UWorld* World)
 			FogComp->SetVolumetricFog(false);
 		}
 	}
-	if (!KodFaultline::IsTrainingMap(World))
+	const bool bTraining = KodFaultline::IsTrainingMap(World);
+	AKodSlice0GameMode::KeepSingleDirectionalSun(World, bTraining);
+	if (!bTraining)
 	{
 		return;
 	}
-	const FLinearColor SunColor = FLinearColor::FromSRGBColor(FColor(0xFF, 0xD8, 0xA8));
 	const FLinearColor SkyColor = FLinearColor::FromSRGBColor(FColor(0x9F, 0xB4, 0xD9));
 	const FLinearColor HazeColor = FLinearColor::FromSRGBColor(FColor(0xD9, 0xA6, 0x75));
-	ADirectionalLight* SunActor = nullptr;
-	for (TActorIterator<ADirectionalLight> It(World); It; ++It)
-	{
-		SunActor = *It;
-		break;
-	}
-	if (!SunActor)
-	{
-		SunActor = World->SpawnActor<ADirectionalLight>(ADirectionalLight::StaticClass(), FTransform(FRotator(-32.f, 225.f, 0.f)));
-	}
-	if (SunActor)
-	{
-		SunActor->SetActorRotation(FRotator(-32.f, 225.f, 0.f));
-		if (UDirectionalLightComponent* Light = Cast<UDirectionalLightComponent>(SunActor->GetLightComponent()))
-		{
-			Light->SetMobility(EComponentMobility::Movable);
-			Light->SetIntensity(6.5f);
-			Light->SetLightColor(SunColor);
-			Light->SetTemperature(4200.f);
-			Light->SetUseTemperature(true);
-			Light->SetAtmosphereSunLight(true);
-			Light->SetCastShadows(true);
-			Light->SetDynamicShadowDistanceMovableLight(30000.f);
-		}
-	}
 	ASkyLight* SkyActor = nullptr;
 	for (TActorIterator<ASkyLight> It(World); It; ++It)
 	{
@@ -509,11 +543,21 @@ static void ApplySc2Look(UWorld* World)
 	{
 		if (USkyLightComponent* Sky = SkyActor->GetLightComponent())
 		{
-			Sky->SetMobility(EComponentMobility::Movable);
-			Sky->SetIntensity(0.8f);
-			Sky->SetLightColor(SkyColor);
-			Sky->SetRealTimeCapture(false);
-			Sky->RecaptureSky();
+			if (Sky->Mobility == EComponentMobility::Static)
+			{
+				UE_LOG(LogTemp, Log, TEXT("KodLight PlacedStatic Name=%s"), *SkyActor->GetName());
+			}
+			else
+			{
+				Sky->SetMobility(EComponentMobility::Movable);
+				Sky->SetIntensity(0.8f);
+				Sky->SetLightColor(SkyColor);
+				Sky->SetRealTimeCapture(false);
+				if (bShotAfter)
+				{
+					Sky->RecaptureSky();
+				}
+			}
 		}
 	}
 	AExponentialHeightFog* FogActor = nullptr;
@@ -534,17 +578,7 @@ static void ApplySc2Look(UWorld* World)
 		FogComp->SetStartDistance(4000.f);
 		FogComp->SetVolumetricFog(false);
 	}
-	for (TActorIterator<APostProcessVolume> It(World); It; ++It)
-	{
-		if (!It->bUnbound)
-		{
-			continue;
-		}
-		It->Settings.bOverride_BloomIntensity = true;
-		It->Settings.BloomIntensity = 0.4f;
-		break;
-	}
-	UE_LOG(LogTemp, Log, TEXT("KodFaultline Sun Pitch=-32 Yaw=225 Color=#FFD8A8"));
+	UE_LOG(LogTemp, Log, TEXT("KodFaultline Sun single directional tutorial=%d"), bTraining ? 1 : 0);
 }
 
 void AKodSlice0GameMode::StartPlay()
@@ -846,6 +880,43 @@ void AKodSlice0GameMode::StartPlay()
 			checkf(bInset, TEXT("Resource node or stand is closer than 2 cells to the playable edge"));
 		}
 	}
+	if (UWorld* StartWorld = GetWorld())
+	{
+		const FKodMatchStart MatchStart = FKodSkirmishSetup::ResolveMatchStart(FCommandLine::Get(), GetMatchOptions());
+		if (UKodSimSubsystem* StartSim = StartWorld->GetSubsystem<UKodSimSubsystem>())
+		{
+			if (MatchStart.bPrompt)
+			{
+				StartSim->SetSimPaused(true);
+				if (APlayerController* StartPC = StartWorld->GetFirstPlayerController())
+				{
+					if (AKodHUD* StartHUD = Cast<AKodHUD>(StartPC->GetHUD()))
+					{
+						StartHUD->OpenFactionPrompt();
+					}
+				}
+			}
+			else
+			{
+				StartSim->SetPlayerFaction(MatchStart.FactionIndex);
+				if (APlayerController* StartPC = StartWorld->GetFirstPlayerController())
+				{
+					if (AKodHUD* StartHUD = Cast<AKodHUD>(StartPC->GetHUD()))
+					{
+						StartHUD->SetHudSkin(MatchStart.FactionIndex);
+					}
+				}
+			}
+		}
+		for (TActorIterator<ALight> LightIt(StartWorld); LightIt; ++LightIt)
+		{
+			const ULightComponent* PlacedLight = LightIt->GetLightComponent();
+			if (PlacedLight && PlacedLight->Mobility == EComponentMobility::Static)
+			{
+				UE_LOG(LogTemp, Log, TEXT("KodLight PlacedStatic Name=%s"), *LightIt->GetName());
+			}
+		}
+	}
 	FocusOpeningCamera();
 	if (UWorld* LayoutWorld = GetWorld())
 	{
@@ -1101,30 +1172,20 @@ void AKodSlice0GameMode::FocusOpeningCamera()
 	{
 		return;
 	}
-	AActor* Anchor = nullptr;
-	for (TActorIterator<AActor> It(World); It; ++It)
-	{
-		AActor* Actor = *It;
-		if (!IsSlice0CommandCenter(Actor))
-		{
-			continue;
-		}
-		if (!Anchor || Actor->GetName() < Anchor->GetName())
-		{
-			Anchor = Actor;
-		}
-	}
-	if (!Anchor)
-	{
-		return;
-	}
 	for (TActorIterator<AKodRTSCameraPawn> It(World); It; ++It)
 	{
 		if (It->IsA(AKodSpectatorPawn::StaticClass()))
 		{
 			continue;
 		}
-		It->JumpTo(Anchor->GetActorLocation());
+		It->SnapToPlayerStart();
+	}
+	if (APlayerController* PC = World->GetFirstPlayerController())
+	{
+		if (AKodPlayerController* KodPC = Cast<AKodPlayerController>(PC))
+		{
+			KodPC->SelectPlayerCommandCenter();
+		}
 	}
 }
 

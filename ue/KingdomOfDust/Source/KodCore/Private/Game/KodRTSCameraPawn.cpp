@@ -22,6 +22,7 @@
 #include "Game/KodUserSettings.h"
 #include "InputCoreTypes.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Warden/KodWardenPaths.h"
 #include "Sim/KodCheatRows.h"
 #include "Game/KodSpectatorPawn.h"
 #include "Warden/KodWardenPaths.h"
@@ -73,7 +74,7 @@ void AKodRTSCameraPawn::BeginPlay()
 
 	if (WantsCommandCenterFraming())
 	{
-		FocusCommandCenter();
+		SnapToPlayerStart();
 	}
 	CachePlayableBounds();
 	UpdateTerrain(0.f, true);
@@ -210,11 +211,6 @@ void AKodRTSCameraPawn::Tick(float DeltaSeconds)
 		UpdateFollow(Dt);
 	}
 
-	if (ZoomCeiling() <= DefaultArmLength + 1.f && !bZoomInThisFrame)
-	{
-		TargetArmLength = FMath::FInterpTo(TargetArmLength, DefaultArmLength, Dt, ZoomReturnSpeed);
-	}
-	bZoomInThisFrame = false;
 	CurrentArmLength = FMath::FInterpTo(CurrentArmLength, TargetArmLength, Dt, ZoomInterpSpeed);
 	if (CameraBoom)
 	{
@@ -252,21 +248,8 @@ void AKodRTSCameraPawn::Zoom(float AxisValue)
 	{
 		return;
 	}
-	const bool bLocked = ZoomCeiling() <= DefaultArmLength + 1.f;
-	if (bLocked)
-	{
-		if (AxisValue > 0.f)
-		{
-			bZoomInThisFrame = true;
-			TargetArmLength = FMath::Clamp(TargetArmLength - AxisValue * ZoomStep, MinArmLength, DefaultArmLength);
-		}
-		return;
-	}
-	if (AxisValue < 0.f && ZoomCeiling() <= DefaultArmLength + 1.f)
-	{
-		return;
-	}
-	TargetArmLength = FMath::Clamp(TargetArmLength - AxisValue * ZoomStep, MinArmLength, ZoomCeiling());
+	const float Ceiling = ZoomCeiling();
+	TargetArmLength = FMath::Clamp(TargetArmLength - AxisValue * ZoomStep, MinArmLength, Ceiling);
 }
 
 void AKodRTSCameraPawn::OrbitYaw(float AxisValue)
@@ -276,6 +259,79 @@ void AKodRTSCameraPawn::OrbitYaw(float AxisValue)
 		return;
 	}
 	AddActorWorldRotation(FRotator(0.f, AxisValue, 0.f));
+}
+
+void AKodRTSCameraPawn::SnapToStartView(FVector WorldLocation)
+{
+	YawDegrees = 90.f;
+	PitchDegrees = -56.f;
+	VerticalFovDegrees = 35.f;
+	DefaultArmLength = 6800.f;
+	if (MinArmLength > DefaultArmLength)
+	{
+		MinArmLength = 3200.f;
+	}
+	MaxArmLength = DefaultArmLength;
+	CurrentArmLength = DefaultArmLength;
+	TargetArmLength = DefaultArmLength;
+	SetActorRotation(FRotator(0.f, YawDegrees, 0.f));
+	MaintainBoom();
+	ApplyVerticalFov();
+	JumpTo(WorldLocation);
+}
+
+AActor* AKodRTSCameraPawn::FindCommandCenter() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+	if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+	{
+		TArray<FKodStructureState> Structures;
+		Sim->CopyStructures(Structures);
+		for (const FKodStructureState& Structure : Structures)
+		{
+			if (Structure.TeamId != 0 || Structure.DefinitionId != FName(KodWardenPaths::Id_CommandCenter))
+			{
+				continue;
+			}
+			if (AActor* Actor = Sim->ResolveEntity(Structure.Id))
+			{
+				return Actor;
+			}
+		}
+	}
+	AActor* Best = nullptr;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!Actor || Actor == this)
+		{
+			continue;
+		}
+		const bool bCc = Actor->ActorHasTag(FName(TEXT("KodBuildingCommandCenter")))
+			|| Actor->ActorHasTag(FName(TEXT("P1_SPAWN")))
+			|| Actor->GetActorNameOrLabel().Contains(TEXT("PROXY_CC"));
+		if (!bCc)
+		{
+			continue;
+		}
+		if (!Best || Actor->GetName() < Best->GetName())
+		{
+			Best = Actor;
+		}
+	}
+	return Best;
+}
+
+void AKodRTSCameraPawn::SnapToPlayerStart()
+{
+	if (AActor* Anchor = FindCommandCenter())
+	{
+		SnapToStartView(Anchor->GetActorLocation());
+	}
 }
 
 void AKodRTSCameraPawn::JumpTo(FVector WorldLocation)
@@ -756,37 +812,15 @@ void AKodRTSCameraPawn::PollZoom()
 		}
 	}
 	const float Ceiling = ZoomCeiling();
-	const bool bLocked = Ceiling <= DefaultArmLength + 1.f;
-	if (bLocked)
-	{
-		if (Wheel > 0.f)
-		{
-			bZoomInThisFrame = true;
-			TargetArmLength = FMath::Clamp(TargetArmLength - Wheel * ZoomStep, MinArmLength, DefaultArmLength);
-		}
-	}
-	else if (Wheel > 0.f || (Wheel < 0.f && Ceiling > DefaultArmLength + 1.f))
+	if (!FMath::IsNearlyZero(Wheel))
 	{
 		TargetArmLength = FMath::Clamp(TargetArmLength - Wheel * ZoomStep, MinArmLength, Ceiling);
 	}
 	if (PC->WasInputKeyJustPressed(EKeys::End))
 	{
-		if (bLocked)
-		{
-			bZoomInThisFrame = true;
-			TargetArmLength = MinArmLength;
-		}
-		else
-		{
-			const bool bAtClose = FMath::Abs(TargetArmLength - MinArmLength) <= 1.f;
-			const float Next = bAtClose ? DefaultArmLength : MinArmLength;
-			TargetArmLength = FMath::Clamp(Next, MinArmLength, Ceiling);
-			CurrentArmLength = TargetArmLength;
-			if (CameraBoom)
-			{
-				CameraBoom->TargetArmLength = CurrentArmLength;
-			}
-		}
+		const bool bAtClose = FMath::Abs(TargetArmLength - MinArmLength) <= 1.f;
+		const float Next = bAtClose ? DefaultArmLength : MinArmLength;
+		TargetArmLength = FMath::Clamp(Next, MinArmLength, Ceiling);
 		UE_LOG(LogTemp, Log, TEXT("KodCam Zoom End Arm=%.0f"), TargetArmLength);
 	}
 	if (Ceiling > DefaultArmLength + 1.f && PC->WasInputKeyJustPressed(EKeys::Z) && !HasLiftableSelection())

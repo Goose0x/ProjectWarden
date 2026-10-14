@@ -99,3 +99,37 @@ void AKodGameMode::StartPlay()
 		UE_LOG(LogTemp, Log, TEXT("KodCam Spectate=1"));
 	}
 }
+
+void AKodGameMode::ApplyStartFaction(int32 FactionIndex)
+{
+	const int32 Index = FactionIndex == 1 ? 1 : 0;
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+	{
+		Sim->SetPlayerFaction(Index);
+		Sim->SetSimPaused(false);
+	}
+	APlayerController* PC = World->GetFirstPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+	if (AKodHUD* HUD = Cast<AKodHUD>(PC->GetHUD()))
+	{
+		HUD->SetHudSkin(Index);
+		HUD->CloseFactionPrompt();
+	}
+	if (AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(PC->GetPawn()))
+	{
+		CameraPawn->SnapToPlayerStart();
+	}
+	if (AKodPlayerController* KodPC = Cast<AKodPlayerController>(PC))
+	{
+		KodPC->SelectPlayerCommandCenter();
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodFaction Apply Index=%d"), Index);
+}
