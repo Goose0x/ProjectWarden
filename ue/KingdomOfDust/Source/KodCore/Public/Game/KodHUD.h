@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
 #include "Engine/Texture2D.h"
+#include "Game/KodHudLayout.h"
 #include "Game/KodHudProposed.h"
 #include "Game/KodWireTint.h"
 #include "Game/KodUiArt.h"
