@@ -1,5 +1,6 @@
 #include "Game/KodHUD.h"
 
+#include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/SkyLightComponent.h"
@@ -53,6 +54,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Game/KodPortraitStage.h"
+#include "Game/KodCameraSettings.h"
 #include "Game/KodRTSCameraPawn.h"
 #include "Game/KodSpectatorPawn.h"
 #include "Sim/KodResourceTypes.h"
@@ -734,6 +736,150 @@ void AKodHUD::LogShotScene()
 	UE_LOG(LogTemp, Log, TEXT("KodShotAfter HighResShot reads the scene view with the HUD drawn on top. A black world with a visible HUD is the scene, not a UI-only capture."));
 }
 
+void AKodHUD::LogRenderDiag()
+{
+	const FKodCameraTunables Tunables = FKodCameraTunables::Read();
+	float NearUU = 0.f;
+	float FarUU = 0.f;
+	KodCameraSettings::ResolveClipUU(Tunables.NearSc2, Tunables.FarSc2, Tunables.UnitScaleUU, NearUU, FarUU);
+	float ViewNear = -1.f;
+	const APlayerController* Viewer = GetOwningPlayerController();
+	UWorld* World = GetWorld();
+	if (!Viewer && World)
+	{
+		Viewer = World->GetFirstPlayerController();
+	}
+	if (const AKodRTSCameraPawn* ViewPawn = Viewer ? Cast<AKodRTSCameraPawn>(Viewer->GetPawn()) : nullptr)
+	{
+		NearUU = ViewPawn->GetActiveNearClipUU();
+		FarUU = ViewPawn->GetActiveFarClipUU();
+	}
+	if (Viewer && Viewer->PlayerCameraManager)
+	{
+		const FMinimalViewInfo ViewInfo = Viewer->PlayerCameraManager->GetCameraCacheView();
+		ViewNear = ViewInfo.PerspectiveNearClipPlane;
+	}
+
+	const TCHAR* FogState = TEXT("Off");
+	const TCHAR* FogBlendName = TEXT("None");
+	if (bMapFog)
+	{
+		if (const AStaticMeshActor* Sheet = FogSheetActor.Get())
+		{
+			FogState = Sheet->IsHidden() ? TEXT("Hidden") : TEXT("Visible");
+			if (const UStaticMeshComponent* SheetMesh = Sheet->GetStaticMeshComponent())
+			{
+				if (const UMaterialInterface* SheetMat = SheetMesh->GetMaterial(0))
+				{
+					switch (SheetMat->GetBlendMode())
+					{
+					case BLEND_Opaque: FogBlendName = TEXT("Opaque"); break;
+					case BLEND_Masked: FogBlendName = TEXT("Masked"); break;
+					case BLEND_Translucent: FogBlendName = TEXT("Translucent"); break;
+					case BLEND_Additive: FogBlendName = TEXT("Additive"); break;
+					case BLEND_Modulate: FogBlendName = TEXT("Modulate"); break;
+					case BLEND_AlphaComposite: FogBlendName = TEXT("AlphaComposite"); break;
+					case BLEND_AlphaHoldout: FogBlendName = TEXT("AlphaHoldout"); break;
+					default: FogBlendName = TEXT("Other"); break;
+					}
+				}
+			}
+		}
+		else
+		{
+			FogState = TEXT("NoSheet");
+		}
+	}
+
+	int32 PostMaterials = 0;
+	TArray<FString> PostNames;
+	auto NoteMaterial = [&PostMaterials, &PostNames](const UObject* Object, float Weight)
+	{
+		const UMaterialInterface* Material = Cast<UMaterialInterface>(Object);
+		if (!Material || Weight <= 0.f)
+		{
+			return;
+		}
+		++PostMaterials;
+		if (PostNames.Num() < 4)
+		{
+			PostNames.Add(Material->GetName());
+		}
+	};
+	if (World)
+	{
+		for (TActorIterator<APostProcessVolume> It(World); It; ++It)
+		{
+			if (!It->bEnabled)
+			{
+				continue;
+			}
+			for (const FWeightedBlendable& Blendable : It->Settings.WeightedBlendables.Array)
+			{
+				NoteMaterial(Blendable.Object, Blendable.Weight);
+			}
+		}
+	}
+	if (const AKodRTSCameraPawn* CameraPawn = Viewer ? Cast<AKodRTSCameraPawn>(Viewer->GetPawn()) : nullptr)
+	{
+		if (CameraPawn->Camera)
+		{
+			for (const FWeightedBlendable& Blendable : CameraPawn->Camera->PostProcessSettings.WeightedBlendables.Array)
+			{
+				NoteMaterial(Blendable.Object, Blendable.Weight);
+			}
+		}
+	}
+
+	FIntPoint ViewportSize(0, 0);
+	if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport)
+	{
+		ViewportSize = GEngine->GameViewport->Viewport->GetSizeXY();
+	}
+	const int32 CanvasX = Canvas ? static_cast<int32>(Canvas->SizeX) : 0;
+	const int32 CanvasY = Canvas ? static_cast<int32>(Canvas->SizeY) : 0;
+
+	float SunIntensity = 0.f;
+	const TCHAR* SunMobility = TEXT("None");
+	if (World)
+	{
+		for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+		{
+			const UDirectionalLightComponent* Sun = Cast<UDirectionalLightComponent>(It->GetLightComponent());
+			if (!Sun || !Sun->IsVisible())
+			{
+				continue;
+			}
+			SunIntensity = Sun->Intensity;
+			switch (Sun->Mobility)
+			{
+			case EComponentMobility::Static: SunMobility = TEXT("Static"); break;
+			case EComponentMobility::Stationary: SunMobility = TEXT("Stationary"); break;
+			case EComponentMobility::Movable: SunMobility = TEXT("Movable"); break;
+			default: SunMobility = TEXT("Other"); break;
+			}
+			break;
+		}
+	}
+
+	const FString PostList = PostNames.Num() > 0 ? FString::Join(PostNames, TEXT(",")) : FString(TEXT("none"));
+	UE_LOG(LogTemp, Log,
+		TEXT("KodRenderDiag NearUU=%.1f FarUU=%.0f ViewNear=%.1f FogOverlay=%s FogBlend=%s PPMaterials=%d PP=%s Viewport=%dx%d Canvas=%dx%d SunIntensity=%.2f SunMobility=%s"),
+		NearUU,
+		FarUU,
+		ViewNear,
+		FogState,
+		FogBlendName,
+		PostMaterials,
+		*PostList,
+		ViewportSize.X,
+		ViewportSize.Y,
+		CanvasX,
+		CanvasY,
+		SunIntensity,
+		SunMobility);
+}
+
 void AKodHUD::PollShotAfter()
 {
 	UWorld* World = GetWorld();
@@ -1109,16 +1255,16 @@ void AKodHUD::DrawHUD()
 	DrawVanguardChrome();
 	DrawFaultlineObjectives();
 
+	CacheSimSnapshot();
+	DrawWorldFog();
 	if (!bLoggedFirstDraw)
 	{
 		bLoggedFirstDraw = true;
 		const float SizeX = Canvas ? Canvas->SizeX : 0.f;
 		const float SizeY = Canvas ? Canvas->SizeY : 0.f;
 		UE_LOG(LogTemp, Log, TEXT("KodHUD DrawHUD First SizeX=%.0f SizeY=%.0f"), SizeX, SizeY);
+		LogRenderDiag();
 	}
-
-	CacheSimSnapshot();
-	DrawWorldFog();
 	DrawScaffolds();
 	RefreshReadout();
 	DrawGameClock();
@@ -1676,6 +1822,23 @@ void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
 	const float WorldH = static_cast<float>(GridH * KodBuildGrid::CellUU);
 	const float OriginWorldX = static_cast<float>(MinX * KodBuildGrid::CellUU);
 	const float OriginWorldY = static_cast<float>(MinY * KodBuildGrid::CellUU);
+	const EBlendMode FogBlend = Parent->GetBlendMode();
+	const bool bCoversWorld = !FogSheetMaterial
+		|| FogBlend == BLEND_Opaque
+		|| FogBlend == BLEND_Masked;
+	if (bCoversWorld)
+	{
+		Sheet->SetActorHiddenInGame(true);
+		static bool bLoggedFogCover = false;
+		if (!bLoggedFogCover)
+		{
+			bLoggedFogCover = true;
+			UE_LOG(LogTemp, Warning, TEXT("KodFog SheetHidden Material=%d Blend=%d"),
+				FogSheetMaterial ? 1 : 0,
+				static_cast<int32>(FogBlend));
+		}
+		return;
+	}
 	Sheet->SetActorHiddenInGame(false);
 	Sheet->SetActorLocation(FVector(OriginWorldX + WorldW * 0.5f, OriginWorldY + WorldH * 0.5f, 2.f));
 	Sheet->SetActorScale3D(FVector(FMath::Max(0.01f, WorldW / 100.f), FMath::Max(0.01f, WorldH / 100.f), 1.f));

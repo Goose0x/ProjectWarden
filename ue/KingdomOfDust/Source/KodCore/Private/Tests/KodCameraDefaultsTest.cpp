@@ -34,6 +34,13 @@ bool FKodCameraDefaultsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("min uu"), Near(KodCameraSettings::ToUU(16.f), 3200.f));
 	TestTrue(TEXT("near uu"), Near(KodCameraSettings::ToUU(0.1f), 20.f));
 	TestTrue(TEXT("far uu"), Near(KodCameraSettings::ToUU(150.f), 30000.f));
+	float ResolvedNear = 0.f;
+	float ResolvedFar = 0.f;
+	KodCameraSettings::ResolveClipUU(0.1f, 150.f, 200.f, ResolvedNear, ResolvedFar);
+	TestTrue(TEXT("resolved near uu"), Near(ResolvedNear, 20.f));
+	TestTrue(TEXT("resolved far uu"), Near(ResolvedFar, 30000.f));
+	TestTrue(TEXT("far is not raw sc2 units"), ResolvedFar > 1000.f);
+	TestTrue(TEXT("resting camera is inside the far plane"), KodCameraSettings::ToUU(34.f) < ResolvedFar);
 
 	TestTrue(TEXT("clamp below min"), Near(KodCameraSettings::ClampGameplayDistanceSc2(10.f, 16.f, 34.f), 16.f));
 	TestTrue(TEXT("clamp inside"), Near(KodCameraSettings::ClampGameplayDistanceSc2(20.f, 16.f, 34.f), 20.f));

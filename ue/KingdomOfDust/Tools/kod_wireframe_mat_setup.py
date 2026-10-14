@@ -19,6 +19,11 @@
 #
 # Bands: HP.Green #4CD964 at >= 66%, HP.Yellow #F2C230 from 33% up to 66%,
 # HP.Red #E5383B below 33%. Do not use the placement colours #3DFF6A / #FF3D3D.
+#
+# TextureSample's default output pin is RGB (float3). Swizzling .a on that pin
+# fails in -game with "vector swizzle a is out of bounds" and the HUD falls
+# back to the default material. Alpha is its own float input. Re-run this
+# script in the editor; the .uasset is not committed.
 import unreal
 
 DST = "/Game/Warden/UI/Wireframes"
@@ -27,7 +32,7 @@ HLSL = """
 float W0 = Mask.r;
 float W1 = Mask.g;
 float W2 = Mask.b;
-float W3 = Mask.a;
+float W3 = MaskA;
 float MaskSum = W0 + W1 + W2 + W3;
 float3 Tint = T0.rgb;
 if (MaskSum > 1e-3)
@@ -41,11 +46,11 @@ if (MaskSum > 1e-3)
     w = W3 * R3; Acc += T3.rgb * w; Weight += w;
     Tint = (Weight > 1e-3) ? Acc / Weight : T0.rgb;
 }
-float Shade = dot(Silhouette.rgb, float3(0.30, 0.59, 0.11));
+float Shade = dot(Silhouette, float3(0.30, 0.59, 0.11));
 Shade = lerp(0.45, 1.0, saturate(Shade));
-float Edge = ShieldRim * saturate(fwidth(Silhouette.a) * 8.0);
+float Edge = ShieldRim * saturate(fwidth(SilhouetteA) * 8.0);
 float3 Color = Tint * Shade + ShieldColor.rgb * Edge;
-float Cover = max(Silhouette.a, Edge);
+float Cover = max(SilhouetteA, Edge);
 return float4(Color, Cover);
 """
 
@@ -101,7 +106,7 @@ custom.set_editor_property("description", "WireZones")
 custom.set_editor_property("code", HLSL)
 pins = []
 for pin_name in (
-    "Silhouette", "Mask",
+    "Silhouette", "SilhouetteA", "Mask", "MaskA",
     "R0", "R1", "R2", "R3",
     "T0", "T1", "T2", "T3",
     "ShieldRim", "ShieldColor",
@@ -110,8 +115,10 @@ for pin_name in (
     pin.set_editor_property("input_name", pin_name)
     pins.append(pin)
 custom.set_editor_property("inputs", pins)
-mel.connect_material_expressions(silhouette, "", custom, "Silhouette")
-mel.connect_material_expressions(zone_mask, "", custom, "Mask")
+mel.connect_material_expressions(silhouette, "RGB", custom, "Silhouette")
+mel.connect_material_expressions(silhouette, "A", custom, "SilhouetteA")
+mel.connect_material_expressions(zone_mask, "RGB", custom, "Mask")
+mel.connect_material_expressions(zone_mask, "A", custom, "MaskA")
 for index in range(4):
     remain = scalar_param(material, f"ZoneRemain{index}", -600, -40 + index * 40)
     tint = vector_param(material, f"ZoneTint{index}", -600, 220 + index * 40)

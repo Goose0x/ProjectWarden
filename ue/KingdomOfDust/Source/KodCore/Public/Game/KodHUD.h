@@ -228,6 +228,7 @@ protected:
 	void DrawPaintedV3();
 	void PollShotAfter();
 	void LogShotScene();
+	void LogRenderDiag();
 	UTexture2D* ResolveSoftTexture(const TCHAR* Path);
 	void SyncFogSheet(const class UKodSimSubsystem* Sim, int32 LocalTeam);
 	void SyncGroundRings(const TMap<AActor*, int32>& Rings, const class UKodSimSubsystem* Sim);
