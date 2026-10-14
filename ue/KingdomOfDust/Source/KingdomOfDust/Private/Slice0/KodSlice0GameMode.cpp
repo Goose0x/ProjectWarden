@@ -384,6 +384,12 @@ int32 AKodSlice0GameMode::KeepSingleDirectionalSun(UWorld* World, bool bTutorial
 			KeptComponent->SetAtmosphereSunLight(true);
 			KeptComponent->SetVisibility(true);
 			KeptComponent->SetCastShadows(true);
+			const float LiveFloor = bTutorialLook ? 6.5f : 4.f;
+			if (KeptComponent->Intensity < LiveFloor)
+			{
+				KeptComponent->SetIntensity(LiveFloor);
+			}
+			KeptComponent->SetDynamicShadowDistanceMovableLight(30000.f);
 			if (bTutorialLook)
 			{
 				KeptSun->SetActorRotation(FRotator(-32.f, 225.f, 0.f));

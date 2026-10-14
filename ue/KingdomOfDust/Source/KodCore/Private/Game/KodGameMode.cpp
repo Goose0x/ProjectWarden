@@ -131,5 +131,5 @@ void AKodGameMode::ApplyStartFaction(int32 FactionIndex)
 	{
 		KodPC->SelectPlayerCommandCenter();
 	}
-	UE_LOG(LogTemp, Log, TEXT("KodFaction Apply Index=%d"), Index);
+	UE_LOG(LogTemp, Log, TEXT("KodFaction Apply Index=%d Name=%s"), Index, Index == 1 ? TEXT("Scinder") : TEXT("Vanguard"));
 }

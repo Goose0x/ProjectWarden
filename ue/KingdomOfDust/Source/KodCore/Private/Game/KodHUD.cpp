@@ -1,5 +1,6 @@
 #include "Game/KodHUD.h"
 
+#include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/SkyLightComponent.h"
