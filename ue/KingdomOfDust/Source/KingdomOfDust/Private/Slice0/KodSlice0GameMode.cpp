@@ -326,26 +326,22 @@ static void ApplySc2Look(UWorld* World)
 	SetCVar(TEXT("r.ReflectionMethod"), 0);
 	SetCVar(TEXT("r.DefaultFeature.MotionBlur"), 0);
 	bool bHavePost = false;
+	APostProcessVolume* UnboundPost = nullptr;
 	for (TActorIterator<APostProcessVolume> It(World); It; ++It)
 	{
 		bHavePost = true;
-		break;
+		if (!UnboundPost && It->bUnbound)
+		{
+			UnboundPost = *It;
+		}
 	}
 	if (!bHavePost)
 	{
-		APostProcessVolume* Volume = World->SpawnActor<APostProcessVolume>();
-		if (Volume)
+		UnboundPost = World->SpawnActor<APostProcessVolume>();
+		if (UnboundPost)
 		{
-			Volume->bUnbound = true;
-			FPostProcessSettings& Settings = Volume->Settings;
-			Settings.bOverride_AutoExposureMethod = true;
-			Settings.AutoExposureMethod = AEM_Manual;
-			Settings.bOverride_AutoExposureBias = true;
-			Settings.AutoExposureBias = 1.f;
-			Settings.bOverride_AutoExposureMinBrightness = true;
-			Settings.bOverride_AutoExposureMaxBrightness = true;
-			Settings.AutoExposureMinBrightness = 1.f;
-			Settings.AutoExposureMaxBrightness = 1.f;
+			UnboundPost->bUnbound = true;
+			FPostProcessSettings& Settings = UnboundPost->Settings;
 			Settings.bOverride_BloomIntensity = true;
 			Settings.BloomIntensity = 0.6f;
 			Settings.bOverride_BloomThreshold = true;
@@ -360,6 +356,40 @@ static void ApplySc2Look(UWorld* World)
 			Settings.MotionBlurAmount = 0.f;
 			Settings.bOverride_FilmGrainIntensity = true;
 			Settings.FilmGrainIntensity = 0.f;
+		}
+	}
+	else if (!UnboundPost)
+	{
+		UnboundPost = World->SpawnActor<APostProcessVolume>();
+		if (UnboundPost)
+		{
+			UnboundPost->bUnbound = true;
+		}
+	}
+	if (UnboundPost)
+	{
+		FPostProcessSettings& Settings = UnboundPost->Settings;
+		Settings.bOverride_AutoExposureMethod = true;
+		Settings.AutoExposureMethod = AEM_Manual;
+		Settings.bOverride_AutoExposureBias = true;
+		Settings.AutoExposureBias = 1.f;
+		Settings.bOverride_AutoExposureMinBrightness = true;
+		Settings.bOverride_AutoExposureMaxBrightness = true;
+		Settings.AutoExposureMinBrightness = 1.f;
+		Settings.AutoExposureMaxBrightness = 1.f;
+	}
+	if (IConsoleVariable* Exposure = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DefaultFeature.AutoExposure")))
+	{
+		if (Exposure->GetInt() == 0)
+		{
+			if (IConsoleVariable* Override = IConsoleManager::Get().FindConsoleVariable(TEXT("r.EyeAdaptation.PreExposureOverride")))
+			{
+				if (Override->GetFloat() == 0.f)
+				{
+					Override->Set(1.f, ECVF_SetByCode);
+					UE_LOG(LogTemp, Log, TEXT("KodLook PreExposureOverride=1 because AutoExposure is off"));
+				}
+			}
 		}
 	}
 	bool bHaveSun = false;
@@ -483,6 +513,7 @@ static void ApplySc2Look(UWorld* World)
 			Sky->SetIntensity(0.8f);
 			Sky->SetLightColor(SkyColor);
 			Sky->SetRealTimeCapture(false);
+			Sky->RecaptureSky();
 		}
 	}
 	AExponentialHeightFog* FogActor = nullptr;

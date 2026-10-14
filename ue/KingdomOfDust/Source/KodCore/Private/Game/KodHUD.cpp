@@ -1,5 +1,13 @@
 #include "Game/KodHUD.h"
 
+#include "Camera/PlayerCameraManager.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Components/SkyLightComponent.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/ExponentialHeightFog.h"
+#include "Engine/PostProcessVolume.h"
+#include "Engine/SkyLight.h"
+#include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformMisc.h"
 #include "HighResScreenshot.h"
@@ -315,7 +323,10 @@ void AKodHUD::DrawTopBar()
 		if (!bLoggedWingHelp && Index == 0)
 		{
 			bLoggedWingHelp = true;
-			UE_LOG(LogTemp, Log, TEXT("KodHUD WingBtn Help x=%.0f y=%.0f w=%.0f h=%.0f spec=1730,788"), Tab.X, Tab.Y, Tab.W, Tab.H);
+			UE_LOG(LogTemp, Log, TEXT("KodHUD WingBtn Help spec=%.0f,%.0f %.0fx%.0f viewport=%.0f,%.0f %.0fx%.0f canvas=%.0fx%.0f scale=%.3f"),
+				KodHudLayout::WingHelpX, KodHudLayout::WingButtonY, KodHudLayout::WingButtonW, KodHudLayout::WingButtonH,
+				Tab.X, Tab.Y, Tab.W, Tab.H,
+				Canvas->SizeX, Canvas->SizeY, FrameScale);
 		}
 		if (!bLocked[Index])
 		{
@@ -356,14 +367,14 @@ void AKodHUD::DrawPaintedFrames()
 		float H;
 		const TCHAR* Name;
 	};
-	const FLayer Layers[] = {
+	const FLayer FrameLayers[] = {
 		{ bScinder ? KodWardenPaths::FrameScMinimap : KodWardenPaths::FrameVgMinimap, KodHudLayout::FrameMinimapX, KodHudLayout::FrameMinimapY, KodHudLayout::FrameMinimapW, KodHudLayout::FrameMinimapH, TEXT("minimap_wing") },
 		{ bScinder ? KodWardenPaths::FrameScCentre : KodWardenPaths::FrameVgCentre, KodHudLayout::FrameCentreX, KodHudLayout::FrameCentreY, KodHudLayout::FrameCentreW, KodHudLayout::FrameCentreH, TEXT("centre_info") },
 		{ bScinder ? KodWardenPaths::FrameScPortrait : KodWardenPaths::FrameVgPortrait, KodHudLayout::FramePortraitX, KodHudLayout::FramePortraitY, KodHudLayout::FramePortraitW, KodHudLayout::FramePortraitH, TEXT("portrait_frame") },
 		{ bScinder ? KodWardenPaths::FrameScCard : KodWardenPaths::FrameVgCard, KodHudLayout::FrameCardX, KodHudLayout::FrameCardY, KodHudLayout::FrameCardW, KodHudLayout::FrameCardH, TEXT("cmdcard_wing") }
 	};
 	int32 Drawn = 0;
-	for (const FLayer& Layer : Layers)
+	for (const FLayer& Layer : FrameLayers)
 	{
 		UTexture2D* Texture = ResolveSoftTexture(Layer.Path);
 		if (!Texture)
@@ -406,6 +417,113 @@ void AKodHUD::ArmShotAfter(float Seconds)
 	++KodShotAfterState::Rearm;
 }
 
+void AKodHUD::LogShotScene()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	int32 AutoExposure = -1;
+	float PreExposure = -1.f;
+	if (IConsoleVariable* Exposure = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DefaultFeature.AutoExposure")))
+	{
+		AutoExposure = Exposure->GetInt();
+	}
+	if (IConsoleVariable* Override = IConsoleManager::Get().FindConsoleVariable(TEXT("r.EyeAdaptation.PreExposureOverride")))
+	{
+		PreExposure = Override->GetFloat();
+		if (AutoExposure == 0 && PreExposure == 0.f)
+		{
+			Override->Set(1.f, ECVF_SetByCode);
+			PreExposure = 1.f;
+			UE_LOG(LogTemp, Log, TEXT("KodShotAfter PreExposureOverride=1 because AutoExposure is off"));
+		}
+	}
+	int32 Directional = 0;
+	int32 Sky = 0;
+	int32 SkyRecaptured = 0;
+	float SunIntensity = 0.f;
+	FRotator SunRotation = FRotator::ZeroRotator;
+	bool bHaveSun = false;
+	for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+	{
+		++Directional;
+		if (!bHaveSun)
+		{
+			bHaveSun = true;
+			SunRotation = It->GetActorRotation();
+			if (const UDirectionalLightComponent* Light = Cast<UDirectionalLightComponent>(It->GetLightComponent()))
+			{
+				SunIntensity = Light->Intensity;
+			}
+		}
+	}
+	for (TActorIterator<ASkyLight> It(World); It; ++It)
+	{
+		++Sky;
+		if (USkyLightComponent* SkyLight = It->GetLightComponent())
+		{
+			if (!SkyLight->bRealTimeCapture)
+			{
+				SkyLight->RecaptureSky();
+				++SkyRecaptured;
+			}
+		}
+	}
+	int32 UnboundPost = 0;
+	int32 ManualPost = 0;
+	for (TActorIterator<APostProcessVolume> It(World); It; ++It)
+	{
+		if (!It->bUnbound)
+		{
+			continue;
+		}
+		++UnboundPost;
+		if (It->Settings.bOverride_AutoExposureMethod && It->Settings.AutoExposureMethod == AEM_Manual)
+		{
+			++ManualPost;
+		}
+	}
+	FVector CameraLocation = FVector::ZeroVector;
+	FRotator CameraRotation = FRotator::ZeroRotator;
+	FVector PawnLocation = FVector::ZeroVector;
+	FString ViewName = TEXT("none");
+	const APlayerController* PC = GetOwningPlayerController();
+	if (!PC)
+	{
+		PC = World->GetFirstPlayerController();
+	}
+	if (PC)
+	{
+		if (const AActor* ViewTarget = PC->GetViewTarget())
+		{
+			ViewName = ViewTarget->GetName();
+			PawnLocation = ViewTarget->GetActorLocation();
+		}
+		if (const APlayerCameraManager* Manager = PC->PlayerCameraManager)
+		{
+			CameraLocation = Manager->GetCameraLocation();
+			CameraRotation = Manager->GetCameraRotation();
+		}
+	}
+	FIntPoint ViewportSize(0, 0);
+	if (GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport)
+	{
+		ViewportSize = GEngine->GameViewport->Viewport->GetSizeXY();
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodShotAfter Scene View=%s Pawn=%.0f,%.0f,%.0f Camera=%.0f,%.0f,%.0f Rot=P%.1f Y%.1f R%.1f DirLights=%d SunIntensity=%.2f SunRot=P%.1f Y%.1f SkyLights=%d SkyRecapture=%d UnboundPost=%d ManualExposure=%d AutoExposure=%d PreExposure=%.2f Viewport=%dx%d"),
+		*ViewName,
+		PawnLocation.X, PawnLocation.Y, PawnLocation.Z,
+		CameraLocation.X, CameraLocation.Y, CameraLocation.Z,
+		CameraRotation.Pitch, CameraRotation.Yaw, CameraRotation.Roll,
+		Directional, SunIntensity, SunRotation.Pitch, SunRotation.Yaw,
+		Sky, SkyRecaptured, UnboundPost, ManualPost,
+		AutoExposure, PreExposure,
+		ViewportSize.X, ViewportSize.Y);
+	UE_LOG(LogTemp, Log, TEXT("KodShotAfter HighResShot reads the scene view with the HUD drawn on top. A black world with a visible HUD is the scene, not a UI-only capture."));
+}
+
 void AKodHUD::PollShotAfter()
 {
 	UWorld* World = GetWorld();
@@ -423,6 +541,7 @@ void AKodHUD::PollShotAfter()
 		ShotRearmSeen = KodShotAfterState::Rearm;
 		ShotAfterSeconds = KodShotAfterState::Seconds;
 		ShotArmWorldSeconds = World ? World->GetTimeSeconds() : 0.f;
+		bShotPrepared = false;
 		bShotQueued = false;
 		bShotExitArmed = false;
 		UE_LOG(LogTemp, Log, TEXT("KodShotAfter Start Seconds=%.2f"), ShotAfterSeconds);
@@ -438,13 +557,19 @@ void AKodHUD::PollShotAfter()
 		{
 			return;
 		}
+		if (!bShotPrepared)
+		{
+			bShotPrepared = true;
+			LogShotScene();
+			return;
+		}
 		bShotQueued = true;
 		GetHighResScreenshotConfig().SetResolution(1920, 1080);
 		if (GEngine)
 		{
 			GEngine->Exec(World, TEXT("HighResShot 1920x1080"));
 		}
-		UE_LOG(LogTemp, Log, TEXT("KodShotAfter HighResShot 1920x1080"));
+		UE_LOG(LogTemp, Log, TEXT("KodShotAfter HighResShot 1920x1080 scene+ui"));
 		return;
 	}
 	if (!bShotExitArmed)
