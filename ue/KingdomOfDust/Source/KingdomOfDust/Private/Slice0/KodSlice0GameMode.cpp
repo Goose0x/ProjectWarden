@@ -680,6 +680,8 @@ static void ApplySc2Look(UWorld* World)
 
 void AKodSlice0GameMode::StartPlay()
 {
+	// The first HUD draw can land inside Super::StartPlay. Light the world first.
+	ApplySc2Look(GetWorld());
 	Super::StartPlay();
 	int32 CommandResX = 0;
 	int32 CommandResY = 0;
@@ -1015,15 +1017,7 @@ void AKodSlice0GameMode::StartPlay()
 			}
 			else
 			{
-				SetAwaitFactionPrompt(false);
-				StartSim->SetPlayerFaction(MatchStart.FactionIndex);
-				if (APlayerController* StartPC = StartWorld->GetFirstPlayerController())
-				{
-					if (AKodHUD* StartHUD = Cast<AKodHUD>(StartPC->GetHUD()))
-					{
-						StartHUD->SetHudSkin(MatchStart.FactionIndex);
-					}
-				}
+				ApplyStartFaction(MatchStart.FactionIndex);
 			}
 		}
 		for (TActorIterator<ALight> LightIt(StartWorld); LightIt; ++LightIt)

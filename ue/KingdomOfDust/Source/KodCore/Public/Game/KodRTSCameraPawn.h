@@ -36,6 +36,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Camera")
 	void Zoom(float AxisValue);
 
+	/** Zoom and apply it on this frame. Shot hooks use this after the start camera is set. */
+	void CommitZoomSteps(float Steps);
+
 	/** Yaw the view. Ignored unless alt-drag rotate is enabled. */
 	UFUNCTION(BlueprintCallable, Category = "Kod|Camera")
 	void OrbitYaw(float AxisValue);
@@ -46,6 +49,8 @@ public:
 
 	/** Locked SC2 start: pitch -56, yaw 90, FOV 35, arm 6800, centred on the point. */
 	void SnapToStartView(FVector WorldLocation);
+	/** True on a frame after SnapToStartView, so a shot zoom is not undone by that snap. */
+	bool HasStartViewSettled() const;
 	void LogOpeningCamera();
 	void NoteZoomTarget(const TCHAR* Reason);
 
@@ -225,6 +230,8 @@ protected:
 	float LoggedUnitScale = -1.f;
 	float LoggedZoomArm = -1.f;
 	bool bLoggedCamStart = false;
+	bool bStartViewSnapped = false;
+	uint64 StartViewFrame = 0;
 	FVector PanVelocity = FVector::ZeroVector;
 	bool bGrabbing = false;
 	bool bGrabMoved = false;

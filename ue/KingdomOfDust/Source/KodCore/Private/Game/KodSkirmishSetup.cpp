@@ -116,12 +116,14 @@ bool FKodSkirmishSetup::IsSelectableFaction(EKodRosterFaction Faction)
 
 bool FKodSkirmishSetup::TryParseFaction(const FString& Text, EKodRosterFaction& OutFaction)
 {
-	if (Text.Equals(TEXT("Vanguard"), ESearchCase::IgnoreCase) || Text.Equals(TEXT("USA"), ESearchCase::IgnoreCase))
+	if (Text.Equals(TEXT("Vanguard"), ESearchCase::IgnoreCase)
+		|| Text.Equals(TEXT("VG"), ESearchCase::IgnoreCase)
+		|| Text.Equals(TEXT("USA"), ESearchCase::IgnoreCase))
 	{
 		OutFaction = EKodRosterFaction::Vanguard;
 		return true;
 	}
-	if (Text.Equals(TEXT("Scinder"), ESearchCase::IgnoreCase))
+	if (Text.Equals(TEXT("Scinder"), ESearchCase::IgnoreCase) || Text.Equals(TEXT("SC"), ESearchCase::IgnoreCase))
 	{
 		OutFaction = EKodRosterFaction::Scinder;
 		return true;
@@ -342,6 +344,18 @@ FKodMatchStart FKodSkirmishSetup::ResolveMatchStart(const TCHAR* CommandLine, co
 	float ShotSeconds = -1.f;
 	const bool bShot = FParse::Value(*Line, TEXT("-kod.ShotAfter="), ShotSeconds)
 		|| FParse::Value(*Line, TEXT("kod.ShotAfter="), ShotSeconds);
+	auto FlagSet = [&Line](const TCHAR* Dashed, const TCHAR* Plain) -> bool
+	{
+		int32 Value = 0;
+		if (FParse::Value(*Line, Dashed, Value) && Value != 0)
+		{
+			return true;
+		}
+		Value = 0;
+		return FParse::Value(*Line, Plain, Value) && Value != 0;
+	};
+	const bool bGateShot = FlagSet(TEXT("-kod.ShotSelectMove="), TEXT("kod.ShotSelectMove="))
+		|| FlagSet(TEXT("-kod.ShotZoom="), TEXT("kod.ShotZoom="));
 	int32 AutoplayValue = 0;
 	const bool bAutoplay = (FParse::Value(*Line, TEXT("-kod.Autoplay="), AutoplayValue) && AutoplayValue != 0)
 		|| (FParse::Value(*Line, TEXT("kod.Autoplay="), AutoplayValue) && AutoplayValue != 0)
@@ -356,7 +370,7 @@ FKodMatchStart FKodSkirmishSetup::ResolveMatchStart(const TCHAR* CommandLine, co
 		}
 		return 0;
 	};
-	if (bShot || bAutoplay)
+	if (bShot || bGateShot || bAutoplay)
 	{
 		FString FactionText;
 		FParse::Value(*Line, TEXT("-kod.Faction="), FactionText);

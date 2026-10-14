@@ -38,6 +38,7 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "Misc/App.h"
 #include "Engine/Engine.h"
+#include "GameFramework/GameUserSettings.h"
 #include "Engine/Font.h"
 #include "Engine/HitResult.h"
 #include "Engine/World.h"
@@ -485,6 +486,57 @@ void AKodHUD::HideStoryWindow()
 	StoryText.Reset();
 }
 
+void AKodHUD::SetFullScreenOverlayAlpha(float Alpha)
+{
+	FullScreenOverlayAlpha = FMath::Clamp(Alpha, 0.f, 1.f);
+}
+
+void AKodHUD::ClearFullScreenOverlay()
+{
+	FullScreenOverlayAlpha = 0.f;
+}
+
+namespace
+{
+	bool SampleFrameTexel(UTexture2D* Texture, int32 X, int32 Y, FColor& Out)
+	{
+		if (!Texture)
+		{
+			return false;
+		}
+		FTexturePlatformData* Platform = Texture->GetPlatformData();
+		if (!Platform || Platform->Mips.Num() == 0 || Platform->PixelFormat != PF_B8G8R8A8)
+		{
+			return false;
+		}
+		const int32 Width = Platform->SizeX;
+		const int32 Height = Platform->SizeY;
+		if (X < 0 || Y < 0 || X >= Width || Y >= Height)
+		{
+			return false;
+		}
+		const void* Data = Platform->Mips[0].BulkData.LockReadOnly();
+		if (!Data)
+		{
+			Platform->Mips[0].BulkData.Unlock();
+			return false;
+		}
+		const uint8* Bytes = static_cast<const uint8*>(Data);
+		const int32 Offset = (Y * Width + X) * 4;
+		Out.B = Bytes[Offset + 0];
+		Out.G = Bytes[Offset + 1];
+		Out.R = Bytes[Offset + 2];
+		Out.A = Bytes[Offset + 3];
+		Platform->Mips[0].BulkData.Unlock();
+		return true;
+	}
+
+	bool FrameTexelWashesOrange(const FColor& Texel)
+	{
+		return Texel.A >= 200 && Texel.R >= 220 && Texel.G >= 110 && Texel.G <= 190 && Texel.B <= 90;
+	}
+}
+
 void AKodHUD::DrawPaintedV3()
 {
 	if (!Canvas)
@@ -499,11 +551,54 @@ void AKodHUD::DrawPaintedV3()
 	}
 	const FKodHudV3 Layout = FKodHudV3::ForFaction(bScinder);
 	const FKodScreenRect Full = MapSpec(0.f, 0.f, 1920.f, 1080.f);
-	if (Frame->HasAlphaChannel())
+	bool bDrawFrame = Frame->HasAlphaChannel();
+	if (bDrawFrame)
+	{
+		FTexturePlatformData* Platform = Frame->GetPlatformData();
+		const int32 Width = Platform ? Platform->SizeX : Frame->GetSizeX();
+		const int32 Height = Platform ? Platform->SizeY : Frame->GetSizeY();
+		const int32 PointX[5] = { Width / 2, Width / 4, (Width * 3) / 4, Width / 3, (Width * 2) / 3 };
+		const int32 PointY[5] = { Height / 3, Height / 4, Height / 4, Height / 2, Height / 2 };
+		int32 Sampled = 0;
+		int32 Orange = 0;
+		for (int32 Point = 0; Point < 5; ++Point)
+		{
+			FColor Texel;
+			if (!SampleFrameTexel(Frame, PointX[Point], PointY[Point], Texel))
+			{
+				continue;
+			}
+			++Sampled;
+			if (FrameTexelWashesOrange(Texel))
+			{
+				++Orange;
+			}
+		}
+		if (Sampled > 0 && Orange * 2 >= Sampled)
+		{
+			bDrawFrame = false;
+			static bool bLoggedWash = false;
+			if (!bLoggedWash)
+			{
+				bLoggedWash = true;
+				UE_LOG(LogTemp, Warning, TEXT("KodHUD FrameSkip OpaqueWash Samples=%d Orange=%d"), Sampled, Orange);
+			}
+		}
+		else if (Sampled == 0)
+		{
+			static bool bLoggedSample = false;
+			if (!bLoggedSample)
+			{
+				bLoggedSample = true;
+				UE_LOG(LogTemp, Log, TEXT("KodHUD FrameSample Unreadable Size=%dx%d"), Width, Height);
+			}
+		}
+	}
+	if (bDrawFrame)
 	{
 		DrawTexture(Frame, Full.X, Full.Y, Full.W, Full.H, 0.f, 0.f, 1.f, 1.f);
 	}
-	else
+	else if (!Frame->HasAlphaChannel())
 	{
 		static bool bLoggedFrame = false;
 		if (!bLoggedFrame)
@@ -514,29 +609,13 @@ void AKodHUD::DrawPaintedV3()
 	}
 	if (!bScinder)
 	{
-		if (UTexture2D* Lights = ResolveSoftTexture(*FKodHudV3::LightsPath()))
+		// T_vg_lights is a 1920x1080 sheet. Additive over the finished HUD turns the
+		// whole frame, chrome included, into a flat orange wash. Do not draw it.
+		static bool bLoggedLights = false;
+		if (!bLoggedLights)
 		{
-			// A missing or opaque lights sheet stretched over 1920x1080 paints the whole view orange, HUD included.
-			if (Lights->GetResource() && Lights->HasAlphaChannel() && Lights->GetSizeX() >= 256 && Lights->GetSizeY() >= 256)
-			{
-				const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
-				const float Alpha = 0.8f + 0.2f * FMath::Sin(Now * 2.f * PI / 2.4f);
-				FCanvasTileItem Tile(FVector2D(Full.X, Full.Y), Lights->GetResource(), FVector2D(Full.W, Full.H), FLinearColor(1.f, 1.f, 1.f, Alpha));
-				Tile.BlendMode = SE_BLEND_Additive;
-				Canvas->DrawItem(Tile);
-			}
-			else
-			{
-				static bool bLoggedLights = false;
-				if (!bLoggedLights)
-				{
-					bLoggedLights = true;
-					UE_LOG(LogTemp, Warning, TEXT("KodHUD LightsSkip Alpha=%d Size=%dx%d"),
-						Lights->HasAlphaChannel() ? 1 : 0,
-						Lights->GetSizeX(),
-						Lights->GetSizeY());
-				}
-			}
+			bLoggedLights = true;
+			UE_LOG(LogTemp, Log, TEXT("KodHUD LightsSkip Reason=FullScreenAdditive"));
 		}
 	}
 	const AKodPlayerController* PC = Cast<AKodPlayerController>(GetOwningPlayerController());
@@ -724,6 +803,16 @@ void AKodHUD::LogShotScene()
 	{
 		ViewportSize = GEngine->GameViewport->Viewport->GetSizeXY();
 	}
+	float FadeAmount = 0.f;
+	int32 FadeOn = 0;
+	FLinearColor FadeColor = FLinearColor::Black;
+	if (PC && PC->PlayerCameraManager)
+	{
+		FadeAmount = PC->PlayerCameraManager->FadeAmount;
+		FadeOn = PC->PlayerCameraManager->bEnableFading ? 1 : 0;
+		FadeColor = PC->PlayerCameraManager->FadeColor;
+	}
+	const FColor FadeSrgb = FadeColor.ToFColor(true);
 	UE_LOG(LogTemp, Log, TEXT("KodShotAfter Scene View=%s Pawn=%.0f,%.0f,%.0f Camera=%.0f,%.0f,%.0f Rot=P%.1f Y%.1f R%.1f DirLights=%d SunIntensity=%.2f SunRot=P%.1f Y%.1f SkyLights=%d SkyRecapture=%d UnboundPost=%d ManualExposure=%d AutoExposure=%d PreExposure=%.2f Viewport=%dx%d"),
 		*ViewName,
 		PawnLocation.X, PawnLocation.Y, PawnLocation.Z,
@@ -733,7 +822,18 @@ void AKodHUD::LogShotScene()
 		Sky, SkyRecaptured, UnboundPost, ManualPost,
 		AutoExposure, PreExposure,
 		ViewportSize.X, ViewportSize.Y);
+	UE_LOG(LogTemp, Log, TEXT("KodShotAfter Fade=%.3f Fading=%d Color=#%02X%02X%02X Overlay=%.2f"),
+		FadeAmount,
+		FadeOn,
+		FadeSrgb.R,
+		FadeSrgb.G,
+		FadeSrgb.B,
+		FullScreenOverlayAlpha);
 	UE_LOG(LogTemp, Log, TEXT("KodShotAfter HighResShot reads the scene view with the HUD drawn on top. A black world with a visible HUD is the scene, not a UI-only capture."));
+	if (AKodGameMode* MatchMode = World->GetAuthGameMode<AKodGameMode>())
+	{
+		MatchMode->ClearMatchCameraFade();
+	}
 }
 
 void AKodHUD::LogRenderDiag()
@@ -862,9 +962,16 @@ void AKodHUD::LogRenderDiag()
 		}
 	}
 
+	float FadeAmount = 0.f;
+	int32 FadeOn = 0;
+	if (Viewer && Viewer->PlayerCameraManager)
+	{
+		FadeAmount = Viewer->PlayerCameraManager->FadeAmount;
+		FadeOn = Viewer->PlayerCameraManager->bEnableFading ? 1 : 0;
+	}
 	const FString PostList = PostNames.Num() > 0 ? FString::Join(PostNames, TEXT(",")) : FString(TEXT("none"));
 	UE_LOG(LogTemp, Log,
-		TEXT("KodRenderDiag NearUU=%.1f FarUU=%.0f ViewNear=%.1f FogOverlay=%s FogBlend=%s PPMaterials=%d PP=%s Viewport=%dx%d Canvas=%dx%d SunIntensity=%.2f SunMobility=%s"),
+		TEXT("KodRenderDiag NearUU=%.1f FarUU=%.0f ViewNear=%.1f FogOverlay=%s FogBlend=%s PPMaterials=%d PP=%s Viewport=%dx%d Canvas=%dx%d SunIntensity=%.2f SunMobility=%s Fade=%.3f Fading=%d Overlay=%.2f"),
 		NearUU,
 		FarUU,
 		ViewNear,
@@ -877,7 +984,57 @@ void AKodHUD::LogRenderDiag()
 		CanvasX,
 		CanvasY,
 		SunIntensity,
-		SunMobility);
+		SunMobility,
+		FadeAmount,
+		FadeOn,
+		FullScreenOverlayAlpha);
+
+	int32 WantX = 0;
+	int32 WantY = 0;
+	const TCHAR* CommandLine = FCommandLine::Get();
+	if (CommandLine
+		&& FParse::Value(CommandLine, TEXT("-ResX="), WantX)
+		&& FParse::Value(CommandLine, TEXT("-ResY="), WantY)
+		&& WantX >= 320
+		&& WantY >= 240
+		&& ViewportSize.X > 0
+		&& ViewportSize.Y > 0
+		&& (ViewportSize.X < WantX - 8 || ViewportSize.Y < WantY - 8))
+	{
+		const float ScaleX = static_cast<float>(WantX) / static_cast<float>(ViewportSize.X);
+		const float ScaleY = static_cast<float>(WantY) / static_cast<float>(ViewportSize.Y);
+		const float DpiSteps[] = { 1.25f, 1.5f, 1.75f, 2.f };
+		bool bDpi = false;
+		for (float Step : DpiSteps)
+		{
+			if (FMath::IsNearlyEqual(ScaleX, Step, 0.04f) && FMath::IsNearlyEqual(ScaleY, Step, 0.04f))
+			{
+				bDpi = true;
+				break;
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodRes Viewport=%dx%d Requested=%dx%d Scale=%.3f DpiSuspect=%d"),
+			ViewportSize.X,
+			ViewportSize.Y,
+			WantX,
+			WantY,
+			ScaleX,
+			bDpi ? 1 : 0);
+		static bool bResNudged = false;
+		if (bDpi && !bResNudged && GEngine)
+		{
+			bResNudged = true;
+			if (UGameUserSettings* UserSettings = GEngine->GetGameUserSettings())
+			{
+				const int32 NextX = FMath::RoundToInt(static_cast<float>(WantX) * ScaleX);
+				const int32 NextY = FMath::RoundToInt(static_cast<float>(WantY) * ScaleY);
+				UserSettings->SetScreenResolution(FIntPoint(NextX, NextY));
+				UserSettings->SetFullscreenMode(EWindowMode::Windowed);
+				UserSettings->ApplyResolutionSettings(false);
+				UE_LOG(LogTemp, Log, TEXT("KodRes DpiCompensate %dx%d"), NextX, NextY);
+			}
+		}
+	}
 }
 
 void AKodHUD::PollShotAfter()
@@ -905,16 +1062,18 @@ void AKodHUD::PollShotAfter()
 		const float Now = World->GetTimeSeconds();
 		if (!bGateActed)
 		{
-			bGateActed = true;
-			GateArmSeconds = Now;
 			AKodPlayerController* GatePC = Cast<AKodPlayerController>(GetOwningPlayerController());
 			if (!GatePC)
 			{
 				GatePC = Cast<AKodPlayerController>(World->GetFirstPlayerController());
 			}
-			if (bGateSelectMove && GatePC)
+			AKodRTSCameraPawn* CameraPawn = GatePC ? Cast<AKodRTSCameraPawn>(GatePC->GetPawn()) : nullptr;
+			const AKodGameMode* MatchMode = World->GetAuthGameMode<AKodGameMode>();
+			const bool bFactionReady = !MatchMode || !MatchMode->IsAwaitingFactionPrompt();
+			const bool bCameraReady = !bGateZoom || (CameraPawn && CameraPawn->HasStartViewSettled());
+			int32 WorkerId = MAX_int32;
+			if (bGateSelectMove)
 			{
-				int32 WorkerId = MAX_int32;
 				const int32 TeamId = ReadLocalTeamId();
 				for (const FKodSimEntityState& State : FrameStates)
 				{
@@ -923,33 +1082,46 @@ void AKodHUD::PollShotAfter()
 						WorkerId = State.Id.Value;
 					}
 				}
-				if (WorkerId != MAX_int32)
-				{
-					FKodEntityId Worker;
-					Worker.Value = WorkerId;
-					TArray<FKodEntityId> Only;
-					Only.Add(Worker);
-					GatePC->SetLocalSelectionFromIds(Only, false);
-					FVector WorkerAt = FVector::ZeroVector;
-					for (const FKodSimEntityState& State : FrameStates)
-					{
-						if (State.Id.Value == WorkerId)
-						{
-							WorkerAt = State.Position;
-							break;
-						}
-					}
-					GatePC->IssueMoveToSelection(WorkerAt + FVector(800.f, 0.f, 0.f));
-					UE_LOG(LogTemp, Log, TEXT("KodShotSelectMove Worker=%d"), WorkerId);
-				}
 			}
-			if (bGateZoom)
+			const bool bWorkerReady = !bGateSelectMove || WorkerId != MAX_int32;
+			if (!bFactionReady || !bCameraReady || !bWorkerReady || !GatePC)
 			{
-				if (AKodRTSCameraPawn* CameraPawn = GatePC ? Cast<AKodRTSCameraPawn>(GatePC->GetPawn()) : nullptr)
+				static bool bLoggedWait = false;
+				if (!bLoggedWait)
 				{
-					CameraPawn->Zoom(3.f);
-					UE_LOG(LogTemp, Log, TEXT("KodShotZoom Steps=3 Arm=%.0f"), CameraPawn->GetCurrentArmLength());
+					bLoggedWait = true;
+					UE_LOG(LogTemp, Log, TEXT("KodShotGate Wait Faction=%d Camera=%d Worker=%d"),
+						bFactionReady ? 1 : 0,
+						bCameraReady ? 1 : 0,
+						bWorkerReady ? 1 : 0);
 				}
+				return;
+			}
+			bGateActed = true;
+			GateArmSeconds = Now;
+			if (bGateSelectMove)
+			{
+				FKodEntityId Worker;
+				Worker.Value = WorkerId;
+				TArray<FKodEntityId> Only;
+				Only.Add(Worker);
+				GatePC->SetLocalSelectionFromIds(Only, false);
+				FVector WorkerAt = FVector::ZeroVector;
+				for (const FKodSimEntityState& State : FrameStates)
+				{
+					if (State.Id.Value == WorkerId)
+					{
+						WorkerAt = State.Position;
+						break;
+					}
+				}
+				GatePC->IssueMoveToSelection(WorkerAt + FVector(800.f, 0.f, 0.f));
+				UE_LOG(LogTemp, Log, TEXT("KodShotSelectMove Worker=%d"), WorkerId);
+			}
+			if (bGateZoom && CameraPawn)
+			{
+				CameraPawn->CommitZoomSteps(3.f);
+				UE_LOG(LogTemp, Log, TEXT("KodShotZoom Steps=3 Arm=%.0f"), CameraPawn->GetCurrentArmLength());
 			}
 		}
 		const float Wait = bGateZoom ? 3.f : 2.f;
@@ -1115,6 +1287,7 @@ void AKodHUD::DrawFactionPrompt()
 		Font = GEngine->GetSmallFont();
 	}
 	DrawRect(FLinearColor(0.02f, 0.03f, 0.04f, 0.72f), 0.f, 0.f, Canvas->SizeX, Canvas->SizeY);
+	NoteFullScreenOverlay(0.72f);
 	const FKodScreenRect Title = MapSpec(560.f, 220.f, 800.f, 48.f);
 	DrawText(TEXT("CHOOSE A FACTION"), Tok(0xF4, 0xEE, 0xDF), Title.X, Title.Y, Font, FrameScale, false);
 	const TCHAR* Names[] = { TEXT("VANGUARD"), TEXT("SCINDER") };
@@ -1247,10 +1420,30 @@ void AKodHUD::DrawFaultlineObjectives()
 	}
 }
 
+void AKodHUD::NoteFullScreenOverlay(float Alpha)
+{
+	FullScreenOverlayAlpha = FMath::Max(FullScreenOverlayAlpha, FMath::Clamp(Alpha, 0.f, 1.f));
+}
+
 void AKodHUD::DrawHUD()
 {
 	Super::DrawHUD();
 	bShowHUD = true;
+	FullScreenOverlayAlpha = 0.f;
+	if (!bClearedMatchFade)
+	{
+		if (UWorld* FadeWorld = GetWorld())
+		{
+			if (AKodGameMode* MatchMode = FadeWorld->GetAuthGameMode<AKodGameMode>())
+			{
+				if (!MatchMode->IsAwaitingFactionPrompt())
+				{
+					bClearedMatchFade = true;
+					MatchMode->ClearMatchCameraFade();
+				}
+			}
+		}
+	}
 	BuildVanguardFrame();
 	DrawVanguardChrome();
 	DrawFaultlineObjectives();
@@ -5005,7 +5198,9 @@ void AKodHUD::DrawShellMenus()
 	const float Scale = FrameScale;
 	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
 	const bool bResults = MenuPage == 5 || MenuPage == 6;
-	DrawRect(FLinearColor(0.f, 0.f, 0.f, bResults ? 0.82f : 0.6f), 0.f, 0.f, Canvas->SizeX, Canvas->SizeY);
+	const float MenuCover = bResults ? 0.82f : 0.6f;
+	DrawRect(FLinearColor(0.f, 0.f, 0.f, MenuCover), 0.f, 0.f, Canvas->SizeX, Canvas->SizeY);
+	NoteFullScreenOverlay(MenuCover);
 	auto Button = [this, Font, Scale](float X, float Y, float W, float H, const FString& Label, int32 Choice)
 	{
 		DrawPlate(X, Y, W, H, Tok(0x5C, 0x64, 0x6C), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
