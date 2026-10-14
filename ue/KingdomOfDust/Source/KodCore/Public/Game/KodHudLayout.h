@@ -1,5 +1,7 @@
 #pragma once
 
+#include "CoreMinimal.h"
+
 /**
  * Vanguard HUD spec, in 1920×1080 pixels, before AKodHUD::MapSpec scales them.
  * Adjust the v5 rects here. Draw code should not hardcode these numbers.
@@ -106,3 +108,82 @@ namespace KodHudLayout
 	constexpr int32 UnitHpPerSegment = 25;
 	constexpr int32 BuildingSegmentCap = 20;
 }
+
+/** One rectangle in the 1920×1080 painted HUD v3 design. */
+struct FKodHudBox
+{
+	float X = 0.f;
+	float Y = 0.f;
+	float W = 0.f;
+	float H = 0.f;
+};
+
+/** Painted HUD v3. Rects are design pixels. Textures live under /Game/Warden/UI/Painted_v3. */
+struct FKodHudV3
+{
+	FKodHudBox Minimap;
+	FKodHudBox Info;
+	FKodHudBox Portrait;
+	FKodHudBox Command;
+	FKodHudBox Wing[3];
+	FKodHudBox Menu;
+	FKodHudBox MinimapTab[2];
+	FKodHudBox MapButton[3];
+	FKodHudBox Tab[10];
+	FKodHudBox Banner;
+	FKodHudBox Clock;
+	bool bClockBox = true;
+	float StoryW = 0.f;
+	float StoryH = 0.f;
+	FKodHudBox StoryInner;
+
+	static int32 TabCount() { return 10; }
+
+	/** Soft object path /Game/Warden/UI/Painted_v3/T_<Stem>.T_<Stem>. */
+	static FString TexturePath(const TCHAR* Stem)
+	{
+		return FString::Printf(TEXT("/Game/Warden/UI/Painted_v3/T_%s.T_%s"), Stem, Stem);
+	}
+
+	static FString FramePath(bool bScinder)
+	{
+		return TexturePath(bScinder ? TEXT("sc_hud_frame") : TEXT("vg_hud_frame"));
+	}
+
+	static FString LightsPath()
+	{
+		return TexturePath(TEXT("vg_lights"));
+	}
+
+	static FString BannerPath(bool bScinder)
+	{
+		return TexturePath(bScinder ? TEXT("sc_achievement_banner") : TEXT("vg_achievement_banner"));
+	}
+
+	static FString TabPath(bool bScinder, int32 TabIndex, bool bAssigned)
+	{
+		const int32 Clamped = FMath::Clamp(TabIndex, 0, 9);
+		const int32 Digit = Clamped == 9 ? 0 : Clamped + 1;
+		return TexturePath(*FString::Printf(TEXT("%s_numtab_%d_%s"),
+			bScinder ? TEXT("sc") : TEXT("vg"),
+			Digit,
+			bAssigned ? TEXT("assigned") : TEXT("empty")));
+	}
+
+	static FString StoryPath(bool bScinder)
+	{
+		return TexturePath(bScinder ? TEXT("sc_story_window_2x") : TEXT("vg_story_window_2x"));
+	}
+
+	static FString StoryMaskPath(bool bScinder)
+	{
+		return TexturePath(bScinder ? TEXT("sc_story_window_inner_mask_2x") : TEXT("vg_story_window_inner_mask_2x"));
+	}
+
+	static FString ClockBoxPath()
+	{
+		return TexturePath(TEXT("vg_clock_box"));
+	}
+
+	static FKodHudV3 ForFaction(bool bScinder);
+};

@@ -199,7 +199,8 @@ void AKodHUD::DrawMinimap()
 		return;
 	}
 
-	const FKodScreenRect MapRect = MapSpec(8.f, 792.f, 280.f, 280.f);
+	const FKodHudV3 Layout = FKodHudV3::ForFaction(HudSkin == 1);
+	const FKodScreenRect MapRect = MapBox(Layout.Minimap);
 	const float Scale = FrameScale;
 	const float MapSize = MapRect.W;
 	MapMinX = MapRect.X;
@@ -535,11 +536,11 @@ void AKodHUD::DrawMinimap()
 	const TCHAR* ChipLabels[] = { TEXT("Ping"), TEXT("Ter"), TEXT("Ally") };
 	const int32 ChipLayers[] = { 4, 0, 5 };
 	const bool ChipOn[] = { bMapAlerts, bMapTerrain, bMapOwnOnly };
-	const float ChipYSpec[] = { 794.f, 842.f, 890.f };
+	const FKodHudBox ChipBoxes[] = { Layout.MapButton[0], Layout.MapButton[1], Layout.MapButton[2] };
 	UFont* LayerFont = HudFont();
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
-		const FKodScreenRect Chip = MapSpec(298.f, ChipYSpec[Index], 40.f, 40.f);
+		const FKodScreenRect Chip = MapBox(ChipBoxes[Index]);
 		DrawPlate(Chip.X, Chip.Y, Chip.W, Chip.H, ChipOn[Index] ? Tok(0x5C, 0x64, 0x6C) : Tok(0x3A, 0x3F, 0x45), TEXT("T_UI_VG_Btn_Chip"), 8.f, 8.f, 8.f, 8.f);
 		DrawText(ChipLabels[Index], Tok(0xE6, 0xE6, 0xE0), Chip.X + 4.f * Scale, Chip.Y + 12.f * Scale, LayerFont, 0.65f * Scale, false);
 		RememberChrome(FName(TEXT("Layer")), ChipLayers[Index], FName(), Chip.X, Chip.Y, Chip.X + Chip.W, Chip.Y + Chip.H);
@@ -575,7 +576,7 @@ void AKodHUD::DrawIdleWorkerButton()
 		}
 	}
 
-	const FKodScreenRect Slot = MapSpec(8.f, 762.f, 52.f, 26.f);
+	const FKodScreenRect Slot = MapBox(FKodHudV3::ForFaction(HudSkin == 1).MinimapTab[0]);
 	if (Idle <= 0)
 	{
 		return;
@@ -599,22 +600,30 @@ void AKodHUD::DrawControlGroupTabs()
 	}
 	const float Scale = FrameScale;
 	const int32 Order[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0};
+	const FKodHudV3 Layout = FKodHudV3::ForFaction(HudSkin == 1);
 	UFont* Font = HudFont();
-	for (int32 Visual = 0; Visual < 10; ++Visual)
+	for (int32 Visual = 0; Visual < FKodHudV3::TabCount(); ++Visual)
 	{
 		const int32 Index = Order[Visual];
 		const int32 Count = PC->GetControlGroupCount(Index);
-		const FKodScreenRect Tab = MapSpec(519.f + 77.f * static_cast<float>(Visual), 834.f, 70.f, 28.f);
+		const FKodScreenRect Tab = MapBox(Layout.Tab[Visual]);
 		const float X = Tab.X;
 		const float TabY = Tab.Y;
 		const float TabW = Tab.W;
 		const float TabH = Tab.H;
-		const FLinearColor Plate = Count > 0
-			? Tok(0x5C, 0x64, 0x6C, 0.95f)
-			: Tok(0x3A, 0x3F, 0x45, 0.8f);
-		DrawRect(Plate, X, TabY, TabW, TabH);
-		const FString Label = FString::Printf(TEXT("%d %d"), Index == 0 ? 0 : Index, Count);
-		DrawText(Label, Count > 0 ? FLinearColor::White : FLinearColor(0.45f, 0.45f, 0.45f, 1.f), X + 2.f, TabY + 2.f, Font, 0.7f * Scale, false);
+		if (UTexture2D* TabTex = ResolveSoftTexture(*FKodHudV3::TabPath(HudSkin == 1, Visual, Count > 0)))
+		{
+			DrawTexture(TabTex, X, TabY, TabW, TabH, 0.f, 0.f, 1.f, 1.f);
+		}
+		else
+		{
+			const FLinearColor Plate = Count > 0
+				? Tok(0x5C, 0x64, 0x6C, 0.95f)
+				: Tok(0x3A, 0x3F, 0x45, 0.8f);
+			DrawRect(Plate, X, TabY, TabW, TabH);
+			const FString Label = FString::Printf(TEXT("%d"), Index == 0 ? 0 : Index);
+			DrawText(Label, Count > 0 ? FLinearColor::White : FLinearColor(0.45f, 0.45f, 0.45f, 1.f), X + 2.f, TabY + 2.f, Font, 0.7f * Scale, false);
+		}
 		RememberChrome(FName(TEXT("Group")), Index, FName(), X, TabY, X + TabW, TabY + TabH);
 	}
 }
@@ -634,7 +643,8 @@ void AKodHUD::DrawPortrait()
 		return;
 	}
 	const float Scale = FrameScale;
-	const FKodScreenRect Art = MapSpec(1301.f, 862.f, 173.f, 173.f);
+	const FKodHudBox PortraitBox = FKodHudV3::ForFaction(HudSkin == 1).Portrait;
+	const FKodScreenRect Art = MapSpec(PortraitBox.X, PortraitBox.Y, PortraitBox.W, FMath::Max(16.f, PortraitBox.H - 32.f));
 	const float Width = Art.W;
 	const float PanelH = Art.H;
 	const float X = Art.X;
@@ -713,8 +723,8 @@ void AKodHUD::DrawPortrait()
 	}
 	const float HpFraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
 	const UKodHudProposed& Style = HudStyle();
-	const FKodScreenRect HP = MapSpec(1301.f, 1035.f, 173.f, 16.f);
-	const FKodScreenRect EN = MapSpec(1301.f, 1055.f, 173.f, 12.f);
+	const FKodScreenRect HP = MapSpec(PortraitBox.X, PortraitBox.Y + PortraitBox.H - 30.f, PortraitBox.W, 14.f);
+	const FKodScreenRect EN = MapSpec(PortraitBox.X, PortraitBox.Y + PortraitBox.H - 14.f, PortraitBox.W, 12.f);
 	DrawRect(Tok(0x1F, 0x23, 0x27), HP.X, HP.Y, HP.W, HP.H);
 	DrawRect(PanelHealthInk(HpFraction, Style.WireHealthyPermille, Style.WireWarningPermille), HP.X, HP.Y, HP.W * HpFraction, HP.H);
 	DrawText(FString::Printf(TEXT("%d/%d"), ShownHP, MaxHP), Tok(0xE6, 0xE6, 0xE0), HP.X + 4.f * Scale, HP.Y, HudFont(), 0.65f * Scale, false);
@@ -722,7 +732,8 @@ void AKodHUD::DrawPortrait()
 	if (EnergyMax > 0)
 	{
 		const float EnergyFrac = FMath::Clamp(static_cast<float>(Energy) / static_cast<float>(EnergyMax), 0.f, 1.f);
-		DrawRect(Tok(0x3D, 0xFF, 0xB0), EN.X, EN.Y, EN.W * EnergyFrac, EN.H);
+		const FLinearColor EnergyInk = HudSkin == 1 ? Tok(0x3D, 0xFF, 0xB0) : Tok(0x2F, 0x7B, 0xFF);
+		DrawRect(EnergyInk, EN.X, EN.Y, EN.W * EnergyFrac, EN.H);
 	}
 	bHasPortrait = true;
 	PortraitMinX = X;
@@ -904,8 +915,8 @@ void AKodHUD::DrawSelectionPanel()
 
 	const float Scale = FrameScale;
 	WireMidCursor = 0;
-	const FKodScreenRect Grid = MapSpec(KodHudLayout::GroupGridX, KodHudLayout::GroupGridY, KodHudLayout::GroupGridW, KodHudLayout::GroupGridH);
-	const FKodScreenRect Rail = MapSpec(KodHudLayout::GroupRailX, KodHudLayout::GroupRailY, KodHudLayout::GroupRailW, KodHudLayout::GroupRailH);
+	const FKodScreenRect Grid = MapInfo(KodHudLayout::GroupGridX, KodHudLayout::GroupGridY, KodHudLayout::GroupGridW, KodHudLayout::GroupGridH);
+	const FKodScreenRect Rail = MapInfo(KodHudLayout::GroupRailX, KodHudLayout::GroupRailY, KodHudLayout::GroupRailW, KodHudLayout::GroupRailH);
 	UFont* Font = HudFont();
 	bHasSelectionPanel = true;
 	PanelMinX = Rail.X;
@@ -923,7 +934,7 @@ void AKodHUD::DrawSelectionPanel()
 		}
 		for (int32 Slot = 0; Slot < 5; ++Slot)
 		{
-			const FKodScreenRect Cell = MapSpec(KodHudLayout::QueueX[Slot], KodHudLayout::QueueY[Slot], KodHudLayout::QueueW[Slot], KodHudLayout::QueueH[Slot]);
+			const FKodScreenRect Cell = MapInfo(KodHudLayout::QueueX[Slot], KodHudLayout::QueueY[Slot], KodHudLayout::QueueW[Slot], KodHudLayout::QueueH[Slot]);
 			const bool bFilled = Slot < Structure->Slots.Num();
 			DrawPlate(Cell.X, Cell.Y, Cell.W, Cell.H, bFilled ? Tok(0x5C, 0x64, 0x6C) : Tok(0x3A, 0x3F, 0x45, 0.55f), TEXT("T_UI_VG_Btn_Cell"), 10.f, 10.f, 10.f, 10.f);
 			if (!bFilled)
@@ -944,7 +955,7 @@ void AKodHUD::DrawSelectionPanel()
 					Fraction = 1.f - (static_cast<float>(Structure->ActiveTicksRemaining) / static_cast<float>(Structure->ActiveBuildTime));
 					Fraction = FMath::Clamp(Fraction, 0.f, 1.f);
 				}
-				const FKodScreenRect Prog = MapSpec(KodHudLayout::QueueProgX, KodHudLayout::QueueProgY, KodHudLayout::QueueProgW, KodHudLayout::QueueProgH);
+				const FKodScreenRect Prog = MapInfo(KodHudLayout::QueueProgX, KodHudLayout::QueueProgY, KodHudLayout::QueueProgW, KodHudLayout::QueueProgH);
 				DrawRect(Tok(0x1F, 0x23, 0x27), Prog.X, Prog.Y, Prog.W, Prog.H);
 				DrawRect(Tok(0xFF, 0xD2, 0x3F), Prog.X, Prog.Y, Prog.W * Fraction, Prog.H);
 			}
@@ -966,9 +977,9 @@ void AKodHUD::DrawSelectionPanel()
 	if (Tiles.Num() == 1)
 	{
 		const FTile& Tile = Tiles[0];
-		const FKodScreenRect Wire = MapSpec(KodHudLayout::SingleWellX, KodHudLayout::SingleWellY, KodHudLayout::SingleWellW, KodHudLayout::SingleWellH);
-		const FKodScreenRect Info = MapSpec(KodHudLayout::SingleInfoX, KodHudLayout::SingleInfoY, KodHudLayout::SingleInfoW, KodHudLayout::SingleInfoH);
-		const FKodScreenRect Silhouette = MapSpec(KodHudLayout::SingleSilhouetteX, KodHudLayout::SingleSilhouetteY, KodHudLayout::SingleSilhouette, KodHudLayout::SingleSilhouette);
+		const FKodScreenRect Wire = MapInfo(KodHudLayout::SingleWellX, KodHudLayout::SingleWellY, KodHudLayout::SingleWellW, KodHudLayout::SingleWellH);
+		const FKodScreenRect Info = MapInfo(KodHudLayout::SingleInfoX, KodHudLayout::SingleInfoY, KodHudLayout::SingleInfoW, KodHudLayout::SingleInfoH);
+		const FKodScreenRect Silhouette = MapInfo(KodHudLayout::SingleSilhouetteX, KodHudLayout::SingleSilhouetteY, KodHudLayout::SingleSilhouette, KodHudLayout::SingleSilhouette);
 		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(Tile.Health));
 		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(Tile.MaxHealth));
 		const float Fraction = FMath::Clamp(static_cast<float>(ShownHP) / static_cast<float>(MaxHP), 0.f, 1.f);
@@ -1034,7 +1045,7 @@ void AKodHUD::DrawSelectionPanel()
 		const int32 ShownPages = FMath::Min(Pages, 6);
 		for (int32 Page = 0; Page < ShownPages; ++Page)
 		{
-			const FKodScreenRect Tab = MapSpec(KodHudLayout::GroupPageX, KodHudLayout::GroupPageY + KodHudLayout::GroupPageStepY * static_cast<float>(Page), KodHudLayout::GroupPageW, KodHudLayout::GroupPageH);
+			const FKodScreenRect Tab = MapInfo(KodHudLayout::GroupPageX, KodHudLayout::GroupPageY + KodHudLayout::GroupPageStepY * static_cast<float>(Page), KodHudLayout::GroupPageW, KodHudLayout::GroupPageH);
 			const bool bOn = Page == SelectionPage;
 			DrawPlate(Tab.X, Tab.Y, Tab.W, Tab.H, bOn ? Tok(0xB0, 0x8D, 0x57) : Tok(0x3A, 0x3F, 0x45), TEXT("T_UI_VG_Tab_Group"), 8.f, 6.f, 8.f, 6.f);
 			DrawText(FString::FromInt(Page + 1), Tok(0xE6, 0xE6, 0xE0), Tab.X + 8.f * Scale, Tab.Y + 14.f * Scale, Font, 0.7f * Scale, false);
@@ -1049,7 +1060,7 @@ void AKodHUD::DrawSelectionPanel()
 		const bool bFlash = HitUntil && *HitUntil > Now;
 		const int32 Col = Index % 8;
 		const int32 Row = Index / 8;
-		const FKodScreenRect Cell = MapSpec(
+		const FKodScreenRect Cell = MapInfo(
 			KodHudLayout::GroupOriginX + KodHudLayout::GroupStepX * static_cast<float>(Col),
 			KodHudLayout::GroupOriginY + KodHudLayout::GroupStepY * static_cast<float>(Row),
 			KodHudLayout::GroupCellW,
@@ -1057,7 +1068,7 @@ void AKodHUD::DrawSelectionPanel()
 		const int32 ShownHP = FMath::Max(0, FMath::FloorToInt(Tile.Health));
 		const int32 MaxHP = FMath::Max(1, FMath::FloorToInt(Tile.MaxHealth));
 		DrawIconSlot(Tile.TypeId, Cell.X, Cell.Y, Cell.W, Cell.H, 1.f);
-		const FKodScreenRect Silhouette = MapSpec(
+		const FKodScreenRect Silhouette = MapInfo(
 			KodHudLayout::GroupOriginX + KodHudLayout::GroupStepX * static_cast<float>(Col) + KodHudLayout::GroupSilhouetteInsetX,
 			KodHudLayout::GroupOriginY + KodHudLayout::GroupStepY * static_cast<float>(Row) + KodHudLayout::GroupSilhouetteInsetY,
 			KodHudLayout::GroupSilhouette,

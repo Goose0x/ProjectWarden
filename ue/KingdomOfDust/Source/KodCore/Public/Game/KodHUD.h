@@ -178,6 +178,12 @@ public:
 
 	/** 1920×1080 spec rect, scaled by the shortest-side DPI curve inside the 90% title-safe frame. */
 	FKodScreenRect MapSpec(float X, float Y, float W, float H) const;
+	FKodScreenRect MapBox(const FKodHudBox& Box) const;
+	/** Fit a legacy info-panel rect into the painted v3 info window. */
+	FKodScreenRect MapInfo(float X, float Y, float W, float H) const;
+	void ShowAchievement(const FText& Text);
+	void ShowStoryWindow(const FText& Text);
+	void HideStoryWindow();
 	float GetHudFrameScale() const { return FrameScale; }
 
 protected:
@@ -217,6 +223,7 @@ protected:
 	void DrawTopBar();
 	void DrawFactionPrompt();
 	void DrawPaintedFrames();
+	void DrawPaintedV3();
 	void PollShotAfter();
 	void LogShotScene();
 	UTexture2D* ResolveSoftTexture(const TCHAR* Path);
@@ -257,6 +264,10 @@ protected:
 	bool bLoggedFirstDraw = false;
 	bool bLoggedWingHelp = false;
 	bool bFactionPrompt = false;
+	FString AchievementText;
+	float AchievementBorn = -1.f;
+	FString StoryText;
+	bool bStoryWindow = false;
 	int32 FactionPromptIndex = 0;
 	bool bLoggedFrames = false;
 	bool bShotAfterParsed = false;
