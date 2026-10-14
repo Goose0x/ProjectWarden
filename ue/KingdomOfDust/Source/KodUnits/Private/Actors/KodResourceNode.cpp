@@ -1,4 +1,5 @@
 #include "Actors/KodResourceNode.h"
+#include "Game/KodCollision.h"
 #include "Actors/KodJadeiteVisual.h"
 #include "Game/KodJadeitePalette.h"
 
@@ -218,6 +219,8 @@ void AKodResourceNode::ConfigurePlaceholderCollision(UStaticMeshComponent* Mesh)
 	Mesh->bUseDefaultCollision = false;
 	Mesh->SetCollisionProfileName(UCollisionProfile::Pawn_ProfileName);
 	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	Mesh->SetCollisionResponseToChannel(KodCollision::Select, ECR_Block);
+	Mesh->SetCollisionResponseToChannel(KodCollision::Ground, ECR_Ignore);
 }
 
 UStaticMeshComponent* AKodResourceNode::AddClusterMesh(

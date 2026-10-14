@@ -1,4 +1,5 @@
 #include "Slice0/KodSlice0GameMode.h"
+#include "Game/KodCollision.h"
 #include "Slice0/KodFaultline.h"
 #include "Slice0/KodMapLayout.h"
 #include "Slice0/KodMapLife.h"
@@ -45,6 +46,9 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 #include "Misc/CommandLine.h"
+#include "Misc/Paths.h"
+#include "Engine/Engine.h"
+#include "GameFramework/GameUserSettings.h"
 #include "Misc/Parse.h"
 
 namespace
@@ -97,6 +101,49 @@ namespace
 		return ActorNameOrLabelMatches(Actor, &IsSlice0GroundFloorName);
 	}
 
+	void ApplyGroundChannels(AActor* Actor)
+	{
+		if (!Actor)
+		{
+			return;
+		}
+		TInlineComponentArray<UPrimitiveComponent*> Primitives;
+		Actor->GetComponents(Primitives);
+		for (UPrimitiveComponent* Primitive : Primitives)
+		{
+			if (!Primitive)
+			{
+				continue;
+			}
+			Primitive->SetCollisionResponseToChannel(KodCollision::Ground, ECR_Block);
+			Primitive->SetCollisionResponseToChannel(KodCollision::Select, ECR_Ignore);
+		}
+	}
+
+	void ApplyWorldGroundChannels(UWorld* World)
+	{
+		if (!World)
+		{
+			return;
+		}
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			AActor* Actor = *It;
+			if (!Actor)
+			{
+				continue;
+			}
+			const bool bGround = Actor->ActorHasTag(FName(TEXT("KodGround")))
+				|| Actor->ActorHasTag(FName(TEXT("KodGeneratedGround")))
+				|| IsSlice0GroundFloor(Actor)
+				|| Actor->GetClass()->GetName().Contains(TEXT("Landscape"));
+			if (bGround)
+			{
+				ApplyGroundChannels(Actor);
+			}
+		}
+	}
+
 	bool IsSlice0HostileAnchorLabel(const AActor* Actor)
 	{
 		return ActorNameOrLabelMatches(Actor, &IsSlice0HostileAnchorName);
@@ -132,6 +179,8 @@ namespace
 			}
 			Primitive->SetCollisionProfileName(UCollisionProfile::Pawn_ProfileName);
 			Primitive->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+			Primitive->SetCollisionResponseToChannel(KodCollision::Select, ECR_Block);
+			Primitive->SetCollisionResponseToChannel(KodCollision::Ground, ECR_Ignore);
 		}
 	}
 
@@ -170,7 +219,7 @@ namespace
 		const FVector Start(X, Y, HintZ + 8000.f);
 		const FVector End(X, Y, HintZ - 8000.f);
 		FHitResult Hit;
-		if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params) && Hit.bBlockingHit)
+		if (World->LineTraceSingleByChannel(Hit, Start, End, KodCollision::Ground, Params) && Hit.bBlockingHit)
 		{
 			return Hit.ImpactPoint.Z;
 		}
@@ -584,6 +633,24 @@ static void ApplySc2Look(UWorld* World)
 void AKodSlice0GameMode::StartPlay()
 {
 	Super::StartPlay();
+	int32 CommandResX = 0;
+	int32 CommandResY = 0;
+	const TCHAR* CommandLine = FCommandLine::Get();
+	if (CommandLine
+		&& FParse::Value(CommandLine, TEXT("-ResX="), CommandResX)
+		&& FParse::Value(CommandLine, TEXT("-ResY="), CommandResY)
+		&& CommandResX >= 320
+		&& CommandResY >= 240
+		&& GEngine)
+	{
+		if (UGameUserSettings* UserSettings = GEngine->GetGameUserSettings())
+		{
+			UserSettings->SetScreenResolution(FIntPoint(CommandResX, CommandResY));
+			UserSettings->SetFullscreenMode(EWindowMode::Windowed);
+			UserSettings->ApplyResolutionSettings(false);
+			UE_LOG(LogTemp, Log, TEXT("KodRes CommandLine %dx%d"), CommandResX, CommandResY);
+		}
+	}
 	if (GetWorld() && GetWorld()->URL.HasOption(TEXT("Menu")))
 	{
 		if (UKodSimSubsystem* Sim = GetWorld()->GetSubsystem<UKodSimSubsystem>())
@@ -594,6 +661,7 @@ void AKodSlice0GameMode::StartPlay()
 
 	// Placed greybox has already run BeginPlay. Mute before the smoke Ranger spawn.
 	MuteGreyboxProxyCollision();
+	ApplyWorldGroundChannels(GetWorld());
 	ApplySc2Look(GetWorld());
 	ApplyStartingResources();
 
@@ -888,6 +956,7 @@ void AKodSlice0GameMode::StartPlay()
 			if (MatchStart.bPrompt)
 			{
 				StartSim->SetSimPaused(true);
+				SetAwaitFactionPrompt(true);
 				if (APlayerController* StartPC = StartWorld->GetFirstPlayerController())
 				{
 					if (AKodHUD* StartHUD = Cast<AKodHUD>(StartPC->GetHUD()))
@@ -898,6 +967,7 @@ void AKodSlice0GameMode::StartPlay()
 			}
 			else
 			{
+				SetAwaitFactionPrompt(false);
 				StartSim->SetPlayerFaction(MatchStart.FactionIndex);
 				if (APlayerController* StartPC = StartWorld->GetFirstPlayerController())
 				{
@@ -936,6 +1006,12 @@ void AKodSlice0GameMode::StartPlay()
 			Sim->ApplyBalance();
 		}
 	}
+	ApplyWorldGroundChannels(GetWorld());
+	const UWorld* ReadyWorld = GetWorld();
+	UE_LOG(LogTemp, Log, TEXT("KodPlay Ready Map=%s Training=%d Prompt=%d"),
+		ReadyWorld ? *FPaths::GetBaseFilename(ReadyWorld->GetMapName()) : TEXT("none"),
+		KodFaultline::IsTrainingMap(ReadyWorld) ? 1 : 0,
+		IsAwaitingFactionPrompt() ? 1 : 0);
 }
 
 void AKodSlice0GameMode::PublishPlayableBounds()
@@ -1042,6 +1118,8 @@ void AKodSlice0GameMode::PublishPlayableBounds()
 						Mesh->SetMaterial(0, GroundMat);
 					}
 					Mesh->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+					Mesh->SetCollisionResponseToChannel(KodCollision::Ground, ECR_Block);
+					Mesh->SetCollisionResponseToChannel(KodCollision::Select, ECR_Ignore);
 					Mesh->SetCanEverAffectNavigation(false);
 				}
 			}
@@ -1179,6 +1257,7 @@ void AKodSlice0GameMode::FocusOpeningCamera()
 			continue;
 		}
 		It->SnapToPlayerStart();
+		It->LogOpeningCamera();
 	}
 	if (APlayerController* PC = World->GetFirstPlayerController())
 	{
@@ -1456,7 +1535,7 @@ int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FV
 			Spot = AnchorLocation + Dir * Radius;
 		}
 		const float FloorZ = ResolveResourceFloorZ(World, Sim, Spot.X, Spot.Y, AnchorLocation.Z, Ignored);
-		const FTransform Xform(FRotator::ZeroRotator, FVector(Spot.X, Spot.Y, FloorZ + 100.f));
+		const FTransform Xform(FRotator::ZeroRotator, FVector(Spot.X, Spot.Y, FloorZ));
 		AKodUnit* Worker = UKodSlice0Bootstrap::SpawnDozer(World, Xform, TeamId);
 		if (!Worker)
 		{

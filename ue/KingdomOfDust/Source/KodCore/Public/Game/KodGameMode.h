@@ -25,6 +25,10 @@ public:
 	/** Apply Vanguard (0) or Scinder (1), unpause, and look at the player base. */
 	virtual void ApplyStartFaction(int32 FactionIndex);
 
+	/** PIE waits on the faction prompt until the player picks. Cleared by ApplyStartFaction. */
+	void SetAwaitFactionPrompt(bool bAwait);
+	bool IsAwaitingFactionPrompt() const { return bAwaitFactionPrompt; }
+
 	/** GameMode default, or the `Spectate=1` URL option. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Camera")
 	bool bStartAsSpectator = false;
@@ -41,5 +45,6 @@ private:
 	TSubclassOf<APlayerController> KodSavedPlayerControllerClass;
 	TSubclassOf<APawn> KodSavedDefaultPawnClass;
 	bool bKodSpectatorSession = false;
+	bool bAwaitFactionPrompt = false;
 	FString PendingOptions;
 };

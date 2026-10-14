@@ -1204,6 +1204,18 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 	RecordScoreSample();
 }
 
+void UKodSimSubsystem::SetEntityGroundPosition(FKodEntityId Id, const FVector& Position)
+{
+	FKodSimEntityState* State = States.Find(Id.Value);
+	if (!State)
+	{
+		return;
+	}
+	State->Position = Position;
+	QuantizePose(*State);
+	PrevPositions.Add(Id.Value, State->Position);
+}
+
 void UKodSimSubsystem::SetPlayerFaction(int32 Faction)
 {
 	PlayerFaction = Faction == 1 ? 1 : 0;

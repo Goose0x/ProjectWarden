@@ -90,6 +90,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|Selection")
 	TArray<AActor*> GetLocalSelection() const;
 
+	/** Viewport-relative projection, with a ground-plane fallback when the engine projection misses. */
+	bool ProjectActorToMarqueeSpace(const AActor* Actor, FVector2D& OutScreen) const;
+
+	/** Deproject Screen and select along that ray. Used by click-select and Kod.Play.SelectOwnWorker. */
+	AActor* SelectAtScreen(const FVector2D& Screen, bool bAddToSelection);
+
+	/** Orders the local selection to walk. Default path is the sim IssueMove. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Kod|Command")
+	void IssueMoveToSelection(FVector WorldLocation);
+
 	/** Drop one actor and refresh the rim when it was selected. Does not write sim state. */
 	void RemoveFromLocalSelection(AActor* Actor);
 
@@ -194,9 +204,6 @@ protected:
 	/** Soft-load M_SelectionRim once and cache it. Null after a failed load. */
 	UMaterialInterface* GetSelectionOverlayMaterial();
 
-	/** Override / BlueprintImplementable for UKodCommandSubsystem enqueue. Default: sim IssueMove. */
-	UFUNCTION(BlueprintNativeEvent, Category = "Kod|Command")
-	void IssueMoveToSelection(FVector WorldLocation);
 	virtual void IssueMoveToSelection_Implementation(FVector WorldLocation);
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Kod|Command")
@@ -236,8 +243,16 @@ protected:
 	/** Local-team sim actors (not the camera pawn) whose screen point lies in the marquee. */
 	void CollectActorsInMarquee(TArray<AActor*>& OutActors) const;
 	void GetMarqueeBounds(FVector2D& OutMin, FVector2D& OutMax) const;
-	/** Viewport-relative projection, matching GetMousePosition and the marquee corners. */
-	bool ProjectActorToMarqueeSpace(const AActor* Actor, FVector2D& OutScreen) const;
+
+	bool bFactionPromptLatched = false;
+	bool bFactionKeysReleased = false;
+
+	bool ViewPose(FVector& OutLocation, FRotator& OutRotation, float& OutFov, FIntPoint& OutSize) const;
+	bool ProjectWorldWithFallback(const FVector& WorldPoint, FVector2D& OutScreen) const;
+	bool DeprojectScreenWithFallback(const FVector2D& Screen, FVector& OutOrigin, FVector& OutDirection) const;
+	bool IntersectGroundPlane(const FVector& Origin, const FVector& Direction, FVector& OutPoint) const;
+	AActor* FindOwnActorNear(const FVector& WorldPoint, float RadiusUU) const;
+	AActor* SelectAlongRay(const FVector& Origin, const FVector& Direction, bool bAddToSelection, FString& OutHitLog);
 
 	UPROPERTY()
 	TArray<TWeakObjectPtr<AActor>> LocalSelection;

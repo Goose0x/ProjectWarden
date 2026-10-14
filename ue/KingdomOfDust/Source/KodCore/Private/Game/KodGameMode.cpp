@@ -100,9 +100,16 @@ void AKodGameMode::StartPlay()
 	}
 }
 
+void AKodGameMode::SetAwaitFactionPrompt(bool bAwait)
+{
+	bAwaitFactionPrompt = bAwait;
+}
+
 void AKodGameMode::ApplyStartFaction(int32 FactionIndex)
 {
 	const int32 Index = FactionIndex == 1 ? 1 : 0;
+	bAwaitFactionPrompt = false;
+	UE_LOG(LogTemp, Log, TEXT("KodFaction Picked=%d"), Index);
 	UWorld* World = GetWorld();
 	if (!World)
 	{
