@@ -1,4 +1,5 @@
 #include "Actors/KodUnit.h"
+#include "Game/KodCameraSettings.h"
 #include "Game/KodCollision.h"
 #include "Actors/KodJadeiteVisual.h"
 #include "Game/KodJadeitePalette.h"
@@ -41,7 +42,7 @@ namespace
 	constexpr const TCHAR* EngineConePath = TEXT("/Engine/BasicShapes/Cone.Cone");
 	constexpr const TCHAR* EngineCylinderPath = TEXT("/Engine/BasicShapes/Cylinder.Cylinder");
 	constexpr const TCHAR* BasicShapeMaterialPath = TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial");
-	const FVector EngineCubeScale(0.8f, 0.8f, 1.7f);
+	const FVector EngineCubeScale(0.8f, 0.8f, KodCameraSettings::WorkerBodyUU / 100.f);
 	constexpr double LifeReferenceHeightCm = 170.0;
 	// Real move speed is 450. A 1 uu idle quantize snap is ~60-150 uu/s depending on frame
 	// time, so the threshold sits above that and still sees a walk.
@@ -468,6 +469,8 @@ void AKodUnit::ApplyTeamColor()
 			continue;
 		}
 		MID->SetVectorParameterValue(TeamParam, Tint);
+		MID->SetVectorParameterValue(TEXT("EmissiveColor"), Tint * 0.35f);
+		MID->SetScalarParameterValue(TEXT("RimStrength"), 0.22f);
 		VisualBody->SetMaterial(SlotIndex, MID);
 		bTeamColorApplied = true;
 		if (!BodyTintMID)
@@ -943,6 +946,20 @@ void AKodUnit::KeepSelectCollision()
 	UnitMesh->SetCollisionResponseToChannel(KodCollision::Ground, ECR_Ignore);
 }
 
+float AKodUnit::MirrorBodyHeightUU() const
+{
+	FName Id = FName();
+	if (const UKodUnitDefinition* Def = GetDefinition())
+	{
+		Id = Def->DefinitionId.IsNone() ? Def->GetFName() : Def->DefinitionId;
+	}
+	if (Id == FName(KodWardenPaths::Id_Marine))
+	{
+		return KodCameraSettings::MarineBodyUU;
+	}
+	return KodCameraSettings::WorkerBodyUU;
+}
+
 void AKodUnit::SnapToGround()
 {
 	UWorld* World = GetWorld();
@@ -1216,7 +1233,7 @@ void AKodUnit::MountResolvedStaticMesh(UStaticMesh* StaticBody)
 		// Art reimports SM_Ranger_Body at cm scale, or once a skeletal mesh lands.
 		// MeshHeight is BoxExtent.Z * 2 (full local Z). Invalid bounds stay at scale 1.
 		// BoxExtent is double (UE5 large-world FVector); keep the scale in double too.
-		constexpr double TargetHeightCm = 170.0;
+		const double TargetHeightCm = static_cast<double>(MirrorBodyHeightUU());
 		const double MeshHeight = StaticBody->GetBounds().BoxExtent.Z * 2.0;
 		const bool bSaneHeight = FMath::IsFinite(MeshHeight) && MeshHeight > static_cast<double>(KINDA_SMALL_NUMBER);
 		const double UniformScale = bSaneHeight ? (TargetHeightCm / MeshHeight) : 1.0;
@@ -1256,7 +1273,8 @@ void AKodUnit::MountCubePlaceholder()
 	{
 		UnitMesh->SetStaticMesh(Cube);
 	}
-	UnitMesh->SetRelativeScale3D(EngineCubeScale);
+	const float BodyUU = MirrorBodyHeightUU();
+	UnitMesh->SetRelativeScale3D(FVector(0.8f, 0.8f, BodyUU / 100.f));
 	UnitMesh->SetHiddenInGame(false);
 	UnitMesh->SetVisibility(true);
 	KeepSelectCollision();

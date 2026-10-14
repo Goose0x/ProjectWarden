@@ -31,7 +31,7 @@ namespace
 	TAutoConsoleVariable<float> CVarCamDistance(
 		TEXT("kod.Cam.Distance"),
 		KodCameraSettings::DistanceSc2,
-		TEXT("Resting spring-arm distance in SC2 game units. Gameplay is locked here."),
+		TEXT("Resting spring-arm distance in SC2 game units. 28 puts a 5x5 HQ at about 16% of a 16:9 view. Zoom stays where the wheel leaves it."),
 		ECVF_Default);
 
 	TAutoConsoleVariable<float> CVarCamDistanceMin(

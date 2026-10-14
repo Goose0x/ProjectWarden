@@ -204,7 +204,7 @@ protected:
 	void PollFollow();
 	bool IsChatFocused() const;
 	bool HasSelectedStructure() const;
-	void ApplyPan(float DeltaSeconds, const FVector2D& UnitsPerSecond);
+	void ApplyPan(float DeltaSeconds, const FVector2D& UnitsPerSecond, bool bInstant);
 	void UpdateTerrain(float DeltaSeconds, bool bInstant);
 	void ClampToPlayable();
 	void UpdateFollow(float DeltaSeconds);

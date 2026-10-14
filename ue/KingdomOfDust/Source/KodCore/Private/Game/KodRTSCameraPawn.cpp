@@ -356,13 +356,15 @@ void AKodRTSCameraPawn::OrbitYaw(float AxisValue)
 
 void AKodRTSCameraPawn::SnapToStartView(FVector WorldLocation)
 {
-	YawDegrees = 90.f;
-	PitchDegrees = -56.f;
-	VerticalFovDegrees = 35.f;
-	DefaultArmLength = 6800.f;
+	const FKodCameraTunables Tunables = FKodCameraTunables::Read();
+	YawDegrees = Tunables.Yaw;
+	PitchDegrees = Tunables.Pitch;
+	VerticalFovDegrees = Tunables.Fov;
+	DefaultArmLength = KodCameraSettings::ToUU(Tunables.DistanceSc2, Tunables.UnitScaleUU);
+	MinArmLength = KodCameraSettings::ToUU(Tunables.DistanceMinSc2, Tunables.UnitScaleUU);
 	if (MinArmLength > DefaultArmLength)
 	{
-		MinArmLength = 3200.f;
+		MinArmLength = DefaultArmLength;
 	}
 	MaxArmLength = DefaultArmLength;
 	CurrentArmLength = DefaultArmLength;
@@ -715,11 +717,7 @@ void AKodRTSCameraPawn::PollMoveInput(float DeltaSeconds, bool& bOutManualPan)
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC || IsChatFocused())
 	{
-		PanVelocity = FMath::VInterpTo(PanVelocity, FVector::ZeroVector, DeltaSeconds, PanAccelSpeed);
-		if (!PanVelocity.IsNearlyZero())
-		{
-			AddActorWorldOffset(FVector(PanVelocity.X, PanVelocity.Y, 0.f) * DeltaSeconds);
-		}
+		PanVelocity = FVector::ZeroVector;
 		return;
 	}
 
@@ -838,18 +836,31 @@ void AKodRTSCameraPawn::PollMoveInput(float DeltaSeconds, bool& bOutManualPan)
 	{
 		EdgeInput.Normalize();
 	}
-	const FVector2D Input = KeysInput * KeyboardScrollSpeed + EdgeInput * EdgeScrollSpeed;
+	const bool bEdge = !EdgeInput.IsNearlyZero();
+	const FVector2D Input = bEdge ? EdgeInput * EdgeScrollSpeed : KeysInput * KeyboardScrollSpeed;
 	if (!Input.IsNearlyZero())
 	{
 		bOutManualPan = true;
 	}
-	ApplyPan(DeltaSeconds, Input);
+	ApplyPan(DeltaSeconds, Input, bEdge);
 }
 
-void AKodRTSCameraPawn::ApplyPan(float DeltaSeconds, const FVector2D& UnitsPerSecond)
+void AKodRTSCameraPawn::ApplyPan(float DeltaSeconds, const FVector2D& UnitsPerSecond, bool bInstant)
 {
 	const FVector Desired = PlanarRight() * UnitsPerSecond.X + PlanarForward() * UnitsPerSecond.Y;
-	PanVelocity = FMath::VInterpTo(PanVelocity, Desired, DeltaSeconds, PanAccelSpeed);
+	if (bInstant)
+	{
+		// Edge scroll is a constant velocity. Leaving the edge stops on that frame.
+		PanVelocity = Desired;
+	}
+	else if (Desired.IsNearlyZero())
+	{
+		PanVelocity = FVector::ZeroVector;
+	}
+	else
+	{
+		PanVelocity = FMath::VInterpTo(PanVelocity, Desired, DeltaSeconds, PanAccelSpeed);
+	}
 	if (!PanVelocity.IsNearlyZero())
 	{
 		AddActorWorldOffset(FVector(PanVelocity.X, PanVelocity.Y, 0.f) * DeltaSeconds);
