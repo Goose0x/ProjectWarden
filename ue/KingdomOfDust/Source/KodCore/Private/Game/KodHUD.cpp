@@ -87,25 +87,6 @@ namespace
 	{
 		return FLinearColor(FColor(R, G, B, static_cast<uint8>(FMath::Clamp(A, 0.f, 1.f) * 255.f)));
 	}
-
-	float DpiForShortest(float Shortest)
-	{
-		const float Stops[] = { 720.f, 1080.f, 1440.f, 2160.f };
-		const float Values[] = { 0.667f, 1.f, 1.333f, 2.f };
-		if (Shortest <= Stops[0])
-		{
-			return Values[0] * (Shortest / Stops[0]);
-		}
-		for (int32 Index = 0; Index < 3; ++Index)
-		{
-			if (Shortest <= Stops[Index + 1])
-			{
-				const float T = (Shortest - Stops[Index]) / (Stops[Index + 1] - Stops[Index]);
-				return FMath::Lerp(Values[Index], Values[Index + 1], T);
-			}
-		}
-		return Values[3] * (Shortest / Stops[3]);
-	}
 }
 
 FKodHudV3 FKodHudV3::ForFaction(bool bScinder)
@@ -194,7 +175,9 @@ void AKodHUD::BuildVanguardFrame()
 	const float ViewW = Canvas->SizeX;
 	const float ViewH = Canvas->SizeY;
 	const float User = FMath::Clamp(HudUserScale, 0.8f, 1.2f);
-	const float Scale = (ViewH / 1080.f) * User;
+	const float Aspect = ViewH > 1.f ? ViewW / ViewH : 1.f;
+	float Scale = (Aspect > 2.2f ? (ViewW / 1920.f) : (ViewH / 1080.f)) * User;
+	Scale = FMath::Max(Scale, 0.5f);
 	const float FrameW = 1920.f * Scale;
 	FrameScale = Scale;
 	FrameOriginX = (ViewW - FrameW) * 0.5f;
@@ -514,18 +497,43 @@ void AKodHUD::DrawPaintedV3()
 	}
 	const FKodHudV3 Layout = FKodHudV3::ForFaction(bScinder);
 	const FKodScreenRect Full = MapSpec(0.f, 0.f, 1920.f, 1080.f);
-	DrawTexture(Frame, Full.X, Full.Y, Full.W, Full.H, 0.f, 0.f, 1.f, 1.f);
+	if (Frame->HasAlphaChannel())
+	{
+		DrawTexture(Frame, Full.X, Full.Y, Full.W, Full.H, 0.f, 0.f, 1.f, 1.f);
+	}
+	else
+	{
+		static bool bLoggedFrame = false;
+		if (!bLoggedFrame)
+		{
+			bLoggedFrame = true;
+			UE_LOG(LogTemp, Warning, TEXT("KodHUD FrameSkip NoAlpha Size=%dx%d"), Frame->GetSizeX(), Frame->GetSizeY());
+		}
+	}
 	if (!bScinder)
 	{
 		if (UTexture2D* Lights = ResolveSoftTexture(*FKodHudV3::LightsPath()))
 		{
-			if (Lights->GetResource())
+			// A missing or opaque lights sheet stretched over 1920x1080 paints the whole view orange, HUD included.
+			if (Lights->GetResource() && Lights->HasAlphaChannel() && Lights->GetSizeX() >= 256 && Lights->GetSizeY() >= 256)
 			{
 				const float Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 				const float Alpha = 0.8f + 0.2f * FMath::Sin(Now * 2.f * PI / 2.4f);
 				FCanvasTileItem Tile(FVector2D(Full.X, Full.Y), Lights->GetResource(), FVector2D(Full.W, Full.H), FLinearColor(1.f, 1.f, 1.f, Alpha));
 				Tile.BlendMode = SE_BLEND_Additive;
 				Canvas->DrawItem(Tile);
+			}
+			else
+			{
+				static bool bLoggedLights = false;
+				if (!bLoggedLights)
+				{
+					bLoggedLights = true;
+					UE_LOG(LogTemp, Warning, TEXT("KodHUD LightsSkip Alpha=%d Size=%dx%d"),
+						Lights->HasAlphaChannel() ? 1 : 0,
+						Lights->GetSizeX(),
+						Lights->GetSizeY());
+				}
 			}
 		}
 	}
@@ -729,6 +737,110 @@ void AKodHUD::LogShotScene()
 void AKodHUD::PollShotAfter()
 {
 	UWorld* World = GetWorld();
+	static bool bGateParsed = false;
+	static bool bGateSelectMove = false;
+	static bool bGateZoom = false;
+	static bool bGateActed = false;
+	static bool bGatePrepared = false;
+	static bool bGateQueued = false;
+	static bool bGateExitArmed = false;
+	static float GateArmSeconds = 0.f;
+	if (!bGateParsed)
+	{
+		bGateParsed = true;
+		int32 SelectFlag = 0;
+		int32 ZoomFlag = 0;
+		const TCHAR* CommandLine = FCommandLine::Get();
+		bGateSelectMove = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotSelectMove="), SelectFlag) && SelectFlag != 0;
+		bGateZoom = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotZoom="), ZoomFlag) && ZoomFlag != 0;
+	}
+	if ((bGateSelectMove || bGateZoom) && World)
+	{
+		const float Now = World->GetTimeSeconds();
+		if (!bGateActed)
+		{
+			bGateActed = true;
+			GateArmSeconds = Now;
+			AKodPlayerController* GatePC = Cast<AKodPlayerController>(GetOwningPlayerController());
+			if (!GatePC)
+			{
+				GatePC = Cast<AKodPlayerController>(World->GetFirstPlayerController());
+			}
+			if (bGateSelectMove && GatePC)
+			{
+				int32 WorkerId = MAX_int32;
+				const int32 TeamId = ReadLocalTeamId();
+				for (const FKodSimEntityState& State : FrameStates)
+				{
+					if (State.TeamId == TeamId && State.bCanGather && State.bMobile && State.Health > 0.f && State.Id.Value < WorkerId)
+					{
+						WorkerId = State.Id.Value;
+					}
+				}
+				if (WorkerId != MAX_int32)
+				{
+					FKodEntityId Worker;
+					Worker.Value = WorkerId;
+					TArray<FKodEntityId> Only;
+					Only.Add(Worker);
+					GatePC->SetLocalSelectionFromIds(Only, false);
+					FVector WorkerAt = FVector::ZeroVector;
+					for (const FKodSimEntityState& State : FrameStates)
+					{
+						if (State.Id.Value == WorkerId)
+						{
+							WorkerAt = State.Position;
+							break;
+						}
+					}
+					GatePC->IssueMoveToSelection(WorkerAt + FVector(800.f, 0.f, 0.f));
+					UE_LOG(LogTemp, Log, TEXT("KodShotSelectMove Worker=%d"), WorkerId);
+				}
+			}
+			if (bGateZoom)
+			{
+				if (AKodRTSCameraPawn* CameraPawn = GatePC ? Cast<AKodRTSCameraPawn>(GatePC->GetPawn()) : nullptr)
+				{
+					CameraPawn->Zoom(3.f);
+					UE_LOG(LogTemp, Log, TEXT("KodShotZoom Steps=3 Arm=%.0f"), CameraPawn->GetCurrentArmLength());
+				}
+			}
+		}
+		const float Wait = bGateZoom ? 3.f : 2.f;
+		if (!bGateQueued)
+		{
+			if ((Now - GateArmSeconds) < Wait)
+			{
+				return;
+			}
+			if (!bGatePrepared)
+			{
+				bGatePrepared = true;
+				LogShotScene();
+				return;
+			}
+			bGateQueued = true;
+			GetHighResScreenshotConfig().SetResolution(1920, 1080);
+			if (GEngine)
+			{
+				GEngine->Exec(World, TEXT("HighResShot 1920x1080"));
+			}
+			UE_LOG(LogTemp, Log, TEXT("KodShotGate HighResShot 1920x1080"));
+			return;
+		}
+		if (!bGateExitArmed)
+		{
+			bGateExitArmed = true;
+			return;
+		}
+		if (FScreenshotRequest::IsScreenshotRequested() && (Now - GateArmSeconds) < Wait + 8.f)
+		{
+			return;
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodShotGate Exit"));
+		FPlatformMisc::RequestExit(false);
+		return;
+	}
 	if (!bShotAfterParsed)
 	{
 		bShotAfterParsed = true;
@@ -830,7 +942,9 @@ namespace
 void AKodHUD::OpenFactionPrompt()
 {
 	bFactionPrompt = true;
+	bFactionPromptDrawn = false;
 	FactionPromptIndex = 0;
+	UE_LOG(LogTemp, Log, TEXT("KodFaction Prompt Shown"));
 }
 
 void AKodHUD::CloseFactionPrompt()
@@ -875,6 +989,7 @@ void AKodHUD::DrawFactionPrompt()
 	}
 	const FKodScreenRect Hint = MapSpec(660.f, 640.f, 600.f, 32.f);
 	DrawText(TEXT("1 Vanguard    2 Scinder    Enter"), Tok(0xC9, 0xA2, 0x4A), Hint.X, Hint.Y, Font, 0.8f * FrameScale, false);
+	bFactionPromptDrawn = true;
 }
 
 void AKodHUD::SetHudSkin(int32 Skin)
@@ -1843,10 +1958,6 @@ void AKodHUD::DrawGameClock()
 		if (UTexture2D* ClockTex = ResolveSoftTexture(*FKodHudV3::ClockBoxPath()))
 		{
 			DrawTexture(ClockTex, Clock.X, Clock.Y, Clock.W, Clock.H, 0.f, 0.f, 1.f, 1.f);
-		}
-		else
-		{
-			DrawPlate(Clock.X, Clock.Y, Clock.W, Clock.H, Tok(0x1F, 0x23, 0x27, 0.9f), TEXT("T_UI_VG_Chip_Resource"), 12.f, 8.f, 12.f, 8.f);
 		}
 	}
 	DrawText(Label, Tok(0xB0, 0x8D, 0x57), Clock.X + 8.f * FrameScale, Clock.Y + 6.f * FrameScale, Font, FrameScale, false);

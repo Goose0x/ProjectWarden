@@ -132,6 +132,8 @@ protected:
 
 	/** QueryOnly Pawn on UnitMesh. Same contract as the constructor — does not touch the capsule. */
 	void KeepSelectCollision();
+	/** Downward KodGround trace, then capsule half-height. No-op when the floor does not block that channel. */
+	void SnapToGround();
 
 	/** Bob + visual yaw. Runs after sim presentation sync. Never writes sim state. */
 	void UpdateLifePresentation(float DeltaSeconds);

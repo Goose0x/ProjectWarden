@@ -1,4 +1,5 @@
 #include "Actors/KodBuilding.h"
+#include "Game/KodCollision.h"
 #include "Actors/KodJadeiteVisual.h"
 #include "Game/KodJadeitePalette.h"
 #include "Data/KodBuildingDefinition.h"
@@ -35,6 +36,8 @@ AKodBuilding::AKodBuilding()
 	BuildingMesh->SetRelativeScale3D(FVector(3.f, 3.f, 2.f));
 	BuildingMesh->SetCollisionProfileName(UCollisionProfile::Pawn_ProfileName);
 	BuildingMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	BuildingMesh->SetCollisionResponseToChannel(KodCollision::Select, ECR_Block);
+	BuildingMesh->SetCollisionResponseToChannel(KodCollision::Ground, ECR_Ignore);
 	BaseScale = BuildingMesh->GetRelativeScale3D();
 }
 

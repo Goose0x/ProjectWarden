@@ -124,6 +124,7 @@ public:
 	void OpenFactionPrompt();
 	void CloseFactionPrompt();
 	bool IsFactionPromptOpen() const { return bFactionPrompt; }
+	bool HasDrawnFactionPrompt() const { return bFactionPromptDrawn; }
 	int32 GetFactionPromptIndex() const { return FactionPromptIndex; }
 	void SetFactionPromptIndex(int32 Index);
 	void SetMenuPage(int32 Page);
@@ -265,6 +266,7 @@ protected:
 	bool bLoggedFirstDraw = false;
 	bool bLoggedWingHelp = false;
 	bool bFactionPrompt = false;
+	bool bFactionPromptDrawn = false;
 	FString AchievementText;
 	float AchievementBorn = -1.f;
 	FString StoryText;

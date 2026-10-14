@@ -747,6 +747,8 @@ public:
 	void NotifyOwnedDamage(const FKodSimEntityState& Target);
 	/** 0 is Vanguard, 1 is Scinder. The other faction is the enemy. Hashed and saved. */
 	void SetPlayerFaction(int32 Faction);
+	/** Spawn snap. Writes the sim pose and the presentation previous so the next tick does not pull the actor back up. */
+	void SetEntityGroundPosition(FKodEntityId Id, const FVector& Position);
 	int32 GetPlayerFaction() const { return PlayerFaction; }
 	bool IsFaultlineTraining() const { return bFaultlineTraining; }
 	/**

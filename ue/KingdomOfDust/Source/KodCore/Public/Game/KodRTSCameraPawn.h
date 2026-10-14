@@ -46,6 +46,8 @@ public:
 
 	/** Locked SC2 start: pitch -56, yaw 90, FOV 35, arm 6800, centred on the point. */
 	void SnapToStartView(FVector WorldLocation);
+	void LogOpeningCamera();
+	void NoteZoomTarget(const TCHAR* Reason);
 
 	/** Player command center, or the P1 start tag. */
 	AActor* FindCommandCenter() const;
@@ -219,6 +221,8 @@ protected:
 	float ActiveNearClipUU = 20.f;
 	float ActiveFarClipUU = 30000.f;
 	float LoggedUnitScale = -1.f;
+	float LoggedZoomArm = -1.f;
+	bool bLoggedCamStart = false;
 	FVector PanVelocity = FVector::ZeroVector;
 	bool bGrabbing = false;
 	bool bGrabMoved = false;

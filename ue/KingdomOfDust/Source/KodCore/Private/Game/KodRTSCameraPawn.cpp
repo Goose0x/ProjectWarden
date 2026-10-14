@@ -250,6 +250,7 @@ void AKodRTSCameraPawn::Zoom(float AxisValue)
 	}
 	const float Ceiling = ZoomCeiling();
 	TargetArmLength = FMath::Clamp(TargetArmLength - AxisValue * ZoomStep, MinArmLength, Ceiling);
+	NoteZoomTarget(TEXT("Wheel"));
 }
 
 void AKodRTSCameraPawn::OrbitYaw(float AxisValue)
@@ -278,6 +279,38 @@ void AKodRTSCameraPawn::SnapToStartView(FVector WorldLocation)
 	MaintainBoom();
 	ApplyVerticalFov();
 	JumpTo(WorldLocation);
+	LoggedZoomArm = TargetArmLength;
+}
+
+void AKodRTSCameraPawn::LogOpeningCamera()
+{
+	if (bLoggedCamStart)
+	{
+		return;
+	}
+	bLoggedCamStart = true;
+	const AActor* Anchor = FindCommandCenter();
+	const FVector Centre = GetActorLocation();
+	const FVector CcLoc = Anchor ? Anchor->GetActorLocation() : FVector::ZeroVector;
+	UE_LOG(LogTemp, Log, TEXT("KodCam Start Centre=%.0f,%.0f,%.0f CC=%s Loc=%.0f,%.0f,%.0f Arm=%.0f"),
+		Centre.X,
+		Centre.Y,
+		Centre.Z,
+		Anchor ? *Anchor->GetName() : TEXT("none"),
+		CcLoc.X,
+		CcLoc.Y,
+		CcLoc.Z,
+		CurrentArmLength);
+}
+
+void AKodRTSCameraPawn::NoteZoomTarget(const TCHAR* Reason)
+{
+	if (FMath::IsNearlyEqual(LoggedZoomArm, TargetArmLength, 0.5f))
+	{
+		return;
+	}
+	UE_LOG(LogTemp, Verbose, TEXT("KodCam Zoom %s Arm=%.0f"), Reason ? Reason : TEXT("Change"), TargetArmLength);
+	LoggedZoomArm = TargetArmLength;
 }
 
 AActor* AKodRTSCameraPawn::FindCommandCenter() const
@@ -815,17 +848,20 @@ void AKodRTSCameraPawn::PollZoom()
 	if (!FMath::IsNearlyZero(Wheel))
 	{
 		TargetArmLength = FMath::Clamp(TargetArmLength - Wheel * ZoomStep, MinArmLength, Ceiling);
+		NoteZoomTarget(TEXT("Wheel"));
 	}
 	if (PC->WasInputKeyJustPressed(EKeys::End))
 	{
 		const bool bAtClose = FMath::Abs(TargetArmLength - MinArmLength) <= 1.f;
 		const float Next = bAtClose ? DefaultArmLength : MinArmLength;
 		TargetArmLength = FMath::Clamp(Next, MinArmLength, Ceiling);
+		NoteZoomTarget(TEXT("End"));
 		UE_LOG(LogTemp, Log, TEXT("KodCam Zoom End Arm=%.0f"), TargetArmLength);
 	}
 	if (Ceiling > DefaultArmLength + 1.f && PC->WasInputKeyJustPressed(EKeys::Z) && !HasLiftableSelection())
 	{
 		TargetArmLength = FMath::Clamp(TargetArmLength + ZoomStep, MinArmLength, Ceiling);
+		NoteZoomTarget(TEXT("Key"));
 	}
 }
 

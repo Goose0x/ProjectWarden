@@ -1,4 +1,5 @@
 #include "Actors/KodUnit.h"
+#include "Game/KodCollision.h"
 #include "Actors/KodJadeiteVisual.h"
 #include "Game/KodJadeitePalette.h"
 #include "Animation/KodUnitAnimInstance.h"
@@ -206,6 +207,10 @@ void AKodUnit::BeginPlay()
 		ApplyDefinition(Def);
 	}
 
+	if (!GetDefinition())
+	{
+		SnapToGround();
+	}
 	VisualYaw = GetActorRotation().Yaw;
 	LastPresentationLocation = GetActorLocation();
 	BodyRestRelativeLocation = UnitMesh ? UnitMesh->GetRelativeLocation() : FVector::ZeroVector;
@@ -866,6 +871,7 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 	}
 
 	ApplyBodyMesh(Def);
+	SnapToGround();
 	if (!bForceCubeBody)
 	{
 		ApplyTeamColor();
@@ -933,6 +939,37 @@ void AKodUnit::KeepSelectCollision()
 	// Same two calls as construction. Do not retune Visibility, and do not touch the capsule.
 	UnitMesh->SetCollisionProfileName(UCollisionProfile::Pawn_ProfileName);
 	UnitMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	UnitMesh->SetCollisionResponseToChannel(KodCollision::Select, ECR_Block);
+	UnitMesh->SetCollisionResponseToChannel(KodCollision::Ground, ECR_Ignore);
+}
+
+void AKodUnit::SnapToGround()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	const UCapsuleComponent* Capsule = GetCapsuleComponent();
+	const float HalfHeight = Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 88.f;
+	const FVector Loc = GetActorLocation();
+	FCollisionQueryParams Params(TEXT("KodUnitGround"), false, this);
+	FHitResult Hit;
+	const FVector High(Loc.X, Loc.Y, FMath::Max(Loc.Z + 4000.f, 20000.f));
+	const FVector Low(Loc.X, Loc.Y, -20000.f);
+	if (!World->LineTraceSingleByChannel(Hit, High, Low, KodCollision::Ground, Params) || !Hit.bBlockingHit)
+	{
+		return;
+	}
+	const FVector Snapped(Loc.X, Loc.Y, Hit.ImpactPoint.Z + HalfHeight);
+	SetActorLocation(Snapped, false, nullptr, ETeleportType::TeleportPhysics);
+	if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+	{
+		if (EntityId.IsValid())
+		{
+			Sim->SetEntityGroundPosition(EntityId, Snapped);
+		}
+	}
 }
 
 void AKodUnit::ApplyBodyMesh(const UKodUnitDefinition* Def)

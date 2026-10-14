@@ -3,6 +3,9 @@
 #include "Game/KodJadeiteTunerWidget.h"
 #include "Misc/Char.h"
 #include "Components/PrimitiveComponent.h"
+#include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Game/KodCollision.h"
 #include "Game/KodGameMode.h"
 #include "Game/KodHUD.h"
 #include "Game/KodPortraitStage.h"
@@ -18,6 +21,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "CollisionQueryParams.h"
+#include "Math/RotationMatrix.h"
 #include "GameFramework/HUD.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -172,40 +176,67 @@ void AKodPlayerController::UpdateHiddenComponents(const FVector& ViewLocation, T
 void AKodPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
-	if (AKodHUD* PromptHUD = Cast<AKodHUD>(GetHUD()))
+	AKodGameMode* MatchMode = GetWorld() ? GetWorld()->GetAuthGameMode<AKodGameMode>() : nullptr;
+	AKodHUD* PromptHUD = Cast<AKodHUD>(GetHUD());
+	if (MatchMode && MatchMode->IsAwaitingFactionPrompt() && PromptHUD && !PromptHUD->IsFactionPromptOpen())
 	{
-		if (PromptHUD->IsFactionPromptOpen())
+		PromptHUD->OpenFactionPrompt();
+	}
+	if (PromptHUD && PromptHUD->IsFactionPromptOpen())
+	{
+		// The Play click and a held Enter arrive on the first tick. Ignore them
+		// until the prompt has drawn and those keys have been released.
+		if (!PromptHUD->HasDrawnFactionPrompt())
 		{
-			if (WasInputKeyJustPressed(EKeys::One) || WasInputKeyJustPressed(EKeys::V))
-			{
-				PromptHUD->SetFactionPromptIndex(0);
-			}
-			if (WasInputKeyJustPressed(EKeys::Two) || WasInputKeyJustPressed(EKeys::S))
-			{
-				PromptHUD->SetFactionPromptIndex(1);
-			}
-			bool bConfirm = WasInputKeyJustPressed(EKeys::Enter);
-			if (WasInputKeyJustPressed(EKeys::LeftMouseButton))
-			{
-				float MouseX = 0.f;
-				float MouseY = 0.f;
-				FKodHudChromeHit Hit;
-				if (GetMousePosition(MouseX, MouseY) && PromptHUD->GetChromeHit(MouseX, MouseY, Hit) && Hit.Kind == FName(TEXT("FactionPrompt")))
-				{
-					PromptHUD->SetFactionPromptIndex(Hit.IntParam);
-					bConfirm = true;
-				}
-			}
-			if (bConfirm)
-			{
-				if (AKodGameMode* Mode = GetWorld() ? GetWorld()->GetAuthGameMode<AKodGameMode>() : nullptr)
-				{
-					Mode->ApplyStartFaction(PromptHUD->GetFactionPromptIndex());
-				}
-			}
+			bFactionPromptLatched = true;
+			bFactionKeysReleased = false;
 			return;
 		}
+		if (!bFactionPromptLatched)
+		{
+			bFactionPromptLatched = true;
+			bFactionKeysReleased = false;
+		}
+		if (!bFactionKeysReleased)
+		{
+			const bool bEnterDown = IsInputKeyDown(EKeys::Enter);
+			const bool bClickDown = IsInputKeyDown(EKeys::LeftMouseButton);
+			bFactionKeysReleased = !bEnterDown && !bClickDown;
+			return;
+		}
+		if (WasInputKeyJustPressed(EKeys::One) || WasInputKeyJustPressed(EKeys::V))
+		{
+			PromptHUD->SetFactionPromptIndex(0);
+		}
+		if (WasInputKeyJustPressed(EKeys::Two) || WasInputKeyJustPressed(EKeys::S))
+		{
+			PromptHUD->SetFactionPromptIndex(1);
+		}
+		bool bConfirm = WasInputKeyJustPressed(EKeys::Enter);
+		if (WasInputKeyJustPressed(EKeys::LeftMouseButton))
+		{
+			float MouseX = 0.f;
+			float MouseY = 0.f;
+			FKodHudChromeHit Hit;
+			if (GetMousePosition(MouseX, MouseY) && PromptHUD->GetChromeHit(MouseX, MouseY, Hit) && Hit.Kind == FName(TEXT("FactionPrompt")))
+			{
+				PromptHUD->SetFactionPromptIndex(Hit.IntParam);
+				bConfirm = true;
+			}
+		}
+		if (bConfirm)
+		{
+			if (MatchMode)
+			{
+				MatchMode->ApplyStartFaction(PromptHUD->GetFactionPromptIndex());
+			}
+			bFactionPromptLatched = false;
+			bFactionKeysReleased = false;
+		}
+		return;
 	}
+	bFactionPromptLatched = false;
+	bFactionKeysReleased = false;
 	if (AKodHUD* ChatHUD = Cast<AKodHUD>(GetHUD()))
 	{
 		if (ChatHUD->IsChatOpen())
@@ -638,7 +669,7 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 
 	FVector Origin;
 	FVector Direction;
-	if (!DeprojectScreenPositionToWorld(MouseX, MouseY, Origin, Direction))
+	if (!DeprojectScreenWithFallback(FVector2D(MouseX, MouseY), Origin, Direction))
 	{
 		Cmd.HitName = TEXT("deproject_failed");
 		return Cmd;
@@ -653,19 +684,24 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 		Params.AddIgnoredActor(ControlledPawn);
 	}
 
-	// Ground and PROXY_* are often the first Pawn hit, in front of the unit.
-	// Keep that surface as the Move point, and keep walking until a foreign sim entity.
-	bool bSawPawnHit = false;
+	FVector GroundPoint = FVector::ZeroVector;
+	if (IntersectGroundPlane(Origin, Direction, GroundPoint))
+	{
+		Cmd.bHasMovePoint = true;
+		Cmd.MovePoint = GroundPoint;
+		Cmd.HitName = TEXT("Ground");
+	}
+
+	// KodSelect walks units and buildings. Ground and greybox meshes ignore that channel.
 	constexpr int32 MaxSteps = 32;
 	for (int32 Step = 0; Step < MaxSteps; ++Step)
 	{
 		FHitResult Hit;
-		if (!World->LineTraceSingleByChannel(Hit, Origin, End, ECC_Pawn, Params) || !Hit.bBlockingHit)
+		if (!World->LineTraceSingleByChannel(Hit, Origin, End, KodCollision::Select, Params) || !Hit.bBlockingHit)
 		{
 			break;
 		}
 
-		bSawPawnHit = true;
 		AActor* HitActor = Hit.GetActor();
 		if (!Cmd.bHasMovePoint)
 		{
@@ -722,7 +758,7 @@ AKodPlayerController::FKodCursorCommand AKodPlayerController::TraceCursorCommand
 		Params.AddIgnoredActor(HitActor);
 	}
 
-	if (bSawPawnHit && Cmd.bHasMovePoint)
+	if (Cmd.bHasMovePoint)
 	{
 		return Cmd;
 	}
@@ -1093,9 +1129,14 @@ bool AKodPlayerController::ProjectActorToMarqueeSpace(const AActor* Actor, FVect
 	{
 		return false;
 	}
-	// Viewport-relative pixels match GetMousePosition. The default includes the
-	// constrained view-rect origin, so a PIE box would miss every unit.
-	return ProjectWorldLocationToScreen(Actor->GetActorLocation(), OutScreen, /*bPlayerViewportRelative*/ true);
+	const FVector WorldPoint = Actor->GetActorLocation();
+	if (ProjectWorldWithFallback(WorldPoint, OutScreen))
+	{
+		return true;
+	}
+	FVector Grounded = WorldPoint;
+	Grounded.Z = GetPawn() ? GetPawn()->GetActorLocation().Z : 0.f;
+	return ProjectWorldWithFallback(Grounded, OutScreen);
 }
 
 void AKodPlayerController::EndMarquee(bool bAddToSelection)
@@ -1182,7 +1223,7 @@ AActor* AKodPlayerController::TraceSelectableUnderCursor(FString& OutHitLog) con
 
 	FVector Origin;
 	FVector Direction;
-	if (!DeprojectScreenPositionToWorld(MouseX, MouseY, Origin, Direction))
+	if (!const_cast<AKodPlayerController*>(this)->DeprojectScreenPositionToWorld(MouseX, MouseY, Origin, Direction))
 	{
 		OutHitLog = TEXT("deproject_failed");
 		return nullptr;
@@ -1260,26 +1301,255 @@ AActor* AKodPlayerController::TraceSelectableUnderCursor(FString& OutHitLog) con
 		return Result;
 	};
 
-	const FChannelWalk PawnWalk = WalkChannel(ECC_Pawn, TEXT("Pawn"));
-	if (PawnWalk.Picked)
+	const FChannelWalk SelectWalk = WalkChannel(KodCollision::Select, TEXT("Select"));
+	if (SelectWalk.Picked)
 	{
-		return PawnWalk.Picked;
+		return SelectWalk.Picked;
 	}
-	// Pawn already hit unregistered blockers (PROXY_* / ground). That click clears.
-	// Visibility runs only when the pawn channel hit nothing at all.
-	if (PawnWalk.bSawBlocker)
+	FVector GroundPoint = FVector::ZeroVector;
+	if (IntersectGroundPlane(Origin, Direction, GroundPoint))
+	{
+		return FindOwnActorNear(GroundPoint, 220.f);
+	}
+	return nullptr;
+}
+
+bool AKodPlayerController::ViewPose(FVector& OutLocation, FRotator& OutRotation, float& OutFov, FIntPoint& OutSize) const
+{
+	OutLocation = FVector::ZeroVector;
+	OutRotation = FRotator::ZeroRotator;
+	OutFov = 90.f;
+	OutSize = FIntPoint(1920, 1080);
+	if (const AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetPawn()))
+	{
+		if (CameraPawn->Camera)
+		{
+			OutLocation = CameraPawn->Camera->GetComponentLocation();
+			OutRotation = CameraPawn->Camera->GetComponentRotation();
+			OutFov = FMath::Max(1.f, CameraPawn->Camera->FieldOfView);
+		}
+	}
+	else
+	{
+		GetPlayerViewPoint(OutLocation, OutRotation);
+		if (PlayerCameraManager)
+		{
+			OutFov = FMath::Max(1.f, PlayerCameraManager->GetCameraCacheView().FOV);
+		}
+	}
+	int32 SizeX = 0;
+	int32 SizeY = 0;
+	GetViewportSize(SizeX, SizeY);
+	if (SizeX > 0 && SizeY > 0)
+	{
+		OutSize = FIntPoint(SizeX, SizeY);
+	}
+	return OutFov > 1.f;
+}
+
+bool AKodPlayerController::ProjectWorldWithFallback(const FVector& WorldPoint, FVector2D& OutScreen) const
+{
+	if (ProjectWorldLocationToScreen(WorldPoint, OutScreen, /*bPlayerViewportRelative*/ true))
+	{
+		return true;
+	}
+	FVector Location = FVector::ZeroVector;
+	FRotator Rotation = FRotator::ZeroRotator;
+	float Fov = 90.f;
+	FIntPoint Size(1920, 1080);
+	if (!ViewPose(Location, Rotation, Fov, Size))
+	{
+		return false;
+	}
+	const FVector Delta = WorldPoint - Location;
+	const FVector Forward = Rotation.Vector();
+	const float Depth = FVector::DotProduct(Delta, Forward);
+	if (Depth <= 1.f)
+	{
+		return false;
+	}
+	const FVector Right = FRotationMatrix(Rotation).GetScaledAxis(EAxis::Y);
+	const FVector Up = FRotationMatrix(Rotation).GetScaledAxis(EAxis::Z);
+	const float Aspect = static_cast<float>(Size.X) / static_cast<float>(FMath::Max(1, Size.Y));
+	const float HalfH = FMath::Tan(FMath::DegreesToRadians(Fov * 0.5f));
+	const float HalfW = HalfH * Aspect;
+	const float Nx = FVector::DotProduct(Delta, Right) / Depth;
+	const float Ny = FVector::DotProduct(Delta, Up) / Depth;
+	OutScreen.X = (0.5f + (0.5f * Nx / FMath::Max(0.01f, HalfW))) * static_cast<float>(Size.X);
+	OutScreen.Y = (0.5f - (0.5f * Ny / FMath::Max(0.01f, HalfH))) * static_cast<float>(Size.Y);
+	return true;
+}
+
+bool AKodPlayerController::DeprojectScreenWithFallback(const FVector2D& Screen, FVector& OutOrigin, FVector& OutDirection) const
+{
+	if (const_cast<AKodPlayerController*>(this)->DeprojectScreenPositionToWorld(Screen.X, Screen.Y, OutOrigin, OutDirection))
+	{
+		return OutDirection.Normalize();
+	}
+	FRotator Rotation = FRotator::ZeroRotator;
+	float Fov = 90.f;
+	FIntPoint Size(1920, 1080);
+	if (!ViewPose(OutOrigin, Rotation, Fov, Size))
+	{
+		return false;
+	}
+	const float Aspect = static_cast<float>(Size.X) / static_cast<float>(FMath::Max(1, Size.Y));
+	const float HalfH = FMath::Tan(FMath::DegreesToRadians(Fov * 0.5f));
+	const float HalfW = HalfH * Aspect;
+	const float Nx = ((Screen.X / static_cast<float>(Size.X)) - 0.5f) * 2.f * HalfW;
+	const float Ny = (0.5f - (Screen.Y / static_cast<float>(Size.Y))) * 2.f * HalfH;
+	const FVector Forward = Rotation.Vector();
+	const FVector Right = FRotationMatrix(Rotation).GetScaledAxis(EAxis::Y);
+	const FVector Up = FRotationMatrix(Rotation).GetScaledAxis(EAxis::Z);
+	OutDirection = (Forward + Right * Nx + Up * Ny).GetSafeNormal();
+	return !OutDirection.IsNearlyZero();
+}
+
+bool AKodPlayerController::IntersectGroundPlane(const FVector& Origin, const FVector& Direction, FVector& OutPoint) const
+{
+	UWorld* World = GetWorld();
+	if (World && !Direction.IsNearlyZero())
+	{
+		FCollisionQueryParams Params(TEXT("KodGroundPlane"), false);
+		if (AActor* Controlled = GetPawn())
+		{
+			Params.AddIgnoredActor(Controlled);
+		}
+		FHitResult Hit;
+		const FVector End = Origin + Direction * 200000.f;
+		if (World->LineTraceSingleByChannel(Hit, Origin, End, KodCollision::Ground, Params) && Hit.bBlockingHit)
+		{
+			OutPoint = Hit.ImpactPoint;
+			return true;
+		}
+	}
+	const float PlaneZ = GetPawn() ? GetPawn()->GetActorLocation().Z : 0.f;
+	if (FMath::IsNearlyZero(Direction.Z))
+	{
+		return false;
+	}
+	const float T = (PlaneZ - Origin.Z) / Direction.Z;
+	if (T <= 0.f)
+	{
+		return false;
+	}
+	OutPoint = Origin + Direction * T;
+	return true;
+}
+
+AActor* AKodPlayerController::FindOwnActorNear(const FVector& WorldPoint, float RadiusUU) const
+{
+	UWorld* World = GetWorld();
+	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
 	{
 		return nullptr;
 	}
-
-	return WalkChannel(ECC_Visibility, TEXT("Visibility")).Picked;
+	const int32 LocalTeam = GetLocalTeamId();
+	const float RadiusSq = RadiusUU * RadiusUU;
+	AActor* BestUnit = nullptr;
+	AActor* BestBuilding = nullptr;
+	float BestUnitSq = RadiusSq;
+	float BestBuildingSq = RadiusSq;
+	TArray<FKodSimEntityState> States;
+	TArray<AActor*> Actors;
+	Sim->CopyEntitySnapshot(States, Actors);
+	for (const FKodSimEntityState& State : States)
+	{
+		if (State.TeamId != LocalTeam || State.Health <= 0.f)
+		{
+			continue;
+		}
+		const FKodEntityId Id = State.Id;
+		if (Sim->IsResourceNode(Id))
+		{
+			continue;
+		}
+		const float DistSq = FVector::DistSquared2D(State.Position, WorldPoint);
+		AActor* Actor = Sim->ResolveEntity(Id);
+		if (!Actor)
+		{
+			continue;
+		}
+		if (Sim->IsStructure(Id))
+		{
+			if (DistSq <= BestBuildingSq)
+			{
+				BestBuildingSq = DistSq;
+				BestBuilding = Actor;
+			}
+			continue;
+		}
+		if (DistSq <= BestUnitSq)
+		{
+			BestUnitSq = DistSq;
+			BestUnit = Actor;
+		}
+	}
+	return BestUnit ? BestUnit : BestBuilding;
 }
 
-void AKodPlayerController::ClickSelectAtCursor(bool bAddToSelection)
+AActor* AKodPlayerController::SelectAlongRay(const FVector& Origin, const FVector& Direction, bool bAddToSelection, FString& OutHitLog)
+{
+	(void)bAddToSelection;
+	UWorld* World = GetWorld();
+	if (!World || Direction.IsNearlyZero())
+	{
+		return nullptr;
+	}
+	const FVector End = Origin + Direction * 200000.f;
+	FCollisionQueryParams Params(TEXT("KodSelectRay"), false);
+	if (AActor* Controlled = GetPawn())
+	{
+		Params.AddIgnoredActor(Controlled);
+	}
+	const UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>();
+	const int32 LocalTeam = GetLocalTeamId();
+	for (int32 Step = 0; Step < 32; ++Step)
+	{
+		FHitResult Hit;
+		if (!World->LineTraceSingleByChannel(Hit, Origin, End, KodCollision::Select, Params) || !Hit.bBlockingHit)
+		{
+			break;
+		}
+		AActor* HitActor = Hit.GetActor();
+		const FKodEntityId Id = (Sim && HitActor) ? Sim->FindIdForActor(HitActor) : FKodEntityId();
+		if (!OutHitLog.IsEmpty())
+		{
+			OutHitLog += TEXT(",");
+		}
+		OutHitLog += FString::Printf(TEXT("%s(Select,sim=%d,id=%d)"),
+			HitActor ? *HitActor->GetName() : TEXT("null"),
+			Id.IsValid() ? 1 : 0,
+			Id.Value);
+		if (HitActor && IsSelectableSimId(Sim, Id, LocalTeam))
+		{
+			return HitActor;
+		}
+		if (!HitActor)
+		{
+			break;
+		}
+		Params.AddIgnoredActor(HitActor);
+	}
+	FVector GroundPoint = FVector::ZeroVector;
+	if (IntersectGroundPlane(Origin, Direction, GroundPoint))
+	{
+		return FindOwnActorNear(GroundPoint, 220.f);
+	}
+	return nullptr;
+}
+
+AActor* AKodPlayerController::SelectAtScreen(const FVector2D& Screen, bool bAddToSelection)
 {
 	FString HitLog;
-	AActor* Picked = TraceSelectableUnderCursor(HitLog);
-
+	FVector Origin = FVector::ZeroVector;
+	FVector Direction = FVector::ZeroVector;
+	AActor* Picked = nullptr;
+	if (DeprojectScreenWithFallback(Screen, Origin, Direction))
+	{
+		Picked = SelectAlongRay(Origin, Direction, bAddToSelection, HitLog);
+	}
 	if (!bAddToSelection)
 	{
 		LocalSelection.Reset();
@@ -1288,14 +1558,24 @@ void AKodPlayerController::ClickSelectAtCursor(bool bAddToSelection)
 	{
 		LocalSelection.AddUnique(Picked);
 	}
-
 	ApplySelectionHighlight();
-
 	UE_LOG(LogTemp, Log, TEXT("ClickSelectAtCursor LocalSelection=%d Picked=%s Hits=%s"),
 		LocalSelection.Num(),
 		Picked ? *Picked->GetName() : TEXT("None"),
 		HitLog.IsEmpty() ? TEXT("none") : *HitLog);
+	return Picked;
+}
 
+void AKodPlayerController::ClickSelectAtCursor(bool bAddToSelection)
+{
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	if (!GetMousePosition(MouseX, MouseY))
+	{
+		UE_LOG(LogTemp, Log, TEXT("ClickSelectAtCursor LocalSelection=%d Picked=None Hits=none"), LocalSelection.Num());
+		return;
+	}
+	AActor* Picked = SelectAtScreen(FVector2D(MouseX, MouseY), bAddToSelection);
 	if (Picked)
 	{
 		if (UWorld* World = GetWorld())
@@ -1452,11 +1732,18 @@ void AKodPlayerController::CollectActorsInMarquee(TArray<AActor*>& OutActors) co
 	GetMarqueeBounds(Min, Max);
 	const AActor* ControlledPawn = GetPawn();
 	const int32 LocalTeam = GetLocalTeamId();
+	TArray<AActor*> Units;
+	TArray<AActor*> Buildings;
 
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
 		AActor* Actor = *It;
-		if (!Actor || Actor == ControlledPawn || !IsSelectableSimId(Sim, Sim->FindIdForActor(Actor), LocalTeam))
+		if (!Actor || Actor == ControlledPawn)
+		{
+			continue;
+		}
+		const FKodEntityId Id = Sim->FindIdForActor(Actor);
+		if (!IsSelectableSimId(Sim, Id, LocalTeam) || Sim->IsResourceNode(Id))
 		{
 			continue;
 		}
@@ -1465,11 +1752,21 @@ void AKodPlayerController::CollectActorsInMarquee(TArray<AActor*>& OutActors) co
 		{
 			continue;
 		}
-		if (Screen.X >= Min.X && Screen.X <= Max.X && Screen.Y >= Min.Y && Screen.Y <= Max.Y)
+		if (Screen.X < Min.X || Screen.X > Max.X || Screen.Y < Min.Y || Screen.Y > Max.Y)
 		{
-			OutActors.Add(Actor);
+			continue;
+		}
+		if (Sim->IsStructure(Id))
+		{
+			Buildings.Add(Actor);
+		}
+		else
+		{
+			Units.Add(Actor);
 		}
 	}
+	// Own units, else own buildings. Resource nodes stay click-only.
+	OutActors = Units.Num() > 0 ? Units : Buildings;
 }
 
 int32 AKodPlayerController::GetControlGroupCount(int32 GroupIndex) const
