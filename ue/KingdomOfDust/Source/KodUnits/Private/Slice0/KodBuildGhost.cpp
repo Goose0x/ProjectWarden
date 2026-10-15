@@ -129,8 +129,7 @@ void AKodBuildGhost::SetPreview(FName TypeId)
 	}
 	const FKodMeshChoice Choice = FKodMeshCatalog::Resolve(TypeId);
 	const float Yaw = KodBuildingYaw::PresentationYaw(Choice.Yaw);
-	const float Contain = KodBuildingYaw::ContainScale(Yaw);
-	const FVector Scale(FMath::Max(0.01f, Choice.Scale) * Contain);
+	const FVector Scale(FMath::Max(0.01f, Choice.Scale));
 	if (Choice.bLoaded && Choice.StaticMesh)
 	{
 		if (PreviewSkel)

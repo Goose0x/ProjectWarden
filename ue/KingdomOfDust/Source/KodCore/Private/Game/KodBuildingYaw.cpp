@@ -7,8 +7,8 @@ namespace
 {
 	TAutoConsoleVariable<float> CVarKodBuildingYaw(
 		TEXT("kod.BuildingYaw"),
-		45.f,
-		TEXT("Degrees added to every building mesh. The square grid footprint does not turn. 0 restores the old facing."),
+		0.f,
+		TEXT("Debug yaw added to every building mesh. Default 0; art is authored diagonal. The square grid footprint does not turn."),
 		ECVF_Default);
 
 	bool bIniApplied = false;
@@ -42,17 +42,6 @@ float KodBuildingYaw::OffsetDegrees()
 {
 	ApplyIniOnce();
 	return CVarKodBuildingYaw.GetValueOnGameThread();
-}
-
-float KodBuildingYaw::ContainScale(float YawDegrees)
-{
-	const float Radians = FMath::DegreesToRadians(YawDegrees);
-	const float Span = FMath::Abs(FMath::Cos(Radians)) + FMath::Abs(FMath::Sin(Radians));
-	if (Span <= KINDA_SMALL_NUMBER)
-	{
-		return 1.f;
-	}
-	return 1.f / Span;
 }
 
 float KodBuildingYaw::PresentationYaw(float RowYaw)

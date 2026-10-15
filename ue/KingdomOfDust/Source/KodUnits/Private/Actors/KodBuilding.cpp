@@ -176,13 +176,12 @@ void AKodBuilding::Tick(float DeltaSeconds)
 		}
 	}
 	const float ShownYaw = KodBuildingYaw::PresentationYaw(MeshYaw);
-	const float Contain = KodBuildingYaw::ContainScale(GetActorRotation().Yaw + ShownYaw);
-	BuildingMesh->SetRelativeScale3D(Scale * Contain);
+	BuildingMesh->SetRelativeScale3D(Scale);
 	BuildingMesh->SetRelativeRotation(FRotator(0.f, ShownYaw, 0.f));
 	BuildingMesh->SetRelativeLocation(FVector(0.f, 0.f, MeshZ + Rise));
 	if (BuildingSkel && !BuildingSkel->bHiddenInGame)
 	{
-		BuildingSkel->SetRelativeScale3D(BaseScale * Contain);
+		BuildingSkel->SetRelativeScale3D(BaseScale);
 		BuildingSkel->SetRelativeRotation(FRotator(0.f, ShownYaw, 0.f));
 		BuildingSkel->SetRelativeLocation(FVector(0.f, 0.f, MeshZ + Rise));
 	}
@@ -411,7 +410,7 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 		MeshYaw = Choice.Yaw;
 		MeshZ = Choice.Z;
 		const float SkelYaw = KodBuildingYaw::PresentationYaw(MeshYaw);
-		BuildingSkel->SetRelativeScale3D(FVector(Choice.Scale) * KodBuildingYaw::ContainScale(GetActorRotation().Yaw + SkelYaw));
+		BuildingSkel->SetRelativeScale3D(FVector(Choice.Scale));
 		BuildingSkel->SetRelativeRotation(FRotator(0.f, SkelYaw, 0.f));
 		BuildingSkel->SetRelativeLocation(FVector(0.f, 0.f, MeshZ));
 		BuildingSkel->SetHiddenInGame(false);
@@ -447,7 +446,7 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 				MeshZ = Choice.Z;
 				BuildingMesh->SetRelativeRotation(FRotator(0.f, KodBuildingYaw::PresentationYaw(MeshYaw), 0.f));
 				BuildingMesh->SetRelativeLocation(FVector(0.f, 0.f, MeshZ));
-				BuildingMesh->SetRelativeScale3D(BaseScale * KodBuildingYaw::ContainScale(KodBuildingYaw::PresentationYaw(MeshYaw)));
+				BuildingMesh->SetRelativeScale3D(BaseScale);
 			}
 			else
 			{
@@ -466,7 +465,7 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 			}
 			const float BodyYaw = KodBuildingYaw::PresentationYaw(MeshYaw);
 			BuildingMesh->SetRelativeRotation(FRotator(0.f, BodyYaw, 0.f));
-			BuildingMesh->SetRelativeScale3D(BaseScale * KodBuildingYaw::ContainScale(GetActorRotation().Yaw + BodyYaw));
+			BuildingMesh->SetRelativeScale3D(BaseScale);
 		}
 		else if (BuildingMesh)
 		{
@@ -475,7 +474,7 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 			MeshYaw = 0.f;
 			const float FallbackYaw = KodBuildingYaw::PresentationYaw(MeshYaw);
 			BuildingMesh->SetRelativeRotation(FRotator(0.f, FallbackYaw, 0.f));
-			BuildingMesh->SetRelativeScale3D(BaseScale * KodBuildingYaw::ContainScale(FallbackYaw));
+			BuildingMesh->SetRelativeScale3D(BaseScale);
 		}
 	}
 	const bool bSkelVisible = BuildingSkel && !BuildingSkel->bHiddenInGame && BuildingSkel->GetSkeletalMeshAsset();
