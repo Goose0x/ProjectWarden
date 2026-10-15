@@ -100,7 +100,7 @@ private:
 	void PlaceFieldAt(const FVector& AnchorLocation, const FVector& FieldDir);
 
 	/** Workers between the CC and the field. They spawn idle. */
-	int32 SpawnWorkerFan(const FVector& AnchorLocation, const FVector& FieldDir, int32 TeamId, int32 Count);
+	int32 SpawnWorkerFan(const FVector& AnchorLocation, const FVector& FieldDir, int32 TeamId, int32 Count, AActor* Anchor = nullptr);
 
 	/** Eight Dozers between the CC and the field when no team-0 Dozer is already placed. */
 	void SpawnWorkersIfNeeded();

@@ -1,3 +1,4 @@
+#include "Game/KodMeshSockets.h"
 #include "Sim/KodSimSubsystem.h"
 
 #include "Engine/World.h"
@@ -196,7 +197,16 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	// Half the footprint plus one cell. A 5×5 CC exits at ~700 uu, outside the blocked cells.
 	const int32 HalfSpan = (FMath::Max(Structure.FootprintX, Structure.FootprintY) * KodBuildGrid::CellUU) / 2;
 	const float ExitDistance = static_cast<float>(HalfSpan + KodBuildGrid::CellUU);
-	Structure.ExitPoint = Structure.Position + Forward * ExitDistance;
+	FVector SocketExit;
+	if (KodMeshSockets::TryGet(Actor, KodMeshSockets::UnitExit, SocketExit)
+		|| KodMeshSockets::TryGet(Actor, KodMeshSockets::Door, SocketExit))
+	{
+		Structure.ExitPoint = SocketExit;
+	}
+	else
+	{
+		Structure.ExitPoint = Structure.Position + Forward * ExitDistance;
+	}
 	QuantizeResourcePosition(Structure.ExitPoint);
 	Structure.StandPoint = Structure.ExitPoint;
 	if (Structure.RallyPoint.IsNearlyZero())
