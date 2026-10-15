@@ -25,6 +25,12 @@ public:
 	/** Apply Vanguard (0) or Scinder (1), unpause, and look at the player base. */
 	virtual void ApplyStartFaction(int32 FactionIndex);
 
+	/**
+	 * -kod.ShotBuildings=1. Place the faction's extra meshes next to the base.
+	 * OutFocus is the camera look-at. Returns false when this mode has nothing to place.
+	 */
+	virtual bool PlaceShotBuildings(FVector& OutFocus);
+
 	/** Drop a faction-select camera fade so the view is not held black or tinted. */
 	void ClearMatchCameraFade();
 

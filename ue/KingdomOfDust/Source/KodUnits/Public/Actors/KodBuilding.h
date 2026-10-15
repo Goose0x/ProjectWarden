@@ -69,6 +69,10 @@ private:
 	/** 0 raised, 1 flush. Presentation only; the sim flag is bLowered. */
 	float DepotLowerAlpha = 0.f;
 	bool bDepotVisualInit = false;
+	bool bDepotLowerKnown = false;
+	bool bDepotLowerLatched = false;
+	bool bDepotClipDriven = false;
+	void PlayDepotCommandAnim(bool bLower);
 
 	UPROPERTY()
 	TObjectPtr<UKodBuildingDefinition> CachedDef;

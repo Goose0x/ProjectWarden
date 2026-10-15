@@ -4,10 +4,12 @@
 #include "Game/KodJadeitePalette.h"
 #include "Data/KodBuildingDefinition.h"
 #include "Data/KodMeshCatalog.h"
+#include "Warden/KodWardenPaths.h"
 #include "Components/MeshComponent.h"
 #include "Animation/AnimEnums.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Animation/AnimSequence.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
@@ -124,6 +126,16 @@ void AKodBuilding::Tick(float DeltaSeconds)
 				bDepotVisualInit = true;
 				DepotLowerAlpha = Structure.bLowered ? 1.f : 0.f;
 			}
+			if (!bDepotLowerKnown)
+			{
+				bDepotLowerKnown = true;
+				bDepotLowerLatched = Structure.bLowered;
+			}
+			else if (bDepotLowerLatched != Structure.bLowered)
+			{
+				bDepotLowerLatched = Structure.bLowered;
+				PlayDepotCommandAnim(Structure.bLowered);
+			}
 			const float Target = Structure.bLowered ? 1.f : 0.f;
 			DepotLowerAlpha = FMath::FInterpConstantTo(DepotLowerAlpha, Target, DeltaSeconds, 2.f);
 		}
@@ -131,7 +143,7 @@ void AKodBuilding::Tick(float DeltaSeconds)
 		{
 			Rise = 220.f;
 		}
-		else if (Structure.bCanLower && DepotLowerAlpha > 0.f)
+		else if (Structure.bCanLower && DepotLowerAlpha > 0.f && !bDepotClipDriven)
 		{
 			const float Plate = FMath::Lerp(1.f, 0.12f, DepotLowerAlpha);
 			Scale.Z *= Plate;
@@ -293,6 +305,41 @@ UKodBuildingDefinition* AKodBuilding::GetDefinition() const
 	return nullptr;
 }
 
+void AKodBuilding::PlayDepotCommandAnim(bool bLower)
+{
+	bDepotClipDriven = false;
+	const UKodBuildingDefinition* Def = GetDefinition();
+	const FName MeshId = Def && !Def->DefinitionId.IsNone() ? Def->DefinitionId : FName(TEXT("SupplyDepot"));
+	FKodMeshRow Row;
+	if (!KodMeshCatalogFindRow(MeshId, Row) || !BuildingSkel || !BuildingSkel->GetSkeletalMeshAsset())
+	{
+		return;
+	}
+	const FString Clip = bLower ? Row.LowerAnim : Row.RaiseAnim;
+	if (Row.AnimFolder.IsEmpty() || Clip.IsEmpty())
+	{
+		return;
+	}
+	FString Folder = Row.AnimFolder;
+	if (!Folder.EndsWith(TEXT("/")))
+	{
+		Folder += TEXT("/");
+	}
+	const FString Path = Folder + Clip + TEXT(".") + Clip;
+	UAnimSequence* Sequence = LoadObject<UAnimSequence>(nullptr, *Path);
+	USkeleton* MeshSkeleton = BuildingSkel->GetSkeletalMeshAsset()->GetSkeleton();
+	if (!Sequence || (MeshSkeleton && Sequence->GetSkeleton() != MeshSkeleton))
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodMesh AnimMismatch Id=%s Clip=%s"), *MeshId.ToString(), *Clip);
+		return;
+	}
+	BuildingSkel->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+	BuildingSkel->bPauseAnims = false;
+	BuildingSkel->PlayAnimation(Sequence, false);
+	bDepotClipDriven = true;
+	UE_LOG(LogTemp, Log, TEXT("KodMesh DepotAnim Id=%s Clip=%s Lower=%d"), *MeshId.ToString(), *Clip, bLower ? 1 : 0);
+}
+
 void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 {
 	if (!Def)
@@ -328,7 +375,20 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 		}
 	}
 
-	const FName MeshId = Def->DefinitionId.IsNone() ? Def->GetFName() : Def->DefinitionId;
+	FName MeshId = Def->DefinitionId.IsNone() ? Def->GetFName() : Def->DefinitionId;
+	if (MeshId == FName(KodWardenPaths::Id_CommandCenter) && TeamId == 0)
+	{
+		if (const UWorld* MeshWorld = GetWorld())
+		{
+			if (const UKodSimSubsystem* MeshSim = MeshWorld->GetSubsystem<UKodSimSubsystem>())
+			{
+				if (MeshSim->GetPlayerFaction() == 1)
+				{
+					MeshId = FName(TEXT("ScinderHQ"));
+				}
+			}
+		}
+	}
 	const FKodMeshChoice Choice = FKodMeshCatalog::Resolve(MeshId);
 	if (Choice.bLoaded && Choice.bSkeletal && Choice.SkeletalMesh)
 	{

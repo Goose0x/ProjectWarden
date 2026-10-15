@@ -16,13 +16,22 @@ struct KODUNITS_API FKodMeshRow
 	FName Id;
 	FString Primary;
 	FString Fallback;
-	/** Tried after Fallback. Supply Depot uses the raised static mesh, then SM_storage. */
+	/** Tried after Fallback. */
 	FString Fallback2;
 	float Scale = 1.f;
 	float Yaw = 0.f;
 	float Z = 0.f;
 	FString Anim;
+	/** Folder of short-named sequences, for example the supply-depot raise and lower clips. */
+	FString AnimFolder;
+	FString RaiseAnim;
+	FString LowerAnim;
+	FString DeckExtendAnim;
+	FString DeckRetractAnim;
 };
+
+/** Copy of one ini row. False when the id is not in [KodMeshes]. */
+KODUNITS_API bool KodMeshCatalogFindRow(FName Id, FKodMeshRow& OutRow);
 
 /** Result of resolving one id. Path is the primary or the fallback that was chosen. */
 struct KODUNITS_API FKodMeshChoice

@@ -20,6 +20,9 @@ public class KodUnits : ModuleRules
 			"Niagara"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"AssetRegistry"
+		});
 	}
 }

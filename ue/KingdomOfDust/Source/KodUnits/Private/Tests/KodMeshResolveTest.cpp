@@ -24,11 +24,15 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		FName(KodWardenPaths::Id_Barracks),
 		FName(KodWardenPaths::Id_SupplyDepot),
 		FName(KodWardenPaths::Id_Dozer),
+		FName(KodWardenPaths::Id_Marine),
 		FName(KodWardenPaths::Id_ScnWorker),
 		FName(TEXT("ScinderHQ")),
 		FName(TEXT("ScinderHost")),
 		FName(TEXT("Faultburst")),
-		FName(TEXT("Shardbitten"))
+		FName(TEXT("Shardbitten")),
+		FName(TEXT("RiteWell")),
+		FName(TEXT("SkyReaver")),
+		FName(TEXT("SkySentinel"))
 	};
 	const TArray<FKodMeshRow>& Rows = FKodMeshCatalog::Rows();
 	for (const FName& Id : Required)

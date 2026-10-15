@@ -11,6 +11,7 @@
 #include "Warden/KodWardenPaths.h"
 #include "Sim/KodBuildTicks.h"
 #include "Engine/World.h"
+#include "Misc/PackageName.h"
 #include "UObject/Package.h"
 #include "UObject/SoftObjectPath.h"
 
@@ -40,6 +41,16 @@ namespace
 static UObject* TryLoadWardenAsset(FName DefinitionId)
 {
 	const FSoftObjectPath Path = KodWardenPaths::MakeSoftPath(*DefinitionId.ToString());
+	if (UObject* Existing = Path.ResolveObject())
+	{
+		return Existing;
+	}
+	// Missing DataAssets are made in BuildCatalog. TryLoad would log
+	// "Failed to find object /Game/Warden/Data/<Id>" for each one.
+	if (!FPackageName::DoesPackageExist(Path.GetLongPackageName()))
+	{
+		return nullptr;
+	}
 	return Path.TryLoad();
 }
 

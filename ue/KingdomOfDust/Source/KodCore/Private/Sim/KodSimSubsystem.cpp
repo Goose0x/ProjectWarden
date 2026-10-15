@@ -3716,6 +3716,9 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 	// TeamId on combat entities is omitted so that prefix stays ids / pose / HP / order / gather.
 	// Banks, supply, resource nodes, drop-offs, and structure queues are appended after that prefix as integers.
 	// Visual bob, actor yaw, cargo mesh, and the resource readout are not appended.
+	// RallyPoint is. UnitExit/Door replaces the footprint exit and that rally, so the
+	// logged hash changes when a building has that socket. That change is expected.
+	// Kod.Soak.AutoplayDeterminism compares two runs; it does not keep a golden hash.
 	TArray<uint8> Bytes;
 	auto Append = [&Bytes](const void* Data, int32 Size)
 	{

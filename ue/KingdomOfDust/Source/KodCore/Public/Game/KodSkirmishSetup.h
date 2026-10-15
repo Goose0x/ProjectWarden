@@ -76,7 +76,7 @@ struct KODCORE_API FKodSkirmishSetup
 
 	/**
 	 * Prompt is skipped for -kod.Autoplay, -kod.ShotAfter, -kod.ShotZoom,
-	 * -kod.ShotSelectMove, or a front-end PFaction option.
+	 * -kod.ShotSelectMove, -kod.ShotBuildings, or a front-end PFaction option.
 	 * Those runs use -kod.Faction=VG|SC|Vanguard|Scinder and default to Vanguard.
 	 */
 	static FKodMatchStart ResolveMatchStart(const TCHAR* CommandLine, const FString& Options);

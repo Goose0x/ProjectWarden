@@ -1,11 +1,14 @@
 #include "Data/KodMeshCatalog.h"
 
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Game/KodCameraSettings.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Paths.h"
+#include "Modules/ModuleManager.h"
 #include "Warden/KodWardenPaths.h"
 
 namespace
@@ -46,7 +49,9 @@ namespace
 		return Text.Contains(TEXT("Scinder"))
 			|| Text.StartsWith(TEXT("SCN_"))
 			|| Id == FName(TEXT("Faultburst"))
-			|| Id == FName(TEXT("Shardbitten"));
+			|| Id == FName(TEXT("Shardbitten"))
+			|| Id == FName(TEXT("SkyReaver"))
+			|| Id == FName(TEXT("SkySentinel"));
 	}
 
 	void ParseRow(const FString& Text, FKodMeshRow& Row)
@@ -95,6 +100,26 @@ namespace
 			{
 				Row.Anim = Value;
 			}
+			else if (Key.Equals(TEXT("AnimFolder"), ESearchCase::IgnoreCase))
+			{
+				Row.AnimFolder = Value;
+			}
+			else if (Key.Equals(TEXT("Raise"), ESearchCase::IgnoreCase))
+			{
+				Row.RaiseAnim = Value;
+			}
+			else if (Key.Equals(TEXT("Lower"), ESearchCase::IgnoreCase))
+			{
+				Row.LowerAnim = Value;
+			}
+			else if (Key.Equals(TEXT("DeckExtend"), ESearchCase::IgnoreCase))
+			{
+				Row.DeckExtendAnim = Value;
+			}
+			else if (Key.Equals(TEXT("DeckRetract"), ESearchCase::IgnoreCase))
+			{
+				Row.DeckRetractAnim = Value;
+			}
 		}
 		if (Row.Scale <= 0.f)
 		{
@@ -133,6 +158,87 @@ namespace
 			}
 		}
 		return nullptr;
+	}
+
+	bool TryLoadMesh(const FString& Path, UStaticMesh*& OutStatic, USkeletalMesh*& OutSkeletal);
+
+	bool LoadFirstMeshInFolder(const FString& Folder, FName Id, UStaticMesh*& OutStatic, USkeletalMesh*& OutSkeletal, FString& OutPath)
+	{
+		OutStatic = nullptr;
+		OutSkeletal = nullptr;
+		OutPath.Reset();
+		FString PackagePath = Folder;
+		while (PackagePath.EndsWith(TEXT("/")))
+		{
+			PackagePath.LeftChopInline(1);
+		}
+		if (PackagePath.IsEmpty() || !FModuleManager::Get().ModuleExists(TEXT("AssetRegistry")))
+		{
+			return false;
+		}
+		FAssetRegistryModule& Assets = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+		IAssetRegistry& Registry = Assets.Get();
+		TArray<FString> Scan;
+		Scan.Add(PackagePath);
+		Registry.ScanPathsSynchronous(Scan, false);
+		FARFilter Filter;
+		Filter.PackagePaths.Add(*PackagePath);
+		Filter.ClassPaths.Add(UStaticMesh::StaticClass()->GetClassPathName());
+		Filter.ClassPaths.Add(USkeletalMesh::StaticClass()->GetClassPathName());
+		Filter.bRecursivePaths = false;
+		TArray<FAssetData> Found;
+		Registry.GetAssets(Filter, Found);
+		Found.Sort([](const FAssetData& A, const FAssetData& B)
+		{
+			return A.AssetName.LexicalLess(B.AssetName);
+		});
+		for (const FAssetData& Asset : Found)
+		{
+			const FString Candidate = Asset.GetSoftObjectPath().ToString();
+			if (TryLoadMesh(Candidate, OutStatic, OutSkeletal))
+			{
+				OutPath = Candidate;
+				UE_LOG(LogTemp, Log, TEXT("KodMesh FolderPick Id=%s Path=%s"), *Id.ToString(), *Candidate);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool LoadMeshReference(const FString& Raw, FName Id, UStaticMesh*& OutStatic, USkeletalMesh*& OutSkeletal, FString& OutPath)
+	{
+		OutStatic = nullptr;
+		OutSkeletal = nullptr;
+		OutPath.Reset();
+		const FString Trimmed = Raw.TrimStartAndEnd();
+		if (Trimmed.IsEmpty())
+		{
+			return false;
+		}
+		if (Trimmed.EndsWith(TEXT("/")))
+		{
+			return LoadFirstMeshInFolder(Trimmed, Id, OutStatic, OutSkeletal, OutPath);
+		}
+		if (Trimmed.Contains(TEXT(".")))
+		{
+			if (TryLoadMesh(Trimmed, OutStatic, OutSkeletal))
+			{
+				OutPath = Trimmed;
+				return true;
+			}
+			return LoadFirstMeshInFolder(FPaths::GetPath(Trimmed), Id, OutStatic, OutSkeletal, OutPath);
+		}
+		const FString Implied = ObjectPath(Trimmed);
+		if (TryLoadMesh(Implied, OutStatic, OutSkeletal))
+		{
+			OutPath = Implied;
+			return true;
+		}
+		if (LoadFirstMeshInFolder(Trimmed, Id, OutStatic, OutSkeletal, OutPath))
+		{
+			return true;
+		}
+		return LoadFirstMeshInFolder(FPaths::GetPath(Trimmed), Id, OutStatic, OutSkeletal, OutPath);
 	}
 
 	bool TryLoadMesh(const FString& Path, UStaticMesh*& OutStatic, USkeletalMesh*& OutSkeletal)
@@ -195,14 +301,15 @@ namespace
 			UStaticMesh* StaticMesh = nullptr;
 			USkeletalMesh* SkeletalMesh = nullptr;
 			const bool bNewMeshes = CVarKodNewMeshes.GetValueOnGameThread() != 0;
-			bool bLoaded = bNewMeshes && TryLoadMesh(ObjectPath(WorkerRow->Primary), StaticMesh, SkeletalMesh);
+			FString LoadedPath;
+			bool bLoaded = bNewMeshes && LoadMeshReference(WorkerRow->Primary, WorkerId, StaticMesh, SkeletalMesh, LoadedPath);
 			if (!bLoaded)
 			{
-				bLoaded = TryLoadMesh(ObjectPath(WorkerRow->Fallback), StaticMesh, SkeletalMesh);
+				bLoaded = LoadMeshReference(WorkerRow->Fallback, WorkerId, StaticMesh, SkeletalMesh, LoadedPath);
 			}
 			if (!bLoaded)
 			{
-				bLoaded = TryLoadMesh(ObjectPath(WorkerRow->Fallback2), StaticMesh, SkeletalMesh);
+				bLoaded = LoadMeshReference(WorkerRow->Fallback2, WorkerId, StaticMesh, SkeletalMesh, LoadedPath);
 			}
 			if (bLoaded)
 			{
@@ -270,41 +377,20 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 	Choice.Z = Row->Z;
 	Choice.Anim = Row->Anim;
 	const bool bNewMeshes = CVarKodNewMeshes.GetValueOnGameThread() != 0;
-	const FString Primary = ObjectPath(Row->Primary);
-	const FString Fallback = ObjectPath(Row->Fallback);
-	auto TryLoad = [](const FString& Path, UStaticMesh*& OutStatic, USkeletalMesh*& OutSkeletal) -> bool
-	{
-		OutStatic = nullptr;
-		OutSkeletal = nullptr;
-		if (Path.IsEmpty())
-		{
-			return false;
-		}
-		OutStatic = LoadObject<UStaticMesh>(nullptr, *Path);
-		if (OutStatic)
-		{
-			return true;
-		}
-		OutSkeletal = LoadObject<USkeletalMesh>(nullptr, *Path);
-		return OutSkeletal != nullptr;
-	};
-
 	UStaticMesh* StaticMesh = nullptr;
 	USkeletalMesh* SkeletalMesh = nullptr;
-	FString Chosen = bNewMeshes ? Primary : FString();
-	bool bLoaded = bNewMeshes && TryLoad(Primary, StaticMesh, SkeletalMesh);
+	FString Chosen;
+	bool bLoaded = bNewMeshes && LoadMeshReference(Row->Primary, Id, StaticMesh, SkeletalMesh, Chosen);
 	bool bFallback = false;
 	if (!bLoaded)
 	{
 		bFallback = true;
-		Chosen = Fallback;
-		bLoaded = TryLoad(Fallback, StaticMesh, SkeletalMesh);
+		bLoaded = LoadMeshReference(Row->Fallback, Id, StaticMesh, SkeletalMesh, Chosen);
 	}
 	if (!bLoaded && !Row->Fallback2.IsEmpty())
 	{
 		bFallback = true;
-		Chosen = ObjectPath(Row->Fallback2);
-		bLoaded = TryLoad(Chosen, StaticMesh, SkeletalMesh);
+		bLoaded = LoadMeshReference(Row->Fallback2, Id, StaticMesh, SkeletalMesh, Chosen);
 	}
 	Choice.Path = Chosen;
 	Choice.bLoaded = bLoaded;
@@ -348,4 +434,14 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 		Choice.BoundsCm,
 		Choice.Scale);
 	return Choice;
+}
+
+bool KodMeshCatalogFindRow(FName Id, FKodMeshRow& OutRow)
+{
+	if (const FKodMeshRow* Row = FindRow(Id))
+	{
+		OutRow = *Row;
+		return true;
+	}
+	return false;
 }

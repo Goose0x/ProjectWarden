@@ -165,3 +165,9 @@ void AKodGameMode::ApplyStartFaction(int32 FactionIndex)
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodFaction Apply Index=%d Name=%s"), Index, Index == 1 ? TEXT("Scinder") : TEXT("Vanguard"));
 }
+
+bool AKodGameMode::PlaceShotBuildings(FVector& OutFocus)
+{
+	OutFocus = FVector::ZeroVector;
+	return false;
+}
