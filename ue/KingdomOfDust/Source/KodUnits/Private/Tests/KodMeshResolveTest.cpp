@@ -61,12 +61,9 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		const bool bChoseFallback = Choice.bFallback && Choice.Path.Contains(FallbackName);
 		TestTrue(*FString::Printf(TEXT("%s primary or fallback"), *Id.ToString()), bChosePrimary || bChoseFallback);
 		const float Expected = FKodMeshCatalog::FootprintCm(Id);
-		const bool bLengthAndHeight = Row->Fit == EKodMeshFit::Length && Row->MinHeightCm > 0.f;
-		const float FitExpected = bLengthAndHeight
-			? 0.f
-			: (Row->Fit == EKodMeshFit::Length && Row->FitCm > 0.f
-				? Row->FitCm
-				: (Row->Fit == EKodMeshFit::Footprint && Row->FitCm > 0.f ? Row->FitCm : Expected));
+		const bool bSizedFit = Row->FitCm > 0.f
+			&& (Row->Fit == EKodMeshFit::Length || Row->Fit == EKodMeshFit::Footprint || Row->Fit == EKodMeshFit::Height);
+		const float FitExpected = bSizedFit ? Row->FitCm : Expected;
 		if (FitExpected > 0.f && Choice.bLoaded)
 		{
 			TestTrue(
@@ -78,6 +75,12 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 			TestTrue(TEXT("AMP length fit"), Row->Fit == EKodMeshFit::Length);
 			TestTrue(TEXT("AMP 300 cm"), FMath::IsNearlyEqual(Row->FitCm, 300.f));
 			TestTrue(TEXT("AMP min height"), FMath::IsNearlyEqual(Row->MinHeightCm, 220.f));
+			if (Choice.bLoaded)
+			{
+				TestTrue(
+					*FString::Printf(TEXT("AMP length %.0f in 280-320"), Choice.BoundsCm),
+					Choice.BoundsCm >= 280.f && Choice.BoundsCm <= 320.f);
+			}
 		}
 		if (Id == FName(TEXT("ScinderHost")))
 		{
@@ -92,6 +95,18 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		{
 			TestTrue(TEXT("marine 286 cm"), FMath::IsNearlyEqual(Row->FitCm, 286.f));
 		}
+		if (Id == FName(TEXT("Shardbitten")))
+		{
+			TestTrue(TEXT("shardbitten height fit"), Row->Fit == EKodMeshFit::Height);
+			TestTrue(TEXT("shardbitten 260 cm"), FMath::IsNearlyEqual(Row->FitCm, 260.f));
+			TestTrue(TEXT("shardbitten v7h"), Row->Primary.Contains(TEXT("unit_v7h")));
+			if (Choice.bLoaded)
+			{
+				TestTrue(
+					*FString::Printf(TEXT("shardbitten scale %.3f"), Choice.Scale),
+					Choice.Scale >= 0.05f && Choice.Scale <= 20.f);
+			}
+		}
 		if (Id == FName(KodWardenPaths::Id_Marine) || Id == FName(KodWardenPaths::Id_ScnWorker))
 		{
 			TestTrue(*FString::Printf(TEXT("%s height fit"), *Id.ToString()), Row->Fit == EKodMeshFit::Height);
@@ -100,36 +115,27 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		{
 			TestTrue(TEXT("command center footprint fit"), Row->Fit == EKodMeshFit::Footprint);
 			TestTrue(TEXT("command center 1000 cm"), FMath::IsNearlyEqual(Row->FitCm, 1000.f));
-			TestTrue(TEXT("command center v4e primary"), Row->Primary.Contains(TEXT("CrimsonOutpost_v4e_withSockets")));
+			TestTrue(TEXT("command center v4h primary"), Row->Primary.Contains(TEXT("CrimsonOutpost_v4h")));
 			TestTrue(TEXT("command center fallback"), Row->Fallback.Contains(TEXT("SM_general")));
 		}
 		if (Id == FName(KodWardenPaths::Id_Barracks))
 		{
 			TestTrue(TEXT("barracks footprint fit"), Row->Fit == EKodMeshFit::Footprint);
 			TestTrue(TEXT("barracks 800 cm"), FMath::IsNearlyEqual(Row->FitCm, 800.f));
-			TestTrue(TEXT("barracks v9e primary"), Row->Primary.Contains(TEXT("Barracks_v9e_withSockets")));
+			TestTrue(TEXT("barracks v9i primary"), Row->Primary.Contains(TEXT("Barracks_v9i")));
 			TestTrue(TEXT("barracks v8g fallback"), Row->Fallback.Contains(TEXT("v8g")));
 		}
 	}
 	TArray<FKodMeshAttach> CcAttaches;
 	KodMeshCatalogCopyAttaches(FName(KodWardenPaths::Id_CommandCenter), CcAttaches);
-	TestEqual(TEXT("command center attaches"), CcAttaches.Num(), 2);
-	if (CcAttaches.Num() >= 2)
-	{
-		TestTrue(TEXT("bay interior mesh"), CcAttaches[0].Mesh.Contains(TEXT("BayInterior")));
-		TestTrue(TEXT("bay interior origin"), CcAttaches[0].Socket.IsNone());
-		TestTrue(TEXT("bay ramp mesh"), CcAttaches[1].Mesh.Contains(TEXT("BayRamp")));
-		TestTrue(TEXT("bay ramp socket"), CcAttaches[1].Socket == FName(TEXT("BayRamp")));
-		TestTrue(TEXT("ramp idle"), CcAttaches[1].Anim.Contains(TEXT("IdleClosed")));
-		TestTrue(TEXT("ramp open"), CcAttaches[1].OpenAnim.Contains(TEXT("Ramp_Open")));
-		TestTrue(TEXT("ramp close"), CcAttaches[1].CloseAnim.Contains(TEXT("Ramp_Close")));
-	}
+	TestEqual(TEXT("command center attaches"), CcAttaches.Num(), 0);
+	// export_h ships SOCKET_BayRamp / SOCKET_BayInterior on the body only; no separate attach meshes.
 	TArray<FKodMeshAttach> BarracksAttaches;
 	KodMeshCatalogCopyAttaches(FName(KodWardenPaths::Id_Barracks), BarracksAttaches);
 	TestEqual(TEXT("barracks attaches"), BarracksAttaches.Num(), 1);
 	if (BarracksAttaches.Num() >= 1)
 	{
-		TestTrue(TEXT("barracks ramp mesh"), BarracksAttaches[0].Mesh.Contains(TEXT("SK_Vanguard_Barracks_v9e_Ramp")));
+		TestTrue(TEXT("barracks ramp mesh"), BarracksAttaches[0].Mesh.Contains(TEXT("SK_Vanguard_Barracks_v9i_Ramp")));
 		TestTrue(TEXT("barracks tries Ramp"), BarracksAttaches[0].SocketChain.Contains(FName(TEXT("Ramp"))));
 		TestTrue(TEXT("barracks tries BayRamp"), BarracksAttaches[0].SocketChain.Contains(FName(TEXT("BayRamp"))));
 		TestTrue(TEXT("barracks tries Door"), BarracksAttaches[0].SocketChain.Contains(FName(TEXT("Door"))));
@@ -138,6 +144,21 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("barracks open clip"), FPaths::GetBaseFilename(BarracksAttaches[0].OpenAnim) == TEXT("Open"));
 		TestTrue(TEXT("barracks close clip"), FPaths::GetBaseFilename(BarracksAttaches[0].CloseAnim) == TEXT("Close"));
 		TestTrue(TEXT("barracks idle open clip"), FPaths::GetBaseFilename(BarracksAttaches[0].IdleOpenAnim) == TEXT("IdleOpen"));
+	}
+
+	const FName BladeIds[] = {FName(TEXT("SCN_BLADE")), FName(TEXT("SCN_TWINBLADE"))};
+	for (const FName& BladeId : BladeIds)
+	{
+		FKodMeshRow BladeRow;
+		const bool bBlade = KodMeshCatalogFindRow(BladeId, BladeRow);
+		TestTrue(*FString::Printf(TEXT("%s row"), *BladeId.ToString()), bBlade);
+		if (!bBlade)
+		{
+			continue;
+		}
+		TestTrue(*FString::Printf(TEXT("%s height"), *BladeId.ToString()), BladeRow.Fit == EKodMeshFit::Height);
+		TestTrue(*FString::Printf(TEXT("%s 286 cm"), *BladeId.ToString()), FMath::IsNearlyEqual(BladeRow.FitCm, 286.f));
+		TestTrue(*FString::Printf(TEXT("%s jade fang"), *BladeId.ToString()), BladeRow.Primary.Contains(TEXT("SK_JadeFang_v3a")));
 	}
 
 	IConsoleVariable* NewMeshes = IConsoleManager::Get().FindConsoleVariable(TEXT("kod.NewMeshes"));
