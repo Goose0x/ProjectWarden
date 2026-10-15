@@ -25,6 +25,7 @@
 #include "GameFramework/HUD.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/SoftObjectPath.h"
 
@@ -1621,6 +1622,26 @@ namespace KodSelectionHighlight
 		}
 		return Mesh->GetNumMaterials() > 0;
 	}
+
+	/** Overlay plus a render-state rebuild so the proxy's used-material list includes the rim. */
+	void PushSelectionOverlay(UMeshComponent* Mesh, UMaterialInterface* Parent)
+	{
+		if (!Mesh)
+		{
+			return;
+		}
+		UMaterialInterface* Applied = nullptr;
+		if (Parent)
+		{
+			Applied = UMaterialInstanceDynamic::Create(Parent, Mesh);
+			if (!Applied)
+			{
+				Applied = Parent;
+			}
+		}
+		Mesh->SetOverlayMaterial(Applied);
+		Mesh->MarkRenderStateDirty();
+	}
 }
 
 void AKodPlayerController::ClearSelectionHighlight()
@@ -1641,12 +1662,13 @@ void AKodPlayerController::ClearSelectionHighlight()
 		{
 			continue;
 		}
-		Mesh->SetOverlayMaterial(nullptr);
+		KodSelectionHighlight::PushSelectionOverlay(Mesh, nullptr);
 		// Slot restore is unused after the rim overlay. An empty OriginalMaterials list is a no-op.
 		const int32 Slots = Mesh->GetNumMaterials();
 		for (int32 Index = 0; Index < State.OriginalMaterials.Num() && Index < Slots; ++Index)
 		{
 			Mesh->SetMaterial(Index, State.OriginalMaterials[Index]);
+			Mesh->MarkRenderStateDirty();
 		}
 		Mesh->SetRenderCustomDepth(State.bHadCustomDepth);
 		Mesh->SetCustomDepthStencilValue(State.OriginalStencil);
@@ -1700,7 +1722,7 @@ void AKodPlayerController::ApplySelectionHighlight()
 
 			if (Overlay)
 			{
-				Mesh->SetOverlayMaterial(Overlay);
+				KodSelectionHighlight::PushSelectionOverlay(Mesh, Overlay);
 			}
 
 			Mesh->SetRenderCustomDepth(true);
