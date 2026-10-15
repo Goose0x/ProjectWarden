@@ -674,6 +674,7 @@ namespace
 				if (Cube)
 				{
 					Mesh->SetStaticMesh(Cube);
+					UE_LOG(LogTemp, Log, TEXT("KodMesh Placeholder Id=%s Path=/Engine/BasicShapes/Cube.Cube"), *Id);
 				}
 				const float Span = bHq ? 5.f : (bOutpost && Id == TEXT("OUTPOST_SPIRE") ? 3.f : 2.f);
 				Mesh->SetWorldScale3D(FVector(Span, Span, 1.5f));
@@ -834,6 +835,7 @@ namespace
 		Building->Tags.Add(FName(*Tag));
 		Building->Tags.Add(FName(*Id));
 		Building->TeamId = 1;
+		UE_LOG(LogTemp, Log, TEXT("KodMesh Placeholder Id=%s Path=/Engine/BasicShapes/Cube.Cube"), *Id);
 		const FString Key = BuildingKey(Id);
 		const FScnBuilding* Row = Buildings.Find(Key);
 		const int32 Hp = Row ? Row->Hp : 1000;

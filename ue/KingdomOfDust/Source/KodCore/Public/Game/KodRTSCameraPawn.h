@@ -47,6 +47,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Camera")
 	void JumpTo(FVector WorldLocation);
 
+	/** Look at a point and pull the arm back until SpanCm of ground fits. Never zooms in past the rest distance. */
+	void FrameGroundSpan(FVector WorldLocation, float SpanCm);
+
 	/** Locked SC2 start: pitch -56, yaw 90, FOV 35, arm 6800, centred on the point. */
 	void SnapToStartView(FVector WorldLocation);
 	/** True on a frame after SnapToStartView, so a shot zoom is not undone by that snap. */

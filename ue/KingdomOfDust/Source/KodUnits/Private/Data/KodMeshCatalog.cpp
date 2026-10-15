@@ -96,6 +96,25 @@ namespace
 			{
 				Row.Z = FCString::Atof(*Value);
 			}
+			else if (Key.Equals(TEXT("FitMode"), ESearchCase::IgnoreCase))
+			{
+				if (Value.Equals(TEXT("Length"), ESearchCase::IgnoreCase))
+				{
+					Row.Fit = EKodMeshFit::Length;
+				}
+				else if (Value.Equals(TEXT("Footprint"), ESearchCase::IgnoreCase))
+				{
+					Row.Fit = EKodMeshFit::Footprint;
+				}
+				else if (Value.Equals(TEXT("Height"), ESearchCase::IgnoreCase))
+				{
+					Row.Fit = EKodMeshFit::Height;
+				}
+			}
+			else if (Key.Equals(TEXT("FitCm"), ESearchCase::IgnoreCase))
+			{
+				Row.FitCm = FCString::Atof(*Value);
+			}
 			else if (Key.Equals(TEXT("Anim"), ESearchCase::IgnoreCase))
 			{
 				Row.Anim = Value;
@@ -337,7 +356,7 @@ float FKodMeshCatalog::FootprintCm(FName Id)
 	{
 		return 600.f;
 	}
-	if (Id == FName(KodWardenPaths::Id_SupplyDepot))
+	if (Id == FName(KodWardenPaths::Id_SupplyDepot) || Id == FName(TEXT("RiteWell")))
 	{
 		return 400.f;
 	}
@@ -403,20 +422,53 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 		: (SkeletalMesh ? SkeletalMesh->GetBounds() : FBoxSphereBounds(FVector::ZeroVector, FVector::ZeroVector, 0.f));
 	const float RawSpan = (StaticMesh || SkeletalMesh) ? HorizontalSpanCm(RawBounds) : 0.f;
 	const float RawHeight = (StaticMesh || SkeletalMesh) ? VerticalSpanCm(RawBounds) : 0.f;
-	const float Footprint = FootprintCm(Id);
-	const float TargetHeight = UnitTargetHeightCm(Id);
 	const float RowScale = Row->Scale > 0.f ? Row->Scale : 1.f;
-	if (Footprint > 0.f && RawSpan > KINDA_SMALL_NUMBER)
+	EKodMeshFit Fit = Row->Fit;
+	if (Fit == EKodMeshFit::Unset)
 	{
-		Choice.Scale = (Footprint / RawSpan) * RowScale;
+		if (FootprintCm(Id) > 0.f)
+		{
+			Fit = EKodMeshFit::Footprint;
+		}
+		else if (Id == FName(KodWardenPaths::Id_Dozer) || Id == FName(TEXT("ScinderHost")))
+		{
+			Fit = EKodMeshFit::Length;
+		}
+		else
+		{
+			Fit = EKodMeshFit::Height;
+		}
+	}
+	float FitCm = Row->FitCm;
+	if (Fit == EKodMeshFit::Length && FitCm <= KINDA_SMALL_NUMBER)
+	{
+		// SC2 SCV length beside a 1000 cm command center.
+		FitCm = 260.f;
+	}
+	else if (Fit == EKodMeshFit::Footprint && FitCm <= KINDA_SMALL_NUMBER)
+	{
+		FitCm = FootprintCm(Id);
+	}
+	else if (Fit == EKodMeshFit::Height && FitCm <= KINDA_SMALL_NUMBER)
+	{
+		FitCm = UnitTargetHeightCm(Id);
+	}
+	if (Fit == EKodMeshFit::Footprint && FitCm > 0.f && RawSpan > KINDA_SMALL_NUMBER)
+	{
+		Choice.Scale = (FitCm / RawSpan) * RowScale;
 		Choice.BoundsCm = RawSpan * Choice.Scale;
 	}
-	else if (TargetHeight > 0.f && RawHeight > KINDA_SMALL_NUMBER)
+	else if (Fit == EKodMeshFit::Length && RawSpan > KINDA_SMALL_NUMBER)
 	{
-		Choice.Scale = (TargetHeight / RawHeight) * RowScale;
+		Choice.Scale = (FitCm / RawSpan) * RowScale;
+		Choice.BoundsCm = RawSpan * Choice.Scale;
+	}
+	else if (Fit == EKodMeshFit::Height && FitCm > 0.f && RawHeight > KINDA_SMALL_NUMBER)
+	{
+		Choice.Scale = (FitCm / RawHeight) * RowScale;
 		Choice.BoundsCm = RawHeight * Choice.Scale;
 	}
-	else if (bLoaded && RawHeight > KINDA_SMALL_NUMBER && TargetHeight <= 0.f && Footprint <= 0.f)
+	else if (Fit == EKodMeshFit::Height && bLoaded && RawHeight > KINDA_SMALL_NUMBER)
 	{
 		Choice.Scale = FactionWorkerScale(IsScinderId(Id)) * RowScale;
 		Choice.BoundsCm = RawHeight * Choice.Scale;
@@ -433,6 +485,10 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 		Choice.bFallback ? 1 : 0,
 		Choice.BoundsCm,
 		Choice.Scale);
+	if (Choice.Path.Contains(TEXT("/Engine/BasicShapes/Cube")))
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodMesh Placeholder Id=%s Path=%s"), *Id.ToString(), *Choice.Path);
+	}
 	return Choice;
 }
 

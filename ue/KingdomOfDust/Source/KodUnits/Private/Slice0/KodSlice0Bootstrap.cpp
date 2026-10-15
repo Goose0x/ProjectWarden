@@ -739,16 +739,25 @@ AKodUnit* UKodSlice0Bootstrap::SpawnMarine(UWorld* World, const FTransform& Tran
 
 AKodUnit* UKodSlice0Bootstrap::SpawnDozer(UWorld* World, const FTransform& Transform, int32 TeamId)
 {
+	return SpawnGatherer(World, Transform, TeamId, FName(KodWardenPaths::Id_Dozer));
+}
+
+AKodUnit* UKodSlice0Bootstrap::SpawnGatherer(UWorld* World, const FTransform& Transform, int32 TeamId, FName DefinitionId)
+{
 	const FVector Location = Transform.GetLocation();
+	if (DefinitionId.IsNone())
+	{
+		DefinitionId = FName(KodWardenPaths::Id_Dozer);
+	}
 	if (!World)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("SpawnDozer failed: no world (requested %s)"), *Location.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("SpawnGatherer failed: no world (requested %s)"), *Location.ToString());
 		return nullptr;
 	}
-	UKodUnitDefinition* Def = ResolveUnit(FName(KodWardenPaths::Id_Dozer), GetTransientPackage());
+	UKodUnitDefinition* Def = ResolveUnit(DefinitionId, GetTransientPackage());
 	if (!Def)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("SpawnDozer failed: Dozer definition missing at %s"), *Location.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("SpawnGatherer failed: %s definition missing at %s"), *DefinitionId.ToString(), *Location.ToString());
 		return nullptr;
 	}
 
@@ -757,13 +766,13 @@ AKodUnit* UKodSlice0Bootstrap::SpawnDozer(UWorld* World, const FTransform& Trans
 	AKodUnit* Unit = World->SpawnActor<AKodUnit>(AKodUnit::StaticClass(), Transform, Params);
 	if (!Unit)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("SpawnDozer failed: SpawnActor returned null at %s"), *Location.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("SpawnGatherer failed: SpawnActor returned null at %s"), *Location.ToString());
 		return nullptr;
 	}
 	Unit->Definition = Def;
 	Unit->TeamId = TeamId;
 	Unit->Tags.AddUnique(FName(TEXT("KodUnitDozer")));
 	Unit->ApplyDefinition(Def);
-	UE_LOG(LogTemp, Log, TEXT("SpawnDozer spawned %s at %s"), *Unit->GetName(), *Unit->GetActorLocation().ToString());
+	UE_LOG(LogTemp, Log, TEXT("SpawnGatherer Id=%s spawned %s at %s"), *DefinitionId.ToString(), *Unit->GetName(), *Unit->GetActorLocation().ToString());
 	return Unit;
 }

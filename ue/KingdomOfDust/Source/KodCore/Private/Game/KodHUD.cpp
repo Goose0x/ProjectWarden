@@ -1492,6 +1492,7 @@ void AKodHUD::DrawHUD()
 	DrawClickMarkers();
 	DrawSelectionPulse();
 	DrawSc2WorldMarks();
+	DrawShotLabels();
 	DrawJuiceFloaters();
 	DrawSelectedResourceNodes();
 	DrawSelectionMarquee();
@@ -2055,6 +2056,56 @@ void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
 		{
 			SheetMesh->SetMaterial(0, FogSheetMaterial);
 		}
+	}
+}
+
+void AKodHUD::DrawShotLabels()
+{
+	if (!Canvas)
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	UFont* Font = GEngine ? GEngine->GetMediumFont() : nullptr;
+	const FLinearColor Ink(0.96f, 0.93f, 0.84f, 1.f);
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!Actor || !Actor->ActorHasTag(FName(TEXT("KodShotLabel"))))
+		{
+			continue;
+		}
+		FString Name;
+		for (const FName& Tag : Actor->Tags)
+		{
+			const FString Text = Tag.ToString();
+			if (Text.StartsWith(TEXT("KodShotName_")))
+			{
+				Name = Text.RightChop(12);
+				break;
+			}
+		}
+		if (Name.IsEmpty())
+		{
+			continue;
+		}
+		const FVector At = Actor->GetActorLocation() + FVector(0.f, 0.f, 240.f);
+		FVector Screen = FVector::ZeroVector;
+		if (!Project(At, Screen))
+		{
+			continue;
+		}
+		float Width = 80.f;
+		float Height = 16.f;
+		if (Font)
+		{
+			Canvas->TextSize(Font, Name, Width, Height);
+		}
+		DrawText(Name, Ink, Screen.X - Width * 0.5f, Screen.Y, Font, 1.1f, false);
 	}
 }
 

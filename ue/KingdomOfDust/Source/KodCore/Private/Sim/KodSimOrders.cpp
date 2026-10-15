@@ -3,6 +3,7 @@
 #include "Warden/KodWardenPaths.h"
 
 #include "GameFramework/Actor.h"
+#include "Misc/CommandLine.h"
 
 namespace
 {
@@ -370,6 +371,13 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 void UKodSimSubsystem::NotifyOwnedDamage(const FKodSimEntityState& Target)
 {
 	if (Target.TeamId != 0)
+	{
+		return;
+	}
+	const TCHAR* CommandLine = FCommandLine::Get();
+	const bool bShot = CommandLine && FCString::Stristr(CommandLine, TEXT("kod.Shot")) != nullptr;
+	// 16 Hz. The opening seconds also trip this when the crew overlaps the hall.
+	if (bShot || SimTickIndex < 10 * 16)
 	{
 		return;
 	}

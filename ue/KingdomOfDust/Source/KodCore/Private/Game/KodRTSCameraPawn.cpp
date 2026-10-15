@@ -493,6 +493,28 @@ void AKodRTSCameraPawn::JumpTo(FVector WorldLocation)
 	ClampToPlayable();
 }
 
+void AKodRTSCameraPawn::FrameGroundSpan(FVector WorldLocation, float SpanCm)
+{
+	JumpTo(WorldLocation);
+	const float VFov = FMath::DegreesToRadians(FMath::Max(1.f, VerticalFovDegrees));
+	const float Aspect = 16.f / 9.f;
+	const float HFov = 2.f * FMath::Atan(FMath::Tan(VFov * 0.5f) * Aspect);
+	const float Pitch = FMath::DegreesToRadians(FMath::Abs(PitchDegrees));
+	const float WidthFactor = 2.f * FMath::Tan(HFov * 0.5f);
+	const float DepthFactor = 2.f * FMath::Tan(VFov * 0.5f) / FMath::Max(0.2f, FMath::Sin(Pitch));
+	const float Factor = FMath::Min(WidthFactor, DepthFactor);
+	const float Needed = (FMath::Max(100.f, SpanCm) * 1.15f) / FMath::Max(0.05f, Factor);
+	const float Arm = FMath::Max(DefaultArmLength, Needed);
+	MaxArmLength = FMath::Max(MaxArmLength, Arm);
+	TargetArmLength = Arm;
+	CurrentArmLength = Arm;
+	if (CameraBoom)
+	{
+		CameraBoom->TargetArmLength = Arm;
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodCam Frame Span=%.0f Arm=%.0f"), SpanCm, Arm);
+}
+
 void AKodRTSCameraPawn::NoteAlert(FVector WorldLocation, float VisibleSeconds)
 {
 	AlertLocation = WorldLocation;

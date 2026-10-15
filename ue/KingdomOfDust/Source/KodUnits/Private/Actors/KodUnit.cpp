@@ -9,6 +9,7 @@
 #include "Data/KodUnitDefinition.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
 #include "Animation/AnimSequence.h"
+#include "Animation/Skeleton.h"
 #include "Data/KodWeaponDefinition.h"
 #include "Components/KodAbilitySystemComponent.h"
 #include "Components/KodMoveComponent.h"
@@ -1239,6 +1240,31 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh, const FKodMesh
 						ResolvedAnimClass = LoadedAnim;
 						AnimModeName = TEXT("AnimBP");
 					}
+					else if (Generated->TargetSkeleton && MeshSkeleton)
+					{
+						// v7b uses Mannequin bone names on its own skeleton asset.
+						// Compatible-skeleton registration edits the shared AnimBP asset, and a
+						// runtime retargeter is not available here, so the pose stays held.
+						static const TCHAR* BoneNames[] = {
+							TEXT("pelvis"), TEXT("spine_01"), TEXT("spine_02"), TEXT("spine_03"),
+							TEXT("clavicle_l"), TEXT("upperarm_l"), TEXT("lowerarm_l"), TEXT("hand_l"),
+							TEXT("thigh_l"), TEXT("calf_l"), TEXT("foot_l"), TEXT("neck_01"), TEXT("head")
+						};
+						int32 SharedBones = 0;
+						const FReferenceSkeleton& MeshBones = MeshSkeleton->GetReferenceSkeleton();
+						const FReferenceSkeleton& AnimBones = Generated->TargetSkeleton->GetReferenceSkeleton();
+						for (const TCHAR* BoneName : BoneNames)
+						{
+							const FName Bone(BoneName);
+							if (MeshBones.FindBoneIndex(Bone) != INDEX_NONE && AnimBones.FindBoneIndex(Bone) != INDEX_NONE)
+							{
+								++SharedBones;
+							}
+						}
+						UE_LOG(LogTemp, Log, TEXT("KodMesh AnimRetarget Id=%s SharedBones=%d Feasible=0"),
+							BodyDef ? *BodyDef->DefinitionId.ToString() : *GetName(),
+							SharedBones);
+					}
 				}
 			}
 		}
@@ -1383,6 +1409,9 @@ void AKodUnit::MountCubePlaceholder()
 	UnitMesh->SetVisibility(true);
 	KeepSelectCollision();
 
+	const UKodUnitDefinition* CubeDef = GetDefinition();
+	const FName CubeId = CubeDef ? (CubeDef->DefinitionId.IsNone() ? CubeDef->GetFName() : CubeDef->DefinitionId) : GetFName();
+	UE_LOG(LogTemp, Log, TEXT("KodMesh Placeholder Id=%s Path=%s"), *CubeId.ToString(), EngineCubePath);
 	UE_LOG(LogTemp, Log, TEXT("KodUnitBody %s Source=Cube"), *GetName());
 }
 

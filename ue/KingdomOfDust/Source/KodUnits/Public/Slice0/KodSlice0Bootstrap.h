@@ -75,6 +75,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Slice0")
 	static class AKodUnit* SpawnDozer(UWorld* World, const FTransform& Transform, int32 TeamId = 0);
 
+	/** Team gatherer. DefinitionId selects Dozer or SCN_WORKER. */
+	static class AKodUnit* SpawnGatherer(UWorld* World, const FTransform& Transform, int32 TeamId, FName DefinitionId);
+
 	/** Placeholder Combat Stim. Public so match start can register it when the Marine asset has none. */
 	static class UKodAbilityDefinition* MakeCombatStim(UObject* Outer);
 

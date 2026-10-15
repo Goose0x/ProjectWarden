@@ -466,6 +466,15 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 			BuildingMesh->SetRelativeScale3D(BaseScale);
 		}
 	}
+	const bool bSkelVisible = BuildingSkel && !BuildingSkel->bHiddenInGame && BuildingSkel->GetSkeletalMeshAsset();
+	if (!bSkelVisible && BuildingMesh && BuildingMesh->GetStaticMesh())
+	{
+		const FString MeshPath = BuildingMesh->GetStaticMesh()->GetPathName();
+		if (MeshPath.Contains(TEXT("/Engine/BasicShapes/Cube")))
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodMesh Placeholder Id=%s Path=%s"), *MeshId.ToString(), *MeshPath);
+		}
+	}
 	RefreshJadeiteEmissive();
 }
 
