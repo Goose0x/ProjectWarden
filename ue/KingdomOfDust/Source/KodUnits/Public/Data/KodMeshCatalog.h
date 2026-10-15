@@ -35,7 +35,7 @@ struct KODUNITS_API FKodMeshRow
 	float Z = 0.f;
 	EKodMeshFit Fit = EKodMeshFit::Unset;
 	float FitCm = 0.f;
-	/** Length rows only. Scale is the larger of FitCm/length and MinHeightCm/height. 0 ignores height. */
+	/** Length rows only. Floor on the fitted length. Raises the scale only when FitCm is shorter. 0 ignores it. */
 	float MinHeightCm = 0.f;
 	FString Anim;
 	/** Folder of short-named sequences, for example the supply-depot raise and lower clips. */

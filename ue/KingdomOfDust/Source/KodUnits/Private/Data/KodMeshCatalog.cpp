@@ -4,6 +4,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "Rendering/SkeletalMeshRenderData.h"
 #include "Engine/Texture2D.h"
 #include "Materials/MaterialInterface.h"
 #include "RHIFeatureLevel.h"
@@ -427,17 +428,93 @@ namespace
 		return OutSkeletal != nullptr;
 	}
 
-	float MeshHeightCm(UStaticMesh* StaticMesh, USkeletalMesh* SkeletalMesh)
+	bool SkeletalVertexBounds(const USkeletalMesh* Mesh, FBoxSphereBounds& OutBounds)
+	{
+		OutBounds = FBoxSphereBounds(FVector::ZeroVector, FVector::ZeroVector, 0.f);
+		if (!Mesh)
+		{
+			return false;
+		}
+		const FSkeletalMeshRenderData* RenderData = Mesh->GetResourceForRendering();
+		if (!RenderData || RenderData->LODRenderData.Num() <= 0)
+		{
+			return false;
+		}
+		const FPositionVertexBuffer& Positions = RenderData->LODRenderData[0].StaticVertexBuffers.PositionVertexBuffer;
+		const uint32 Count = Positions.GetNumVertices();
+		if (Count == 0)
+		{
+			return false;
+		}
+		FBox Box(ForceInit);
+		for (uint32 Index = 0; Index < Count; ++Index)
+		{
+			Box += FVector(Positions.VertexPosition(Index));
+		}
+		OutBounds = FBoxSphereBounds(Box);
+		return VerticalSpanCm(OutBounds) > 1.f || HorizontalSpanCm(OutBounds) > 1.f;
+	}
+
+	FBoxSphereBounds MeasureMesh(UStaticMesh* StaticMesh, USkeletalMesh* SkeletalMesh, FName Id)
 	{
 		if (StaticMesh)
 		{
-			return VerticalSpanCm(StaticMesh->GetBounds());
+			return StaticMesh->GetBounds();
 		}
-		if (SkeletalMesh)
+		if (!SkeletalMesh)
 		{
-			return VerticalSpanCm(SkeletalMesh->GetBounds());
+			return FBoxSphereBounds(FVector::ZeroVector, FVector::ZeroVector, 0.f);
 		}
-		return 0.f;
+		const FBoxSphereBounds AssetBounds = SkeletalMesh->GetBounds();
+		const FBoxSphereBounds ImportedBounds = SkeletalMesh->GetImportedBounds();
+		FBoxSphereBounds VertexBounds(FVector::ZeroVector, FVector::ZeroVector, 0.f);
+		const bool bVertex = SkeletalVertexBounds(SkeletalMesh, VertexBounds);
+		const float AssetHeight = VerticalSpanCm(AssetBounds);
+		const float ImportedHeight = VerticalSpanCm(ImportedBounds);
+		const float VertexHeight = bVertex ? VerticalSpanCm(VertexBounds) : 0.f;
+		FBoxSphereBounds Chosen = AssetBounds;
+		const TCHAR* Source = TEXT("Asset");
+		if (bVertex && VertexHeight > 1.f && (AssetHeight <= 1.f || VertexHeight < AssetHeight))
+		{
+			Chosen = VertexBounds;
+			Source = TEXT("Vertex");
+		}
+		else if (ImportedHeight > 1.f && (AssetHeight <= 1.f || ImportedHeight < AssetHeight))
+		{
+			Chosen = ImportedBounds;
+			Source = TEXT("Imported");
+		}
+		if (AssetHeight > 1.f && VerticalSpanCm(Chosen) < AssetHeight * 0.5f)
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodMesh SkelBounds Id=%s AssetH=%.0f ImportedH=%.0f VertexH=%.0f Use=%s"),
+				*Id.ToString(),
+				AssetHeight,
+				ImportedHeight,
+				VertexHeight,
+				Source);
+		}
+		return Chosen;
+	}
+
+	float MeshHeightCm(UStaticMesh* StaticMesh, USkeletalMesh* SkeletalMesh)
+	{
+		return VerticalSpanCm(MeasureMesh(StaticMesh, SkeletalMesh, NAME_None));
+	}
+
+	void ClampDegenerateScale(FName Id, float RawCm, float& InOutScale, float& InOutBounds)
+	{
+		constexpr float MinScale = 0.05f;
+		constexpr float MaxScale = 20.f;
+		if (InOutScale >= MinScale && InOutScale <= MaxScale)
+		{
+			return;
+		}
+		UE_LOG(LogTemp, Warning, TEXT("KodMesh DegenerateScale Id=%s Scale=%.3f Clamped=1 Raw=%.0f"),
+			*Id.ToString(),
+			InOutScale,
+			RawCm);
+		InOutScale = 1.f;
+		InOutBounds = RawCm;
 	}
 
 	float UnitTargetHeightCm(FName Id)
@@ -567,9 +644,7 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 	Choice.StaticMesh = StaticMesh;
 	Choice.SkeletalMesh = SkeletalMesh;
 	Choice.bSkeletal = SkeletalMesh != nullptr;
-	const FBoxSphereBounds RawBounds = StaticMesh
-		? StaticMesh->GetBounds()
-		: (SkeletalMesh ? SkeletalMesh->GetBounds() : FBoxSphereBounds(FVector::ZeroVector, FVector::ZeroVector, 0.f));
+	const FBoxSphereBounds RawBounds = MeasureMesh(StaticMesh, SkeletalMesh, Id);
 	const float RawSpan = (StaticMesh || SkeletalMesh) ? HorizontalSpanCm(RawBounds) : 0.f;
 	const float RawHeight = (StaticMesh || SkeletalMesh) ? VerticalSpanCm(RawBounds) : 0.f;
 	const float RowScale = Row->Scale > 0.f ? Row->Scale : 1.f;
@@ -609,11 +684,9 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 	}
 	else if (Fit == EKodMeshFit::Length && RawSpan > KINDA_SMALL_NUMBER)
 	{
-		const float LengthScale = FitCm / RawSpan;
-		const float HeightScale = (Row->MinHeightCm > KINDA_SMALL_NUMBER && RawHeight > KINDA_SMALL_NUMBER)
-			? (Row->MinHeightCm / RawHeight)
-			: 0.f;
-		Choice.Scale = FMath::Max(LengthScale, HeightScale) * RowScale;
+		// Horizontal max extent sets the length. MinHeight only lifts it when that length is shorter.
+		const float LengthTarget = (Row->MinHeightCm > FitCm) ? Row->MinHeightCm : FitCm;
+		Choice.Scale = (LengthTarget / RawSpan) * RowScale;
 		Choice.BoundsCm = RawSpan * Choice.Scale;
 	}
 	else if (Fit == EKodMeshFit::Height && FitCm > 0.f && RawHeight > KINDA_SMALL_NUMBER)
@@ -631,6 +704,8 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 		Choice.Scale = RowScale;
 		Choice.BoundsCm = RawSpan * Choice.Scale;
 	}
+	const float RawForClamp = (Fit == EKodMeshFit::Length || Fit == EKodMeshFit::Footprint) ? RawSpan : RawHeight;
+	ClampDegenerateScale(Id, RawForClamp, Choice.Scale, Choice.BoundsCm);
 	UE_LOG(LogTemp, Log, TEXT("KodMesh Id=%s Path=%s Loaded=%d Fallback=%d Bounds=%.0f Scale=%.3f"),
 		*Id.ToString(),
 		*Choice.Path,
