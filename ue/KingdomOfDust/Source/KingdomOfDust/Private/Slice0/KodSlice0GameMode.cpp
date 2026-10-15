@@ -2058,11 +2058,10 @@ void AKodSlice0GameMode::ApplyStartFaction(int32 FactionIndex)
 			Crew.Add(Unit);
 		}
 	}
-	Crew.Sort([](const AKodUnit* A, const AKodUnit* B)
+	// TArray::Sort dereferences pointer elements. The predicate sees the unit, not the pointer.
+	Crew.Sort([](const AKodUnit& A, const AKodUnit& B)
 	{
-		const int32 AId = A ? A->EntityId.Value : 0;
-		const int32 BId = B ? B->EntityId.Value : 0;
-		return AId < BId;
+		return A.EntityId.Value < B.EntityId.Value;
 	});
 	if (Crew.Num() == 0)
 	{
