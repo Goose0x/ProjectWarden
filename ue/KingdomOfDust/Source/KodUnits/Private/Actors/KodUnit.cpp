@@ -1029,7 +1029,7 @@ void AKodUnit::ApplyBodyMesh(const UKodUnitDefinition* Def)
 		MountResolvedStaticMesh(Choice.StaticMesh);
 		if (UnitMesh)
 		{
-			UnitMesh->SetRelativeScale3D(UnitMesh->GetRelativeScale3D() * FMath::Max(0.01f, Choice.Scale));
+			UnitMesh->SetRelativeScale3D(FVector(FMath::Max(0.01f, Choice.Scale)));
 			FRotator BodyYaw = UnitMesh->GetRelativeRotation();
 			BodyYaw.Yaw += Choice.Yaw;
 			UnitMesh->SetRelativeRotation(BodyYaw);

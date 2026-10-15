@@ -16,6 +16,8 @@ struct KODUNITS_API FKodMeshRow
 	FName Id;
 	FString Primary;
 	FString Fallback;
+	/** Tried after Fallback. Supply Depot uses the raised static mesh, then SM_storage. */
+	FString Fallback2;
 	float Scale = 1.f;
 	float Yaw = 0.f;
 	float Z = 0.f;

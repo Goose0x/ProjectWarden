@@ -198,7 +198,7 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	const int32 HalfSpan = (FMath::Max(Structure.FootprintX, Structure.FootprintY) * KodBuildGrid::CellUU) / 2;
 	const float ExitDistance = static_cast<float>(HalfSpan + KodBuildGrid::CellUU);
 	FVector SocketExit;
-	if (KodMeshSockets::TryGet(Actor, KodMeshSockets::WorkerExit, SocketExit)
+	if (KodMeshSockets::TryGet(Actor, KodMeshSockets::UnitExit, SocketExit)
 		|| KodMeshSockets::TryGet(Actor, KodMeshSockets::Door, SocketExit))
 	{
 		Structure.ExitPoint = SocketExit;
