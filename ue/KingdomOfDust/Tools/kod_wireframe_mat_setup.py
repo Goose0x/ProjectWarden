@@ -20,19 +20,20 @@
 # Bands: HP.Green #4CD964 at >= 66%, HP.Yellow #F2C230 from 33% up to 66%,
 # HP.Red #E5383B below 33%. Do not use the placement colours #3DFF6A / #FF3D3D.
 #
-# TextureSample's default output pin is RGB (float3). Swizzling .a on that pin
-# fails in -game with "vector swizzle a is out of bounds" and the HUD falls
-# back to the default material. Alpha is its own float input. Re-run this
+# TextureSample's RGB pin is float3. SM6 rejects `Mask.a` on that pin
+# ("vector swizzle 'a' is out of bounds"). Append RGB with the separate A pin
+# so the Custom input Mask is float4 before any .a swizzle. Re-run this
 # script in the editor; the .uasset is not committed.
 import unreal
 
 DST = "/Game/Warden/UI/Wireframes"
 NAME = "M_KodWireSilhouette"
 HLSL = """
+// Mask is the AppendVector of TextureSample RGB and A, so it is float4.
 float W0 = Mask.r;
 float W1 = Mask.g;
 float W2 = Mask.b;
-float W3 = MaskA;
+float W3 = Mask.a;
 float MaskSum = W0 + W1 + W2 + W3;
 float3 Tint = T0.rgb;
 if (MaskSum > 1e-3)
@@ -106,7 +107,7 @@ custom.set_editor_property("description", "WireZones")
 custom.set_editor_property("code", HLSL)
 pins = []
 for pin_name in (
-    "Silhouette", "SilhouetteA", "Mask", "MaskA",
+    "Silhouette", "SilhouetteA", "Mask",
     "R0", "R1", "R2", "R3",
     "T0", "T1", "T2", "T3",
     "ShieldRim", "ShieldColor",
@@ -115,10 +116,12 @@ for pin_name in (
     pin.set_editor_property("input_name", pin_name)
     pins.append(pin)
 custom.set_editor_property("inputs", pins)
+mask4 = mel.create_material_expression(material, unreal.MaterialExpressionAppendVector, -520, 80)
+mel.connect_material_expressions(zone_mask, "RGB", mask4, "A")
+mel.connect_material_expressions(zone_mask, "A", mask4, "B")
 mel.connect_material_expressions(silhouette, "RGB", custom, "Silhouette")
 mel.connect_material_expressions(silhouette, "A", custom, "SilhouetteA")
-mel.connect_material_expressions(zone_mask, "RGB", custom, "Mask")
-mel.connect_material_expressions(zone_mask, "A", custom, "MaskA")
+mel.connect_material_expressions(mask4, "", custom, "Mask")
 for index in range(4):
     remain = scalar_param(material, f"ZoneRemain{index}", -600, -40 + index * 40)
     tint = vector_param(material, f"ZoneTint{index}", -600, 220 + index * 40)

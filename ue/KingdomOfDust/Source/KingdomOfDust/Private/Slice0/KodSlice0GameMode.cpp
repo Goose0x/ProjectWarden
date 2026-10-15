@@ -2041,6 +2041,7 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 	if (bScinder)
 	{
 		PlaceBuilding(FName(TEXT("ScinderHost")), Base + FVector(1400.f, 500.f, 0.f), 3, 3);
+		PlaceBuilding(FName(TEXT("RiteWell")), Base + FVector(1400.f, -200.f, 0.f), 3, 3);
 		PlaceUnit(FName(KodWardenPaths::Id_ScnWorker), Base + FVector(900.f, -200.f, 0.f));
 		PlaceUnit(FName(TEXT("Faultburst")), Base + FVector(1100.f, -500.f, 0.f));
 		PlaceUnit(FName(TEXT("Shardbitten")), Base + FVector(1100.f, -800.f, 0.f));

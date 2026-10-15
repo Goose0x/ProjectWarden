@@ -29,7 +29,8 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		FName(TEXT("ScinderHQ")),
 		FName(TEXT("ScinderHost")),
 		FName(TEXT("Faultburst")),
-		FName(TEXT("Shardbitten"))
+		FName(TEXT("Shardbitten")),
+		FName(TEXT("RiteWell"))
 	};
 	const TArray<FKodMeshRow>& Rows = FKodMeshCatalog::Rows();
 	for (const FName& Id : Required)
