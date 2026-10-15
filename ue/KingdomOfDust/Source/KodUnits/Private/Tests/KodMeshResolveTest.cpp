@@ -107,7 +107,7 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		{
 			TestTrue(TEXT("barracks footprint fit"), Row->Fit == EKodMeshFit::Footprint);
 			TestTrue(TEXT("barracks 800 cm"), FMath::IsNearlyEqual(Row->FitCm, 800.f));
-			TestTrue(TEXT("barracks v9d primary"), Row->Primary.Contains(TEXT("Barracks_v9d_withSockets")));
+			TestTrue(TEXT("barracks v9e primary"), Row->Primary.Contains(TEXT("Barracks_v9e_withSockets")));
 			TestTrue(TEXT("barracks v8g fallback"), Row->Fallback.Contains(TEXT("v8g")));
 		}
 	}
@@ -129,7 +129,7 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("barracks attaches"), BarracksAttaches.Num(), 1);
 	if (BarracksAttaches.Num() >= 1)
 	{
-		TestTrue(TEXT("barracks ramp mesh"), BarracksAttaches[0].Mesh.Contains(TEXT("SK_Vanguard_Barracks_v9d_Ramp")));
+		TestTrue(TEXT("barracks ramp mesh"), BarracksAttaches[0].Mesh.Contains(TEXT("SK_Vanguard_Barracks_v9e_Ramp")));
 		TestTrue(TEXT("barracks tries Ramp"), BarracksAttaches[0].SocketChain.Contains(FName(TEXT("Ramp"))));
 		TestTrue(TEXT("barracks tries BayRamp"), BarracksAttaches[0].SocketChain.Contains(FName(TEXT("BayRamp"))));
 		TestTrue(TEXT("barracks tries Door"), BarracksAttaches[0].SocketChain.Contains(FName(TEXT("Door"))));
