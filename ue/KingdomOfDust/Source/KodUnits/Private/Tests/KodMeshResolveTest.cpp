@@ -103,6 +103,13 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 			TestTrue(TEXT("command center v4e primary"), Row->Primary.Contains(TEXT("CrimsonOutpost_v4e_withSockets")));
 			TestTrue(TEXT("command center fallback"), Row->Fallback.Contains(TEXT("SM_general")));
 		}
+		if (Id == FName(KodWardenPaths::Id_Barracks))
+		{
+			TestTrue(TEXT("barracks footprint fit"), Row->Fit == EKodMeshFit::Footprint);
+			TestTrue(TEXT("barracks 800 cm"), FMath::IsNearlyEqual(Row->FitCm, 800.f));
+			TestTrue(TEXT("barracks v9d primary"), Row->Primary.Contains(TEXT("Barracks_v9d_withSockets")));
+			TestTrue(TEXT("barracks v8g fallback"), Row->Fallback.Contains(TEXT("v8g")));
+		}
 	}
 	TArray<FKodMeshAttach> CcAttaches;
 	KodMeshCatalogCopyAttaches(FName(KodWardenPaths::Id_CommandCenter), CcAttaches);
@@ -116,6 +123,21 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("ramp idle"), CcAttaches[1].Anim.Contains(TEXT("IdleClosed")));
 		TestTrue(TEXT("ramp open"), CcAttaches[1].OpenAnim.Contains(TEXT("Ramp_Open")));
 		TestTrue(TEXT("ramp close"), CcAttaches[1].CloseAnim.Contains(TEXT("Ramp_Close")));
+	}
+	TArray<FKodMeshAttach> BarracksAttaches;
+	KodMeshCatalogCopyAttaches(FName(KodWardenPaths::Id_Barracks), BarracksAttaches);
+	TestEqual(TEXT("barracks attaches"), BarracksAttaches.Num(), 1);
+	if (BarracksAttaches.Num() >= 1)
+	{
+		TestTrue(TEXT("barracks ramp mesh"), BarracksAttaches[0].Mesh.Contains(TEXT("SK_Vanguard_Barracks_v9d_Ramp")));
+		TestTrue(TEXT("barracks tries Ramp"), BarracksAttaches[0].SocketChain.Contains(FName(TEXT("Ramp"))));
+		TestTrue(TEXT("barracks tries BayRamp"), BarracksAttaches[0].SocketChain.Contains(FName(TEXT("BayRamp"))));
+		TestTrue(TEXT("barracks tries Door"), BarracksAttaches[0].SocketChain.Contains(FName(TEXT("Door"))));
+		TestTrue(TEXT("barracks origin fallback"), BarracksAttaches[0].SocketChain.Contains(NAME_None));
+		TestTrue(TEXT("barracks idle clip"), FPaths::GetBaseFilename(BarracksAttaches[0].Anim) == TEXT("IdleClosed"));
+		TestTrue(TEXT("barracks open clip"), FPaths::GetBaseFilename(BarracksAttaches[0].OpenAnim) == TEXT("Open"));
+		TestTrue(TEXT("barracks close clip"), FPaths::GetBaseFilename(BarracksAttaches[0].CloseAnim) == TEXT("Close"));
+		TestTrue(TEXT("barracks idle open clip"), FPaths::GetBaseFilename(BarracksAttaches[0].IdleOpenAnim) == TEXT("IdleOpen"));
 	}
 
 	IConsoleVariable* NewMeshes = IConsoleManager::Get().FindConsoleVariable(TEXT("kod.NewMeshes"));

@@ -4,7 +4,6 @@
 #include "Actors/KodUnit.h"
 #include "Data/KodUnitDefinition.h"
 #include "Engine/World.h"
-#include "Game/KodMeshSockets.h"
 #include "GameFramework/Actor.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Slice0/KodSlice0Bootstrap.h"
@@ -105,11 +104,10 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 			if (UKodMeshAttachComponent* Attach = Hall->FindComponentByClass<UKodMeshAttachComponent>())
 			{
 				Attach->NotifyTrainExit();
-				FVector WorkerAt = FVector::ZeroVector;
-				FVector BayAt = FVector::ZeroVector;
-				if (KodMeshSockets::TryGet(Hall, KodMeshSockets::WorkerExit, WorkerAt) && Attach->TryGetBayPoint(BayAt))
+				FVector ExitAt = FVector::ZeroVector;
+				if (Attach->TryGetExitPoint(ExitAt))
 				{
-					Unit->BeginBayExitVisual(BayAt);
+					Unit->BeginBayExitVisual(ExitAt);
 				}
 			}
 		}

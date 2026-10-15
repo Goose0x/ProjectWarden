@@ -189,9 +189,18 @@ namespace
 			}
 			else if (Key.Equals(TEXT("Socket"), ESearchCase::IgnoreCase))
 			{
-				Attach.Socket = Value.IsEmpty() || Value.Equals(TEXT("None"), ESearchCase::IgnoreCase)
-					? NAME_None
-					: FName(*Value);
+				Attach.SocketChain.Reset();
+				TArray<FString> Tokens;
+				Value.ParseIntoArray(Tokens, TEXT("|"), true);
+				for (const FString& Token : Tokens)
+				{
+					const FString Trimmed = Token.TrimStartAndEnd();
+					const FName Name = Trimmed.IsEmpty() || Trimmed.Equals(TEXT("None"), ESearchCase::IgnoreCase)
+						? NAME_None
+						: FName(*Trimmed);
+					Attach.SocketChain.Add(Name);
+				}
+				Attach.Socket = Attach.SocketChain.Num() > 0 ? Attach.SocketChain[0] : NAME_None;
 			}
 			else if (Key.Equals(TEXT("Anim"), ESearchCase::IgnoreCase))
 			{

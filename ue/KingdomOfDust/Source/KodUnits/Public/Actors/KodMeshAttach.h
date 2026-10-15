@@ -21,8 +21,10 @@ public:
 
 	void SetRamp(USkeletalMeshComponent* InRamp, const FString& IdleClosed, const FString& Open, const FString& Close, const FString& IdleOpen);
 	void ClearRamp();
+	/** Open, hold, Close, IdleClosed. Visual only. Any building with a ramp row. */
 	void NotifyTrainExit();
-	bool TryGetBayPoint(FVector& OutWorld) const;
+	/** World point the trained unit eases out of. The mounted ramp, not a sim exit. */
+	bool TryGetExitPoint(FVector& OutWorld) const;
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 

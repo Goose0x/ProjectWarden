@@ -47,15 +47,17 @@ struct KODUNITS_API FKodMeshRow
 };
 
 /**
- * Optional piece hung on an owner's body. Socket None is the body origin.
- * Anim is the idle clip. Open, Close, and IdleOpen are optional and, when empty,
- * are the idle path with IdleClosed replaced.
+ * Optional piece hung on an owner's body.
+ * Socket is the first choice. SocketChain is the full list from Socket=Ramp|BayRamp|Door|None.
+ * None is the body origin. Anim is the idle clip. Open, Close, and IdleOpen are optional and,
+ * when empty, are the idle path with IdleClosed replaced.
  */
 struct KODUNITS_API FKodMeshAttach
 {
 	FName OwnerId;
 	FString Mesh;
 	FName Socket;
+	TArray<FName> SocketChain;
 	FString Anim;
 	FString OpenAnim;
 	FString CloseAnim;

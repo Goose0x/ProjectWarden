@@ -8,7 +8,6 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
-#include "Game/KodMeshSockets.h"
 #include "Misc/Paths.h"
 
 namespace
@@ -37,6 +36,70 @@ namespace
 		Piece->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Piece->SetGenerateOverlapEvents(false);
 		Piece->SetCanEverAffectNavigation(false);
+	}
+
+	enum class EAttachMount : uint8
+	{
+		Socket,
+		Origin,
+		Skip
+	};
+
+	bool BodyHasSocket(const USceneComponent* Body, FName Name, FName& OutResolved)
+	{
+		if (!Body || Name.IsNone())
+		{
+			return false;
+		}
+		if (Body->DoesSocketExist(Name))
+		{
+			OutResolved = Name;
+			return true;
+		}
+		const FName Prefixed(*FString::Printf(TEXT("SOCKET_%s"), *Name.ToString()));
+		if (Body->DoesSocketExist(Prefixed))
+		{
+			OutResolved = Prefixed;
+			return true;
+		}
+		return false;
+	}
+
+	EAttachMount ResolveMount(const USceneComponent* Body, const FKodMeshAttach& Row, FName& OutSocket)
+	{
+		OutSocket = NAME_None;
+		if (Row.SocketChain.Num() == 0)
+		{
+			return EAttachMount::Origin;
+		}
+		for (const FName& Candidate : Row.SocketChain)
+		{
+			if (Candidate.IsNone())
+			{
+				return EAttachMount::Origin;
+			}
+			FName Resolved = NAME_None;
+			if (BodyHasSocket(Body, Candidate, Resolved))
+			{
+				OutSocket = Resolved;
+				return EAttachMount::Socket;
+			}
+		}
+		return EAttachMount::Skip;
+	}
+
+	FString ChainLabel(const TArray<FName>& Chain)
+	{
+		FString Label;
+		for (const FName& Name : Chain)
+		{
+			if (!Label.IsEmpty())
+			{
+				Label += TEXT("|");
+			}
+			Label += Name.IsNone() ? TEXT("None") : Name.ToString();
+		}
+		return Label.IsEmpty() ? FString(TEXT("None")) : Label;
 	}
 }
 
@@ -112,9 +175,14 @@ void UKodMeshAttachComponent::NotifyTrainExit()
 	}
 }
 
-bool UKodMeshAttachComponent::TryGetBayPoint(FVector& OutWorld) const
+bool UKodMeshAttachComponent::TryGetExitPoint(FVector& OutWorld) const
 {
-	return KodMeshSockets::TryGet(GetOwner(), KodMeshSockets::BayRamp, OutWorld);
+	if (!RampMesh)
+	{
+		return false;
+	}
+	OutWorld = RampMesh->GetComponentLocation();
+	return true;
 }
 
 void UKodMeshAttachComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -200,19 +268,12 @@ void KodMeshAttach::Apply(AActor* Actor, USceneComponent* Body, FName OwnerId, b
 	Visual->ClearRamp();
 	for (const FKodMeshAttach& Row : Rows)
 	{
-		FName Socket = Row.Socket;
-		if (!Socket.IsNone() && !Body->DoesSocketExist(Socket))
+		FName Socket = NAME_None;
+		const EAttachMount Mount = ResolveMount(Body, Row, Socket);
+		if (Mount == EAttachMount::Skip)
 		{
-			const FName Prefixed(*FString::Printf(TEXT("SOCKET_%s"), *Socket.ToString()));
-			if (Body->DoesSocketExist(Prefixed))
-			{
-				Socket = Prefixed;
-			}
-			else
-			{
-				UE_LOG(LogTemp, Log, TEXT("KodMesh AttachMiss Owner=%s Socket=%s"), *OwnerId.ToString(), *Row.Socket.ToString());
-				continue;
-			}
+			UE_LOG(LogTemp, Log, TEXT("KodMesh AttachMiss Owner=%s Socket=%s"), *OwnerId.ToString(), *ChainLabel(Row.SocketChain));
+			continue;
 		}
 		const FString Path = ObjectPath(Row.Mesh);
 		UStaticMesh* StaticMesh = LoadObject<UStaticMesh>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
