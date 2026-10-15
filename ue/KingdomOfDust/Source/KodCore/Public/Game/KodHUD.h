@@ -221,6 +221,7 @@ protected:
 	void DrawClickMarkers();
 	void DrawSelectionPulse();
 	void DrawSc2WorldMarks();
+	void DrawShotLabels();
 	void DrawJuiceFloaters();
 	void DrawIdleWorkerButton();
 	void DrawPortrait();

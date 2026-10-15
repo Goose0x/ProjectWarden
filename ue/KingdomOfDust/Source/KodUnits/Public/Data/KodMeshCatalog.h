@@ -5,11 +5,23 @@
 class UStaticMesh;
 class USkeletalMesh;
 
+/** How a row is scaled onto the world. Unset keeps the id's historical rule. */
+enum class EKodMeshFit : uint8
+{
+	Unset,
+	/** Standing body height. Infantry and workers. */
+	Height,
+	/** Largest horizontal extent. Vehicles such as the AMP. */
+	Length,
+	/** Long side of the build grid. Buildings. */
+	Footprint
+};
+
 /**
  * One [KodMeshes] row. Paths are soft object paths without a required .Asset suffix.
- * Scale multiplies the fit-to-footprint scale on buildings and the body scale on units.
- * Yaw is degrees, +X forward. Z is centimeters added to the mount.
+ * Scale multiplies the fitted size. Yaw is degrees, +X forward. Z is centimeters added to the mount.
  * Anim is an optional AnimBP class path. Empty keeps the definition clips.
+ * FitCm is the target centimeters for Fit. 0 keeps the id default (242, 286, 260, or the grid).
  */
 struct KODUNITS_API FKodMeshRow
 {
@@ -21,6 +33,8 @@ struct KODUNITS_API FKodMeshRow
 	float Scale = 1.f;
 	float Yaw = 0.f;
 	float Z = 0.f;
+	EKodMeshFit Fit = EKodMeshFit::Unset;
+	float FitCm = 0.f;
 	FString Anim;
 	/** Folder of short-named sequences, for example the supply-depot raise and lower clips. */
 	FString AnimFolder;

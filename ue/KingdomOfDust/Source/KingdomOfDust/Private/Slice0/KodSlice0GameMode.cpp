@@ -1550,6 +1550,73 @@ void AKodSlice0GameMode::PlaceFieldAt(const FVector& AnchorLocation, const FVect
 		VentRadius);
 }
 
+namespace
+{
+	struct FKodWorkerRing
+	{
+		FVector Center = FVector::ZeroVector;
+		FVector Forward = FVector(1.f, 0.f, 0.f);
+		float Radius = 700.f;
+		float StepDegrees = 24.f;
+	};
+
+	FKodWorkerRing MakeWorkerRing(const FVector& AnchorLocation, const FVector& FieldDir, float FootprintCm, float BodySpanCm, int32 Count, bool bSocket, const FVector& SocketAt)
+	{
+		FKodWorkerRing Ring;
+		Ring.Center = AnchorLocation;
+		const float Span = FMath::Max(80.f, BodySpanCm);
+		const float UnitRadius = Span * 0.5f;
+		const float HalfFoot = FMath::Max(0.f, FootprintCm) * 0.5f;
+		Ring.Radius = HalfFoot + UnitRadius;
+		const int32 SafeCount = FMath::Max(1, Count);
+		const float Needed = (static_cast<float>(SafeCount) * Span) / (2.f * PI);
+		Ring.Radius = FMath::Max(Ring.Radius, Needed);
+		FVector Dir = FieldDir;
+		Dir.Z = 0.f;
+		if (bSocket)
+		{
+			FVector FromCenter = SocketAt - AnchorLocation;
+			FromCenter.Z = 0.f;
+			if (FromCenter.SizeSquared2D() > 1.f && FromCenter.Size2D() + 1.f >= HalfFoot + UnitRadius)
+			{
+				Dir = FromCenter;
+				Ring.Radius = FMath::Max(Ring.Radius, FromCenter.Size2D());
+			}
+		}
+		Dir = Dir.GetSafeNormal2D();
+		Ring.Forward = Dir.IsNearlyZero() ? FVector(1.f, 0.f, 0.f) : Dir;
+		Ring.StepDegrees = SafeCount > 1 ? FMath::RadiansToDegrees(Span / Ring.Radius) : 0.f;
+		return Ring;
+	}
+
+	float AnchorFootprintCm(const UKodSimSubsystem* Sim, AActor* Anchor)
+	{
+		float Footprint = 1000.f;
+		if (Sim && Anchor)
+		{
+			FKodStructureState Structure;
+			if (Sim->TryGetStructure(Sim->FindIdForActor(Anchor), Structure))
+			{
+				const int32 Cells = FMath::Max(Structure.FootprintX, Structure.FootprintY);
+				if (Cells > 0)
+				{
+					Footprint = static_cast<float>(Cells) * static_cast<float>(KodBuildGrid::CellUU);
+				}
+			}
+		}
+		return Footprint;
+	}
+
+	FName GathererIdForTeam(const UKodSimSubsystem* Sim, int32 TeamId)
+	{
+		if (Sim && TeamId == 0 && Sim->GetPlayerFaction() == 1)
+		{
+			return FName(KodWardenPaths::Id_ScnWorker);
+		}
+		return FName(KodWardenPaths::Id_Dozer);
+	}
+}
+
 int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FVector& FieldDir, int32 TeamId, int32 Count, AActor* Anchor)
 {
 	UWorld* World = GetWorld();
@@ -1558,22 +1625,21 @@ int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FV
 	{
 		return 0;
 	}
-	FVector Origin = AnchorLocation;
 	FVector SocketAt = AnchorLocation;
 	const bool bSocket = (Anchor && KodMeshSockets::TryGet(Anchor, KodMeshSockets::WorkerExit, SocketAt))
 		|| (Anchor && KodMeshSockets::TryGet(Anchor, KodMeshSockets::Door, SocketAt));
-	if (bSocket)
-	{
-		Origin = SocketAt;
-	}
+	const FName WorkerId = GathererIdForTeam(Sim, TeamId);
+	const FKodMeshChoice Body = FKodMeshCatalog::Resolve(WorkerId);
+	const float BodySpan = Body.BoundsCm > 10.f ? Body.BoundsCm : 80.f;
+	const FKodWorkerRing Ring = MakeWorkerRing(AnchorLocation, FieldDir, AnchorFootprintCm(Sim, Anchor), BodySpan, Count, bSocket, SocketAt);
 	int32 Spawned = 0;
 	TArray<AActor*> Ignored;
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
-		const float Angle = (static_cast<float>(Index) - (static_cast<float>(Count) - 1.f) * 0.5f) * 18.f;
-		const FVector Dir = FieldDir.RotateAngleAxis(Angle, FVector::UpVector);
-		float Radius = bSocket ? 120.f : 700.f;
-		FVector Spot = Origin + Dir * Radius;
+		const float Angle = (static_cast<float>(Index) - (static_cast<float>(Count) - 1.f) * 0.5f) * Ring.StepDegrees;
+		const FVector Dir = Ring.Forward.RotateAngleAxis(Angle, FVector::UpVector);
+		float Radius = Ring.Radius;
+		FVector Spot = Ring.Center + Dir * Radius;
 		for (int32 Step = 0; Step < 8; ++Step)
 		{
 			const int32 CellX = KodBuildGrid::CellOf(Spot.X);
@@ -1583,11 +1649,11 @@ int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FV
 				break;
 			}
 			Radius += static_cast<float>(KodBuildGrid::CellUU);
-			Spot = AnchorLocation + Dir * Radius;
+			Spot = Ring.Center + Dir * Radius;
 		}
 		const float FloorZ = ResolveResourceFloorZ(World, Sim, Spot.X, Spot.Y, AnchorLocation.Z, Ignored);
 		const FTransform Xform(FRotator::ZeroRotator, FVector(Spot.X, Spot.Y, FloorZ));
-		AKodUnit* Worker = UKodSlice0Bootstrap::SpawnDozer(World, Xform, TeamId);
+		AKodUnit* Worker = UKodSlice0Bootstrap::SpawnGatherer(World, Xform, TeamId, WorkerId);
 		if (!Worker)
 		{
 			continue;
@@ -1595,9 +1661,10 @@ int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FV
 		Ignored.Add(Worker);
 		++Spawned;
 		const FVector At = Worker->GetActorLocation();
-		UE_LOG(LogTemp, Log, TEXT("KodEcon Worker Spawn Id=%d Team=%d Loc=%.0f,%.0f,%.0f"),
+		UE_LOG(LogTemp, Log, TEXT("KodEcon Worker Spawn Id=%d Team=%d Def=%s Loc=%.0f,%.0f,%.0f"),
 			Worker->EntityId.Value,
 			TeamId,
+			*WorkerId.ToString(),
 			At.X,
 			At.Y,
 			At.Z);
@@ -1892,6 +1959,7 @@ void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 	if (!Mesh)
 	{
 		Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+		UE_LOG(LogTemp, Log, TEXT("KodMesh Placeholder Id=%s Path=/Engine/BasicShapes/Cube.Cube"), *MeshId.ToString());
 	}
 	if (!Mesh)
 	{
@@ -1941,6 +2009,136 @@ void AKodSlice0GameMode::ApplyStartFaction(int32 FactionIndex)
 		}
 		ApplyCommandCenterMesh(Actor);
 	}
+
+	// Workers are seated before the faction pick, so a Scinder start still has AMP bodies.
+	// Swap those to SCN_WORKER and stand the crew on a ring outside the headquarters.
+	UKodSimSubsystem* WorkerSim = World->GetSubsystem<UKodSimSubsystem>();
+	if (!WorkerSim)
+	{
+		return;
+	}
+	AActor* WorkerAnchor = nullptr;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!IsSlice0CommandCenter(Actor))
+		{
+			continue;
+		}
+		const bool bStart = Actor->ActorHasTag(FName(TEXT("KodStartSpot_0")));
+		const bool bAnchorStart = WorkerAnchor && WorkerAnchor->ActorHasTag(FName(TEXT("KodStartSpot_0")));
+		if (!WorkerAnchor || (bStart && !bAnchorStart) || (bStart == bAnchorStart && Actor->GetName() < WorkerAnchor->GetName()))
+		{
+			WorkerAnchor = Actor;
+		}
+	}
+	if (!WorkerAnchor)
+	{
+		return;
+	}
+	TArray<AKodUnit*> Crew;
+	for (TActorIterator<AKodUnit> It(World); It; ++It)
+	{
+		AKodUnit* Unit = *It;
+		if (!Unit || Unit->TeamId != 0)
+		{
+			continue;
+		}
+		bool bWorker = Unit->ActorHasTag(FName(TEXT("KodUnitDozer")));
+		if (!bWorker)
+		{
+			if (const UKodUnitDefinition* Def = Unit->GetDefinition())
+			{
+				const FName DefId = Def->DefinitionId.IsNone() ? Def->GetFName() : Def->DefinitionId;
+				bWorker = Def->bCanGather || DefId == FName(KodWardenPaths::Id_Dozer) || DefId == FName(KodWardenPaths::Id_ScnWorker);
+			}
+		}
+		if (bWorker && FVector::Dist2D(Unit->GetActorLocation(), WorkerAnchor->GetActorLocation()) < 2500.f)
+		{
+			Crew.Add(Unit);
+		}
+	}
+	Crew.Sort([](const AKodUnit* A, const AKodUnit* B)
+	{
+		const int32 AId = A ? A->EntityId.Value : 0;
+		const int32 BId = B ? B->EntityId.Value : 0;
+		return AId < BId;
+	});
+	if (Crew.Num() == 0)
+	{
+		return;
+	}
+	const FName WorkerId = FactionIndex == 1 ? FName(KodWardenPaths::Id_ScnWorker) : FName(KodWardenPaths::Id_Dozer);
+	UKodUnitDefinition* WorkerDef = UKodSlice0Bootstrap::ResolveUnit(WorkerId, this);
+	const FKodMeshChoice Body = FKodMeshCatalog::Resolve(WorkerId);
+	const float BodySpan = Body.BoundsCm > 10.f ? Body.BoundsCm : 80.f;
+	FVector SocketAt = WorkerAnchor->GetActorLocation();
+	const bool bSocket = KodMeshSockets::TryGet(WorkerAnchor, KodMeshSockets::WorkerExit, SocketAt)
+		|| KodMeshSockets::TryGet(WorkerAnchor, KodMeshSockets::Door, SocketAt);
+	FVector FieldDir = FVector(1.f, 0.f, 0.f);
+	{
+		FVector Sum = FVector::ZeroVector;
+		int32 NodeCount = 0;
+		for (TActorIterator<AKodResourceNode> It(World); It; ++It)
+		{
+			if (AKodResourceNode* Node = *It)
+			{
+				Sum += Node->GetActorLocation();
+				++NodeCount;
+			}
+		}
+		if (NodeCount > 0)
+		{
+			FVector Dir = (Sum / static_cast<float>(NodeCount)) - WorkerAnchor->GetActorLocation();
+			Dir.Z = 0.f;
+			if (Dir.SizeSquared2D() > 1.f)
+			{
+				FieldDir = Dir.GetSafeNormal2D();
+			}
+		}
+	}
+	const FKodWorkerRing Ring = MakeWorkerRing(
+		WorkerAnchor->GetActorLocation(),
+		FieldDir,
+		AnchorFootprintCm(WorkerSim, WorkerAnchor),
+		BodySpan,
+		Crew.Num(),
+		bSocket,
+		SocketAt);
+	TArray<AActor*> Ignored;
+	for (int32 Index = 0; Index < Crew.Num(); ++Index)
+	{
+		AKodUnit* Unit = Crew[Index];
+		if (!Unit)
+		{
+			continue;
+		}
+		if (WorkerDef)
+		{
+			const UKodUnitDefinition* Current = Unit->GetDefinition();
+			const FName CurrentId = Current ? (Current->DefinitionId.IsNone() ? Current->GetFName() : Current->DefinitionId) : FName();
+			if (CurrentId != WorkerId)
+			{
+				Unit->Definition = WorkerDef;
+				Unit->ApplyDefinition(WorkerDef);
+			}
+		}
+		const float Angle = (static_cast<float>(Index) - (static_cast<float>(Crew.Num()) - 1.f) * 0.5f) * Ring.StepDegrees;
+		const FVector Dir = Ring.Forward.RotateAngleAxis(Angle, FVector::UpVector);
+		const FVector Spot = Ring.Center + Dir * Ring.Radius;
+		const float FloorZ = ResolveResourceFloorZ(World, WorkerSim, Spot.X, Spot.Y, Ring.Center.Z, Ignored);
+		Unit->SetActorLocation(FVector(Spot.X, Spot.Y, FloorZ), false, nullptr, ETeleportType::TeleportPhysics);
+		Unit->SnapToGround();
+		if (Unit->EntityId.IsValid())
+		{
+			WorkerSim->SetEntityGroundPosition(Unit->EntityId, Unit->GetActorLocation());
+		}
+		Ignored.Add(Unit);
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodFaction Workers Id=%s Count=%d Radius=%.0f"),
+		*WorkerId.ToString(),
+		Crew.Num(),
+		Ring.Radius);
 }
 
 bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
@@ -1993,6 +2191,8 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 		}
 		Building->TeamId = 0;
 		Building->Definition = Def;
+		Building->Tags.AddUnique(FName(*FString::Printf(TEXT("KodShotName_%s"), *TypeId.ToString())));
+		Building->Tags.AddUnique(FName(TEXT("KodShotLabel")));
 		Building->ApplyDefinition(Def);
 		FKodStructureSpec Spec;
 		Spec.DefinitionId = TypeId;
@@ -2029,6 +2229,8 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 		}
 		Unit->TeamId = 0;
 		Unit->Definition = Def;
+		Unit->Tags.AddUnique(FName(*FString::Printf(TEXT("KodShotName_%s"), *TypeId.ToString())));
+		Unit->Tags.AddUnique(FName(TEXT("KodShotLabel")));
 		Unit->ApplyDefinition(Def);
 		FocusPoints.Add(Unit->GetActorLocation());
 		UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Place Id=%s Loc=%.0f,%.0f,%.0f"),
@@ -2038,19 +2240,69 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 			At.Z);
 	};
 
+	struct FShotPlace
+	{
+		FName Id;
+		bool bBuilding = false;
+		float SpanCm = 200.f;
+	};
+	TArray<FShotPlace> Plan;
+	auto AddBuilding = [&Plan](FName Id, int32 Cells)
+	{
+		FShotPlace Place;
+		Place.Id = Id;
+		Place.bBuilding = true;
+		const float Grid = static_cast<float>(FMath::Max(1, Cells)) * static_cast<float>(KodBuildGrid::CellUU);
+		const float Fit = FKodMeshCatalog::FootprintCm(Id);
+		const FKodMeshChoice Choice = FKodMeshCatalog::Resolve(Id);
+		Place.SpanCm = Fit > 0.f ? Fit : (Choice.BoundsCm > 10.f ? Choice.BoundsCm : Grid);
+		Plan.Add(Place);
+	};
+	auto AddUnit = [&Plan](FName Id)
+	{
+		FShotPlace Place;
+		Place.Id = Id;
+		Place.bBuilding = false;
+		const FKodMeshChoice Choice = FKodMeshCatalog::Resolve(Id);
+		Place.SpanCm = Choice.BoundsCm > 10.f ? Choice.BoundsCm : 200.f;
+		Plan.Add(Place);
+	};
 	if (bScinder)
 	{
-		PlaceBuilding(FName(TEXT("ScinderHost")), Base + FVector(1400.f, 500.f, 0.f), 3, 3);
-		PlaceBuilding(FName(TEXT("RiteWell")), Base + FVector(1400.f, -200.f, 0.f), 3, 3);
-		PlaceUnit(FName(KodWardenPaths::Id_ScnWorker), Base + FVector(900.f, -200.f, 0.f));
-		PlaceUnit(FName(TEXT("Faultburst")), Base + FVector(1100.f, -500.f, 0.f));
-		PlaceUnit(FName(TEXT("Shardbitten")), Base + FVector(1100.f, -800.f, 0.f));
+		AddBuilding(FName(TEXT("ScinderHost")), 2);
+		AddBuilding(FName(TEXT("RiteWell")), 2);
+		AddUnit(FName(KodWardenPaths::Id_ScnWorker));
+		AddUnit(FName(TEXT("Faultburst")));
+		AddUnit(FName(TEXT("Shardbitten")));
 	}
 	else
 	{
-		PlaceBuilding(FName(KodWardenPaths::Id_Barracks), Base + FVector(1400.f, 500.f, 0.f), 3, 3);
-		PlaceBuilding(FName(KodWardenPaths::Id_SupplyDepot), Base + FVector(1400.f, -400.f, 0.f), 2, 2);
-		PlaceUnit(FName(KodWardenPaths::Id_Marine), Base + FVector(900.f, 0.f, 0.f));
+		AddBuilding(FName(KodWardenPaths::Id_Barracks), 3);
+		AddBuilding(FName(KodWardenPaths::Id_SupplyDepot), 2);
+		AddUnit(FName(KodWardenPaths::Id_Marine));
+	}
+	const FName HallId = bScinder ? FName(TEXT("ScinderHQ")) : FName(KodWardenPaths::Id_CommandCenter);
+	float Edge = FKodMeshCatalog::FootprintCm(HallId) * 0.5f;
+	if (Edge < 1.f)
+	{
+		Edge = 500.f;
+	}
+	for (const FShotPlace& Place : Plan)
+	{
+		const float Half = Place.SpanCm * 0.5f;
+		const float Gap = Place.SpanCm + 200.f;
+		const float Center = Edge + Gap + Half;
+		const FVector At = Base + FVector(Center, 0.f, 0.f);
+		const int32 Cells = FMath::Max(1, FMath::RoundToInt(Place.SpanCm / static_cast<float>(KodBuildGrid::CellUU)));
+		if (Place.bBuilding)
+		{
+			PlaceBuilding(Place.Id, At, Cells, Cells);
+		}
+		else
+		{
+			PlaceUnit(Place.Id, At);
+		}
+		Edge = Center + Half;
 	}
 
 	FVector Sum = FVector::ZeroVector;
@@ -2059,6 +2311,20 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 		Sum += Point;
 	}
 	OutFocus = FocusPoints.Num() > 0 ? Sum / static_cast<float>(FocusPoints.Num()) : Base;
+	float Far = 0.f;
+	for (const FVector& Point : FocusPoints)
+	{
+		Far = FMath::Max(Far, FVector::Dist2D(Point, OutFocus));
+	}
+	for (TActorIterator<AKodRTSCameraPawn> It(World); It; ++It)
+	{
+		if (It->IsA(AKodSpectatorPawn::StaticClass()))
+		{
+			continue;
+		}
+		It->FrameGroundSpan(OutFocus, (Far + 400.f) * 2.f);
+		break;
+	}
 	UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Faction=%d Focus=%.0f,%.0f,%.0f"),
 		Faction,
 		OutFocus.X,
