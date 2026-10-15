@@ -691,6 +691,7 @@ void AKodRTSCameraPawn::MaintainBoom()
 		return;
 	}
 	CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, RollDegrees));
+	CameraBoom->bDoCollisionTest = false;
 	CameraBoom->bEnableCameraLag = false;
 	CameraBoom->bEnableCameraRotationLag = false;
 }
@@ -904,19 +905,9 @@ void AKodRTSCameraPawn::PollMoveInput(float DeltaSeconds, bool& bOutManualPan)
 void AKodRTSCameraPawn::ApplyPan(float DeltaSeconds, const FVector2D& UnitsPerSecond, bool bInstant)
 {
 	const FVector Desired = PlanarRight() * UnitsPerSecond.X + PlanarForward() * UnitsPerSecond.Y;
-	if (bInstant)
-	{
-		// Edge scroll is a constant velocity. Leaving the edge stops on that frame.
-		PanVelocity = Desired;
-	}
-	else if (Desired.IsNearlyZero())
-	{
-		PanVelocity = FVector::ZeroVector;
-	}
-	else
-	{
-		PanVelocity = FMath::VInterpTo(PanVelocity, Desired, DeltaSeconds, PanAccelSpeed);
-	}
+	const bool bStop = Desired.IsNearlyZero();
+	const float Accel = FMath::Max(1.f, PanAccelSpeed) * FMath::Max(Desired.Size(), 1.f);
+	PanVelocity = KodCameraSettings::IntegratePanVelocity(PanVelocity, Desired, DeltaSeconds, Accel, bInstant || bStop);
 	if (!PanVelocity.IsNearlyZero())
 	{
 		AddActorWorldOffset(FVector(PanVelocity.X, PanVelocity.Y, 0.f) * DeltaSeconds);
@@ -1179,8 +1170,31 @@ void AKodRTSCameraPawn::UpdateFollow(float DeltaSeconds)
 	SetActorLocation(FVector(Next.X, Next.Y, Current.Z));
 }
 
+namespace
+{
+	bool IsMapGround(const AActor* Actor)
+	{
+		if (!Actor)
+		{
+			return false;
+		}
+		if (Actor->ActorHasTag(FName(TEXT("KodGround"))))
+		{
+			return true;
+		}
+		const FString ClassName = Actor->GetClass() ? Actor->GetClass()->GetName() : FString();
+		if (ClassName.Contains(TEXT("Landscape")))
+		{
+			return true;
+		}
+		const FString Label = Actor->GetActorNameOrLabel();
+		return Label.Contains(TEXT("PROXY_GROUND")) || Label.Contains(TEXT("Landscape"));
+	}
+}
+
 void AKodRTSCameraPawn::UpdateTerrain(float DeltaSeconds, bool bInstant)
 {
+	(void)DeltaSeconds;
 	UWorld* World = GetWorld();
 	if (!World)
 	{
@@ -1192,26 +1206,34 @@ void AKodRTSCameraPawn::UpdateTerrain(float DeltaSeconds, bool bInstant)
 	const FVector Start(Loc.X, Loc.Y, Loc.Z + 8000.f);
 	const FVector End(Loc.X, Loc.Y, Loc.Z - 16000.f);
 	TArray<FHitResult> Hits;
-	if (World->LineTraceMultiByChannel(Hits, Start, End, ECC_WorldStatic, Params) && Hits.Num() > 0)
+	float SampledZ = TargetGroundZ;
+	bool bSampled = false;
+	if (World->LineTraceMultiByChannel(Hits, Start, End, ECC_WorldStatic, Params))
 	{
-		TargetGroundZ = Hits.Last().ImpactPoint.Z + TargetZOffsetUU;
-		bHaveGround = true;
-	}
-	else
-	{
-		FHitResult Hit;
-		if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+		for (const FHitResult& Hit : Hits)
 		{
-			TargetGroundZ = Hit.ImpactPoint.Z + TargetZOffsetUU;
-			bHaveGround = true;
+			if (!IsMapGround(Hit.GetActor()))
+			{
+				continue;
+			}
+			SampledZ = Hit.ImpactPoint.Z + TargetZOffsetUU;
+			bSampled = true;
+			break;
 		}
+	}
+	if (bSampled)
+	{
+		TargetGroundZ = (!bHaveGround || bInstant)
+			? SampledZ
+			: KodCameraSettings::HoldPlaneZ(TargetGroundZ, SampledZ, KodCameraSettings::PlaneHoldUU);
+		bHaveGround = true;
 	}
 	if (!bHaveGround)
 	{
 		return;
 	}
 	FVector Moved = Loc;
-	Moved.Z = bInstant ? TargetGroundZ : FMath::FInterpTo(Loc.Z, TargetGroundZ, DeltaSeconds, TerrainInterpSpeed);
+	Moved.Z = TargetGroundZ;
 	SetActorLocation(Moved);
 }
 

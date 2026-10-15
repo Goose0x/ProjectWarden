@@ -732,6 +732,7 @@ void AKodSlice0PlayerController::UpdateBuildGhost()
 	}
 	Ghost->SetActorHiddenInGame(false);
 	Ghost->SetActorLocation(Placement.WorldCenter);
+	Ghost->SetPreview(PlaceType);
 	int32 CellsX = 1;
 	int32 CellsY = 1;
 	if (const UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(PlaceType, this))

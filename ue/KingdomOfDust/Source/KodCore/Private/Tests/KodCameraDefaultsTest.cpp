@@ -75,5 +75,38 @@ bool FKodCameraDefaultsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("minimap is square"), FMath::IsNearlyEqual(KodHudLayout::FrameMinimapW, KodHudLayout::FrameMinimapH, 0.01f));
 	TestTrue(TEXT("tunable min"), Near(Defaults.DistanceMinSc2, 16.f));
 	TestTrue(TEXT("scale log"), Defaults.DescribeScale().Contains(TEXT("UnitScale=200")));
+
+	TestTrue(TEXT("bump stays on the plane"), FMath::IsNearlyEqual(KodCameraSettings::HoldPlaneZ(100.f, 112.f, KodCameraSettings::PlaneHoldUU), 100.f));
+	TestTrue(TEXT("dip stays on the plane"), FMath::IsNearlyEqual(KodCameraSettings::HoldPlaneZ(100.f, 70.f, KodCameraSettings::PlaneHoldUU), 100.f));
+	TestTrue(TEXT("plateau steps the plane"), FMath::IsNearlyEqual(KodCameraSettings::HoldPlaneZ(100.f, 400.f, KodCameraSettings::PlaneHoldUU), 400.f));
+	float PanZ = 0.f;
+	const float Bumps[] = { 4.f, -12.f, 18.f, -6.f, 9.f };
+	for (float Bump : Bumps)
+	{
+		PanZ = KodCameraSettings::HoldPlaneZ(PanZ, Bump, KodCameraSettings::PlaneHoldUU);
+	}
+	TestTrue(TEXT("pan over uneven ground holds Z"), FMath::IsNearlyEqual(PanZ, 0.f));
+
+	const FVector EdgeSpeed(4800.f, 0.f, 0.f);
+	float Travel30 = 0.f;
+	float Travel120 = 0.f;
+	FVector Velocity30 = FVector::ZeroVector;
+	FVector Velocity120 = FVector::ZeroVector;
+	for (int32 Frame = 0; Frame < 30; ++Frame)
+	{
+		Velocity30 = KodCameraSettings::IntegratePanVelocity(Velocity30, EdgeSpeed, 1.f / 30.f, 0.f, true);
+		Travel30 += Velocity30.X * (1.f / 30.f);
+	}
+	for (int32 Frame = 0; Frame < 120; ++Frame)
+	{
+		Velocity120 = KodCameraSettings::IntegratePanVelocity(Velocity120, EdgeSpeed, 1.f / 120.f, 0.f, true);
+		Travel120 += Velocity120.X * (1.f / 120.f);
+	}
+	TestTrue(TEXT("edge pan is the same at 30 and 120"), FMath::IsNearlyEqual(Travel30, Travel120, 0.5f));
+	TestTrue(TEXT("edge pan travels one second of speed"), FMath::IsNearlyEqual(Travel30, 4800.f, 0.5f));
+	const FVector Released = KodCameraSettings::IntegratePanVelocity(EdgeSpeed, FVector::ZeroVector, 1.f / 60.f, 100000.f, false);
+	TestTrue(TEXT("release does not coast"), Released.IsNearlyZero());
+	const FVector Step = KodCameraSettings::IntegratePanVelocity(FVector::ZeroVector, EdgeSpeed, 1.f, 1000.f, false);
+	TestTrue(TEXT("keyboard accel does not pass the target"), Step.X <= EdgeSpeed.X && Step.X > 0.f);
 	return true;
 }

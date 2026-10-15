@@ -97,6 +97,43 @@ namespace KodCameraSettings
 		const float T = Alpha < 0.f ? 0.f : (Alpha > 1.f ? 1.f : Alpha);
 		return Current + (LockedDistance - Current) * T;
 	}
+
+	/**
+	 * Keep the camera on one height while the sample only jitters.
+	 * A step at least StepUU (a plateau) is accepted. Smaller bumps stay on LockedZ.
+	 */
+	inline float HoldPlaneZ(float LockedZ, float SampledZ, float StepUU)
+	{
+		if (StepUU <= 0.f)
+		{
+			return LockedZ;
+		}
+		if (FMath::Abs(SampledZ - LockedZ) < StepUU)
+		{
+			return LockedZ;
+		}
+		return SampledZ;
+	}
+
+	/**
+	 * Edge pan snaps to the requested velocity. Releasing the keys or the edge
+	 * zeroes it on that step, so it does not coast. Keyboard accel cannot pass the target.
+	 */
+	inline FVector IntegratePanVelocity(const FVector& Current, const FVector& Desired, float DeltaSeconds, float AccelPerSecond, bool bInstant)
+	{
+		if (bInstant || Desired.IsNearlyZero())
+		{
+			return Desired;
+		}
+		if (DeltaSeconds <= 0.f || AccelPerSecond <= KINDA_SMALL_NUMBER)
+		{
+			return Desired;
+		}
+		return FMath::VInterpConstantTo(Current, Desired, DeltaSeconds, AccelPerSecond);
+	}
+
+	/** Landscape bumps smaller than this do not move the camera. A cliff still does. */
+	inline constexpr float PlaneHoldUU = 64.f;
 }
 
 /** Live kod.Cam.* values. Defaults match KodCameraSettings. */
