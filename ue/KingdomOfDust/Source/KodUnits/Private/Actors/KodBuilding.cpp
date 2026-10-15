@@ -1,5 +1,6 @@
 #include "Actors/KodBuilding.h"
 #include "Actors/KodMeshAttach.h"
+#include "Game/KodBuildingYaw.h"
 #include "Game/KodCollision.h"
 #include "Actors/KodJadeiteVisual.h"
 #include "Game/KodJadeitePalette.h"
@@ -174,13 +175,14 @@ void AKodBuilding::Tick(float DeltaSeconds)
 			bCompletionFlash = false;
 		}
 	}
+	const float ShownYaw = KodBuildingYaw::PresentationYaw(MeshYaw);
 	BuildingMesh->SetRelativeScale3D(Scale);
-	BuildingMesh->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
+	BuildingMesh->SetRelativeRotation(FRotator(0.f, ShownYaw, 0.f));
 	BuildingMesh->SetRelativeLocation(FVector(0.f, 0.f, MeshZ + Rise));
 	if (BuildingSkel && !BuildingSkel->bHiddenInGame)
 	{
 		BuildingSkel->SetRelativeScale3D(BaseScale);
-		BuildingSkel->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
+		BuildingSkel->SetRelativeRotation(FRotator(0.f, ShownYaw, 0.f));
 		BuildingSkel->SetRelativeLocation(FVector(0.f, 0.f, MeshZ + Rise));
 	}
 	FKodSimEntityState Combat;
@@ -407,8 +409,9 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 		BuildingSkel->bPauseAnims = true;
 		MeshYaw = Choice.Yaw;
 		MeshZ = Choice.Z;
+		const float SkelYaw = KodBuildingYaw::PresentationYaw(MeshYaw);
 		BuildingSkel->SetRelativeScale3D(FVector(Choice.Scale));
-		BuildingSkel->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
+		BuildingSkel->SetRelativeRotation(FRotator(0.f, SkelYaw, 0.f));
 		BuildingSkel->SetRelativeLocation(FVector(0.f, 0.f, MeshZ));
 		BuildingSkel->SetHiddenInGame(false);
 		BuildingSkel->SetVisibility(true);
@@ -441,8 +444,9 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 				BaseScale = FVector(Choice.Scale);
 				MeshYaw = Choice.Yaw;
 				MeshZ = Choice.Z;
-				BuildingMesh->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
+				BuildingMesh->SetRelativeRotation(FRotator(0.f, KodBuildingYaw::PresentationYaw(MeshYaw), 0.f));
 				BuildingMesh->SetRelativeLocation(FVector(0.f, 0.f, MeshZ));
+				BuildingMesh->SetRelativeScale3D(BaseScale);
 			}
 			else
 			{
@@ -457,13 +461,19 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 				{
 					BaseScale *= Def->MeshScale;
 				}
+				MeshYaw = 0.f;
 			}
+			const float BodyYaw = KodBuildingYaw::PresentationYaw(MeshYaw);
+			BuildingMesh->SetRelativeRotation(FRotator(0.f, BodyYaw, 0.f));
 			BuildingMesh->SetRelativeScale3D(BaseScale);
 		}
 		else if (BuildingMesh)
 		{
 			const float Span = static_cast<float>(FMath::Max(Def->FootprintX, Def->FootprintY)) * 2.f;
 			BaseScale = FVector(Span, Span, Span * 0.6f);
+			MeshYaw = 0.f;
+			const float FallbackYaw = KodBuildingYaw::PresentationYaw(MeshYaw);
+			BuildingMesh->SetRelativeRotation(FRotator(0.f, FallbackYaw, 0.f));
 			BuildingMesh->SetRelativeScale3D(BaseScale);
 		}
 	}

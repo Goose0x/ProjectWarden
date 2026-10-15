@@ -7,8 +7,8 @@
  * Director SC2 camera defaults, in SC2 game units except the angles.
  * 1 SC2 cell equals one build cell. SupplyDepot is 2x2 and KodBuildGrid::CellUU
  * is 200, so the depot is 400 cm and KodCameraUnitScale is 200 uu per SC2 unit.
- * Gameplay distance rests at 28 so a 5x5 HQ is about 16% of a 16:9 view.
- * Wheel zoom may come in to 16 and stays there. kod.Cam.Distance is the cvar.
+ * Gameplay distance rests at 34. Wheel zoom may come in to 16 and stays there.
+ * kod.Cam.Distance is the cvar.
  */
 namespace KodCameraSettings
 {
@@ -16,8 +16,8 @@ namespace KodCameraSettings
 	inline constexpr float YawDegrees = 90.f;
 	inline constexpr float RollDegrees = 0.f;
 	inline constexpr float FovDegrees = 35.f;
-	/** SC2 units. 28 * 200 uu puts a 1000 cm HQ at ~16% of a 1280-wide view. */
-	inline constexpr float DistanceSc2 = 28.f;
+	/** SC2 units. 34 * 200 uu is the locked resting arm (6800). */
+	inline constexpr float DistanceSc2 = 34.f;
 	inline constexpr float DistanceMinSc2 = 16.f;
 	inline constexpr float TargetZSc2 = 0.f;
 	inline constexpr float NearSc2 = 0.1f;
@@ -26,9 +26,9 @@ namespace KodCameraSettings
 	inline constexpr float ZoomReturnSpeed = 1.75f;
 	inline constexpr int32 DepotFootprintCells = 2;
 	inline constexpr int32 HqFootprintCells = 5;
-	/** Standing height that reads as ~27.5 px at 720p at DistanceSc2. */
+	/** Standing worker height in uu. */
 	inline constexpr float WorkerBodyUU = 242.f;
-	/** Standing height that reads as ~32.5 px at 720p at DistanceSc2. */
+	/** Standing marine height in uu. */
 	inline constexpr float MarineBodyUU = 286.f;
 
 	/** uu per SC2 game unit. One build cell. */
@@ -97,6 +97,43 @@ namespace KodCameraSettings
 		const float T = Alpha < 0.f ? 0.f : (Alpha > 1.f ? 1.f : Alpha);
 		return Current + (LockedDistance - Current) * T;
 	}
+
+	/**
+	 * Keep the camera on one height while the sample only jitters.
+	 * A step at least StepUU (a plateau) is accepted. Smaller bumps stay on LockedZ.
+	 */
+	inline float HoldPlaneZ(float LockedZ, float SampledZ, float StepUU)
+	{
+		if (StepUU <= 0.f)
+		{
+			return LockedZ;
+		}
+		if (FMath::Abs(SampledZ - LockedZ) < StepUU)
+		{
+			return LockedZ;
+		}
+		return SampledZ;
+	}
+
+	/**
+	 * Edge pan snaps to the requested velocity. Releasing the keys or the edge
+	 * zeroes it on that step, so it does not coast. Keyboard accel cannot pass the target.
+	 */
+	inline FVector IntegratePanVelocity(const FVector& Current, const FVector& Desired, float DeltaSeconds, float AccelPerSecond, bool bInstant)
+	{
+		if (bInstant || Desired.IsNearlyZero())
+		{
+			return Desired;
+		}
+		if (DeltaSeconds <= 0.f || AccelPerSecond <= KINDA_SMALL_NUMBER)
+		{
+			return Desired;
+		}
+		return FMath::VInterpConstantTo(Current, Desired, DeltaSeconds, AccelPerSecond);
+	}
+
+	/** Landscape bumps smaller than this do not move the camera. A cliff still does. */
+	inline constexpr float PlaneHoldUU = 64.f;
 }
 
 /** Live kod.Cam.* values. Defaults match KodCameraSettings. */

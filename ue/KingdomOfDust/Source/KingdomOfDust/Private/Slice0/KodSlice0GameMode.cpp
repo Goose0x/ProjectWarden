@@ -1,4 +1,5 @@
 #include "Slice0/KodSlice0GameMode.h"
+#include "Game/KodBuildingYaw.h"
 #include "Game/KodCollision.h"
 #include "Game/KodMeshSockets.h"
 #include "Slice0/KodFaultline.h"
@@ -1977,8 +1978,9 @@ void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 		}
 		Comp->SetMobility(EComponentMobility::Movable);
 		Comp->SetStaticMesh(Mesh);
+		const float ShownYaw = KodBuildingYaw::PresentationYaw(Choice.Yaw);
 		Comp->SetRelativeScale3D(Scale);
-		Comp->SetRelativeRotation(FRotator(0.f, Choice.Yaw, 0.f));
+		Comp->SetRelativeRotation(FRotator(0.f, ShownYaw, 0.f));
 		Comp->SetRelativeLocation(FVector(0.f, 0.f, Choice.Z));
 		KodMeshAttach::Apply(Actor, Comp, MeshId, Choice.bLoaded && !Choice.bFallback);
 		break;

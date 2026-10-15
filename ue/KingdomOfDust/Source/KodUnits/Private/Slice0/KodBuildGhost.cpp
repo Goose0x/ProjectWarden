@@ -1,8 +1,13 @@
 #include "Slice0/KodBuildGhost.h"
 
+#include "Components/SceneComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Data/KodMeshCatalog.h"
 #include "Engine/EngineTypes.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "Game/KodBuildingYaw.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Sim/KodBuildTypes.h"
@@ -11,8 +16,10 @@
 AKodBuildGhost::AKodBuildGhost()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GhostRoot"));
+	SetRootComponent(SceneRoot);
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GhostMesh"));
-	SetRootComponent(Mesh);
+	Mesh->SetupAttachment(SceneRoot);
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeFinder(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (CubeFinder.Succeeded())
 	{
@@ -35,16 +42,15 @@ void AKodBuildGhost::SetCells(int32 CellsX, int32 CellsY, const TArray<uint8>& C
 	{
 		return;
 	}
-	Mesh->SetVisibility(false);
 	const int32 SizeX = FMath::Max(1, CellsX);
 	const int32 SizeY = FMath::Max(1, CellsY);
 	const int32 Count = SizeX * SizeY;
-	UStaticMesh* Cube = Mesh->GetStaticMesh();
+	UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 	UMaterialInterface* Source = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
 	while (CellMeshes.Num() < Count)
 	{
 		UStaticMeshComponent* Cell = NewObject<UStaticMeshComponent>(this);
-		Cell->SetupAttachment(Mesh);
+		Cell->SetupAttachment(SceneRoot);
 		Cell->SetStaticMesh(Cube);
 		Cell->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Cell->SetCastShadow(false);
@@ -111,6 +117,53 @@ void AKodBuildGhost::SetValidTint(bool bValid)
 	const FLinearColor Color = bValid
 		? FLinearColor(FColor(0x3D, 0xFF, 0x6A))
 		: FLinearColor(FColor(0xFF, 0x3D, 0x3D));
-	Tint->SetVectorParameterValue(TEXT("Color"), Color);
+		Tint->SetVectorParameterValue(TEXT("Color"), Color);
 	Tint->SetVectorParameterValue(TEXT("BaseColor"), Color);
+}
+
+void AKodBuildGhost::SetPreview(FName TypeId)
+{
+	if (!Mesh)
+	{
+		return;
+	}
+	const FKodMeshChoice Choice = FKodMeshCatalog::Resolve(TypeId);
+	const float Yaw = KodBuildingYaw::PresentationYaw(Choice.Yaw);
+	const FVector Scale(FMath::Max(0.01f, Choice.Scale));
+	if (Choice.bLoaded && Choice.StaticMesh)
+	{
+		if (PreviewSkel)
+		{
+			PreviewSkel->SetVisibility(false);
+		}
+		Mesh->SetStaticMesh(Choice.StaticMesh);
+		Mesh->SetVisibility(true);
+		Mesh->SetRelativeRotation(FRotator(0.f, Yaw, 0.f));
+		Mesh->SetRelativeScale3D(Scale);
+		Mesh->SetRelativeLocation(FVector(0.f, 0.f, Choice.Z));
+		return;
+	}
+	if (Choice.bLoaded && Choice.SkeletalMesh)
+	{
+		Mesh->SetVisibility(false);
+		if (!PreviewSkel)
+		{
+			PreviewSkel = NewObject<USkeletalMeshComponent>(this, TEXT("GhostSkel"));
+			PreviewSkel->SetupAttachment(SceneRoot);
+			PreviewSkel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			PreviewSkel->SetCastShadow(false);
+			PreviewSkel->RegisterComponent();
+		}
+		PreviewSkel->SetSkeletalMeshAsset(Choice.SkeletalMesh);
+		PreviewSkel->SetVisibility(true);
+		PreviewSkel->SetRelativeRotation(FRotator(0.f, Yaw, 0.f));
+		PreviewSkel->SetRelativeScale3D(Scale);
+		PreviewSkel->SetRelativeLocation(FVector(0.f, 0.f, Choice.Z));
+		return;
+	}
+	Mesh->SetVisibility(false);
+	if (PreviewSkel)
+	{
+		PreviewSkel->SetVisibility(false);
+	}
 }
