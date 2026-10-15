@@ -35,6 +35,12 @@ public:
 	 * Luminene: a low fissure disc (#9EE60B) with a highlight plume (#C6FF1A).
 	 */
 	void ApplyPlaceholder(EKodResourceType Type);
+
+	/**
+	 * Jadeite visual only. Reads dress jadeite_standin: a hashed mesh_pool pick
+	 * (entity id, else position), per_mesh_scale, and mesh when the pool is absent.
+	 * Does not touch sim amounts or positions.
+	 */
 	void ApplyJadeiteStandIn();
 	void RefreshJadeitePresentation();
 

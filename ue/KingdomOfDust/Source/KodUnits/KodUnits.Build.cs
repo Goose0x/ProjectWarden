@@ -22,7 +22,8 @@ public class KodUnits : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"AssetRegistry"
+			"AssetRegistry",
+			"Json"
 		});
 	}
 }

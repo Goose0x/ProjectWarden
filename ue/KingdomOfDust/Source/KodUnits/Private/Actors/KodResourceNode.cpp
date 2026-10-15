@@ -6,11 +6,16 @@
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Data/KodResourceNodeDefinition.h"
+#include "Dom/JsonObject.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Game/KodPlayerController.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "Sim/KodSimSubsystem.h"
 #include "UObject/SoftObjectPath.h"
 #include "Warden/KodWardenPaths.h"
@@ -94,6 +99,268 @@ namespace
 			? Shape->GetBounds().BoxExtent.Z * 2.f
 			: 100.f;
 		return FVector(TargetWidthCm / Width, TargetWidthCm / Width, TargetHeightCm / Height);
+	}
+
+	const TCHAR* JadeiteNodeMaterialPath = TEXT("/Game/Kod/Proxy/Materials/MI_Jadeite_Node.MI_Jadeite_Node");
+	const TCHAR* MonolithFallbackPath = TEXT("/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Monoliths/SM_Monolith_A");
+
+	struct FJadeiteStandInSpec
+	{
+		bool bLoaded = false;
+		FString Mesh;
+		TArray<FString> MeshPool;
+		TMap<FString, FVector> PerMeshScale;
+		float ScaleMin = 0.12f;
+		float ScaleMax = 0.2f;
+		float YawStep = 15.f;
+	};
+
+	FString ToObjectPath(const FString& AssetPath)
+	{
+		const FString Path = AssetPath.TrimStartAndEnd();
+		if (Path.IsEmpty() || Path.Contains(TEXT(".")))
+		{
+			return Path;
+		}
+		const FString Base = FPaths::GetBaseFilename(Path);
+		if (Base.IsEmpty())
+		{
+			return Path;
+		}
+		return Path + TEXT(".") + Base;
+	}
+
+	bool ReadJsonNumber(const TSharedPtr<FJsonValue>& Value, double& OutNumber)
+	{
+		if (!Value.IsValid() || Value->Type != EJson::Number)
+		{
+			return false;
+		}
+		OutNumber = Value->AsNumber();
+		return true;
+	}
+
+	bool ReadScaleValue(const TSharedPtr<FJsonValue>& Value, FVector& OutScale)
+	{
+		double Uniform = 0.0;
+		if (ReadJsonNumber(Value, Uniform))
+		{
+			OutScale = FVector(static_cast<float>(Uniform));
+			return true;
+		}
+		if (!Value.IsValid() || Value->Type != EJson::Array)
+		{
+			return false;
+		}
+		const TArray<TSharedPtr<FJsonValue>>& Axes = Value->AsArray();
+		double X = 1.0;
+		double Y = 1.0;
+		double Z = 1.0;
+		if (Axes.Num() >= 3 && ReadJsonNumber(Axes[0], X) && ReadJsonNumber(Axes[1], Y) && ReadJsonNumber(Axes[2], Z))
+		{
+			OutScale = FVector(static_cast<float>(X), static_cast<float>(Y), static_cast<float>(Z));
+			return true;
+		}
+		if (Axes.Num() == 1 && ReadJsonNumber(Axes[0], X))
+		{
+			OutScale = FVector(static_cast<float>(X));
+			return true;
+		}
+		return false;
+	}
+
+	void ReadStandInObject(const TSharedPtr<FJsonObject>& StandIn, FJadeiteStandInSpec& Spec)
+	{
+		if (!StandIn.IsValid())
+		{
+			return;
+		}
+		FString MeshPath;
+		if (StandIn->TryGetStringField(TEXT("mesh"), MeshPath) && !MeshPath.IsEmpty())
+		{
+			Spec.Mesh = MeshPath;
+		}
+		const TArray<TSharedPtr<FJsonValue>>* Pool = nullptr;
+		if (StandIn->TryGetArrayField(TEXT("mesh_pool"), Pool) && Pool)
+		{
+			Spec.MeshPool.Reset();
+			for (const TSharedPtr<FJsonValue>& Entry : *Pool)
+			{
+				if (!Entry.IsValid() || Entry->Type != EJson::String)
+				{
+					continue;
+				}
+				const FString Item = Entry->AsString().TrimStartAndEnd();
+				if (!Item.IsEmpty())
+				{
+					Spec.MeshPool.Add(Item);
+				}
+			}
+		}
+		const TSharedPtr<FJsonObject>* ScaleMap = nullptr;
+		if (StandIn->TryGetObjectField(TEXT("per_mesh_scale"), ScaleMap) && ScaleMap && ScaleMap->IsValid())
+		{
+			for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : (*ScaleMap)->Values)
+			{
+				FVector Scale = FVector::OneVector;
+				if (ReadScaleValue(Pair.Value, Scale))
+				{
+					Spec.PerMeshScale.Add(Pair.Key, Scale);
+				}
+			}
+		}
+		const TArray<TSharedPtr<FJsonValue>>* ScaleField = nullptr;
+		if (StandIn->TryGetArrayField(TEXT("scale"), ScaleField) && ScaleField && ScaleField->Num() >= 2)
+		{
+			double MinScale = Spec.ScaleMin;
+			double MaxScale = Spec.ScaleMax;
+			if (ReadJsonNumber((*ScaleField)[0], MinScale) && ReadJsonNumber((*ScaleField)[1], MaxScale))
+			{
+				Spec.ScaleMin = static_cast<float>(MinScale);
+				Spec.ScaleMax = static_cast<float>(MaxScale);
+			}
+		}
+		else
+		{
+			double ScaleNumber = 0.0;
+			if (StandIn->TryGetNumberField(TEXT("scale"), ScaleNumber))
+			{
+				Spec.ScaleMin = static_cast<float>(ScaleNumber);
+				Spec.ScaleMax = Spec.ScaleMin;
+			}
+		}
+		const TSharedPtr<FJsonObject>* Yaw = nullptr;
+		if (StandIn->TryGetObjectField(TEXT("random_yaw"), Yaw) && Yaw && Yaw->IsValid())
+		{
+			double Step = Spec.YawStep;
+			if ((*Yaw)->TryGetNumberField(TEXT("step_deg"), Step) && Step > 0.0)
+			{
+				Spec.YawStep = static_cast<float>(Step);
+			}
+		}
+		Spec.bLoaded = true;
+	}
+
+	bool LoadDressRoot(const TCHAR* Relative, TSharedPtr<FJsonObject>& OutRoot)
+	{
+		const FString Path = FPaths::Combine(FPaths::ProjectConfigDir(), Relative);
+		FString Text;
+		if (!FFileHelper::LoadFileToString(Text, *Path))
+		{
+			return false;
+		}
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Text);
+		return FJsonSerializer::Deserialize(Reader, OutRoot) && OutRoot.IsValid();
+	}
+
+	const FJadeiteStandInSpec& StandInFor(const UWorld* World)
+	{
+		const bool bFaultline = World && World->GetMapName().Contains(TEXT("Faultline"));
+		static FJadeiteStandInSpec CachedFaultline;
+		static FJadeiteStandInSpec CachedDefault;
+		static bool bFaultlineReady = false;
+		static bool bDefaultReady = false;
+		FJadeiteStandInSpec& Cached = bFaultline ? CachedFaultline : CachedDefault;
+		bool& bReady = bFaultline ? bFaultlineReady : bDefaultReady;
+		if (bReady)
+		{
+			return Cached;
+		}
+		bReady = true;
+		const TCHAR* File = bFaultline
+			? TEXT("KodDress/faultline_training/dress_list.json")
+			: TEXT("KodDress/dress_list.json");
+		TSharedPtr<FJsonObject> Root;
+		if (LoadDressRoot(File, Root))
+		{
+			const TSharedPtr<FJsonObject>* StandIn = nullptr;
+			if (Root->TryGetObjectField(TEXT("jadeite_standin"), StandIn) && StandIn && StandIn->IsValid())
+			{
+				ReadStandInObject(*StandIn, Cached);
+			}
+		}
+		if (bFaultline)
+		{
+			TSharedPtr<FJsonObject> Delta;
+			if (LoadDressRoot(TEXT("KodDress/faultline_training/dress_list_v2_delta.json"), Delta))
+			{
+				const TSharedPtr<FJsonObject>* StandIn = nullptr;
+				if (Delta->TryGetObjectField(TEXT("jadeite_standin"), StandIn) && StandIn && StandIn->IsValid())
+				{
+					ReadStandInObject(*StandIn, Cached);
+				}
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodJadeite StandIn Pool=%d Fallback=%s File=%s"),
+			Cached.MeshPool.Num(),
+			Cached.Mesh.IsEmpty() ? TEXT("monolith") : *Cached.Mesh,
+			File);
+		return Cached;
+	}
+
+	bool LookupMeshScale(const FJadeiteStandInSpec& Spec, const FString& AssetPath, FVector& OutScale)
+	{
+		if (const FVector* Exact = Spec.PerMeshScale.Find(AssetPath))
+		{
+			OutScale = *Exact;
+			return true;
+		}
+		const FString ObjectPath = ToObjectPath(AssetPath);
+		if (ObjectPath != AssetPath)
+		{
+			if (const FVector* ExactObject = Spec.PerMeshScale.Find(ObjectPath))
+			{
+				OutScale = *ExactObject;
+				return true;
+			}
+		}
+		TArray<FString> Keys;
+		Spec.PerMeshScale.GetKeys(Keys);
+		Keys.Sort();
+		const FString Base = FPaths::GetBaseFilename(AssetPath);
+		for (const FString& Key : Keys)
+		{
+			if (FPaths::GetBaseFilename(Key) == Base)
+			{
+				OutScale = Spec.PerMeshScale.FindChecked(Key);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	uint32 JadeiteVisualHash(int32 EntityValue, const FVector& Location)
+	{
+		uint32 Mixed = 0;
+		if (EntityValue != 0)
+		{
+			Mixed = static_cast<uint32>(EntityValue);
+		}
+		else
+		{
+			const int32 X = FMath::RoundToInt(Location.X);
+			const int32 Y = FMath::RoundToInt(Location.Y);
+			const int32 Z = FMath::RoundToInt(Location.Z);
+			Mixed = HashCombine(HashCombine(GetTypeHash(X), GetTypeHash(Y)), GetTypeHash(Z));
+		}
+		Mixed ^= Mixed >> 16;
+		Mixed *= 0x7feb352du;
+		Mixed ^= Mixed >> 15;
+		Mixed *= 0x846ca68bu;
+		Mixed ^= Mixed >> 16;
+		return Mixed;
+	}
+
+	UMaterialInterface* LoadJadeiteNodeMaterial()
+	{
+		static bool bLoggedMiss = false;
+		UMaterialInterface* Found = LoadObject<UMaterialInterface>(nullptr, JadeiteNodeMaterialPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		if (!Found && !bLoggedMiss)
+		{
+			bLoggedMiss = true;
+			UE_LOG(LogTemp, Log, TEXT("KodJadeite MI_Jadeite_Node missing; node keeps the current material"));
+		}
+		return Found;
 	}
 }
 
@@ -352,24 +619,87 @@ void AKodResourceNode::ApplyJadeiteStandIn()
 	{
 		return;
 	}
-	UStaticMesh* Monolith = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/StylizedRocks_Etherion/RocksVol1/Meshes/Monoliths/SM_Monolith_A.SM_Monolith_A"));
-	if (!Monolith)
+	const FJadeiteStandInSpec& Spec = StandInFor(GetWorld());
+	const FVector Location = GetActorLocation();
+	const int32 Salt = EntityId.IsValid() ? EntityId.Value : FMath::RoundToInt(Location.X);
+	const uint32 Pick = JadeiteVisualHash(EntityId.IsValid() ? EntityId.Value : 0, Location);
+
+	FString ChosenPath;
+	UStaticMesh* ChosenMesh = nullptr;
+	bool bFromPool = false;
+	const int32 PoolCount = Spec.MeshPool.Num();
+	if (PoolCount > 0)
+	{
+		const int32 Start = static_cast<int32>(Pick % static_cast<uint32>(PoolCount));
+		for (int32 Step = 0; Step < PoolCount; ++Step)
+		{
+			const FString& Candidate = Spec.MeshPool[(Start + Step) % PoolCount];
+			UStaticMesh* Loaded = LoadObject<UStaticMesh>(nullptr, *ToObjectPath(Candidate), nullptr, LOAD_NoWarn | LOAD_Quiet);
+			if (!Loaded)
+			{
+				continue;
+			}
+			ChosenMesh = Loaded;
+			ChosenPath = Candidate;
+			bFromPool = true;
+			break;
+		}
+	}
+	if (!ChosenMesh)
+	{
+		ChosenPath = Spec.Mesh.IsEmpty() ? FString(MonolithFallbackPath) : Spec.Mesh;
+		ChosenMesh = LoadObject<UStaticMesh>(nullptr, *ToObjectPath(ChosenPath), nullptr, LOAD_NoWarn | LOAD_Quiet);
+		bFromPool = false;
+	}
+	if (!ChosenMesh)
 	{
 		return;
 	}
+
+	FVector ChosenScale = FVector::OneVector;
+	if (!LookupMeshScale(Spec, ChosenPath, ChosenScale))
+	{
+		if (bFromPool)
+		{
+			ChosenScale = FVector::OneVector;
+		}
+		else
+		{
+			const float Alpha = static_cast<float>(Salt % 9) / 8.f;
+			const float Uniform = FMath::Lerp(Spec.ScaleMin, Spec.ScaleMax, Alpha);
+			ChosenScale = FVector(Uniform);
+		}
+	}
+
 	ClearClusterMeshes();
-	NodeMesh->SetStaticMesh(Monolith);
-	const int32 Salt = EntityId.IsValid() ? EntityId.Value : FMath::RoundToInt(GetActorLocation().X);
-	const float Alpha = static_cast<float>(Salt % 9) / 8.f;
-	const float Scale = FMath::Lerp(0.12f, 0.2f, Alpha);
-	const float Yaw = static_cast<float>((Salt * 15) % 360);
-	NodeMesh->SetRelativeScale3D(FVector(Scale));
-	NodeMesh->SetRelativeRotation(FRotator(0.f, Yaw, 0.f));
-	NodeMesh->SetRelativeLocation(FVector(0.f, 0.f, Monolith->GetBounds().BoxExtent.Z * Scale));
+	NodeMesh->SetStaticMesh(ChosenMesh);
+	const int32 YawStep = FMath::Max(1, FMath::RoundToInt(Spec.YawStep));
+	int32 Yaw = (Salt * YawStep) % 360;
+	if (Yaw < 0)
+	{
+		Yaw += 360;
+	}
+	NodeMesh->SetRelativeScale3D(ChosenScale);
+	NodeMesh->SetRelativeRotation(FRotator(0.f, static_cast<float>(Yaw), 0.f));
+	NodeMesh->SetRelativeLocation(FVector(0.f, 0.f, ChosenMesh->GetBounds().BoxExtent.Z * ChosenScale.Z));
 	NodeMesh->SetVisibility(true);
 	NodeMesh->SetHiddenInGame(false);
+	if (UMaterialInterface* JadeNode = LoadJadeiteNodeMaterial())
+	{
+		const int32 Slots = FMath::Max(1, NodeMesh->GetNumMaterials());
+		for (int32 Slot = 0; Slot < Slots; ++Slot)
+		{
+			NodeMesh->SetMaterial(Slot, JadeNode);
+		}
+	}
 	BindJadeitePalette();
 	RefreshJadeitePresentation();
+	UE_LOG(LogTemp, Log, TEXT("KodJadeite StandIn Mesh=%s Scale=%.3f,%.3f,%.3f Pool=%d"),
+		*ChosenMesh->GetName(),
+		ChosenScale.X,
+		ChosenScale.Y,
+		ChosenScale.Z,
+		bFromPool ? 1 : 0);
 }
 
 void AKodResourceNode::BindJadeitePalette()
