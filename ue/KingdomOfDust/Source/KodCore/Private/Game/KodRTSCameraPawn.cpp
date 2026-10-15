@@ -224,7 +224,7 @@ void AKodRTSCameraPawn::ApplyTunables()
 	{
 		YawDegrees = Tunables.Yaw;
 		MinArmLength = KodCameraSettings::ToUU(Tunables.DistanceMinSc2, Tunables.UnitScaleUU);
-		MaxArmLength = DefaultArmLength;
+		MaxArmLength = bShotArmHeld ? FMath::Max(DefaultArmLength, ShotArmLength) : DefaultArmLength;
 		if (!bAllowAltDragRotate)
 		{
 			SetActorRotation(FRotator(0.f, YawDegrees, 0.f));
@@ -493,18 +493,34 @@ void AKodRTSCameraPawn::JumpTo(FVector WorldLocation)
 	ClampToPlayable();
 }
 
-void AKodRTSCameraPawn::FrameGroundSpan(FVector WorldLocation, float SpanCm)
+void AKodRTSCameraPawn::FrameGroundSpan(FVector WorldLocation, float SpanXcm, float SpanYcm)
 {
 	JumpTo(WorldLocation);
 	const float VFov = FMath::DegreesToRadians(FMath::Max(1.f, VerticalFovDegrees));
-	const float Aspect = 16.f / 9.f;
+	float Aspect = 16.f / 9.f;
+	if (GEngine && GEngine->GameViewport)
+	{
+		FVector2D ViewSize = FVector2D::ZeroVector;
+		GEngine->GameViewport->GetViewportSize(ViewSize);
+		if (ViewSize.Y > 1.f)
+		{
+			Aspect = ViewSize.X / ViewSize.Y;
+		}
+	}
 	const float HFov = 2.f * FMath::Atan(FMath::Tan(VFov * 0.5f) * Aspect);
 	const float Pitch = FMath::DegreesToRadians(FMath::Abs(PitchDegrees));
-	const float WidthFactor = 2.f * FMath::Tan(HFov * 0.5f);
-	const float DepthFactor = 2.f * FMath::Tan(VFov * 0.5f) / FMath::Max(0.2f, FMath::Sin(Pitch));
-	const float Factor = FMath::Min(WidthFactor, DepthFactor);
-	const float Needed = (FMath::Max(100.f, SpanCm) * 1.15f) / FMath::Max(0.05f, Factor);
-	const float Arm = FMath::Max(DefaultArmLength, Needed);
+	const float Yaw = FMath::DegreesToRadians(YawDegrees);
+	const FVector Forward(FMath::Cos(Yaw), FMath::Sin(Yaw), 0.f);
+	const FVector Right(-FMath::Sin(Yaw), FMath::Cos(Yaw), 0.f);
+	const float Across = FMath::Abs(Right.X) * SpanXcm + FMath::Abs(Right.Y) * SpanYcm;
+	const float Along = FMath::Abs(Forward.X) * SpanXcm + FMath::Abs(Forward.Y) * SpanYcm;
+	constexpr float Margin = 1.15f;
+	const float ArmAcross = (FMath::Max(100.f, Across) * Margin) / FMath::Max(0.05f, 2.f * FMath::Tan(HFov * 0.5f));
+	const float ArmAlong = (FMath::Max(100.f, Along) * Margin * FMath::Max(0.2f, FMath::Sin(Pitch)))
+		/ FMath::Max(0.05f, 2.f * FMath::Tan(VFov * 0.5f));
+	const float Arm = FMath::Max(ArmAcross, ArmAlong);
+	bShotArmHeld = true;
+	ShotArmLength = Arm;
 	MaxArmLength = FMath::Max(MaxArmLength, Arm);
 	TargetArmLength = Arm;
 	CurrentArmLength = Arm;
@@ -512,7 +528,7 @@ void AKodRTSCameraPawn::FrameGroundSpan(FVector WorldLocation, float SpanCm)
 	{
 		CameraBoom->TargetArmLength = Arm;
 	}
-	UE_LOG(LogTemp, Log, TEXT("KodCam Frame Span=%.0f Arm=%.0f"), SpanCm, Arm);
+	UE_LOG(LogTemp, Log, TEXT("KodCam Frame Span=%.0f,%.0f Arm=%.0f"), SpanXcm, SpanYcm, Arm);
 }
 
 void AKodRTSCameraPawn::NoteAlert(FVector WorldLocation, float VisibleSeconds)
@@ -909,6 +925,10 @@ void AKodRTSCameraPawn::ApplyPan(float DeltaSeconds, const FVector2D& UnitsPerSe
 
 float AKodRTSCameraPawn::ZoomCeiling() const
 {
+	if (bShotArmHeld)
+	{
+		return FMath::Max(MaxArmLength, ShotArmLength);
+	}
 	if (IsA(AKodSpectatorPawn::StaticClass()))
 	{
 		return MaxArmLength;

@@ -1074,9 +1074,14 @@ void AKodHUD::PollShotAfter()
 			if (bGateSelectMove)
 			{
 				const int32 TeamId = ReadLocalTeamId();
+				const FName DozerId(KodWardenPaths::Id_Dozer);
+				const FName ScnWorkerId(KodWardenPaths::Id_ScnWorker);
 				for (const FKodSimEntityState& State : FrameStates)
 				{
-					if (State.TeamId == TeamId && State.bCanGather && State.bMobile && State.Health > 0.f && State.Id.Value < WorkerId)
+					const bool bWorkerRole = State.bCanGather
+						|| State.DefinitionId == DozerId
+						|| State.DefinitionId == ScnWorkerId;
+					if (State.TeamId == TeamId && bWorkerRole && State.bMobile && State.Health > 0.f && State.Id.Value < WorkerId)
 					{
 						WorkerId = State.Id.Value;
 					}

@@ -863,7 +863,9 @@ void AKodUnit::ApplyDefinition(UKodUnitDefinition* Def)
 			const float Accept = MoveComponent ? MoveComponent->AcceptanceRadius : 50.f;
 			const FName DefId = Def->DefinitionId.IsNone() ? Def->GetFName() : Def->DefinitionId;
 			// A cooked Dozer uasset from before this step still gathers. The flag is the authored switch.
-			const bool bGather = Def->bCanGather || DefId == FName(KodWardenPaths::Id_Dozer);
+			const bool bGather = Def->bCanGather
+				|| DefId == FName(KodWardenPaths::Id_Dozer)
+				|| DefId == FName(KodWardenPaths::Id_ScnWorker);
 			Sim->ConfigureEntity(
 				EntityId,
 				DefId,
@@ -1240,31 +1242,6 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh, const FKodMesh
 						ResolvedAnimClass = LoadedAnim;
 						AnimModeName = TEXT("AnimBP");
 					}
-					else if (Generated->TargetSkeleton && MeshSkeleton)
-					{
-						// v7b uses Mannequin bone names on its own skeleton asset.
-						// Compatible-skeleton registration edits the shared AnimBP asset, and a
-						// runtime retargeter is not available here, so the pose stays held.
-						static const TCHAR* BoneNames[] = {
-							TEXT("pelvis"), TEXT("spine_01"), TEXT("spine_02"), TEXT("spine_03"),
-							TEXT("clavicle_l"), TEXT("upperarm_l"), TEXT("lowerarm_l"), TEXT("hand_l"),
-							TEXT("thigh_l"), TEXT("calf_l"), TEXT("foot_l"), TEXT("neck_01"), TEXT("head")
-						};
-						int32 SharedBones = 0;
-						const FReferenceSkeleton& MeshBones = MeshSkeleton->GetReferenceSkeleton();
-						const FReferenceSkeleton& AnimBones = Generated->TargetSkeleton->GetReferenceSkeleton();
-						for (const TCHAR* BoneName : BoneNames)
-						{
-							const FName Bone(BoneName);
-							if (MeshBones.FindBoneIndex(Bone) != INDEX_NONE && AnimBones.FindBoneIndex(Bone) != INDEX_NONE)
-							{
-								++SharedBones;
-							}
-						}
-						UE_LOG(LogTemp, Log, TEXT("KodMesh AnimRetarget Id=%s SharedBones=%d Feasible=0"),
-							BodyDef ? *BodyDef->DefinitionId.ToString() : *GetName(),
-							SharedBones);
-					}
 				}
 			}
 		}
@@ -1293,6 +1270,40 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh, const FKodMesh
 			Body->SetAnimationMode(EAnimationMode::AnimationCustomMode);
 			Body->SetAnimInstanceClass(nullptr);
 			Body->bPauseAnims = true;
+			int32 SharedBones = 0;
+			if (Choice && !Choice->Anim.IsEmpty() && MeshSkeleton)
+			{
+				const FString AnimPath = Choice->Anim.Contains(TEXT("."))
+					? Choice->Anim
+					: Choice->Anim + TEXT(".") + FPaths::GetBaseFilename(Choice->Anim) + TEXT("_C");
+				if (UClass* LoadedAnim = LoadClass<UAnimInstance>(nullptr, *AnimPath))
+				{
+					if (UAnimBlueprintGeneratedClass* Generated = Cast<UAnimBlueprintGeneratedClass>(LoadedAnim))
+					{
+						if (Generated->TargetSkeleton)
+						{
+							static const TCHAR* BoneNames[] = {
+								TEXT("pelvis"), TEXT("spine_01"), TEXT("spine_02"), TEXT("spine_03"),
+								TEXT("clavicle_l"), TEXT("upperarm_l"), TEXT("lowerarm_l"), TEXT("hand_l"),
+								TEXT("thigh_l"), TEXT("calf_l"), TEXT("foot_l"), TEXT("neck_01"), TEXT("head")
+							};
+							const FReferenceSkeleton& MeshBones = MeshSkeleton->GetReferenceSkeleton();
+							const FReferenceSkeleton& AnimBones = Generated->TargetSkeleton->GetReferenceSkeleton();
+							for (const TCHAR* BoneName : BoneNames)
+							{
+								const FName Bone(BoneName);
+								if (MeshBones.FindBoneIndex(Bone) != INDEX_NONE && AnimBones.FindBoneIndex(Bone) != INDEX_NONE)
+								{
+									++SharedBones;
+								}
+							}
+						}
+					}
+				}
+			}
+			UE_LOG(LogTemp, Log, TEXT("KodMesh AnimRetarget Id=%s SharedBones=%d Feasible=0"),
+				BodyDef ? *BodyDef->DefinitionId.ToString() : *GetName(),
+				SharedBones);
 			UE_LOG(LogTemp, Log, TEXT("KodMesh AnimMismatch Id=%s"), BodyDef ? *BodyDef->DefinitionId.ToString() : *GetName());
 			AnimModeName = TEXT("None");
 		}
