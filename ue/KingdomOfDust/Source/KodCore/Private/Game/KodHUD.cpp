@@ -1303,28 +1303,95 @@ void AKodHUD::DrawFactionPrompt()
 	{
 		Font = GEngine->GetSmallFont();
 	}
-	DrawRect(FLinearColor(0.02f, 0.03f, 0.04f, 0.72f), 0.f, 0.f, Canvas->SizeX, Canvas->SizeY);
-	NoteFullScreenOverlay(0.72f);
-	const FKodScreenRect Title = MapSpec(560.f, 220.f, 800.f, 48.f);
-	DrawText(TEXT("CHOOSE A FACTION"), Tok(0xF4, 0xEE, 0xDF), Title.X, Title.Y, Font, FrameScale, false);
+	const float ViewW = Canvas->SizeX;
+	const float ViewH = Canvas->SizeY;
+	DrawRect(FLinearColor(0.02f, 0.02f, 0.025f, 0.82f), 0.f, 0.f, ViewW, ViewH);
+	NoteFullScreenOverlay(0.82f);
+
+	const float CardW = FMath::Clamp(ViewW * 0.28f, 300.f, 520.f);
+	const float CardH = CardW * 1.28f;
+	const float Gap = CardW * 0.14f;
+	const float PairW = CardW * 2.f + Gap;
+	const float Left = (ViewW - PairW) * 0.5f;
+	const float Top = (ViewH - CardH) * 0.5f + ViewH * 0.03f;
+	const FString Title = TEXT("CHOOSE YOUR FACTION");
+	float TitleW = 0.f;
+	float TitleH = 0.f;
+	if (Font)
+	{
+		Canvas->TextSize(Font, Title, TitleW, TitleH);
+	}
+	DrawText(Title, Tok(0xF4, 0xEE, 0xDF), (ViewW - TitleW) * 0.5f, Top - TitleH - 36.f, Font, 1.35f, false);
+
+	float MouseX = 0.f;
+	float MouseY = 0.f;
+	APlayerController* PromptPC = GetOwningPlayerController();
+	const bool bHaveMouse = PromptPC && PromptPC->GetMousePosition(MouseX, MouseY);
+
 	const TCHAR* Names[] = { TEXT("VANGUARD"), TEXT("SCINDER") };
 	const TCHAR* Marks[] = { TEXT("V"), TEXT("S") };
-	for (int32 Index = 0; Index < 2; ++Index)
+	const TCHAR* Lines[] = { TEXT("Gunmetal doctrine. Hold the line."), TEXT("Jadeite rites. Split the ground.") };
+	const TCHAR* Keys[] = { TEXT("1"), TEXT("2") };
+	const TCHAR* Frames[] = { KodWardenPaths::FrameVgPortrait, KodWardenPaths::FrameScPortrait };
+	for (int32 Card = 0; Card < 2; ++Card)
 	{
-		const FKodScreenRect Tile = MapSpec(660.f, 300.f + 160.f * static_cast<float>(Index), 600.f, 140.f);
-		const bool bOn = FactionPromptIndex == Index;
-		const FLinearColor Fill = bOn
-			? (Index == 0 ? Tok(0x3A, 0x3F, 0x45, 0.95f) : Tok(0x6E, 0x5B, 0x4F, 0.95f))
-			: Tok(0x14, 0x16, 0x18, 0.92f);
-		const FLinearColor Trim = bOn ? Tok(0xC9, 0xA2, 0x4A) : Tok(0x5C, 0x64, 0x6C);
-		DrawRect(Fill, Tile.X, Tile.Y, Tile.W, Tile.H);
-		DrawRect(Trim, Tile.X, Tile.Y, Tile.W, 2.f * FrameScale);
-		DrawText(Marks[Index], Tok(0xF4, 0xEE, 0xDF), Tile.X + 24.f * FrameScale, Tile.Y + 36.f * FrameScale, Font, 1.6f * FrameScale, false);
-		DrawText(Names[Index], Tok(0xF4, 0xEE, 0xDF), Tile.X + 90.f * FrameScale, Tile.Y + 48.f * FrameScale, Font, FrameScale, false);
-		RememberChrome(FName(TEXT("FactionPrompt")), Index, FName(), Tile.X, Tile.Y, Tile.X + Tile.W, Tile.Y + Tile.H);
+		const float CardX = Left + static_cast<float>(Card) * (CardW + Gap);
+		const bool bSelected = FactionPromptIndex == Card;
+		const bool bHover = bHaveMouse && MouseX >= CardX && MouseX <= CardX + CardW && MouseY >= Top && MouseY <= Top + CardH;
+		const bool bScinder = Card == 1;
+		const FLinearColor Fill = bScinder
+			? FLinearColor(0.28f, 0.12f, 0.08f, 0.96f)
+			: FLinearColor(0.16f, 0.16f, 0.17f, 0.96f);
+		const FLinearColor Rim = bScinder
+			? FLinearColor(0.20f, 0.78f, 0.68f, bSelected ? 1.f : (bHover ? 0.75f : 0.35f))
+			: FLinearColor(0.86f, 0.32f, 0.10f, bSelected ? 1.f : (bHover ? 0.8f : 0.4f));
+		const float RimPx = bSelected ? 5.f : (bHover ? 3.f : 2.f);
+		if (bScinder && (bSelected || bHover))
+		{
+			DrawRect(FLinearColor(0.15f, 0.72f, 0.62f, bSelected ? 0.28f : 0.14f), CardX - 10.f, Top - 10.f, CardW + 20.f, CardH + 20.f);
+		}
+		DrawRect(Rim, CardX - RimPx, Top - RimPx, CardW + RimPx * 2.f, CardH + RimPx * 2.f);
+		DrawRect(Fill, CardX, Top, CardW, CardH);
+		if (!bScinder)
+		{
+			DrawRect(FLinearColor(0.72f, 0.28f, 0.08f, bSelected ? 0.22f : 0.08f), CardX, Top, CardW, CardH * 0.42f);
+		}
+
+		const float Emblem = CardW * 0.42f;
+		const float EmblemX = CardX + (CardW - Emblem) * 0.5f;
+		const float EmblemY = Top + CardH * 0.08f;
+		if (UTexture2D* FrameTex = ResolveSoftTexture(Frames[Card]))
+		{
+			DrawTexture(FrameTex, EmblemX, EmblemY, Emblem, Emblem, 0.f, 0.f, 1.f, 1.f);
+		}
+		else
+		{
+			DrawRect(Rim, EmblemX, EmblemY, Emblem, Emblem);
+			DrawRect(Fill, EmblemX + 4.f, EmblemY + 4.f, Emblem - 8.f, Emblem - 8.f);
+		}
+		float MarkW = 0.f;
+		float MarkH = 0.f;
+		const FString Mark(Marks[Card]);
+		if (Font)
+		{
+			Canvas->TextSize(Font, Mark, MarkW, MarkH);
+		}
+		DrawText(Mark, Tok(0xF4, 0xEE, 0xDF), EmblemX + (Emblem - MarkW) * 0.5f, EmblemY + (Emblem - MarkH) * 0.5f, Font, 2.4f, false);
+
+		float NameW = 0.f;
+		float NameH = 0.f;
+		const FString Name(Names[Card]);
+		if (Font)
+		{
+			Canvas->TextSize(Font, Name, NameW, NameH);
+		}
+		const float NameY = EmblemY + Emblem + CardH * 0.06f;
+		DrawText(Name, Tok(0xF4, 0xEE, 0xDF), CardX + (CardW - NameW) * 0.5f, NameY, Font, 1.15f, false);
+		DrawText(Lines[Card], bScinder ? FLinearColor(0.55f, 0.90f, 0.84f, 1.f) : FLinearColor(0.95f, 0.62f, 0.38f, 1.f),
+			CardX + 28.f, NameY + NameH + 18.f, Font, 0.72f, false);
+		DrawText(Keys[Card], Rim, CardX + 16.f, Top + 12.f, Font, 0.9f, false);
+		RememberChrome(FName(TEXT("FactionPrompt")), Card, FName(), CardX, Top, CardX + CardW, Top + CardH);
 	}
-	const FKodScreenRect Hint = MapSpec(660.f, 640.f, 600.f, 32.f);
-	DrawText(TEXT("1 Vanguard    2 Scinder    Enter"), Tok(0xC9, 0xA2, 0x4A), Hint.X, Hint.Y, Font, 0.8f * FrameScale, false);
 	bFactionPromptDrawn = true;
 }
 

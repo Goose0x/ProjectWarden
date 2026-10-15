@@ -4,6 +4,9 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
+#include "Materials/MaterialInterface.h"
+#include "RHIFeatureLevel.h"
 #include "Game/KodCameraSettings.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/ConfigCacheIni.h"
@@ -260,6 +263,58 @@ namespace
 		return LoadFirstMeshInFolder(FPaths::GetPath(Trimmed), Id, OutStatic, OutSkeletal, OutPath);
 	}
 
+	void CapImportedTextures(UStaticMesh* StaticMesh, USkeletalMesh* SkeletalMesh, int32 MaxSize)
+	{
+		TArray<UMaterialInterface*> Materials;
+		if (StaticMesh)
+		{
+			for (const FStaticMaterial& Slot : StaticMesh->GetStaticMaterials())
+			{
+				Materials.Add(Slot.MaterialInterface);
+			}
+		}
+		if (SkeletalMesh)
+		{
+			for (const FSkeletalMaterial& Slot : SkeletalMesh->GetMaterials())
+			{
+				Materials.Add(Slot.MaterialInterface);
+			}
+		}
+		static TSet<FString> Capped;
+		for (UMaterialInterface* Material : Materials)
+		{
+			if (!Material)
+			{
+				continue;
+			}
+			TArray<UTexture*> Used;
+			Material->GetUsedTextures(Used, EMaterialQualityLevel::High, true, ERHIFeatureLevel::SM5, true);
+			for (UTexture* Texture : Used)
+			{
+				UTexture2D* Image = Cast<UTexture2D>(Texture);
+				if (!Image)
+				{
+					continue;
+				}
+				const FString Path = Image->GetPathName();
+				if (!Path.Contains(TEXT("/Game/Warden/")))
+				{
+					continue;
+				}
+				if (Capped.Contains(Path))
+				{
+					continue;
+				}
+				Capped.Add(Path);
+				const bool bBuilding = MaxSize >= 4096;
+				Image->LODGroup = bBuilding ? TEXTUREGROUP_World : TEXTUREGROUP_Character;
+				Image->MaxTextureSize = MaxSize;
+				Image->UpdateResource();
+				UE_LOG(LogTemp, Log, TEXT("KodMesh TexCap Path=%s Max=%d"), *Path, MaxSize);
+			}
+		}
+	}
+
 	bool TryLoadMesh(const FString& Path, UStaticMesh*& OutStatic, USkeletalMesh*& OutSkeletal)
 	{
 		OutStatic = nullptr;
@@ -488,6 +543,11 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 	if (Choice.Path.Contains(TEXT("/Engine/BasicShapes/Cube")))
 	{
 		UE_LOG(LogTemp, Log, TEXT("KodMesh Placeholder Id=%s Path=%s"), *Id.ToString(), *Choice.Path);
+	}
+	if (Choice.bLoaded)
+	{
+		const int32 TexCap = Fit == EKodMeshFit::Footprint ? 4096 : 2048;
+		CapImportedTextures(StaticMesh, SkeletalMesh, TexCap);
 	}
 	return Choice;
 }
