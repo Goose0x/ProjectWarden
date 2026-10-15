@@ -2094,8 +2094,8 @@ void AKodHUD::DrawShotLabels()
 			continue;
 		}
 		const FVector At = Actor->GetActorLocation() + FVector(0.f, 0.f, 240.f);
-		FVector Screen = FVector::ZeroVector;
-		if (!Project(At, Screen))
+		const FVector Screen = Project(At, false);
+		if (Screen.Z <= 0.f)
 		{
 			continue;
 		}
