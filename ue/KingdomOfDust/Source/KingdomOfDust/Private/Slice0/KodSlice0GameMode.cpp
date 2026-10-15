@@ -2128,7 +2128,7 @@ void AKodSlice0GameMode::ApplyStartFaction(int32 FactionIndex)
 		const FVector Spot = Ring.Center + Dir * Ring.Radius;
 		const float FloorZ = ResolveResourceFloorZ(World, WorkerSim, Spot.X, Spot.Y, Ring.Center.Z, Ignored);
 		Unit->SetActorLocation(FVector(Spot.X, Spot.Y, FloorZ), false, nullptr, ETeleportType::TeleportPhysics);
-		Unit->SnapToGround();
+		Unit->SnapToGroundPublic();
 		if (Unit->EntityId.IsValid())
 		{
 			WorkerSim->SetEntityGroundPosition(Unit->EntityId, Unit->GetActorLocation());

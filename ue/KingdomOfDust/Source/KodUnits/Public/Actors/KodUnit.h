@@ -122,6 +122,9 @@ public:
 	/** Called when the anim instance starts so native clips and death frames load. */
 	void InitializeAnimFromDefinition(class UKodUnitAnimInstance* Anim);
 
+	/** Public entry for match start. The trace itself stays protected. */
+	void SnapToGroundPublic() { SnapToGround(); }
+
 protected:
 	/** Skeletal mesh wins when it loads; else static mesh on UnitMesh; else the Engine cube. */
 	void ApplyBodyMesh(const UKodUnitDefinition* Def);
