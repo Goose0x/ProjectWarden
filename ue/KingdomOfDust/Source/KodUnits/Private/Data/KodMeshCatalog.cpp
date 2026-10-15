@@ -49,7 +49,9 @@ namespace
 		return Text.Contains(TEXT("Scinder"))
 			|| Text.StartsWith(TEXT("SCN_"))
 			|| Id == FName(TEXT("Faultburst"))
-			|| Id == FName(TEXT("Shardbitten"));
+			|| Id == FName(TEXT("Shardbitten"))
+			|| Id == FName(TEXT("SkyReaver"))
+			|| Id == FName(TEXT("SkySentinel"));
 	}
 
 	void ParseRow(const FString& Text, FKodMeshRow& Row)

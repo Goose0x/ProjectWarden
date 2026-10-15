@@ -4,6 +4,7 @@
 #include "Game/KodJadeitePalette.h"
 #include "Data/KodBuildingDefinition.h"
 #include "Data/KodMeshCatalog.h"
+#include "Warden/KodWardenPaths.h"
 #include "Components/MeshComponent.h"
 #include "Animation/AnimEnums.h"
 #include "Components/SkeletalMeshComponent.h"
