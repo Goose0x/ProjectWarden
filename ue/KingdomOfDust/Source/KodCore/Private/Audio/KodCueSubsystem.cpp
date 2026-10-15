@@ -1,7 +1,12 @@
 #include "Audio/KodCueSubsystem.h"
 
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Modules/ModuleManager.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Sound/SoundCue.h"
+#include "Sound/SoundWave.h"
 #include "TimerManager.h"
 
 bool UKodCueSubsystem::IsVoiceCue(FName CueId)
@@ -93,6 +98,10 @@ void UKodCueSubsystem::Deinitialize()
 		CueHandle.Reset();
 	}
 	CueCache.Reset();
+	VoiceBags.Reset();
+	SelectVoiceUntil.Reset();
+	SelectClicks.Reset();
+	bVoiceDiscovered = false;
 	bPreloadFinished = false;
 	bBound = false;
 	Super::Deinitialize();
@@ -190,6 +199,254 @@ void UKodCueSubsystem::HandleCue(FName CueId, FVector Location, bool bAtLocation
 		return;
 	}
 	PlayCueNow(CueId, Location, bAtLocation, false);
+}
+
+void UKodCueSubsystem::DiscoverVoiceLines()
+{
+	if (bVoiceDiscovered)
+	{
+		return;
+	}
+	bVoiceDiscovered = true;
+	VoiceStream.Initialize(0x5C2A11);
+
+	auto AddLine = [this](FName UnitId, FName Category, FName CueId, const FString& Path)
+	{
+		if (UnitId.IsNone() || Category.IsNone() || CueId.IsNone())
+		{
+			return;
+		}
+		const FName Key(*FString::Printf(TEXT("%s|%s"), *UnitId.ToString(), *Category.ToString()));
+		FVoiceBag& Bag = VoiceBags.FindOrAdd(Key);
+		if (Bag.Lines.Contains(CueId))
+		{
+			return;
+		}
+		Bag.Lines.Add(CueId);
+		if (!Path.IsEmpty())
+		{
+			RememberCue(CueId, Path);
+			if (bPreloadFinished)
+			{
+				FKodCachedCue& Entry = CueCache.FindOrAdd(CueId);
+				if (!Entry.Sound)
+				{
+					Entry.Path = FSoftObjectPath(Path);
+					Entry.Sound = LoadObject<USoundBase>(nullptr, *Path);
+				}
+			}
+		}
+	};
+	auto CategoryOf = [](const FString& Raw) -> FName
+	{
+		if (Raw.Equals(TEXT("Select"), ESearchCase::IgnoreCase) || Raw.Equals(TEXT("Selected"), ESearchCase::IgnoreCase))
+		{
+			return FName(TEXT("Select"));
+		}
+		if (Raw.Equals(TEXT("Ack"), ESearchCase::IgnoreCase) || Raw.Equals(TEXT("Move"), ESearchCase::IgnoreCase) || Raw.Equals(TEXT("Yes"), ESearchCase::IgnoreCase))
+		{
+			return FName(TEXT("Ack"));
+		}
+		if (Raw.Equals(TEXT("Attack"), ESearchCase::IgnoreCase))
+		{
+			return FName(TEXT("Attack"));
+		}
+		if (Raw.Equals(TEXT("Annoyed"), ESearchCase::IgnoreCase) || Raw.Equals(TEXT("Pissed"), ESearchCase::IgnoreCase))
+		{
+			return FName(TEXT("Annoyed"));
+		}
+		return NAME_None;
+	};
+	auto UnitOf = [](const FString& Raw) -> FName
+	{
+		if (Raw.Equals(TEXT("AMP"), ESearchCase::IgnoreCase))
+		{
+			return FName(TEXT("Dozer"));
+		}
+		if (Raw.Equals(TEXT("Worker"), ESearchCase::IgnoreCase))
+		{
+			return FName(TEXT("SCN_WORKER"));
+		}
+		return FName(*Raw);
+	};
+
+	TArray<FString> ConfigLines;
+	GConfig->GetArray(TEXT("KodVoice"), TEXT("Line"), ConfigLines, GGameIni);
+	for (const FString& Text : ConfigLines)
+	{
+		FString Unit;
+		FString Category;
+		FString Cue;
+		TArray<FString> Parts;
+		Text.ParseIntoArray(Parts, TEXT(","), false);
+		for (const FString& Part : Parts)
+		{
+			FString Key;
+			FString Value;
+			if (!Part.Split(TEXT("="), &Key, &Value))
+			{
+				continue;
+			}
+			Key.TrimStartAndEndInline();
+			Value.TrimStartAndEndInline();
+			if (Key.Equals(TEXT("Unit"), ESearchCase::IgnoreCase))
+			{
+				Unit = Value;
+			}
+			else if (Key.Equals(TEXT("Category"), ESearchCase::IgnoreCase))
+			{
+				Category = Value;
+			}
+			else if (Key.Equals(TEXT("Cue"), ESearchCase::IgnoreCase))
+			{
+				Cue = Value;
+			}
+		}
+		AddLine(UnitOf(Unit), CategoryOf(Category), FName(*Cue), FString());
+	}
+
+	if (FModuleManager::Get().ModuleExists(TEXT("AssetRegistry")))
+	{
+		FAssetRegistryModule& Assets = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+		IAssetRegistry& Registry = Assets.Get();
+		TArray<FString> Roots;
+		Roots.Add(TEXT("/Game/Warden"));
+		Roots.Add(TEXT("/Game/Audio/Voice"));
+		Registry.ScanPathsSynchronous(Roots, true);
+		FARFilter Filter;
+		Filter.bRecursivePaths = true;
+		Filter.PackagePaths.Add(TEXT("/Game/Warden"));
+		Filter.PackagePaths.Add(TEXT("/Game/Audio/Voice"));
+		Filter.ClassPaths.Add(USoundWave::StaticClass()->GetClassPathName());
+		Filter.ClassPaths.Add(USoundCue::StaticClass()->GetClassPathName());
+		TArray<FAssetData> Found;
+		Registry.GetAssets(Filter, Found);
+		Found.Sort([](const FAssetData& A, const FAssetData& B)
+		{
+			return A.AssetName.LexicalLess(B.AssetName);
+		});
+		for (const FAssetData& Asset : Found)
+		{
+			const FString AssetPath = Asset.GetSoftObjectPath().ToString();
+			if (!AssetPath.Contains(TEXT("/Voice/")))
+			{
+				continue;
+			}
+			TArray<FString> Segments;
+			Asset.PackagePath.ToString().ParseIntoArray(Segments, TEXT("/"), true);
+			FName UnitId;
+			FName Category;
+			for (int32 Index = 1; Index < Segments.Num(); ++Index)
+			{
+				const FName Maybe = CategoryOf(Segments[Index]);
+				if (!Maybe.IsNone())
+				{
+					Category = Maybe;
+					UnitId = UnitOf(Segments[Index - 1]);
+					break;
+				}
+			}
+			AddLine(UnitId, Category, Asset.AssetName, AssetPath);
+		}
+	}
+
+	for (TPair<FName, FVoiceBag>& Pair : VoiceBags)
+	{
+		Pair.Value.Lines.Sort([](const FName& A, const FName& B)
+		{
+			return A.LexicalLess(B);
+		});
+		UE_LOG(LogTemp, Log, TEXT("KodVoice Bag %s Lines=%d"), *Pair.Key.ToString(), Pair.Value.Lines.Num());
+	}
+}
+
+bool UKodCueSubsystem::HasVoiceCategory(FName UnitId, FName Category) const
+{
+	const FName Key(*FString::Printf(TEXT("%s|%s"), *UnitId.ToString(), *Category.ToString()));
+	const FVoiceBag* Bag = VoiceBags.Find(Key);
+	return Bag && Bag->Lines.Num() > 0;
+}
+
+FName UKodCueSubsystem::PickVoiceLine(FName UnitId, FName Category)
+{
+	const FName Key(*FString::Printf(TEXT("%s|%s"), *UnitId.ToString(), *Category.ToString()));
+	FVoiceBag* Bag = VoiceBags.Find(Key);
+	if (!Bag || Bag->Lines.Num() == 0)
+	{
+		return NAME_None;
+	}
+	if (Bag->Order.Num() != Bag->Lines.Num() || Bag->Cursor >= Bag->Order.Num())
+	{
+		Bag->Order.SetNum(Bag->Lines.Num());
+		for (int32 Index = 0; Index < Bag->Order.Num(); ++Index)
+		{
+			Bag->Order[Index] = Index;
+		}
+		for (int32 Index = Bag->Order.Num() - 1; Index > 0; --Index)
+		{
+			const int32 Swap = VoiceStream.RandRange(0, Index);
+			Bag->Order.Swap(Index, Swap);
+		}
+		if (Bag->Lines.Num() > 1 && Bag->Lines[Bag->Order[0]] == Bag->Last)
+		{
+			Bag->Order.Swap(0, 1);
+		}
+		Bag->Cursor = 0;
+	}
+	const FName Cue = Bag->Lines[Bag->Order[Bag->Cursor]];
+	++Bag->Cursor;
+	Bag->Last = Cue;
+	return Cue;
+}
+
+bool UKodCueSubsystem::PlayUnitVoice(FName UnitId, FName Category, int32 EntityId, FVector Location)
+{
+	if (UnitId.IsNone() || Category.IsNone())
+	{
+		return false;
+	}
+	DiscoverVoiceLines();
+	UWorld* World = GetWorld();
+	const float Now = World ? World->GetTimeSeconds() : 0.f;
+	FName UseCategory = Category;
+	if (Category == FName(TEXT("Select")))
+	{
+		FVoiceClick& Click = SelectClicks.FindOrAdd(EntityId);
+		if (Now - Click.LastSeconds > 2.f)
+		{
+			Click.Count = 0;
+		}
+		++Click.Count;
+		Click.LastSeconds = Now;
+		if (Click.Count >= 6 && HasVoiceCategory(UnitId, FName(TEXT("Annoyed"))))
+		{
+			Click.Count = 0;
+			UseCategory = FName(TEXT("Annoyed"));
+		}
+		else if (const float* Until = SelectVoiceUntil.Find(EntityId))
+		{
+			if (Now < *Until)
+			{
+				return false;
+			}
+		}
+	}
+	const FName Cue = PickVoiceLine(UnitId, UseCategory);
+	if (Cue.IsNone())
+	{
+		return false;
+	}
+	if (Category == FName(TEXT("Select")))
+	{
+		SelectVoiceUntil.Add(EntityId, Now + 1.5f);
+	}
+	PlayCueNow(Cue, Location, true, true);
+	UE_LOG(LogTemp, Log, TEXT("KodVoice Unit=%s Category=%s Cue=%s Entity=%d"),
+		*UnitId.ToString(),
+		*UseCategory.ToString(),
+		*Cue.ToString(),
+		EntityId);
+	return true;
 }
 
 void UKodCueSubsystem::PlayCueNow(FName CueId, FVector Location, bool bAtLocation, bool bSkipAnnouncerGap)

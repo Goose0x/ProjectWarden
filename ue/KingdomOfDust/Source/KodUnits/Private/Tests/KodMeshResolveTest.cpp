@@ -16,9 +16,9 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("15 percent fits"), FKodMeshCatalog::SpanWithin(1150.f, 1000.f));
 	TestFalse(TEXT("20 percent does not fit"), FKodMeshCatalog::SpanWithin(1200.f, 1000.f));
 	TestTrue(TEXT("fit scale lands on the footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FittedSpanCm(100.f, 1.f, 1000.f), 1000.f));
-	TestTrue(TEXT("barracks footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(KodWardenPaths::Id_Barracks)), 600.f));
-	TestTrue(TEXT("depot footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(KodWardenPaths::Id_SupplyDepot)), 400.f));
-	TestTrue(TEXT("rite well footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(TEXT("RiteWell"))), 400.f));
+	TestTrue(TEXT("barracks footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(KodWardenPaths::Id_Barracks)), 800.f));
+	TestTrue(TEXT("depot footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(KodWardenPaths::Id_SupplyDepot)), 450.f));
+	TestTrue(TEXT("rite well footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(TEXT("RiteWell"))), 450.f));
 
 	const TArray<FName> Required = {
 		FName(KodWardenPaths::Id_CommandCenter),
@@ -61,19 +61,36 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		const bool bChoseFallback = Choice.bFallback && Choice.Path.Contains(FallbackName);
 		TestTrue(*FString::Printf(TEXT("%s primary or fallback"), *Id.ToString()), bChosePrimary || bChoseFallback);
 		const float Expected = FKodMeshCatalog::FootprintCm(Id);
-		const float FitExpected = Row->Fit == EKodMeshFit::Length && Row->FitCm > 0.f
-			? Row->FitCm
-			: (Row->Fit == EKodMeshFit::Footprint && Row->FitCm > 0.f ? Row->FitCm : Expected);
+		const bool bLengthAndHeight = Row->Fit == EKodMeshFit::Length && Row->MinHeightCm > 0.f;
+		const float FitExpected = bLengthAndHeight
+			? 0.f
+			: (Row->Fit == EKodMeshFit::Length && Row->FitCm > 0.f
+				? Row->FitCm
+				: (Row->Fit == EKodMeshFit::Footprint && Row->FitCm > 0.f ? Row->FitCm : Expected));
 		if (FitExpected > 0.f && Choice.bLoaded)
 		{
 			TestTrue(
 				*FString::Printf(TEXT("%s bounds %.0f vs %.0f"), *Id.ToString(), Choice.BoundsCm, FitExpected),
 				FKodMeshCatalog::SpanWithin(Choice.BoundsCm, FitExpected));
 		}
-		if (Id == FName(KodWardenPaths::Id_Dozer) || Id == FName(TEXT("ScinderHost")))
+		if (Id == FName(KodWardenPaths::Id_Dozer))
 		{
-			TestTrue(*FString::Printf(TEXT("%s length fit"), *Id.ToString()), Row->Fit == EKodMeshFit::Length);
-			TestTrue(*FString::Printf(TEXT("%s 260 cm"), *Id.ToString()), FMath::IsNearlyEqual(Row->FitCm, 260.f));
+			TestTrue(TEXT("AMP length fit"), Row->Fit == EKodMeshFit::Length);
+			TestTrue(TEXT("AMP 300 cm"), FMath::IsNearlyEqual(Row->FitCm, 300.f));
+			TestTrue(TEXT("AMP min height"), FMath::IsNearlyEqual(Row->MinHeightCm, 220.f));
+		}
+		if (Id == FName(TEXT("ScinderHost")))
+		{
+			TestTrue(TEXT("host length fit"), Row->Fit == EKodMeshFit::Length);
+			TestTrue(TEXT("host 300 cm"), FMath::IsNearlyEqual(Row->FitCm, 300.f));
+		}
+		if (Id == FName(KodWardenPaths::Id_ScnWorker))
+		{
+			TestTrue(TEXT("scinder worker 260 cm"), FMath::IsNearlyEqual(Row->FitCm, 260.f));
+		}
+		if (Id == FName(KodWardenPaths::Id_Marine))
+		{
+			TestTrue(TEXT("marine 286 cm"), FMath::IsNearlyEqual(Row->FitCm, 286.f));
 		}
 		if (Id == FName(KodWardenPaths::Id_Marine) || Id == FName(KodWardenPaths::Id_ScnWorker))
 		{

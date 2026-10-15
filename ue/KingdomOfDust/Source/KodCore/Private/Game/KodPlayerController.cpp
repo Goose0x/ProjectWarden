@@ -1,4 +1,5 @@
 #include "Game/KodPlayerController.h"
+#include "Audio/KodCueSubsystem.h"
 #include "Game/KodJadeitePalette.h"
 #include "Game/KodJadeiteTunerWidget.h"
 #include "Misc/Char.h"
@@ -1558,6 +1559,24 @@ AActor* AKodPlayerController::SelectAtScreen(const FVector2D& Screen, bool bAddT
 	if (Picked)
 	{
 		LocalSelection.AddUnique(Picked);
+		if (!bAddToSelection)
+		{
+			if (UWorld* VoiceWorld = GetWorld())
+			{
+				if (UKodSimSubsystem* VoiceSim = VoiceWorld->GetSubsystem<UKodSimSubsystem>())
+				{
+					if (UKodCueSubsystem* Cues = VoiceWorld->GetSubsystem<UKodCueSubsystem>())
+					{
+						const FKodEntityId VoiceId = VoiceSim->FindIdForActor(Picked);
+						FKodSimEntityState VoiceState;
+						if (VoiceSim->TryGetState(VoiceId, VoiceState))
+						{
+							Cues->PlayUnitVoice(VoiceState.DefinitionId, FName(TEXT("Select")), VoiceId.Value, Picked->GetActorLocation());
+						}
+					}
+				}
+			}
+		}
 	}
 	ApplySelectionHighlight();
 	UE_LOG(LogTemp, Log, TEXT("ClickSelectAtCursor LocalSelection=%d Picked=%s Hits=%s"),
@@ -1834,6 +1853,27 @@ void AKodPlayerController::SetLocalSelectionFromIds(const TArray<FKodEntityId>& 
 		}
 	}
 	ApplySelectionHighlight();
+	if (!bAdd && LocalSelection.Num() >= 1)
+	{
+		if (AActor* VoiceActor = LocalSelection[0].Get())
+		{
+			if (UWorld* VoiceWorld = GetWorld())
+			{
+				if (UKodSimSubsystem* VoiceSim = VoiceWorld->GetSubsystem<UKodSimSubsystem>())
+				{
+					if (UKodCueSubsystem* Cues = VoiceWorld->GetSubsystem<UKodCueSubsystem>())
+					{
+						const FKodEntityId VoiceId = VoiceSim->FindIdForActor(VoiceActor);
+						FKodSimEntityState VoiceState;
+						if (VoiceSim->TryGetState(VoiceId, VoiceState))
+						{
+							Cues->PlayUnitVoice(VoiceState.DefinitionId, FName(TEXT("Select")), VoiceId.Value, VoiceActor->GetActorLocation());
+						}
+					}
+				}
+			}
+		}
+	}
 	if (!bAdd && LocalSelection.Num() == 1)
 	{
 		AActor* Only = LocalSelection[0].Get();
@@ -1973,8 +2013,34 @@ void AKodPlayerController::NotifyCommandMarker(const FVector& WorldLocation, boo
 	{
 		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
 		{
-			const FName CueId = bAttack ? FName(TEXT("command_attack")) : FName(TEXT("command_move"));
-			Sim->RaiseCue(CueId, WorldLocation, true);
+			FName VoiceUnit;
+			int32 VoiceEntity = 0;
+			FVector VoiceAt = WorldLocation;
+			for (const FKodEntityId& VoiceId : GetLocalSelectedEntityIds())
+			{
+				FKodSimEntityState VoiceState;
+				if (Sim->TryGetState(VoiceId, VoiceState) && VoiceState.bMobile)
+				{
+					VoiceUnit = VoiceState.DefinitionId;
+					VoiceEntity = VoiceId.Value;
+					VoiceAt = VoiceState.Position;
+					break;
+				}
+			}
+			const FName VoiceCategory = bAttack ? FName(TEXT("Attack")) : FName(TEXT("Ack"));
+			bool bVoiced = false;
+			if (!VoiceUnit.IsNone())
+			{
+				if (UKodCueSubsystem* Cues = World->GetSubsystem<UKodCueSubsystem>())
+				{
+					bVoiced = Cues->PlayUnitVoice(VoiceUnit, VoiceCategory, VoiceEntity, VoiceAt);
+				}
+			}
+			if (!bVoiced)
+			{
+				const FName CueId = bAttack ? FName(TEXT("command_attack")) : FName(TEXT("command_move"));
+				Sim->RaiseCue(CueId, WorldLocation, true);
+			}
 		}
 	}
 }

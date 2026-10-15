@@ -118,6 +118,10 @@ namespace
 			{
 				Row.FitCm = FCString::Atof(*Value);
 			}
+			else if (Key.Equals(TEXT("MinHeight"), ESearchCase::IgnoreCase))
+			{
+				Row.MinHeightCm = FCString::Atof(*Value);
+			}
 			else if (Key.Equals(TEXT("Anim"), ESearchCase::IgnoreCase))
 			{
 				Row.Anim = Value;
@@ -409,11 +413,11 @@ float FKodMeshCatalog::FootprintCm(FName Id)
 	}
 	if (Id == FName(KodWardenPaths::Id_Barracks))
 	{
-		return 600.f;
+		return 800.f;
 	}
 	if (Id == FName(KodWardenPaths::Id_SupplyDepot) || Id == FName(TEXT("RiteWell")))
 	{
-		return 400.f;
+		return 450.f;
 	}
 	return 0.f;
 }
@@ -497,8 +501,7 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 	float FitCm = Row->FitCm;
 	if (Fit == EKodMeshFit::Length && FitCm <= KINDA_SMALL_NUMBER)
 	{
-		// SC2 SCV length beside a 1000 cm command center.
-		FitCm = 260.f;
+		FitCm = 300.f;
 	}
 	else if (Fit == EKodMeshFit::Footprint && FitCm <= KINDA_SMALL_NUMBER)
 	{
@@ -515,7 +518,11 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 	}
 	else if (Fit == EKodMeshFit::Length && RawSpan > KINDA_SMALL_NUMBER)
 	{
-		Choice.Scale = (FitCm / RawSpan) * RowScale;
+		const float LengthScale = FitCm / RawSpan;
+		const float HeightScale = (Row->MinHeightCm > KINDA_SMALL_NUMBER && RawHeight > KINDA_SMALL_NUMBER)
+			? (Row->MinHeightCm / RawHeight)
+			: 0.f;
+		Choice.Scale = FMath::Max(LengthScale, HeightScale) * RowScale;
 		Choice.BoundsCm = RawSpan * Choice.Scale;
 	}
 	else if (Fit == EKodMeshFit::Height && FitCm > 0.f && RawHeight > KINDA_SMALL_NUMBER)

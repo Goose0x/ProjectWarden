@@ -24,7 +24,8 @@ public class KodCore : ModuleRules
 			"ApplicationCore",
 			"Json",
 			"MeshDescription",
-			"StaticMeshDescription"
+			"StaticMeshDescription",
+			"AssetRegistry"
 		});
 	}
 }

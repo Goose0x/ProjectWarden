@@ -8,6 +8,7 @@
 #include "Engine/ExponentialHeightFog.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/SkyLight.h"
+#include "DrawDebugHelpers.h"
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformMisc.h"
@@ -1509,6 +1510,55 @@ void AKodHUD::NoteFullScreenOverlay(float Alpha)
 	FullScreenOverlayAlpha = FMath::Max(FullScreenOverlayAlpha, FMath::Clamp(Alpha, 0.f, 1.f));
 }
 
+static void DrawKodScaleRef(UWorld* World)
+{
+	static TAutoConsoleVariable<int32> CVarKodScaleRef(
+		TEXT("kod.ScaleRef"),
+		0,
+		TEXT("1 draws a 286 cm Marine-height capsule and a 1 m grid beside the headquarters."),
+		ECVF_Default);
+	if (!World || CVarKodScaleRef.GetValueOnGameThread() == 0)
+	{
+		return;
+	}
+	AActor* Hall = nullptr;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!Actor)
+		{
+			continue;
+		}
+		const bool bHall = Actor->ActorHasTag(FName(TEXT("KodBuildingCommandCenter")))
+			|| Actor->GetName().Contains(TEXT("PROXY_CC"));
+		if (!bHall)
+		{
+			continue;
+		}
+		if (!Hall || Actor->GetName() < Hall->GetName())
+		{
+			Hall = Actor;
+		}
+	}
+	if (!Hall)
+	{
+		return;
+	}
+	const FVector Base = Hall->GetActorLocation();
+	const FVector Feet = Base + FVector(800.f, 200.f, 0.f);
+	constexpr float MarineHeight = 286.f;
+	DrawDebugCapsule(World, Feet + FVector(0.f, 0.f, MarineHeight * 0.5f), MarineHeight * 0.5f, 36.f, FQuat::Identity, FColor::Green, false, 0.f, 0, 2.f);
+	constexpr int32 Cells = 6;
+	constexpr float Step = 100.f;
+	const FVector GridOrigin = Feet + FVector(120.f, -300.f, 2.f);
+	for (int32 Line = 0; Line <= Cells; ++Line)
+	{
+		const float Offset = static_cast<float>(Line) * Step;
+		DrawDebugLine(World, GridOrigin + FVector(Offset, 0.f, 0.f), GridOrigin + FVector(Offset, Cells * Step, 0.f), FColor::White, false, 0.f, 0, 1.5f);
+		DrawDebugLine(World, GridOrigin + FVector(0.f, Offset, 0.f), GridOrigin + FVector(Cells * Step, Offset, 0.f), FColor::White, false, 0.f, 0, 1.5f);
+	}
+}
+
 void AKodHUD::DrawHUD()
 {
 	Super::DrawHUD();
@@ -1594,6 +1644,7 @@ void AKodHUD::DrawHUD()
 			DrawText(Line, Tok(0xFF, 0xD2, 0x3F), X + 8.f * FrameScale, Y, Font, FrameScale, false);
 		}
 	}
+	DrawKodScaleRef(GetWorld());
 	DrawFactionPrompt();
 	PollShotAfter();
 }
