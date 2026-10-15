@@ -13,6 +13,7 @@
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "Actors/KodUnit.h"
 #include "Actors/KodBuilding.h"
+#include "Actors/KodMeshAttach.h"
 #include "Actors/KodResourceNode.h"
 #include "Data/KodResourceNodeDefinition.h"
 #include "Data/KodAbilityDefinition.h"
@@ -1979,6 +1980,7 @@ void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 		Comp->SetRelativeScale3D(Scale);
 		Comp->SetRelativeRotation(FRotator(0.f, Choice.Yaw, 0.f));
 		Comp->SetRelativeLocation(FVector(0.f, 0.f, Choice.Z));
+		KodMeshAttach::Apply(Actor, Comp, MeshId, Choice.bLoaded && !Choice.bFallback);
 		break;
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodCC Mesh=%s Span=%.0f Actor=%s"),

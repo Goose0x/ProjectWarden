@@ -46,6 +46,25 @@ struct KODUNITS_API FKodMeshRow
 	FString DeckRetractAnim;
 };
 
+/**
+ * Optional piece hung on an owner's body. Socket None is the body origin.
+ * Anim is the idle clip. Open, Close, and IdleOpen are optional and, when empty,
+ * are the idle path with IdleClosed replaced.
+ */
+struct KODUNITS_API FKodMeshAttach
+{
+	FName OwnerId;
+	FString Mesh;
+	FName Socket;
+	FString Anim;
+	FString OpenAnim;
+	FString CloseAnim;
+	FString IdleOpenAnim;
+};
+
+/** Attach rows for one owner, in ini order. */
+KODUNITS_API void KodMeshCatalogCopyAttaches(FName OwnerId, TArray<FKodMeshAttach>& OutAttaches);
+
 /** Copy of one ini row. False when the id is not in [KodMeshes]. */
 KODUNITS_API bool KodMeshCatalogFindRow(FName Id, FKodMeshRow& OutRow);
 

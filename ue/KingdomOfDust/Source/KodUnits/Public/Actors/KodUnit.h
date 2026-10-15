@@ -89,6 +89,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Data")
 	void ApplyDefinition(UKodUnitDefinition* Def);
 
+	/**
+	 * Slide the visible body from a bay socket onto the actor over the ramp open.
+	 * The actor stays on the sim pose. Does not write sim state.
+	 */
+	void BeginBayExitVisual(const FVector& WorldBay);
+
 	/** When set before ApplyDefinition, the visible body stays the Engine cube. */
 	void SetForceCubeBody(bool bInForce);
 
@@ -229,6 +235,13 @@ protected:
 
 	/** Captured attach point. Bob is an offset on top of this, not a new scale. */
 	FVector BodyRestRelativeLocation = FVector::ZeroVector;
+
+	/** World point the body eases away from. Presentation only. */
+	FVector BayExitWorld = FVector::ZeroVector;
+	FVector BayExitLocal = FVector::ZeroVector;
+	float BayExitLeft = 0.f;
+	float BayExitDuration = 0.f;
+	bool bBayExitActive = false;
 
 	float MountedMeshYawOffset = -90.f;
 	float VisualYaw = 0.f;

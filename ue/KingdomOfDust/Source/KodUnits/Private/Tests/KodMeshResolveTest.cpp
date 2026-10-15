@@ -96,6 +96,26 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		{
 			TestTrue(*FString::Printf(TEXT("%s height fit"), *Id.ToString()), Row->Fit == EKodMeshFit::Height);
 		}
+		if (Id == FName(KodWardenPaths::Id_CommandCenter))
+		{
+			TestTrue(TEXT("command center footprint fit"), Row->Fit == EKodMeshFit::Footprint);
+			TestTrue(TEXT("command center 1000 cm"), FMath::IsNearlyEqual(Row->FitCm, 1000.f));
+			TestTrue(TEXT("command center v4e primary"), Row->Primary.Contains(TEXT("CrimsonOutpost_v4e_withSockets")));
+			TestTrue(TEXT("command center fallback"), Row->Fallback.Contains(TEXT("SM_general")));
+		}
+	}
+	TArray<FKodMeshAttach> CcAttaches;
+	KodMeshCatalogCopyAttaches(FName(KodWardenPaths::Id_CommandCenter), CcAttaches);
+	TestEqual(TEXT("command center attaches"), CcAttaches.Num(), 2);
+	if (CcAttaches.Num() >= 2)
+	{
+		TestTrue(TEXT("bay interior mesh"), CcAttaches[0].Mesh.Contains(TEXT("BayInterior")));
+		TestTrue(TEXT("bay interior origin"), CcAttaches[0].Socket.IsNone());
+		TestTrue(TEXT("bay ramp mesh"), CcAttaches[1].Mesh.Contains(TEXT("BayRamp")));
+		TestTrue(TEXT("bay ramp socket"), CcAttaches[1].Socket == FName(TEXT("BayRamp")));
+		TestTrue(TEXT("ramp idle"), CcAttaches[1].Anim.Contains(TEXT("IdleClosed")));
+		TestTrue(TEXT("ramp open"), CcAttaches[1].OpenAnim.Contains(TEXT("Ramp_Open")));
+		TestTrue(TEXT("ramp close"), CcAttaches[1].CloseAnim.Contains(TEXT("Ramp_Close")));
 	}
 
 	IConsoleVariable* NewMeshes = IConsoleManager::Get().FindConsoleVariable(TEXT("kod.NewMeshes"));

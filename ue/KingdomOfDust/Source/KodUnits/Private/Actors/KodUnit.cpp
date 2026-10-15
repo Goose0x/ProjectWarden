@@ -646,9 +646,32 @@ void AKodUnit::UpdateCargoPresentation()
 	CargoMesh->SetHiddenInGame(false);
 }
 
+void AKodUnit::BeginBayExitVisual(const FVector& WorldBay)
+{
+	BayExitWorld = WorldBay;
+	BayExitLeft = 1.2f;
+	BayExitDuration = 1.2f;
+	bBayExitActive = true;
+	const FVector WorldDelta = WorldBay - GetActorLocation();
+	BayExitLocal = GetActorQuat().UnrotateVector(WorldDelta);
+}
+
 void AKodUnit::UpdateLifePresentation(float DeltaSeconds)
 {
 	const float Dt = FMath::Max(0.f, DeltaSeconds);
+	const bool bWriteBayExit = bBayExitActive;
+	if (bBayExitActive)
+	{
+		BayExitLeft = FMath::Max(0.f, BayExitLeft - Dt);
+		const float Alpha = BayExitDuration > KINDA_SMALL_NUMBER ? BayExitLeft / BayExitDuration : 0.f;
+		const FVector WorldDelta = BayExitWorld - GetActorLocation();
+		BayExitLocal = GetActorQuat().UnrotateVector(WorldDelta) * Alpha;
+		if (BayExitLeft <= 0.f)
+		{
+			bBayExitActive = false;
+			BayExitLocal = FVector::ZeroVector;
+		}
+	}
 	const FVector Loc = GetActorLocation();
 	const float Speed = (Dt > KINDA_SMALL_NUMBER) ? (FVector::Dist2D(Loc, LastPresentationLocation) / Dt) : 0.f;
 	LastPresentationLocation = Loc;
@@ -704,7 +727,11 @@ void AKodUnit::UpdateLifePresentation(float DeltaSeconds)
 					const float Angle = BobTime * Frequency * 2.f * static_cast<float>(UE_PI);
 					BobZ = GetScaledBobAmplitudeCm() * BobWeight * FMath::Sin(Angle);
 				}
-				SkelBody->SetRelativeLocation(BodyRestRelativeLocation + FVector(0.f, 0.f, BobZ));
+				SkelBody->SetRelativeLocation(BodyRestRelativeLocation + FVector(0.f, 0.f, BobZ) + BayExitLocal);
+			}
+			else if (bWriteBayExit)
+			{
+				SkelBody->SetRelativeLocation(BodyRestRelativeLocation + BayExitLocal);
 			}
 		}
 		return;
@@ -1459,7 +1486,7 @@ void AKodUnit::SetBodyRelativeLocation(const FVector& Bobbed)
 	const float Alpha = (HitReactRemaining > 0.f)
 		? FMath::Clamp(HitReactRemaining / HitReactSeconds, 0.f, 1.f)
 		: 0.f;
-	UnitMesh->SetRelativeLocation(Bobbed + HitJiggleLocal * Alpha);
+	UnitMesh->SetRelativeLocation(Bobbed + HitJiggleLocal * Alpha + BayExitLocal);
 }
 
 void AKodUnit::BindJadeitePalette()

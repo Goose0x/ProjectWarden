@@ -1,4 +1,5 @@
 #include "Actors/KodBuilding.h"
+#include "Actors/KodMeshAttach.h"
 #include "Game/KodCollision.h"
 #include "Actors/KodJadeiteVisual.h"
 #include "Game/KodJadeitePalette.h"
@@ -475,6 +476,16 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 			UE_LOG(LogTemp, Log, TEXT("KodMesh Placeholder Id=%s Path=%s"), *MeshId.ToString(), *MeshPath);
 		}
 	}
+	USceneComponent* AttachBody = nullptr;
+	if (bSkelVisible)
+	{
+		AttachBody = BuildingSkel;
+	}
+	else if (BuildingMesh && BuildingMesh->GetStaticMesh())
+	{
+		AttachBody = BuildingMesh;
+	}
+	KodMeshAttach::Apply(this, AttachBody, MeshId, Choice.bLoaded && !Choice.bFallback);
 	RefreshJadeiteEmissive();
 }
 

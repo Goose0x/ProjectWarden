@@ -14,6 +14,8 @@ namespace KodMeshSockets
 	inline const FName WorkerExit(TEXT("WorkerExit"));
 	/** Trained unit spawn. Barracks uses this; older meshes may only have SOCKET_UnitExit. */
 	inline const FName UnitExit(TEXT("UnitExit"));
+	/** Vanguard command center bay. Visual exit. Not a sim spawn point. */
+	inline const FName BayRamp(TEXT("BayRamp"));
 
 	inline bool ComponentHasSocket(const USceneComponent* Component, FName Socket, FVector& OutWorld)
 	{

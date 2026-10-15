@@ -1,8 +1,10 @@
 #include "Slice0/KodUnitSpawnBridge.h"
 
+#include "Actors/KodMeshAttach.h"
 #include "Actors/KodUnit.h"
 #include "Data/KodUnitDefinition.h"
 #include "Engine/World.h"
+#include "Game/KodMeshSockets.h"
 #include "GameFramework/Actor.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Slice0/KodSlice0Bootstrap.h"
@@ -89,6 +91,29 @@ void UKodUnitSpawnBridge::SpawnOne(const FKodPendingUnitSpawn& Request)
 		return;
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodProd Complete Spawned=%s"), *Unit->GetName());
+	const bool bTrainExit = Request.RestoreId == 0
+		&& Request.ScriptRole == 0
+		&& Request.OrbitTicks == 0
+		&& Request.GatherRatePermille == 0
+		&& Request.StructureId != 0;
+	if (bTrainExit)
+	{
+		FKodEntityId StructureId;
+		StructureId.Value = Request.StructureId;
+		if (AActor* Hall = Sim->ResolveEntity(StructureId))
+		{
+			if (UKodMeshAttachComponent* Attach = Hall->FindComponentByClass<UKodMeshAttachComponent>())
+			{
+				Attach->NotifyTrainExit();
+				FVector WorkerAt = FVector::ZeroVector;
+				FVector BayAt = FVector::ZeroVector;
+				if (KodMeshSockets::TryGet(Hall, KodMeshSockets::WorkerExit, WorkerAt) && Attach->TryGetBayPoint(BayAt))
+				{
+					Unit->BeginBayExitVisual(BayAt);
+				}
+			}
+		}
+	}
 	if (Request.ScriptRole != 0)
 	{
 		Sim->DeferScriptAdopt(Unit->EntityId, Request);

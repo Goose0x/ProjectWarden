@@ -23,6 +23,7 @@ namespace
 		ECVF_Default);
 
 	TArray<FKodMeshRow> GRows;
+	TArray<FKodMeshAttach> GAttaches;
 	bool bRowsLoaded = false;
 
 	FString ObjectPath(const FString& Path)
@@ -153,6 +154,76 @@ namespace
 		}
 	}
 
+	FString SiblingClip(const FString& IdlePath, const TCHAR* Token)
+	{
+		if (IdlePath.IsEmpty() || !IdlePath.Contains(TEXT("IdleClosed")))
+		{
+			return FString();
+		}
+		FString Copy = IdlePath;
+		Copy.ReplaceInline(TEXT("IdleClosed"), Token);
+		return Copy;
+	}
+
+	void ParseAttach(const FString& Text, FKodMeshAttach& Attach)
+	{
+		TArray<FString> Parts;
+		Text.ParseIntoArray(Parts, TEXT(","), false);
+		for (const FString& Part : Parts)
+		{
+			FString Key;
+			FString Value;
+			if (!Part.Split(TEXT("="), &Key, &Value))
+			{
+				continue;
+			}
+			Key = Key.TrimStartAndEnd();
+			Value = Value.TrimStartAndEnd();
+			if (Key.Equals(TEXT("Owner"), ESearchCase::IgnoreCase))
+			{
+				Attach.OwnerId = FName(*Value);
+			}
+			else if (Key.Equals(TEXT("Mesh"), ESearchCase::IgnoreCase))
+			{
+				Attach.Mesh = Value;
+			}
+			else if (Key.Equals(TEXT("Socket"), ESearchCase::IgnoreCase))
+			{
+				Attach.Socket = Value.IsEmpty() || Value.Equals(TEXT("None"), ESearchCase::IgnoreCase)
+					? NAME_None
+					: FName(*Value);
+			}
+			else if (Key.Equals(TEXT("Anim"), ESearchCase::IgnoreCase))
+			{
+				Attach.Anim = Value;
+			}
+			else if (Key.Equals(TEXT("Open"), ESearchCase::IgnoreCase))
+			{
+				Attach.OpenAnim = Value;
+			}
+			else if (Key.Equals(TEXT("Close"), ESearchCase::IgnoreCase))
+			{
+				Attach.CloseAnim = Value;
+			}
+			else if (Key.Equals(TEXT("IdleOpen"), ESearchCase::IgnoreCase))
+			{
+				Attach.IdleOpenAnim = Value;
+			}
+		}
+		if (Attach.OpenAnim.IsEmpty())
+		{
+			Attach.OpenAnim = SiblingClip(Attach.Anim, TEXT("Open"));
+		}
+		if (Attach.CloseAnim.IsEmpty())
+		{
+			Attach.CloseAnim = SiblingClip(Attach.Anim, TEXT("Close"));
+		}
+		if (Attach.IdleOpenAnim.IsEmpty())
+		{
+			Attach.IdleOpenAnim = SiblingClip(Attach.Anim, TEXT("IdleOpen"));
+		}
+	}
+
 	void LoadRows()
 	{
 		if (bRowsLoaded)
@@ -169,6 +240,17 @@ namespace
 			if (!Row.Id.IsNone())
 			{
 				GRows.Add(Row);
+			}
+		}
+		TArray<FString> AttachLines;
+		GConfig->GetArray(TEXT("KodMeshes"), TEXT("Attach"), AttachLines, GGameIni);
+		for (const FString& Line : AttachLines)
+		{
+			FKodMeshAttach Attach;
+			ParseAttach(Line, Attach);
+			if (!Attach.OwnerId.IsNone() && !Attach.Mesh.IsEmpty())
+			{
+				GAttaches.Add(Attach);
 			}
 		}
 	}
@@ -567,4 +649,17 @@ bool KodMeshCatalogFindRow(FName Id, FKodMeshRow& OutRow)
 		return true;
 	}
 	return false;
+}
+
+void KodMeshCatalogCopyAttaches(FName OwnerId, TArray<FKodMeshAttach>& OutAttaches)
+{
+	LoadRows();
+	OutAttaches.Reset();
+	for (const FKodMeshAttach& Attach : GAttaches)
+	{
+		if (Attach.OwnerId == OwnerId)
+		{
+			OutAttaches.Add(Attach);
+		}
+	}
 }
