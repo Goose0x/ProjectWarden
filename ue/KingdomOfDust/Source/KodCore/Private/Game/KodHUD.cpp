@@ -16,6 +16,7 @@
 #include "UnrealClient.h"
 #include "Game/KodCameraSettings.h"
 #include "Game/KodHudLayout.h"
+#include "Game/KodMeshSockets.h"
 #include "Game/KodUiArt.h"
 #include "Game/KodWireTint.h"
 
@@ -2125,9 +2126,18 @@ void AKodHUD::DrawSc2WorldMarks()
 		}
 		if (FVector::Dist2D(Structure.RallyPoint, Structure.Position) > 80.f)
 		{
-			FVector2D From;
-			FVector2D To;
-			if (Project(Structure.Position + FVector(0.f, 0.f, 40.f), From) && Project(Structure.RallyPoint, To))
+			FVector2D From = FVector2D::ZeroVector;
+			FVector2D To = FVector2D::ZeroVector;
+			FVector RallyOrigin = Structure.Position + FVector(0.f, 0.f, 40.f);
+			FVector SocketRally;
+			if (AActor* StructureActor = Sim->ResolveEntity(Structure.Id))
+			{
+				if (KodMeshSockets::TryGet(StructureActor, KodMeshSockets::Rally, SocketRally))
+				{
+					RallyOrigin = SocketRally;
+				}
+			}
+			if (Project(RallyOrigin, From) && Project(Structure.RallyPoint, To))
 			{
 				Dash(From.X, From.Y, To.X, To.Y, White, 1.5f);
 				DrawLine(To.X - 8.f, To.Y, To.X + 8.f, To.Y, White, 1.5f);
@@ -4326,7 +4336,13 @@ void AKodHUD::DrawUnitHealthBars()
 		float BarWidth = KodHudLayout::UnitBarW * Ui;
 		float BarHeight = KodHudLayout::UnitBarH * Ui;
 		FVector TopWorld = BarActor->GetActorLocation();
-		if (const UCapsuleComponent* Capsule = BarActor->FindComponentByClass<UCapsuleComponent>())
+		FVector SocketBar;
+		const bool bHealthSocket = KodMeshSockets::TryGet(BarActor, KodMeshSockets::HealthBar, SocketBar);
+		if (bHealthSocket)
+		{
+			TopWorld = SocketBar;
+		}
+		else if (const UCapsuleComponent* Capsule = BarActor->FindComponentByClass<UCapsuleComponent>())
 		{
 			TopWorld.Z += Capsule->GetScaledCapsuleHalfHeight();
 		}
@@ -4351,7 +4367,10 @@ void AKodHUD::DrawUnitHealthBars()
 			{
 				BarWidth = FMath::Max(24.f * Ui, FMath::Abs(RightScreen.X - LeftScreen.X) * 0.8f);
 			}
-			TopWorld = Origin + FVector(0.f, 0.f, Extent.Z);
+			if (!bHealthSocket)
+			{
+				TopWorld = Origin + FVector(0.f, 0.f, Extent.Z);
+			}
 		}
 		if (!OwningPC->ProjectWorldLocationToScreen(TopWorld, Screen, true))
 		{

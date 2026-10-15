@@ -126,7 +126,7 @@ protected:
 	/** Skeletal mesh wins when it loads; else static mesh on UnitMesh; else the Engine cube. */
 	void ApplyBodyMesh(const UKodUnitDefinition* Def);
 	void ApplyAuthorMesh(const UKodUnitDefinition* Def);
-	void MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh);
+	void MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh, const struct FKodMeshChoice* Choice = nullptr);
 	void MountResolvedStaticMesh(UStaticMesh* StaticBody);
 	void MountCubePlaceholder();
 
@@ -207,6 +207,8 @@ protected:
 
 	/** True only while the Character skeletal mesh is the visible body. */
 	bool bSkeletalBody = false;
+	/** Catalog skeleton has no matching anims. Hold the mesh and keep bob. */
+	bool bMeshAnimHeld = false;
 
 	/** Capsule was resized for the skeletal body and should be restored on the cube path. */
 	bool bSkeletalCapsule = false;

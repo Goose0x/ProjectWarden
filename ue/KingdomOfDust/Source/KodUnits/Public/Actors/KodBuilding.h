@@ -9,6 +9,7 @@
 
 class UKodBuildingDefinition;
 class UKodBuildQueueComponent;
+class USkeletalMeshComponent;
 class UStaticMeshComponent;
 
 /**
@@ -45,6 +46,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Kod|Mesh")
 	TObjectPtr<UStaticMeshComponent> BuildingMesh;
 
+	/** Set when the catalog row is a skeletal mesh. No AnimBP. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Kod|Mesh")
+	TObjectPtr<USkeletalMeshComponent> BuildingSkel;
+
 	UFUNCTION(BlueprintCallable, Category = "Kod|Data")
 	UKodBuildingDefinition* GetDefinition() const;
 
@@ -54,6 +59,8 @@ public:
 private:
 	bool bBoundStructure = false;
 	FVector BaseScale = FVector(3.f, 3.f, 2.f);
+	float MeshYaw = 0.f;
+	float MeshZ = 0.f;
 	bool bSawIncomplete = false;
 	bool bSawComplete = false;
 	bool bCompletionFlash = false;

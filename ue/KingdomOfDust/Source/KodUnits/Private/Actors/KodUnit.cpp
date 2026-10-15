@@ -5,7 +5,10 @@
 #include "Game/KodJadeitePalette.h"
 #include "Animation/KodUnitAnimInstance.h"
 #include "Data/KodFactionDefinition.h"
+#include "Data/KodMeshCatalog.h"
 #include "Data/KodUnitDefinition.h"
+#include "Animation/AnimBlueprintGeneratedClass.h"
+#include "Animation/AnimSequence.h"
 #include "Data/KodWeaponDefinition.h"
 #include "Components/KodAbilitySystemComponent.h"
 #include "Components/KodMoveComponent.h"
@@ -33,6 +36,7 @@
 #include "Math/RotationMatrix.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Misc/Paths.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace
@@ -679,15 +683,28 @@ void AKodUnit::UpdateLifePresentation(float DeltaSeconds)
 
 	if (bSkeletalBody)
 	{
-		// Placeholder bob and the cube jiggle stay off the skeletal mesh.
-		// Hit react is the additive clip. Facing is the offset plus the fast visual yaw.
+		// Facing is the offset plus the fast visual yaw. A held mesh (no matching anim)
+		// still bobs. A live AnimBP keeps its own pose.
 		if (USkeletalMeshComponent* SkelBody = GetMesh())
 		{
 			FRotator SkelRel = SkelBody->GetRelativeRotation();
 			SkelRel.Yaw = MountedMeshYawOffset + FMath::UnwindDegrees(VisualYaw - GetActorRotation().Yaw);
-			// Relative location is set once at mount. Per-frame yaw uses Teleport None
-			// so the mesh keeps a continuous previous transform.
 			SkelBody->SetRelativeRotation(SkelRel, false, nullptr, ETeleportType::None);
+			if (bMeshAnimHeld && !bDeathSinking)
+			{
+				const float TargetWeight = bMoving ? 1.f : 0.f;
+				const float Ease = FMath::Max(0.f, BobEaseSpeed);
+				BobWeight = (Ease <= 0.f || Dt <= 0.f) ? TargetWeight : FMath::FInterpTo(BobWeight, TargetWeight, Dt, Ease);
+				float BobZ = 0.f;
+				if (bMoving || BobWeight > KINDA_SMALL_NUMBER)
+				{
+					BobTime += Dt;
+					const float Frequency = FMath::Max(0.f, BobFrequencyHz);
+					const float Angle = BobTime * Frequency * 2.f * static_cast<float>(UE_PI);
+					BobZ = GetScaledBobAmplitudeCm() * BobWeight * FMath::Sin(Angle);
+				}
+				SkelBody->SetRelativeLocation(BodyRestRelativeLocation + FVector(0.f, 0.f, BobZ));
+			}
 		}
 		return;
 	}
@@ -994,10 +1011,35 @@ void AKodUnit::ApplyBodyMesh(const UKodUnitDefinition* Def)
 	// Hostile marker. Do not mount SM_Ranger_Body; the red cube tint is the tell.
 	if (bForceCubeBody || !Def)
 	{
+		bMeshAnimHeld = false;
 		MountCubePlaceholder();
 		return;
 	}
 
+	const FName MeshId = Def->DefinitionId.IsNone() ? GetFName() : Def->DefinitionId;
+	const FKodMeshChoice Choice = FKodMeshCatalog::Resolve(MeshId);
+	if (Choice.bHasRow && Choice.bLoaded && Choice.bSkeletal && Choice.SkeletalMesh)
+	{
+		MountResolvedSkeletalMesh(Choice.SkeletalMesh, &Choice);
+		return;
+	}
+	if (Choice.bHasRow && Choice.bLoaded && Choice.StaticMesh)
+	{
+		bMeshAnimHeld = false;
+		MountResolvedStaticMesh(Choice.StaticMesh);
+		if (UnitMesh)
+		{
+			UnitMesh->SetRelativeScale3D(UnitMesh->GetRelativeScale3D() * FMath::Max(0.01f, Choice.Scale));
+			FRotator BodyYaw = UnitMesh->GetRelativeRotation();
+			BodyYaw.Yaw += Choice.Yaw;
+			UnitMesh->SetRelativeRotation(BodyYaw);
+			UnitMesh->AddRelativeLocation(FVector(0.f, 0.f, Choice.Z));
+			BodyRestRelativeLocation = UnitMesh->GetRelativeLocation();
+		}
+		return;
+	}
+
+	bMeshAnimHeld = false;
 	// Skeletal wins when the asset actually loads. A set-but-missing path falls through
 	// so PIE never drops the visible body. Slice 0 leaves SkeletalMesh null.
 	if (!Def->SkeletalMesh.IsNull())
@@ -1124,7 +1166,7 @@ void AKodUnit::InitializeAnimFromDefinition(UKodUnitAnimInstance* Anim)
 	Anim->SetupFromDefinition(BodyDef, bNative);
 }
 
-void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
+void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh, const FKodMeshChoice* Choice)
 {
 	// Delivered mesh is 178.9 cm at scale 1, root at the soles. No 170 cm fit.
 	// Half-height ~90; offset by -half-height so the soles sit on the ground.
@@ -1132,6 +1174,7 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 	// skeleton onto another asset.
 	ApplySkeletalCapsule();
 	bSkeletalBody = true;
+	bMeshAnimHeld = false;
 
 	float YawOffset = -90.f;
 	const UKodUnitDefinition* BodyDef = GetDefinition();
@@ -1139,23 +1182,67 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 	{
 		YawOffset = BodyDef->SkeletalMeshYawOffset;
 	}
+	if (Choice && Choice->bHasRow)
+	{
+		YawOffset = Choice->Yaw;
+	}
 	MountedMeshYawOffset = YawOffset;
+	const float MountZ = -SkeletalCapsuleHalfHeight + (Choice ? Choice->Z : 0.f);
+	const float MountScale = (Choice && Choice->Scale > 0.f) ? Choice->Scale : 1.f;
 
 	if (USkeletalMeshComponent* Body = GetMesh())
 	{
 		Body->SetSkeletalMeshAsset(SkelMesh);
-		Body->SetRelativeLocation(FVector(0.f, 0.f, -SkeletalCapsuleHalfHeight));
+		Body->SetRelativeLocation(FVector(0.f, 0.f, MountZ));
 		Body->SetRelativeRotation(FRotator(0.f, YawOffset, 0.f));
-		Body->SetRelativeScale3D(FVector::OneVector);
+		Body->SetRelativeScale3D(FVector(MountScale));
 		Body->SetCanEverAffectNavigation(false);
 		Body->SetHiddenInGame(false);
 		Body->SetVisibility(true);
+		BodyRestRelativeLocation = Body->GetRelativeLocation();
+
+		USkeleton* MeshSkeleton = SkelMesh ? SkelMesh->GetSkeleton() : nullptr;
+		auto SequenceMatches = [MeshSkeleton](const TSoftObjectPtr<UAnimSequence>& Soft) -> bool
+		{
+			if (Soft.IsNull() || !MeshSkeleton)
+			{
+				return Soft.IsNull();
+			}
+			const UAnimSequence* Sequence = Soft.LoadSynchronous();
+			return !Sequence || Sequence->GetSkeleton() == MeshSkeleton;
+		};
+		const bool bClipsMatch = !BodyDef
+			|| (SequenceMatches(BodyDef->IdleAnim)
+				&& SequenceMatches(BodyDef->WalkAnim)
+				&& SequenceMatches(BodyDef->RunAnim)
+				&& SequenceMatches(BodyDef->AimIdleAnim)
+				&& SequenceMatches(BodyDef->FireAnim)
+				&& SequenceMatches(BodyDef->HitReactAnim)
+				&& SequenceMatches(BodyDef->DeathAnim)
+				&& SequenceMatches(BodyDef->DeathAnimB));
 
 		const bool bHasAnims = DefinitionHasAnimSequence(BodyDef);
 		UClass* ResolvedAnimClass = nullptr;
 		bool bNativeMode = false;
 		const TCHAR* AnimModeName = TEXT("None");
-		if (BodyDef && !BodyDef->AnimClass.IsNull())
+		if (Choice && !Choice->Anim.IsEmpty())
+		{
+			const FString AnimPath = Choice->Anim.Contains(TEXT("."))
+				? Choice->Anim
+				: Choice->Anim + TEXT(".") + FPaths::GetBaseFilename(Choice->Anim) + TEXT("_C");
+			if (UClass* LoadedAnim = LoadClass<UAnimInstance>(nullptr, *AnimPath))
+			{
+				if (UAnimBlueprintGeneratedClass* Generated = Cast<UAnimBlueprintGeneratedClass>(LoadedAnim))
+				{
+					if (Generated->TargetSkeleton == MeshSkeleton)
+					{
+						ResolvedAnimClass = LoadedAnim;
+						AnimModeName = TEXT("AnimBP");
+					}
+				}
+			}
+		}
+		if (!ResolvedAnimClass && BodyDef && !BodyDef->AnimClass.IsNull() && bClipsMatch)
 		{
 			if (UClass* LoadedAnim = BodyDef->AnimClass.LoadSynchronous())
 			{
@@ -1167,14 +1254,25 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 				}
 			}
 		}
-		if (!ResolvedAnimClass && bHasAnims)
+		if (!ResolvedAnimClass && bHasAnims && bClipsMatch)
 		{
 			ResolvedAnimClass = UKodUnitAnimInstance::StaticClass();
 			bNativeMode = true;
 			AnimModeName = TEXT("Native");
 		}
-		if (ResolvedAnimClass)
+		const bool bWantedAnim = (Choice && !Choice->Anim.IsEmpty()) || bHasAnims || (BodyDef && !BodyDef->AnimClass.IsNull());
+		if (bWantedAnim && !ResolvedAnimClass)
 		{
+			bMeshAnimHeld = true;
+			Body->SetAnimationMode(EAnimationMode::AnimationCustomMode);
+			Body->SetAnimInstanceClass(nullptr);
+			Body->bPauseAnims = true;
+			UE_LOG(LogTemp, Log, TEXT("KodMesh AnimMismatch Id=%s"), BodyDef ? *BodyDef->DefinitionId.ToString() : *GetName());
+			AnimModeName = TEXT("None");
+		}
+		else if (ResolvedAnimClass)
+		{
+			Body->bPauseAnims = false;
 			Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 			Body->SetAnimInstanceClass(ResolvedAnimClass);
 			if (UAnimInstance* MountedAnim = Body->GetAnimInstance())
@@ -1186,6 +1284,12 @@ void AKodUnit::MountResolvedSkeletalMesh(USkeletalMesh* SkelMesh)
 			{
 				Anim->SetupFromDefinition(BodyDef, bNativeMode);
 			}
+		}
+		else
+		{
+			Body->SetAnimationMode(EAnimationMode::AnimationCustomMode);
+			Body->SetAnimInstanceClass(nullptr);
+			Body->bPauseAnims = true;
 		}
 		LogAnimMode(AnimModeName);
 		AttachWeaponMesh(Body, BodyDef);

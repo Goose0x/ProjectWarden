@@ -1,5 +1,6 @@
 #include "Slice0/KodSlice0GameMode.h"
 #include "Game/KodCollision.h"
+#include "Game/KodMeshSockets.h"
 #include "Slice0/KodFaultline.h"
 #include "Slice0/KodMapLayout.h"
 #include "Slice0/KodMapLife.h"
@@ -1547,7 +1548,7 @@ void AKodSlice0GameMode::PlaceFieldAt(const FVector& AnchorLocation, const FVect
 		VentRadius);
 }
 
-int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FVector& FieldDir, int32 TeamId, int32 Count)
+int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FVector& FieldDir, int32 TeamId, int32 Count, AActor* Anchor)
 {
 	UWorld* World = GetWorld();
 	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
@@ -1555,14 +1556,22 @@ int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FV
 	{
 		return 0;
 	}
+	FVector Origin = AnchorLocation;
+	FVector SocketAt;
+	const bool bSocket = (Anchor && KodMeshSockets::TryGet(Anchor, KodMeshSockets::WorkerExit, SocketAt))
+		|| (Anchor && KodMeshSockets::TryGet(Anchor, KodMeshSockets::Door, SocketAt));
+	if (bSocket)
+	{
+		Origin = SocketAt;
+	}
 	int32 Spawned = 0;
 	TArray<AActor*> Ignored;
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
 		const float Angle = (static_cast<float>(Index) - (static_cast<float>(Count) - 1.f) * 0.5f) * 18.f;
 		const FVector Dir = FieldDir.RotateAngleAxis(Angle, FVector::UpVector);
-		float Radius = 700.f;
-		FVector Spot = AnchorLocation + Dir * Radius;
+		float Radius = bSocket ? 120.f : 700.f;
+		FVector Spot = Origin + Dir * Radius;
 		for (int32 Step = 0; Step < 8; ++Step)
 		{
 			const int32 CellX = KodBuildGrid::CellOf(Spot.X);
@@ -1941,6 +1950,7 @@ void AKodSlice0GameMode::RegisterCommandCenterDropOff()
 	Spec.MaxHealth = CCDef ? CCDef->MaxHealth : 2500.f;
 	Spec.Trains.Add(FName(KodWardenPaths::Id_Dozer));
 	Spec.DropOffStandUU = DropOffStandUU > 0 ? DropOffStandUU : KodEconomyDefaults::DropOffStandUU;
+	ApplyPrototypeStructureMesh(Anchor, CCDef);
 	const FKodEntityId Id = Sim->RegisterStructure(Anchor, Spec);
 	if (!Id.IsValid())
 	{
@@ -1948,7 +1958,6 @@ void AKodSlice0GameMode::RegisterCommandCenterDropOff()
 		return;
 	}
 	EnableResourceSelectCollision(Anchor);
-	ApplyPrototypeStructureMesh(Anchor, CCDef);
 }
 
 void AKodSlice0GameMode::SpawnWorkersIfNeeded()
@@ -2033,7 +2042,7 @@ void AKodSlice0GameMode::SpawnWorkersIfNeeded()
 		}
 	}
 
-	const int32 Spawned = SpawnWorkerFan(AnchorLocation, FieldDir, /*TeamId*/ 0, Want - Nearby);
+	const int32 Spawned = SpawnWorkerFan(AnchorLocation, FieldDir, /*TeamId*/ 0, Want - Nearby, Anchor);
 
 	UE_LOG(LogTemp, Log, TEXT("KodEcon Workers Spawned=%d Anchor=%s"),
 		Spawned,
@@ -2184,7 +2193,7 @@ void AKodSlice0GameMode::SpawnAiOpponent()
 		FieldDir = FieldDir.GetSafeNormal2D();
 	}
 	PlaceFieldAt(Seed, FieldDir);
-	const int32 Spawned = SpawnWorkerFan(Seed, FieldDir, /*TeamId*/ 1, FMath::Clamp(WorkerSpawnCount, 1, 12));
+	const int32 Spawned = SpawnWorkerFan(Seed, FieldDir, /*TeamId*/ 1, FMath::Clamp(WorkerSpawnCount, 1, 12), Building);
 
 	auto SnapYaw = [](const FVector& From, const FVector& To)
 	{

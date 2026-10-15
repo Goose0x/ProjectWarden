@@ -3,8 +3,12 @@
 #include "Actors/KodJadeiteVisual.h"
 #include "Game/KodJadeitePalette.h"
 #include "Data/KodBuildingDefinition.h"
+#include "Data/KodMeshCatalog.h"
 #include "Components/MeshComponent.h"
+#include "Animation/AnimEnums.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -158,7 +162,14 @@ void AKodBuilding::Tick(float DeltaSeconds)
 		}
 	}
 	BuildingMesh->SetRelativeScale3D(Scale);
-	BuildingMesh->SetRelativeLocation(FVector(0.f, 0.f, Rise));
+	BuildingMesh->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
+	BuildingMesh->SetRelativeLocation(FVector(0.f, 0.f, MeshZ + Rise));
+	if (BuildingSkel && !BuildingSkel->bHiddenInGame)
+	{
+		BuildingSkel->SetRelativeScale3D(BaseScale);
+		BuildingSkel->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
+		BuildingSkel->SetRelativeLocation(FVector(0.f, 0.f, MeshZ + Rise));
+	}
 	FKodSimEntityState Combat;
 	if (Sim->TryGetState(EntityId, Combat))
 	{
@@ -317,32 +328,83 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 		}
 	}
 
-	UStaticMesh* LoadedMesh = nullptr;
-	if (!Def->Mesh.IsNull())
+	const FName MeshId = Def->DefinitionId.IsNone() ? Def->GetFName() : Def->DefinitionId;
+	const FKodMeshChoice Choice = FKodMeshCatalog::Resolve(MeshId);
+	if (Choice.bLoaded && Choice.bSkeletal && Choice.SkeletalMesh)
 	{
-		LoadedMesh = Def->Mesh.LoadSynchronous();
-	}
-	if (LoadedMesh && BuildingMesh)
-	{
-		BuildingMesh->SetStaticMesh(LoadedMesh);
-		const float SpanX = static_cast<float>(FMath::Max(1, Def->FootprintX)) * static_cast<float>(KodBuildGrid::CellUU);
-		const float SpanY = static_cast<float>(FMath::Max(1, Def->FootprintY)) * static_cast<float>(KodBuildGrid::CellUU);
-		const FVector Extent = LoadedMesh->GetBounds().BoxExtent * 2.f;
-		const float SafeX = FMath::Max(1.f, Extent.X);
-		const float SafeY = FMath::Max(1.f, Extent.Y);
-		const float SafeZ = FMath::Max(1.f, Extent.Z);
-		BaseScale = FVector(SpanX / SafeX, SpanY / SafeY, (SpanX * 0.45f) / SafeZ);
-		if (!Def->MeshScale.Equals(FVector::OneVector, 0.01f))
+		if (!BuildingSkel)
 		{
-			BaseScale *= Def->MeshScale;
+			BuildingSkel = NewObject<USkeletalMeshComponent>(this, TEXT("BuildingSkel"));
+			BuildingSkel->SetupAttachment(GetRootComponent());
+			BuildingSkel->SetMobility(EComponentMobility::Movable);
+			BuildingSkel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			BuildingSkel->RegisterComponent();
 		}
-		BuildingMesh->SetRelativeScale3D(BaseScale);
+		BuildingSkel->SetSkeletalMeshAsset(Choice.SkeletalMesh);
+		BuildingSkel->SetAnimationMode(EAnimationMode::AnimationCustomMode);
+		BuildingSkel->SetAnimInstanceClass(nullptr);
+		BuildingSkel->bPauseAnims = true;
+		MeshYaw = Choice.Yaw;
+		MeshZ = Choice.Z;
+		BuildingSkel->SetRelativeScale3D(FVector(Choice.Scale));
+		BuildingSkel->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
+		BuildingSkel->SetRelativeLocation(FVector(0.f, 0.f, MeshZ));
+		BuildingSkel->SetHiddenInGame(false);
+		BuildingSkel->SetVisibility(true);
+		if (BuildingMesh)
+		{
+			BuildingMesh->SetHiddenInGame(true);
+			BuildingMesh->SetVisibility(false);
+		}
+		BaseScale = FVector(Choice.Scale);
 	}
-	else if (BuildingMesh)
+	else
 	{
-		const float Span = static_cast<float>(FMath::Max(Def->FootprintX, Def->FootprintY)) * 2.f;
-		BaseScale = FVector(Span, Span, Span * 0.6f);
-		BuildingMesh->SetRelativeScale3D(BaseScale);
+		UStaticMesh* LoadedMesh = Choice.bLoaded ? Choice.StaticMesh : nullptr;
+		if (!LoadedMesh && !Def->Mesh.IsNull())
+		{
+			LoadedMesh = Def->Mesh.LoadSynchronous();
+		}
+		if (BuildingSkel)
+		{
+			BuildingSkel->SetHiddenInGame(true);
+			BuildingSkel->SetVisibility(false);
+		}
+		if (LoadedMesh && BuildingMesh)
+		{
+			BuildingMesh->SetStaticMesh(LoadedMesh);
+			BuildingMesh->SetHiddenInGame(false);
+			BuildingMesh->SetVisibility(true);
+			if (Choice.bLoaded)
+			{
+				BaseScale = FVector(Choice.Scale);
+				MeshYaw = Choice.Yaw;
+				MeshZ = Choice.Z;
+				BuildingMesh->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
+				BuildingMesh->SetRelativeLocation(FVector(0.f, 0.f, MeshZ));
+			}
+			else
+			{
+				const float SpanX = static_cast<float>(FMath::Max(1, Def->FootprintX)) * static_cast<float>(KodBuildGrid::CellUU);
+				const float SpanY = static_cast<float>(FMath::Max(1, Def->FootprintY)) * static_cast<float>(KodBuildGrid::CellUU);
+				const FVector Extent = LoadedMesh->GetBounds().BoxExtent * 2.f;
+				const float SafeX = FMath::Max(1.f, Extent.X);
+				const float SafeY = FMath::Max(1.f, Extent.Y);
+				const float SafeZ = FMath::Max(1.f, Extent.Z);
+				BaseScale = FVector(SpanX / SafeX, SpanY / SafeY, (SpanX * 0.45f) / SafeZ);
+				if (!Def->MeshScale.Equals(FVector::OneVector, 0.01f))
+				{
+					BaseScale *= Def->MeshScale;
+				}
+			}
+			BuildingMesh->SetRelativeScale3D(BaseScale);
+		}
+		else if (BuildingMesh)
+		{
+			const float Span = static_cast<float>(FMath::Max(Def->FootprintX, Def->FootprintY)) * 2.f;
+			BaseScale = FVector(Span, Span, Span * 0.6f);
+			BuildingMesh->SetRelativeScale3D(BaseScale);
+		}
 	}
 	RefreshJadeiteEmissive();
 }
