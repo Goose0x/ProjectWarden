@@ -24,6 +24,7 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		FName(KodWardenPaths::Id_Barracks),
 		FName(KodWardenPaths::Id_SupplyDepot),
 		FName(KodWardenPaths::Id_Dozer),
+		FName(KodWardenPaths::Id_Marine),
 		FName(KodWardenPaths::Id_ScnWorker),
 		FName(TEXT("ScinderHQ")),
 		FName(TEXT("ScinderHost")),

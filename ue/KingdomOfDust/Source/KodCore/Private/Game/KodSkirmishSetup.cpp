@@ -355,7 +355,8 @@ FKodMatchStart FKodSkirmishSetup::ResolveMatchStart(const TCHAR* CommandLine, co
 		return FParse::Value(*Line, Plain, Value) && Value != 0;
 	};
 	const bool bGateShot = FlagSet(TEXT("-kod.ShotSelectMove="), TEXT("kod.ShotSelectMove="))
-		|| FlagSet(TEXT("-kod.ShotZoom="), TEXT("kod.ShotZoom="));
+		|| FlagSet(TEXT("-kod.ShotZoom="), TEXT("kod.ShotZoom="))
+		|| FlagSet(TEXT("-kod.ShotBuildings="), TEXT("kod.ShotBuildings="));
 	int32 AutoplayValue = 0;
 	const bool bAutoplay = (FParse::Value(*Line, TEXT("-kod.Autoplay="), AutoplayValue) && AutoplayValue != 0)
 		|| (FParse::Value(*Line, TEXT("kod.Autoplay="), AutoplayValue) && AutoplayValue != 0)

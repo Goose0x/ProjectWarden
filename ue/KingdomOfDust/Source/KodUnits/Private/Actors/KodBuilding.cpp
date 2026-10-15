@@ -328,7 +328,20 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 		}
 	}
 
-	const FName MeshId = Def->DefinitionId.IsNone() ? Def->GetFName() : Def->DefinitionId;
+	FName MeshId = Def->DefinitionId.IsNone() ? Def->GetFName() : Def->DefinitionId;
+	if (MeshId == FName(KodWardenPaths::Id_CommandCenter) && TeamId == 0)
+	{
+		if (const UWorld* MeshWorld = GetWorld())
+		{
+			if (const UKodSimSubsystem* MeshSim = MeshWorld->GetSubsystem<UKodSimSubsystem>())
+			{
+				if (MeshSim->GetPlayerFaction() == 1)
+				{
+					MeshId = FName(TEXT("ScinderHQ"));
+				}
+			}
+		}
+	}
 	const FKodMeshChoice Choice = FKodMeshCatalog::Resolve(MeshId);
 	if (Choice.bLoaded && Choice.bSkeletal && Choice.SkeletalMesh)
 	{

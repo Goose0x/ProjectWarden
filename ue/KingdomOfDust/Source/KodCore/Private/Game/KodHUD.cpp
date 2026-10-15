@@ -1039,6 +1039,7 @@ void AKodHUD::PollShotAfter()
 	static bool bGateParsed = false;
 	static bool bGateSelectMove = false;
 	static bool bGateZoom = false;
+	static bool bGateBuildings = false;
 	static bool bGateActed = false;
 	static bool bGatePrepared = false;
 	static bool bGateQueued = false;
@@ -1049,11 +1050,13 @@ void AKodHUD::PollShotAfter()
 		bGateParsed = true;
 		int32 SelectFlag = 0;
 		int32 ZoomFlag = 0;
+		int32 BuildingsFlag = 0;
 		const TCHAR* CommandLine = FCommandLine::Get();
 		bGateSelectMove = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotSelectMove="), SelectFlag) && SelectFlag != 0;
 		bGateZoom = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotZoom="), ZoomFlag) && ZoomFlag != 0;
+		bGateBuildings = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotBuildings="), BuildingsFlag) && BuildingsFlag != 0;
 	}
-	if ((bGateSelectMove || bGateZoom) && World)
+	if ((bGateSelectMove || bGateZoom || bGateBuildings) && World)
 	{
 		const float Now = World->GetTimeSeconds();
 		if (!bGateActed)
@@ -1066,7 +1069,7 @@ void AKodHUD::PollShotAfter()
 			AKodRTSCameraPawn* CameraPawn = GatePC ? Cast<AKodRTSCameraPawn>(GatePC->GetPawn()) : nullptr;
 			const AKodGameMode* MatchMode = World->GetAuthGameMode<AKodGameMode>();
 			const bool bFactionReady = !MatchMode || !MatchMode->IsAwaitingFactionPrompt();
-			const bool bCameraReady = !bGateZoom || (CameraPawn && CameraPawn->HasStartViewSettled());
+			const bool bCameraReady = (!bGateZoom && !bGateBuildings) || (CameraPawn && CameraPawn->HasStartViewSettled());
 			int32 WorkerId = MAX_int32;
 			if (bGateSelectMove)
 			{
@@ -1119,8 +1122,21 @@ void AKodHUD::PollShotAfter()
 				CameraPawn->CommitZoomSteps(3.f);
 				UE_LOG(LogTemp, Log, TEXT("KodShotZoom Steps=3 Arm=%.0f"), CameraPawn->GetCurrentArmLength());
 			}
+			if (bGateBuildings)
+			{
+				FVector Focus = FVector::ZeroVector;
+				if (AKodGameMode* GateMode = World->GetAuthGameMode<AKodGameMode>())
+				{
+					GateMode->PlaceShotBuildings(Focus);
+				}
+				if (CameraPawn)
+				{
+					CameraPawn->JumpTo(Focus);
+				}
+				UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Focus=%.0f,%.0f,%.0f"), Focus.X, Focus.Y, Focus.Z);
+			}
 		}
-		const float Wait = bGateZoom ? 3.f : 2.f;
+		const float Wait = (bGateZoom || bGateBuildings) ? 3.f : 2.f;
 		if (!bGateQueued)
 		{
 			if ((Now - GateArmSeconds) < Wait)

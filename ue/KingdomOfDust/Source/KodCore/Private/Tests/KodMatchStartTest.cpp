@@ -29,6 +29,10 @@ bool FKodMatchStartTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("zoom shot skips the prompt"), Zoom.bPrompt);
 	TestEqual(TEXT("zoom shot vanguard"), Zoom.FactionIndex, 0);
 
+	const FKodMatchStart Buildings = FKodSkirmishSetup::ResolveMatchStart(TEXT("-kod.ShotBuildings=1 -kod.Faction=SC"), FString());
+	TestFalse(TEXT("building shot skips the prompt"), Buildings.bPrompt);
+	TestEqual(TEXT("building shot scinder"), Buildings.FactionIndex, 1);
+
 	const FKodMatchStart Select = FKodSkirmishSetup::ResolveMatchStart(TEXT("-kod.ShotSelectMove=1 -kod.Faction=SC"), FString());
 	TestFalse(TEXT("select shot skips the prompt"), Select.bPrompt);
 	TestEqual(TEXT("select shot scinder"), Select.FactionIndex, 1);

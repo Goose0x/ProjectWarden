@@ -26,6 +26,8 @@ public:
 
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 	virtual void StartPlay() override;
+	virtual void ApplyStartFaction(int32 FactionIndex) override;
+	virtual bool PlaceShotBuildings(FVector& OutFocus) override;
 
 	/** Leaves one atmosphere directional light. Spawned suns are movable. Returns the enabled count. */
 	static int32 KeepSingleDirectionalSun(UWorld* World, bool bTutorialLook);

@@ -18,6 +18,7 @@
 #include "Data/KodAbilityDefinition.h"
 #include "Data/KodUnitDefinition.h"
 #include "Data/KodBuildingDefinition.h"
+#include "Data/KodMeshCatalog.h"
 #include "Warden/KodWardenPaths.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Components/LightComponent.h"
@@ -34,6 +35,7 @@
 #include "Materials/MaterialInterface.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Game/KodSpectatorPawn.h"
+#include "UObject/Package.h"
 #include "UObject/SoftObjectPath.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
@@ -1557,7 +1559,7 @@ int32 AKodSlice0GameMode::SpawnWorkerFan(const FVector& AnchorLocation, const FV
 		return 0;
 	}
 	FVector Origin = AnchorLocation;
-	FVector SocketAt;
+	FVector SocketAt = AnchorLocation;
 	const bool bSocket = (Anchor && KodMeshSockets::TryGet(Anchor, KodMeshSockets::WorkerExit, SocketAt))
 		|| (Anchor && KodMeshSockets::TryGet(Anchor, KodMeshSockets::Door, SocketAt));
 	if (bSocket)
@@ -1854,17 +1856,39 @@ void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 		if (UKodBuildingDefinition* Def = Building->GetDefinition())
 		{
 			Building->ApplyDefinition(Def);
-			const bool bPrototype = Def->Mesh.LoadSynchronous() != nullptr;
+			FString MeshName = TEXT("Placeholder");
+			if (Building->BuildingSkel && Building->BuildingSkel->GetSkeletalMeshAsset())
+			{
+				MeshName = Building->BuildingSkel->GetSkeletalMeshAsset()->GetName();
+			}
+			else if (Building->BuildingMesh && Building->BuildingMesh->GetStaticMesh())
+			{
+				MeshName = Building->BuildingMesh->GetStaticMesh()->GetName();
+			}
 			UE_LOG(LogTemp, Log, TEXT("KodCC Mesh=%s Span=%.0f Actor=%s"),
-				bPrototype ? TEXT("SM_general") : TEXT("Placeholder"),
+				*MeshName,
 				Footprint,
 				*Actor->GetActorNameOrLabel());
 			return;
 		}
 	}
-	constexpr float BodyHeight = Footprint * 0.45f;
-	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, KodWardenPaths::ProtoHqMesh);
-	const bool bPrototype = Mesh != nullptr;
+	FName MeshId = FName(KodWardenPaths::Id_CommandCenter);
+	if (const UWorld* MeshWorld = Actor->GetWorld())
+	{
+		if (const UKodSimSubsystem* MeshSim = MeshWorld->GetSubsystem<UKodSimSubsystem>())
+		{
+			if (MeshSim->GetPlayerFaction() == 1)
+			{
+				MeshId = FName(TEXT("ScinderHQ"));
+			}
+		}
+	}
+	const FKodMeshChoice Choice = FKodMeshCatalog::Resolve(MeshId);
+	UStaticMesh* Mesh = Choice.bLoaded ? Choice.StaticMesh : nullptr;
+	if (!Mesh)
+	{
+		Mesh = LoadObject<UStaticMesh>(nullptr, KodWardenPaths::ProtoHqMesh);
+	}
 	if (!Mesh)
 	{
 		Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
@@ -1873,11 +1897,7 @@ void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 	{
 		return;
 	}
-	const FVector Extent = Mesh->GetBounds().BoxExtent * 2.f;
-	const float SafeX = FMath::Max(1.f, Extent.X);
-	const float SafeY = FMath::Max(1.f, Extent.Y);
-	const float SafeZ = FMath::Max(1.f, Extent.Z);
-	const FVector Scale(Footprint / SafeX, Footprint / SafeY, BodyHeight / SafeZ);
+	const FVector Scale = Choice.bLoaded ? FVector(Choice.Scale) : FVector(Footprint / 100.f, Footprint / 100.f, Footprint * 0.45f / 100.f);
 	TInlineComponentArray<UStaticMeshComponent*> Meshes;
 	Actor->GetComponents(Meshes);
 	for (UStaticMeshComponent* Comp : Meshes)
@@ -1889,12 +1909,161 @@ void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 		Comp->SetMobility(EComponentMobility::Movable);
 		Comp->SetStaticMesh(Mesh);
 		Comp->SetRelativeScale3D(Scale);
+		Comp->SetRelativeRotation(FRotator(0.f, Choice.Yaw, 0.f));
+		Comp->SetRelativeLocation(FVector(0.f, 0.f, Choice.Z));
 		break;
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodCC Mesh=%s Span=%.0f Actor=%s"),
-		bPrototype ? TEXT("SM_general") : TEXT("Placeholder"),
+		*Mesh->GetName(),
 		Footprint,
 		*Actor->GetActorNameOrLabel());
+}
+
+void AKodSlice0GameMode::ApplyStartFaction(int32 FactionIndex)
+{
+	Super::ApplyStartFaction(FactionIndex);
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!IsSlice0CommandCenter(Actor))
+		{
+			continue;
+		}
+		const AKodBuilding* Building = Cast<AKodBuilding>(Actor);
+		if (Building && Building->TeamId != 0)
+		{
+			continue;
+		}
+		ApplyCommandCenterMesh(Actor);
+	}
+}
+
+bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
+{
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Sim)
+	{
+		OutFocus = FVector::ZeroVector;
+		return false;
+	}
+	AActor* BaseActor = nullptr;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!IsSlice0CommandCenter(Actor))
+		{
+			continue;
+		}
+		const bool bStart = Actor->ActorHasTag(FName(TEXT("KodStartSpot_0")));
+		const bool bBaseStart = BaseActor && BaseActor->ActorHasTag(FName(TEXT("KodStartSpot_0")));
+		if (!BaseActor || (bStart && !bBaseStart) || (bStart == bBaseStart && Actor->GetName() < BaseActor->GetName()))
+		{
+			BaseActor = Actor;
+		}
+	}
+	const FVector Base = BaseActor ? BaseActor->GetActorLocation() : FVector(-7500.f, -7500.f, 80.f);
+	ApplyCommandCenterMesh(BaseActor);
+	const int32 Faction = Sim->GetPlayerFaction();
+	const bool bScinder = Faction == 1;
+	TArray<FVector> FocusPoints;
+	FocusPoints.Add(Base);
+
+	auto PlaceBuilding = [World, Sim, &FocusPoints](FName TypeId, const FVector& At, int32 FootX, int32 FootY)
+	{
+		UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(TypeId, World);
+		if (!Def)
+		{
+			Def = NewObject<UKodBuildingDefinition>(GetTransientPackage());
+			Def->DefinitionId = TypeId;
+			Def->FootprintX = FootX;
+			Def->FootprintY = FootY;
+			Def->MaxHealth = 1500.f;
+		}
+		const FTransform Xform(FRotator::ZeroRotator, At);
+		AKodBuilding* Building = World->SpawnActor<AKodBuilding>(AKodBuilding::StaticClass(), Xform);
+		if (!Building)
+		{
+			return;
+		}
+		Building->TeamId = 0;
+		Building->Definition = Def;
+		Building->ApplyDefinition(Def);
+		FKodStructureSpec Spec;
+		Spec.DefinitionId = TypeId;
+		Spec.DisplayId = TypeId;
+		Spec.TeamId = 0;
+		Spec.FootprintX = FootX;
+		Spec.FootprintY = FootY;
+		Spec.MaxHealth = Def->MaxHealth;
+		const FKodEntityId Id = Sim->RegisterStructure(Building, Spec);
+		Building->EntityId = Id;
+		FocusPoints.Add(Building->GetActorLocation());
+		UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Place Id=%s Loc=%.0f,%.0f,%.0f"),
+			*TypeId.ToString(),
+			At.X,
+			At.Y,
+			At.Z);
+	};
+	auto PlaceUnit = [World, &FocusPoints](FName TypeId, const FVector& At)
+	{
+		UKodUnitDefinition* Def = UKodSlice0Bootstrap::ResolveUnit(TypeId, World);
+		if (!Def)
+		{
+			Def = NewObject<UKodUnitDefinition>(GetTransientPackage());
+			Def->DefinitionId = TypeId;
+			Def->MaxHealth = 80.f;
+			Def->MoveSpeed = 400.f;
+			Def->SightRadius = 1200.f;
+		}
+		const FTransform Xform(FRotator::ZeroRotator, At);
+		AKodUnit* Unit = World->SpawnActor<AKodUnit>(AKodUnit::StaticClass(), Xform);
+		if (!Unit)
+		{
+			return;
+		}
+		Unit->TeamId = 0;
+		Unit->Definition = Def;
+		Unit->ApplyDefinition(Def);
+		FocusPoints.Add(Unit->GetActorLocation());
+		UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Place Id=%s Loc=%.0f,%.0f,%.0f"),
+			*TypeId.ToString(),
+			At.X,
+			At.Y,
+			At.Z);
+	};
+
+	if (bScinder)
+	{
+		PlaceBuilding(FName(TEXT("ScinderHost")), Base + FVector(1400.f, 500.f, 0.f), 3, 3);
+		PlaceUnit(FName(KodWardenPaths::Id_ScnWorker), Base + FVector(900.f, -200.f, 0.f));
+		PlaceUnit(FName(TEXT("Faultburst")), Base + FVector(1100.f, -500.f, 0.f));
+		PlaceUnit(FName(TEXT("Shardbitten")), Base + FVector(1100.f, -800.f, 0.f));
+	}
+	else
+	{
+		PlaceBuilding(FName(KodWardenPaths::Id_Barracks), Base + FVector(1400.f, 500.f, 0.f), 3, 3);
+		PlaceBuilding(FName(KodWardenPaths::Id_SupplyDepot), Base + FVector(1400.f, -400.f, 0.f), 2, 2);
+		PlaceUnit(FName(KodWardenPaths::Id_Marine), Base + FVector(900.f, 0.f, 0.f));
+	}
+
+	FVector Sum = FVector::ZeroVector;
+	for (const FVector& Point : FocusPoints)
+	{
+		Sum += Point;
+	}
+	OutFocus = FocusPoints.Num() > 0 ? Sum / static_cast<float>(FocusPoints.Num()) : Base;
+	UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Faction=%d Focus=%.0f,%.0f,%.0f"),
+		Faction,
+		OutFocus.X,
+		OutFocus.Y,
+		OutFocus.Z);
+	return true;
 }
 
 void AKodSlice0GameMode::RegisterCommandCenterDropOff()
