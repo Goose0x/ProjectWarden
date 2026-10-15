@@ -35,6 +35,8 @@ struct KODUNITS_API FKodMeshRow
 	float Z = 0.f;
 	EKodMeshFit Fit = EKodMeshFit::Unset;
 	float FitCm = 0.f;
+	/** Length rows only. Scale is the larger of FitCm/length and MinHeightCm/height. 0 ignores height. */
+	float MinHeightCm = 0.f;
 	FString Anim;
 	/** Folder of short-named sequences, for example the supply-depot raise and lower clips. */
 	FString AnimFolder;
@@ -43,6 +45,27 @@ struct KODUNITS_API FKodMeshRow
 	FString DeckExtendAnim;
 	FString DeckRetractAnim;
 };
+
+/**
+ * Optional piece hung on an owner's body.
+ * Socket is the first choice. SocketChain is the full list from Socket=Ramp|BayRamp|Door|None.
+ * None is the body origin. Anim is the idle clip. Open, Close, and IdleOpen are optional and,
+ * when empty, are the idle path with IdleClosed replaced.
+ */
+struct KODUNITS_API FKodMeshAttach
+{
+	FName OwnerId;
+	FString Mesh;
+	FName Socket;
+	TArray<FName> SocketChain;
+	FString Anim;
+	FString OpenAnim;
+	FString CloseAnim;
+	FString IdleOpenAnim;
+};
+
+/** Attach rows for one owner, in ini order. */
+KODUNITS_API void KodMeshCatalogCopyAttaches(FName OwnerId, TArray<FKodMeshAttach>& OutAttaches);
 
 /** Copy of one ini row. False when the id is not in [KodMeshes]. */
 KODUNITS_API bool KodMeshCatalogFindRow(FName Id, FKodMeshRow& OutRow);

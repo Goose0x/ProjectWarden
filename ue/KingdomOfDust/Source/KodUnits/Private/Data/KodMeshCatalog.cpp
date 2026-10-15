@@ -4,6 +4,9 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
+#include "Materials/MaterialInterface.h"
+#include "RHIFeatureLevel.h"
 #include "Game/KodCameraSettings.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/ConfigCacheIni.h"
@@ -20,6 +23,7 @@ namespace
 		ECVF_Default);
 
 	TArray<FKodMeshRow> GRows;
+	TArray<FKodMeshAttach> GAttaches;
 	bool bRowsLoaded = false;
 
 	FString ObjectPath(const FString& Path)
@@ -115,6 +119,10 @@ namespace
 			{
 				Row.FitCm = FCString::Atof(*Value);
 			}
+			else if (Key.Equals(TEXT("MinHeight"), ESearchCase::IgnoreCase))
+			{
+				Row.MinHeightCm = FCString::Atof(*Value);
+			}
 			else if (Key.Equals(TEXT("Anim"), ESearchCase::IgnoreCase))
 			{
 				Row.Anim = Value;
@@ -146,6 +154,85 @@ namespace
 		}
 	}
 
+	FString SiblingClip(const FString& IdlePath, const TCHAR* Token)
+	{
+		if (IdlePath.IsEmpty() || !IdlePath.Contains(TEXT("IdleClosed")))
+		{
+			return FString();
+		}
+		FString Copy = IdlePath;
+		Copy.ReplaceInline(TEXT("IdleClosed"), Token);
+		return Copy;
+	}
+
+	void ParseAttach(const FString& Text, FKodMeshAttach& Attach)
+	{
+		TArray<FString> Parts;
+		Text.ParseIntoArray(Parts, TEXT(","), false);
+		for (const FString& Part : Parts)
+		{
+			FString Key;
+			FString Value;
+			if (!Part.Split(TEXT("="), &Key, &Value))
+			{
+				continue;
+			}
+			Key = Key.TrimStartAndEnd();
+			Value = Value.TrimStartAndEnd();
+			if (Key.Equals(TEXT("Owner"), ESearchCase::IgnoreCase))
+			{
+				Attach.OwnerId = FName(*Value);
+			}
+			else if (Key.Equals(TEXT("Mesh"), ESearchCase::IgnoreCase))
+			{
+				Attach.Mesh = Value;
+			}
+			else if (Key.Equals(TEXT("Socket"), ESearchCase::IgnoreCase))
+			{
+				Attach.SocketChain.Reset();
+				TArray<FString> Tokens;
+				Value.ParseIntoArray(Tokens, TEXT("|"), true);
+				for (const FString& Token : Tokens)
+				{
+					const FString Trimmed = Token.TrimStartAndEnd();
+					const FName Name = Trimmed.IsEmpty() || Trimmed.Equals(TEXT("None"), ESearchCase::IgnoreCase)
+						? NAME_None
+						: FName(*Trimmed);
+					Attach.SocketChain.Add(Name);
+				}
+				Attach.Socket = Attach.SocketChain.Num() > 0 ? Attach.SocketChain[0] : NAME_None;
+			}
+			else if (Key.Equals(TEXT("Anim"), ESearchCase::IgnoreCase))
+			{
+				Attach.Anim = Value;
+			}
+			else if (Key.Equals(TEXT("Open"), ESearchCase::IgnoreCase))
+			{
+				Attach.OpenAnim = Value;
+			}
+			else if (Key.Equals(TEXT("Close"), ESearchCase::IgnoreCase))
+			{
+				Attach.CloseAnim = Value;
+			}
+			else if (Key.Equals(TEXT("IdleOpen"), ESearchCase::IgnoreCase))
+			{
+				Attach.IdleOpenAnim = Value;
+			}
+		}
+		if (Attach.OpenAnim.IsEmpty())
+		{
+			Attach.OpenAnim = SiblingClip(Attach.Anim, TEXT("Open"));
+		}
+		if (Attach.CloseAnim.IsEmpty())
+		{
+			Attach.CloseAnim = SiblingClip(Attach.Anim, TEXT("Close"));
+		}
+		if (Attach.IdleOpenAnim.IsEmpty())
+		{
+			Attach.IdleOpenAnim = SiblingClip(Attach.Anim, TEXT("IdleOpen"));
+		}
+	}
+
 	void LoadRows()
 	{
 		if (bRowsLoaded)
@@ -162,6 +249,17 @@ namespace
 			if (!Row.Id.IsNone())
 			{
 				GRows.Add(Row);
+			}
+		}
+		TArray<FString> AttachLines;
+		GConfig->GetArray(TEXT("KodMeshes"), TEXT("Attach"), AttachLines, GGameIni);
+		for (const FString& Line : AttachLines)
+		{
+			FKodMeshAttach Attach;
+			ParseAttach(Line, Attach);
+			if (!Attach.OwnerId.IsNone() && !Attach.Mesh.IsEmpty())
+			{
+				GAttaches.Add(Attach);
 			}
 		}
 	}
@@ -260,6 +358,58 @@ namespace
 		return LoadFirstMeshInFolder(FPaths::GetPath(Trimmed), Id, OutStatic, OutSkeletal, OutPath);
 	}
 
+	void CapImportedTextures(UStaticMesh* StaticMesh, USkeletalMesh* SkeletalMesh, int32 MaxSize)
+	{
+		TArray<UMaterialInterface*> Materials;
+		if (StaticMesh)
+		{
+			for (const FStaticMaterial& Slot : StaticMesh->GetStaticMaterials())
+			{
+				Materials.Add(Slot.MaterialInterface);
+			}
+		}
+		if (SkeletalMesh)
+		{
+			for (const FSkeletalMaterial& Slot : SkeletalMesh->GetMaterials())
+			{
+				Materials.Add(Slot.MaterialInterface);
+			}
+		}
+		static TSet<FString> Capped;
+		for (UMaterialInterface* Material : Materials)
+		{
+			if (!Material)
+			{
+				continue;
+			}
+			TArray<UTexture*> Used;
+			Material->GetUsedTextures(Used, EMaterialQualityLevel::High, true, ERHIFeatureLevel::SM5, true);
+			for (UTexture* Texture : Used)
+			{
+				UTexture2D* Image = Cast<UTexture2D>(Texture);
+				if (!Image)
+				{
+					continue;
+				}
+				const FString Path = Image->GetPathName();
+				if (!Path.Contains(TEXT("/Game/Warden/")))
+				{
+					continue;
+				}
+				if (Capped.Contains(Path))
+				{
+					continue;
+				}
+				Capped.Add(Path);
+				const bool bBuilding = MaxSize >= 4096;
+				Image->LODGroup = bBuilding ? TEXTUREGROUP_World : TEXTUREGROUP_Character;
+				Image->MaxTextureSize = MaxSize;
+				Image->UpdateResource();
+				UE_LOG(LogTemp, Log, TEXT("KodMesh TexCap Path=%s Max=%d"), *Path, MaxSize);
+			}
+		}
+	}
+
 	bool TryLoadMesh(const FString& Path, UStaticMesh*& OutStatic, USkeletalMesh*& OutSkeletal)
 	{
 		OutStatic = nullptr;
@@ -354,11 +504,11 @@ float FKodMeshCatalog::FootprintCm(FName Id)
 	}
 	if (Id == FName(KodWardenPaths::Id_Barracks))
 	{
-		return 600.f;
+		return 800.f;
 	}
 	if (Id == FName(KodWardenPaths::Id_SupplyDepot) || Id == FName(TEXT("RiteWell")))
 	{
-		return 400.f;
+		return 450.f;
 	}
 	return 0.f;
 }
@@ -442,8 +592,7 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 	float FitCm = Row->FitCm;
 	if (Fit == EKodMeshFit::Length && FitCm <= KINDA_SMALL_NUMBER)
 	{
-		// SC2 SCV length beside a 1000 cm command center.
-		FitCm = 260.f;
+		FitCm = 300.f;
 	}
 	else if (Fit == EKodMeshFit::Footprint && FitCm <= KINDA_SMALL_NUMBER)
 	{
@@ -460,7 +609,11 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 	}
 	else if (Fit == EKodMeshFit::Length && RawSpan > KINDA_SMALL_NUMBER)
 	{
-		Choice.Scale = (FitCm / RawSpan) * RowScale;
+		const float LengthScale = FitCm / RawSpan;
+		const float HeightScale = (Row->MinHeightCm > KINDA_SMALL_NUMBER && RawHeight > KINDA_SMALL_NUMBER)
+			? (Row->MinHeightCm / RawHeight)
+			: 0.f;
+		Choice.Scale = FMath::Max(LengthScale, HeightScale) * RowScale;
 		Choice.BoundsCm = RawSpan * Choice.Scale;
 	}
 	else if (Fit == EKodMeshFit::Height && FitCm > 0.f && RawHeight > KINDA_SMALL_NUMBER)
@@ -489,6 +642,11 @@ FKodMeshChoice FKodMeshCatalog::Resolve(FName Id)
 	{
 		UE_LOG(LogTemp, Log, TEXT("KodMesh Placeholder Id=%s Path=%s"), *Id.ToString(), *Choice.Path);
 	}
+	if (Choice.bLoaded)
+	{
+		const int32 TexCap = Fit == EKodMeshFit::Footprint ? 4096 : 2048;
+		CapImportedTextures(StaticMesh, SkeletalMesh, TexCap);
+	}
 	return Choice;
 }
 
@@ -500,4 +658,17 @@ bool KodMeshCatalogFindRow(FName Id, FKodMeshRow& OutRow)
 		return true;
 	}
 	return false;
+}
+
+void KodMeshCatalogCopyAttaches(FName OwnerId, TArray<FKodMeshAttach>& OutAttaches)
+{
+	LoadRows();
+	OutAttaches.Reset();
+	for (const FKodMeshAttach& Attach : GAttaches)
+	{
+		if (Attach.OwnerId == OwnerId)
+		{
+			OutAttaches.Add(Attach);
+		}
+	}
 }

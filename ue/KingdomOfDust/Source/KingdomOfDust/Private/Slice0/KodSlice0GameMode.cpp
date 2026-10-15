@@ -13,6 +13,7 @@
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "Actors/KodUnit.h"
 #include "Actors/KodBuilding.h"
+#include "Actors/KodMeshAttach.h"
 #include "Actors/KodResourceNode.h"
 #include "Data/KodResourceNodeDefinition.h"
 #include "Data/KodAbilityDefinition.h"
@@ -1979,6 +1980,7 @@ void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 		Comp->SetRelativeScale3D(Scale);
 		Comp->SetRelativeRotation(FRotator(0.f, Choice.Yaw, 0.f));
 		Comp->SetRelativeLocation(FVector(0.f, 0.f, Choice.Z));
+		KodMeshAttach::Apply(Actor, Comp, MeshId, Choice.bLoaded && !Choice.bFallback);
 		break;
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodCC Mesh=%s Span=%.0f Actor=%s"),
@@ -2174,20 +2176,24 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 	auto PlaceBuilding = [World, Sim, &FocusPoints](FName TypeId, const FVector& At, int32 FootX, int32 FootY)
 	{
 		UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(TypeId, World);
-		if (!Def)
+		if (!Def || Def->DefinitionId != TypeId)
 		{
-			Def = NewObject<UKodBuildingDefinition>(GetTransientPackage());
-			Def->DefinitionId = TypeId;
-			Def->FootprintX = FootX;
-			Def->FootprintY = FootY;
-			Def->MaxHealth = 1500.f;
+			UKodBuildingDefinition* Fresh = NewObject<UKodBuildingDefinition>(GetTransientPackage());
+			Fresh->DefinitionId = TypeId;
+			Fresh->FootprintX = FootX;
+			Fresh->FootprintY = FootY;
+			Fresh->MaxHealth = Def ? Def->MaxHealth : 1500.f;
+			Def = Fresh;
 		}
 		const FTransform Xform(FRotator::ZeroRotator, At);
-		AKodBuilding* Building = World->SpawnActor<AKodBuilding>(AKodBuilding::StaticClass(), Xform);
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AKodBuilding* Building = World->SpawnActor<AKodBuilding>(AKodBuilding::StaticClass(), Xform, Params);
 		if (!Building)
 		{
 			return;
 		}
+		Building->SetActorLocation(At, false, nullptr, ETeleportType::TeleportPhysics);
 		Building->TeamId = 0;
 		Building->Definition = Def;
 		Building->Tags.AddUnique(FName(*FString::Printf(TEXT("KodShotName_%s"), *TypeId.ToString())));
@@ -2202,12 +2208,13 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 		Spec.MaxHealth = Def->MaxHealth;
 		const FKodEntityId Id = Sim->RegisterStructure(Building, Spec);
 		Building->EntityId = Id;
-		FocusPoints.Add(Building->GetActorLocation());
+		const FVector PlacedAt = Building->GetActorLocation();
+		FocusPoints.Add(PlacedAt);
 		UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Place Id=%s Loc=%.0f,%.0f,%.0f"),
 			*TypeId.ToString(),
-			At.X,
-			At.Y,
-			At.Z);
+			PlacedAt.X,
+			PlacedAt.Y,
+			PlacedAt.Z);
 	};
 	auto PlaceUnit = [World, &FocusPoints](FName TypeId, const FVector& At)
 	{
@@ -2286,6 +2293,10 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 	{
 		Edge = 500.f;
 	}
+	const float HallHalf = Edge;
+	FBox RowBox(ForceInit);
+	RowBox += Base + FVector(HallHalf, HallHalf, 0.f);
+	RowBox += Base - FVector(HallHalf, HallHalf, 0.f);
 	for (const FShotPlace& Place : Plan)
 	{
 		const float Half = Place.SpanCm * 0.5f;
@@ -2301,27 +2312,21 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 		{
 			PlaceUnit(Place.Id, At);
 		}
+		RowBox += At + FVector(Half, Half, 0.f);
+		RowBox += At - FVector(Half, Half, 0.f);
 		Edge = Center + Half;
 	}
 
-	FVector Sum = FVector::ZeroVector;
-	for (const FVector& Point : FocusPoints)
-	{
-		Sum += Point;
-	}
-	OutFocus = FocusPoints.Num() > 0 ? Sum / static_cast<float>(FocusPoints.Num()) : Base;
-	float Far = 0.f;
-	for (const FVector& Point : FocusPoints)
-	{
-		Far = FMath::Max(Far, FVector::Dist2D(Point, OutFocus));
-	}
+	OutFocus = RowBox.IsValid ? RowBox.GetCenter() : Base;
+	OutFocus.Z = Base.Z;
+	const FVector RowSize = RowBox.IsValid ? RowBox.GetSize() : FVector(HallHalf * 2.f, HallHalf * 2.f, 0.f);
 	for (TActorIterator<AKodRTSCameraPawn> It(World); It; ++It)
 	{
 		if (It->IsA(AKodSpectatorPawn::StaticClass()))
 		{
 			continue;
 		}
-		It->FrameGroundSpan(OutFocus, (Far + 400.f) * 2.f);
+		It->FrameGroundSpan(OutFocus, RowSize.X, RowSize.Y);
 		break;
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Faction=%d Focus=%.0f,%.0f,%.0f"),

@@ -47,8 +47,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Camera")
 	void JumpTo(FVector WorldLocation);
 
-	/** Look at a point and pull the arm back until SpanCm of ground fits. Never zooms in past the rest distance. */
-	void FrameGroundSpan(FVector WorldLocation, float SpanCm);
+	/** Look at a point and fit a ground rectangle. Shot mode keeps this arm past the normal zoom clamp. */
+	void FrameGroundSpan(FVector WorldLocation, float SpanXcm, float SpanYcm);
 
 	/** Locked SC2 start: pitch -56, yaw 90, FOV 35, arm 6800, centred on the point. */
 	void SnapToStartView(FVector WorldLocation);
@@ -184,6 +184,9 @@ public:
 	FBox PlayableBox = FBox(ForceInit);
 
 protected:
+	bool bShotArmHeld = false;
+	float ShotArmLength = 0.f;
+
 	virtual bool WantsCommandCenterFraming() const { return bFrameOnCommandCenter; }
 	virtual bool SupportsUnitFollow() const { return bSupportsUnitFollow; }
 	virtual AActor* FindFollowTarget() const { return nullptr; }

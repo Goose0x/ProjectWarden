@@ -417,6 +417,7 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeScnWorker(UObject* Outer)
 	Unit->Cost.Supply = 1;
 	Unit->Cost.BuildTime = 12 * 16;
 	Unit->BuildTicks = 12 * 16;
+	Unit->bCanGather = true;
 	Unit->SkeletalMesh.Reset();
 	Unit->StaticMesh.Reset();
 	return Unit;
