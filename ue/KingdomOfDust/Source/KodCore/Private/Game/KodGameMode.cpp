@@ -171,3 +171,10 @@ bool AKodGameMode::PlaceShotBuildings(FVector& OutFocus)
 	OutFocus = FVector::ZeroVector;
 	return false;
 }
+
+bool AKodGameMode::PlaceShotRiteWell(FVector& OutFocus, int32& OutStructureId)
+{
+	OutFocus = FVector::ZeroVector;
+	OutStructureId = 0;
+	return false;
+}

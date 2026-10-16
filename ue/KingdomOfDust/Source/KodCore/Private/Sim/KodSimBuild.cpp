@@ -758,6 +758,30 @@ bool UKodSimSubsystem::CancelConstruction(FKodEntityId StructureId)
 	return true;
 }
 
+float UKodSimSubsystem::RepairReachUU(const FKodStructureState& Structure) const
+{
+	const int32 Span = FMath::Max(Structure.FootprintX, Structure.FootprintY);
+	const int32 HalfSpan = (Span * KodBuildGrid::CellUU) / 2;
+	return static_cast<float>(HalfSpan + KodBuildGrid::CellUU);
+}
+
+void UKodSimSubsystem::SetStructureBuildFraction(FKodEntityId Id, float Fraction)
+{
+	FKodStructureState* Structure = Structures.Find(Id.Value);
+	if (!Structure)
+	{
+		return;
+	}
+	const float Clamped = FMath::Clamp(Fraction, 0.f, 1.f);
+	Structure->BuildTimeTotal = 100;
+	Structure->BuildTicksDone = FMath::Clamp(FMath::RoundToInt(Clamped * 100.f), 0, 100);
+	Structure->bComplete = Clamped >= 0.999f;
+	if (Structure->bComplete)
+	{
+		Structure->BuildTicksDone = Structure->BuildTimeTotal;
+	}
+}
+
 void UKodSimSubsystem::StepRepair()
 {
 	TArray<int32> Keys;
@@ -781,7 +805,7 @@ void UKodSimSubsystem::StepRepair()
 			Worker->BuildSite = FKodEntityId();
 			continue;
 		}
-		if (FVector::Dist2D(Worker->Position, Structure->Position) > 180.f)
+		if (FVector::Dist2D(Worker->Position, Structure->Position) > RepairReachUU(*Structure))
 		{
 			continue;
 		}

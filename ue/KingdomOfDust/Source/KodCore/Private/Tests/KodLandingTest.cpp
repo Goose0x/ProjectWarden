@@ -1,6 +1,7 @@
 #include "Game/KodLanding.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Components/SceneComponent.h"
 #include "GameFramework/Actor.h"
 #include "Misc/AutomationTest.h"
 #include "Sim/KodBuildTypes.h"
@@ -11,6 +12,23 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FKodLandingOrientationTest,
 	"Kod.Build.Landing",
 	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+namespace
+{
+	AActor* SpawnRooted(UWorld* World, const FVector& At)
+	{
+		AActor* Actor = World->SpawnActor<AActor>();
+		if (!Actor)
+		{
+			return nullptr;
+		}
+		USceneComponent* Root = NewObject<USceneComponent>(Actor, TEXT("Root"));
+		Actor->SetRootComponent(Root);
+		Root->RegisterComponent();
+		Actor->SetActorLocation(At);
+		return Actor;
+	}
+}
 
 bool FKodLandingOrientationTest::RunTest(const FString& Parameters)
 {
@@ -23,10 +41,10 @@ bool FKodLandingOrientationTest::RunTest(const FString& Parameters)
 	const FRotator Perturbed(12.f, Pose.Yaw + 35.f, -4.f);
 	const FVector OffGrid = Pose.Location + FVector(40.f, -25.f, 15.f);
 	TArray<FVector> Local;
-	TArray<FVector> World;
+	TArray<FVector> SocketWorld;
 	Local.Add(FVector(120.f, 0.f, 0.f));
-	World.Add(OffGrid + FRotator(0.f, Perturbed.Yaw, 0.f).RotateVector(Local[0]));
-	const FKodLandingFault Fault = KodLanding::Evaluate(Perturbed, OffGrid, Pose, Local, World);
+	SocketWorld.Add(OffGrid + FRotator(0.f, Perturbed.Yaw, 0.f).RotateVector(Local[0]));
+	const FKodLandingFault Fault = KodLanding::Evaluate(Perturbed, OffGrid, Pose, Local, SocketWorld);
 	TestTrue(TEXT("validator catches yaw"), Fault.bYaw);
 	TestTrue(TEXT("validator catches tilt"), Fault.bLevel);
 	TestTrue(TEXT("validator catches grid"), Fault.bGrid);
@@ -43,14 +61,13 @@ bool FKodLandingOrientationTest::RunTest(const FString& Parameters)
 	FURL Url;
 	World->InitializeActorsForPlay(Url);
 
-	AActor* Building = World->SpawnActor<AActor>();
+	AActor* Building = SpawnRooted(World, OffGrid);
 	TestNotNull(TEXT("building"), Building);
 	if (!Building)
 	{
 		World->DestroyWorld(false);
 		return false;
 	}
-	Building->SetActorLocation(OffGrid);
 	Building->SetActorRotation(Perturbed);
 	TestFalse(TEXT("perturbed landing is corrected"), KodLanding::ValidateLandingOrientation(Building, Pose));
 	TestTrue(TEXT("landed yaw is canonical"), FMath::Abs(FMath::FindDeltaAngleDegrees(Building->GetActorRotation().Yaw, Pose.Yaw)) <= 0.01f);
@@ -73,8 +90,7 @@ bool FKodLandingOrientationTest::RunTest(const FString& Parameters)
 
 		auto Occupy = [World, Sim](int32 CellX, int32 CellY, int32 Foot)
 		{
-			AActor* Actor = World->SpawnActor<AActor>();
-			Actor->SetActorLocation(FVector(KodBuildGrid::CellCenter(CellX), KodBuildGrid::CellCenter(CellY), 0.f));
+			AActor* Actor = SpawnRooted(World, FVector(KodBuildGrid::CellCenter(CellX), KodBuildGrid::CellCenter(CellY), 0.f));
 			FKodStructureSpec Spec;
 			Spec.DefinitionId = FName(TEXT("WallBox"));
 			Spec.FootprintX = Foot;
@@ -121,11 +137,10 @@ bool FKodLandingOrientationTest::RunTest(const FString& Parameters)
 		Flyer.Cost.Credits = 0;
 		Flyer.Cost.Luminene = 0;
 		Sim->RegisterBuildSpec(Flyer);
-		AActor* FlyerActor = World->SpawnActor<AActor>();
+		AActor* FlyerActor = SpawnRooted(World, FVector(KodBuildGrid::CellCenter(4), KodBuildGrid::CellCenter(4), 25.f));
 		TestNotNull(TEXT("flyer"), FlyerActor);
 		if (FlyerActor)
 		{
-			FlyerActor->SetActorLocation(FVector(KodBuildGrid::CellCenter(4), KodBuildGrid::CellCenter(4), 25.f));
 			FKodStructureSpec FlyerSpec;
 			FlyerSpec.DefinitionId = Flyer.TypeId;
 			FlyerSpec.FootprintX = 2;

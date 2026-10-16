@@ -6,8 +6,8 @@
 #include "Components/PointLightComponent.h"
 #include "NiagaraComponent.h"
 #include "Sim/KodEntityId.h"
-#include "KodBuilding.generated.h"
 #include "Engine/StaticMesh.h"
+#include "KodBuilding.generated.h"
 
 class UKodBuildingDefinition;
 class UKodBuildQueueComponent;

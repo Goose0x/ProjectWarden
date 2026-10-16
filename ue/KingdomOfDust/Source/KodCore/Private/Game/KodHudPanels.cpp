@@ -1,5 +1,6 @@
 #include "Game/KodHUD.h"
 
+#include "Game/KodCameraSettings.h"
 #include "Game/KodHudLayout.h"
 #include "Game/KodWireTint.h"
 
@@ -474,11 +475,20 @@ void AKodHUD::DrawMinimap()
 			WorldToMinimap(NearRight.X, NearRight.Y, X1, Y1);
 			WorldToMinimap(FarRight.X, FarRight.Y, X2, Y2);
 			WorldToMinimap(FarLeft.X, FarLeft.Y, X3, Y3);
-			const FLinearColor White(1.f, 1.f, 1.f, 0.95f);
-			DrawLine(X0, Y0, X1, Y1, White, 1.5f);
-			DrawLine(X1, Y1, X2, Y2, White, 1.5f);
-			DrawLine(X2, Y2, X3, Y3, White, 1.5f);
-			DrawLine(X3, Y3, X0, Y0, White, 1.5f);
+			const KodCameraSettings::FKodMapRect View = KodCameraSettings::ClampRect(
+				KodCameraSettings::AxisAlignedBounds(X0, Y0, X1, Y1, X2, Y2, X3, Y3),
+				MapMinX,
+				MapMinY,
+				MapMaxX,
+				MapMaxY);
+			if (View.bValid)
+			{
+				const FLinearColor White(1.f, 1.f, 1.f, 0.95f);
+				DrawLine(View.MinX, View.MinY, View.MaxX, View.MinY, White, 1.5f);
+				DrawLine(View.MaxX, View.MinY, View.MaxX, View.MaxY, White, 1.5f);
+				DrawLine(View.MaxX, View.MaxY, View.MinX, View.MaxY, White, 1.5f);
+				DrawLine(View.MinX, View.MaxY, View.MinX, View.MinY, White, 1.5f);
+			}
 		}
 		FVector Alert;
 		if (bMapAlerts && CameraPawn->GetActiveAlert(Alert) && IsMinimapWorldRevealed(Alert.X, Alert.Y))

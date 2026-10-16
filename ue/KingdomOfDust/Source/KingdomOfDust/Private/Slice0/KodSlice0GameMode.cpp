@@ -48,6 +48,7 @@
 #include "Engine/SkyLight.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
+#include "Misc/ConfigCacheIni.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 #include "Misc/CommandLine.h"
@@ -277,6 +278,98 @@ namespace
 	}
 }
 
+namespace
+{
+	bool IsPlayerBaseCandidate(const AActor* Actor)
+	{
+		if (!Actor)
+		{
+			return false;
+		}
+		const FString Label = Actor->GetActorNameOrLabel();
+		return Label.Contains(TEXT("PROXY_CC"))
+			|| Actor->ActorHasTag(FName(TEXT("KodBuildingCommandCenter")))
+			|| Actor->ActorHasTag(FName(TEXT("KodStartSpot_0")))
+			|| Actor->ActorHasTag(FName(TEXT("P1_SPAWN")));
+	}
+
+	int32 PlayerBaseScore(const AActor* Actor)
+	{
+		const FVector At = Actor->GetActorLocation();
+		const bool bOrigin = FMath::Abs(At.X) < 50.f && FMath::Abs(At.Y) < 50.f;
+		int32 Score = bOrigin ? 0 : 500;
+		if (Actor->ActorHasTag(FName(TEXT("KodStartSpot_0"))))
+		{
+			Score += 1000;
+		}
+		if (Actor->GetActorNameOrLabel().Contains(TEXT("PROXY_CC")))
+		{
+			Score += 200;
+		}
+		if (Actor->ActorHasTag(FName(TEXT("KodBuildingCommandCenter")))
+			|| Actor->ActorHasTag(FName(TEXT("P1_SPAWN"))))
+		{
+			Score += 100;
+		}
+		return Score;
+	}
+
+	AActor* PickBaseToSeat(UWorld* World)
+	{
+		AActor* Proxy = nullptr;
+		AActor* Tagged = nullptr;
+		if (!World)
+		{
+			return nullptr;
+		}
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			AActor* Actor = *It;
+			if (!IsPlayerBaseCandidate(Actor))
+			{
+				continue;
+			}
+			const bool bProxy = Actor->GetActorNameOrLabel().Contains(TEXT("PROXY_CC"));
+			AActor*& Slot = bProxy ? Proxy : Tagged;
+			if (!Slot || Actor->GetName() < Slot->GetName())
+			{
+				Slot = Actor;
+			}
+		}
+		return Proxy ? Proxy : Tagged;
+	}
+}
+
+AActor* AKodSlice0GameMode::FindBaseToSeat(UWorld* World)
+{
+	return PickBaseToSeat(World);
+}
+
+AActor* AKodSlice0GameMode::FindPlayerBaseActor(UWorld* World)
+{
+	AActor* Best = nullptr;
+	int32 BestScore = MIN_int32;
+	if (!World)
+	{
+		return nullptr;
+	}
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (!IsPlayerBaseCandidate(Actor))
+		{
+			continue;
+		}
+		const int32 Score = PlayerBaseScore(Actor);
+		if (!Best || Score > BestScore || (Score == BestScore && Actor->GetName() < Best->GetName()))
+		{
+			Best = Actor;
+			BestScore = Score;
+		}
+	}
+	return Best;
+}
+
 AKodSlice0GameMode::AKodSlice0GameMode()
 {
 	PlayerControllerClass = AKodSlice0PlayerController::StaticClass();
@@ -365,6 +458,42 @@ void AKodSlice0GameMode::MuteGreyboxProxyCollision()
 	}
 }
 
+struct FKodSunIni
+{
+	float Pitch = -37.f;
+	float Yaw = 135.f;
+	float Intensity = 8.f;
+	FLinearColor Color = FLinearColor::FromSRGBColor(FColor(0xC8, 0xBE, 0xA8));
+	bool bHaveYaw = false;
+};
+
+static FKodSunIni ReadKodLighting()
+{
+	FKodSunIni Sun;
+	float Pitch = Sun.Pitch;
+	float Yaw = Sun.Yaw;
+	float Intensity = Sun.Intensity;
+	if (GConfig && GConfig->GetFloat(TEXT("KodLighting"), TEXT("Pitch"), Pitch, GGameIni))
+	{
+		Sun.Pitch = Pitch;
+	}
+	if (GConfig && GConfig->GetFloat(TEXT("KodLighting"), TEXT("Yaw"), Yaw, GGameIni))
+	{
+		Sun.Yaw = Yaw;
+		Sun.bHaveYaw = true;
+	}
+	if (GConfig && GConfig->GetFloat(TEXT("KodLighting"), TEXT("Intensity"), Intensity, GGameIni))
+	{
+		Sun.Intensity = Intensity;
+	}
+	FString ColorText;
+	if (GConfig && GConfig->GetString(TEXT("KodLighting"), TEXT("Color"), ColorText, GGameIni) && !ColorText.IsEmpty())
+	{
+		Sun.Color = FLinearColor::FromSRGBColor(FColor::FromHex(ColorText));
+	}
+	return Sun;
+}
+
 int32 AKodSlice0GameMode::KeepSingleDirectionalSun(UWorld* World, bool bTutorialLook)
 {
 	if (!World)
@@ -439,18 +568,35 @@ int32 AKodSlice0GameMode::KeepSingleDirectionalSun(UWorld* World, bool bTutorial
 			KeptComponent->SetAtmosphereSunLight(true);
 			KeptComponent->SetVisibility(true);
 			KeptComponent->SetCastShadows(true);
-			// Light travels toward screen top-left (about 10 o'clock) so shadows fall that way.
-			// A small source angle keeps the shadow edge sharp. Low sky fill keeps the ground dark.
-			KeptSun->SetActorRotation(FRotator(-37.f, 150.f, 0.f));
-			const float Authored = KeptComponent->Intensity;
-			const float FinalIntensity = FMath::Clamp(FMath::Max(Authored, 6.5f), 6.5f, 10.f);
-			KeptComponent->SetIntensity(FinalIntensity);
-			KeptComponent->SetLightColor(FLinearColor::FromSRGBColor(FColor(0xC8, 0xBE, 0xA8)));
-			KeptComponent->SetTemperature(5200.f);
-			KeptComponent->SetUseTemperature(true);
-			KeptComponent->SetLightSourceAngle(0.35f);
 			KeptComponent->SetDynamicShadowDistanceMovableLight(30000.f);
-			UE_LOG(LogTemp, Log, TEXT("KodSun Intensity=%.2f Authored=%.2f"), FinalIntensity, Authored);
+			const FKodSunIni Lighting = ReadKodLighting();
+			const float Authored = KeptComponent->Intensity;
+			const FRotator AuthoredRot = KeptSun->GetActorRotation();
+			if (bSpawned || Lighting.bHaveYaw)
+			{
+				// Ini yaw 135 puts the key behind the yaw-90 camera so shadows fall away from the lens.
+				KeptSun->SetActorRotation(FRotator(Lighting.Pitch, Lighting.Yaw, 0.f));
+				KeptComponent->SetLightColor(Lighting.Color);
+			}
+			if (bSpawned || Authored < 0.05f)
+			{
+				KeptComponent->SetIntensity(FMath::Clamp(Lighting.Intensity, 6.5f, 10.f));
+			}
+			if (bSpawned)
+			{
+				KeptComponent->SetTemperature(5200.f);
+				KeptComponent->SetUseTemperature(true);
+				KeptComponent->SetLightSourceAngle(0.35f);
+			}
+			const FRotator FinalRot = KeptSun->GetActorRotation();
+			UE_LOG(LogTemp, Log, TEXT("KodSun Intensity=%.2f Authored=%.2f Rot=P%.0f Y%.0f AuthoredRot=P%.0f Y%.0f Placed=%d"),
+				KeptComponent->Intensity,
+				Authored,
+				FinalRot.Pitch,
+				FinalRot.Yaw,
+				AuthoredRot.Pitch,
+				AuthoredRot.Yaw,
+				bSpawned ? 0 : 1);
 		}
 		if (KeptComponent && KeptComponent->IsVisible())
 		{
@@ -547,8 +693,16 @@ static void ApplySc2Look(UWorld* World)
 	const bool bShotAfter = FParse::Value(FCommandLine::Get(), TEXT("-kod.ShotAfter="), ShotSeconds)
 		|| FParse::Value(FCommandLine::Get(), TEXT("kod.ShotAfter="), ShotSeconds);
 	AKodSlice0GameMode::ApplyMatchExposure(World);
+	bool bPlacedSun = false;
+	for (TActorIterator<ADirectionalLight> SunIt(World); SunIt; ++SunIt)
+	{
+		if (*SunIt)
+		{
+			bPlacedSun = true;
+			break;
+		}
+	}
 	bool bHaveSky = false;
-	bool bPromotedPlacedSky = false;
 	for (TActorIterator<ASkyLight> It(World); It; ++It)
 	{
 		bHaveSky = true;
@@ -558,24 +712,18 @@ static void ApplySc2Look(UWorld* World)
 			{
 				UE_LOG(LogTemp, Log, TEXT("KodLight PlacedStatic Name=%s"), *It->GetName());
 				Sky->SetMobility(EComponentMobility::Movable);
-				if (Sky->Intensity < 0.05f)
-				{
-					Sky->SetIntensity(0.4f);
-				}
 				Sky->RecaptureSky();
-				bPromotedPlacedSky = true;
 				UE_LOG(LogTemp, Log, TEXT("KodLight SkyPromoted Name=%s"), *It->GetName());
 			}
-			else
+			else if (bShotAfter)
 			{
-				Sky->SetMobility(EComponentMobility::Movable);
-				Sky->SetIntensity(0.15f);
-				Sky->SetLightColor(FLinearColor(0.55f, 0.62f, 0.72f));
+				Sky->RecaptureSky();
 			}
 		}
 		break;
 	}
-	if (!bHaveSky)
+	// A level that already has a sun keeps its own sky. An empty map still gets fill.
+	if (!bHaveSky && !bPlacedSun)
 	{
 		ASkyLight* SkyActor = World->SpawnActor<ASkyLight>();
 		if (SkyActor)
@@ -594,7 +742,7 @@ static void ApplySc2Look(UWorld* World)
 		bHaveFog = true;
 		break;
 	}
-	if (!bHaveFog)
+	if (!bHaveFog && !bPlacedSun)
 	{
 		AExponentialHeightFog* Fog = World->SpawnActor<AExponentialHeightFog>();
 		if (Fog && Fog->GetComponent())
@@ -608,77 +756,11 @@ static void ApplySc2Look(UWorld* World)
 	}
 	const bool bTraining = KodFaultline::IsTrainingMap(World);
 	AKodSlice0GameMode::KeepSingleDirectionalSun(World, bTraining);
-	if (!bTraining)
-	{
-		return;
-	}
-	const FLinearColor SkyColor = FLinearColor::FromSRGBColor(FColor(0x9F, 0xB4, 0xD9));
-	const FLinearColor HazeColor = FLinearColor::FromSRGBColor(FColor(0xD9, 0xA6, 0x75));
-	ASkyLight* SkyActor = nullptr;
-	for (TActorIterator<ASkyLight> It(World); It; ++It)
-	{
-		SkyActor = *It;
-		break;
-	}
-	if (!SkyActor)
-	{
-		SkyActor = World->SpawnActor<ASkyLight>();
-	}
-	if (SkyActor)
-	{
-		if (USkyLightComponent* Sky = SkyActor->GetLightComponent())
-		{
-			if (Sky->Mobility == EComponentMobility::Static || bPromotedPlacedSky)
-			{
-				if (Sky->Mobility == EComponentMobility::Static)
-				{
-					UE_LOG(LogTemp, Log, TEXT("KodLight PlacedStatic Name=%s"), *SkyActor->GetName());
-					Sky->SetMobility(EComponentMobility::Movable);
-					if (Sky->Intensity < 0.05f)
-					{
-						Sky->SetIntensity(0.8f);
-					}
-					Sky->SetRealTimeCapture(false);
-					Sky->RecaptureSky();
-					UE_LOG(LogTemp, Log, TEXT("KodLight SkyPromoted Name=%s"), *SkyActor->GetName());
-				}
-				else if (bShotAfter)
-				{
-					Sky->RecaptureSky();
-				}
-			}
-			else
-			{
-				Sky->SetMobility(EComponentMobility::Movable);
-				Sky->SetIntensity(0.15f);
-				Sky->SetLightColor(SkyColor);
-				Sky->SetRealTimeCapture(false);
-				if (bShotAfter)
-				{
-					Sky->RecaptureSky();
-				}
-			}
-		}
-	}
-	AExponentialHeightFog* FogActor = nullptr;
-	for (TActorIterator<AExponentialHeightFog> It(World); It; ++It)
-	{
-		FogActor = *It;
-		break;
-	}
-	if (!FogActor)
-	{
-		FogActor = World->SpawnActor<AExponentialHeightFog>();
-	}
-	if (FogActor && FogActor->GetComponent())
-	{
-		UExponentialHeightFogComponent* FogComp = FogActor->GetComponent();
-		FogComp->SetFogDensity(0.002f);
-		FogComp->SetFogInscatteringColor(HazeColor);
-		FogComp->SetStartDistance(4000.f);
-		FogComp->SetVolumetricFog(false);
-	}
-	UE_LOG(LogTemp, Log, TEXT("KodFaultline Sun single directional tutorial=%d"), bTraining ? 1 : 0);
+	UE_LOG(LogTemp, Log, TEXT("KodFaultline Sun single directional tutorial=%d PlacedSun=%d Sky=%d Fog=%d"),
+		bTraining ? 1 : 0,
+		bPlacedSun ? 1 : 0,
+		bHaveSky ? 1 : 0,
+		bHaveFog ? 1 : 0);
 }
 
 void AKodSlice0GameMode::StartPlay()
@@ -1266,42 +1348,22 @@ void AKodSlice0GameMode::SeatPlayerBase()
 	{
 		return;
 	}
-	AActor* Anchor = nullptr;
-	for (TActorIterator<AActor> It(World); It; ++It)
-	{
-		AActor* Actor = *It;
-		if (!IsSlice0CommandCenter(Actor))
-		{
-			continue;
-		}
-		if (!Anchor || Actor->GetName() < Anchor->GetName())
-		{
-			Anchor = Actor;
-		}
-	}
+	AActor* Anchor = PickBaseToSeat(World);
 	if (!Anchor)
 	{
 		return;
 	}
+	Anchor->Tags.AddUnique(FName(TEXT("KodStartSpot_0")));
 	constexpr float Base = 8300.f;
 	TArray<AActor*> Ignored;
 	Ignored.Add(Anchor);
 	const float FloorZ = ResolveResourceFloorZ(World, Sim, -Base, -Base, Anchor->GetActorLocation().Z, Ignored);
-	if (USceneComponent* AnchorRoot = Anchor->GetRootComponent())
-	{
-		AnchorRoot->SetMobility(EComponentMobility::Movable);
-	}
-	TInlineComponentArray<UPrimitiveComponent*> Primitives;
-	Anchor->GetComponents(Primitives);
-	for (UPrimitiveComponent* Primitive : Primitives)
-	{
-		if (Primitive)
-		{
-			Primitive->SetMobility(EComponentMobility::Movable);
-		}
-	}
-	Anchor->SetActorLocation(FVector(-Base, -Base, FloorZ), false, nullptr, ETeleportType::TeleportPhysics);
+	PlaceActorAt(Anchor, FVector(-Base, -Base, FloorZ));
 	const FVector Seated = Anchor->GetActorLocation();
+	if (FKodEntityId SeatedId = Sim->FindIdForActor(Anchor); SeatedId.IsValid())
+	{
+		Sim->SetEntityGroundPosition(SeatedId, Seated);
+	}
 	UE_LOG(LogTemp, Log, TEXT("KodBase Player Loc=%.0f,%.0f,%.0f"), Seated.X, Seated.Y, Seated.Z);
 }
 
@@ -1949,6 +2011,35 @@ static void ApplyPrototypeStructureMesh(AActor* Actor, const UKodBuildingDefinit
 	AKodSlice0GameMode::ApplyCommandCenterMesh(Actor);
 }
 
+bool AKodSlice0GameMode::PlaceActorAt(AActor* Actor, const FVector& Dest)
+{
+	if (!Actor)
+	{
+		return false;
+	}
+	if (USceneComponent* Root = Actor->GetRootComponent())
+	{
+		Root->SetMobility(EComponentMobility::Movable);
+	}
+	else
+	{
+		USceneComponent* NewRoot = NewObject<USceneComponent>(Actor, TEXT("KodMoveRoot"));
+		Actor->SetRootComponent(NewRoot);
+		NewRoot->RegisterComponent();
+	}
+	TInlineComponentArray<UPrimitiveComponent*> Primitives;
+	Actor->GetComponents(Primitives);
+	for (UPrimitiveComponent* Primitive : Primitives)
+	{
+		if (Primitive)
+		{
+			Primitive->SetMobility(EComponentMobility::Movable);
+		}
+	}
+	Actor->SetActorLocation(Dest, false, nullptr, ETeleportType::TeleportPhysics);
+	return FVector::Dist2D(Actor->GetActorLocation(), Dest) <= 50.f;
+}
+
 void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 {
 	if (!Actor)
@@ -2057,21 +2148,7 @@ void AKodSlice0GameMode::ApplyStartFaction(int32 FactionIndex)
 	{
 		return;
 	}
-	AActor* WorkerAnchor = nullptr;
-	for (TActorIterator<AActor> It(World); It; ++It)
-	{
-		AActor* Actor = *It;
-		if (!IsSlice0CommandCenter(Actor))
-		{
-			continue;
-		}
-		const bool bStart = Actor->ActorHasTag(FName(TEXT("KodStartSpot_0")));
-		const bool bAnchorStart = WorkerAnchor && WorkerAnchor->ActorHasTag(FName(TEXT("KodStartSpot_0")));
-		if (!WorkerAnchor || (bStart && !bAnchorStart) || (bStart == bAnchorStart && Actor->GetName() < WorkerAnchor->GetName()))
-		{
-			WorkerAnchor = Actor;
-		}
-	}
+	AActor* WorkerAnchor = FindPlayerBaseActor(World);
 	if (!WorkerAnchor)
 	{
 		return;
@@ -2189,22 +2266,18 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 		OutFocus = FVector::ZeroVector;
 		return false;
 	}
-	AActor* BaseActor = nullptr;
-	for (TActorIterator<AActor> It(World); It; ++It)
+	AActor* BaseActor = FindPlayerBaseActor(World);
+	FVector Base = BaseActor ? BaseActor->GetActorLocation() : FVector(-7500.f, -7500.f, 80.f);
+	if (BaseActor && FMath::Abs(Base.X) < 50.f && FMath::Abs(Base.Y) < 50.f)
 	{
-		AActor* Actor = *It;
-		if (!IsSlice0CommandCenter(Actor))
+		const FVector Start( -7500.f, -7500.f, Base.Z > 1.f ? Base.Z : 80.f);
+		PlaceActorAt(BaseActor, Start);
+		Base = BaseActor->GetActorLocation();
+		if (FKodEntityId BaseId = Sim->FindIdForActor(BaseActor); BaseId.IsValid())
 		{
-			continue;
-		}
-		const bool bStart = Actor->ActorHasTag(FName(TEXT("KodStartSpot_0")));
-		const bool bBaseStart = BaseActor && BaseActor->ActorHasTag(FName(TEXT("KodStartSpot_0")));
-		if (!BaseActor || (bStart && !bBaseStart) || (bStart == bBaseStart && Actor->GetName() < BaseActor->GetName()))
-		{
-			BaseActor = Actor;
+			Sim->SetEntityGroundPosition(BaseId, Base);
 		}
 	}
-	const FVector Base = BaseActor ? BaseActor->GetActorLocation() : FVector(-7500.f, -7500.f, 80.f);
 	ApplyCommandCenterMesh(BaseActor);
 	const int32 Faction = Sim->GetPlayerFaction();
 	const bool bScinder = Faction == 1;
@@ -2375,6 +2448,83 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 	return true;
 }
 
+bool AKodSlice0GameMode::PlaceShotRiteWell(FVector& OutFocus, int32& OutStructureId)
+{
+	OutFocus = FVector::ZeroVector;
+	OutStructureId = 0;
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!World || !Sim)
+	{
+		return false;
+	}
+	AActor* BaseActor = FindPlayerBaseActor(World);
+	FVector Base = BaseActor ? BaseActor->GetActorLocation() : FVector(-7500.f, -7500.f, 80.f);
+	if (BaseActor && FMath::Abs(Base.X) < 50.f && FMath::Abs(Base.Y) < 50.f)
+	{
+		const FVector Start(-7500.f, -7500.f, Base.Z > 1.f ? Base.Z : 80.f);
+		PlaceActorAt(BaseActor, Start);
+		Base = BaseActor->GetActorLocation();
+		if (FKodEntityId BaseId = Sim->FindIdForActor(BaseActor); BaseId.IsValid())
+		{
+			Sim->SetEntityGroundPosition(BaseId, Base);
+		}
+	}
+	const FVector At = Base + FVector(1200.f, 0.f, 0.f);
+	UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(FName(TEXT("RiteWell")), World);
+	if (!Def || Def->DefinitionId != FName(TEXT("RiteWell")))
+	{
+		UKodBuildingDefinition* Fresh = NewObject<UKodBuildingDefinition>(GetTransientPackage());
+		Fresh->DefinitionId = FName(TEXT("RiteWell"));
+		Fresh->FootprintX = 3;
+		Fresh->FootprintY = 3;
+		Fresh->MaxHealth = 1000.f;
+		Def = Fresh;
+	}
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AKodBuilding* Building = World->SpawnActor<AKodBuilding>(AKodBuilding::StaticClass(), FTransform(FRotator::ZeroRotator, At), Params);
+	if (!Building)
+	{
+		return false;
+	}
+	Building->SetActorLocation(At, false, nullptr, ETeleportType::TeleportPhysics);
+	Building->TeamId = 0;
+	Building->Definition = Def;
+	Building->Tags.AddUnique(FName(TEXT("KodShotName_RiteWell")));
+	Building->Tags.AddUnique(FName(TEXT("KodShotLabel")));
+	Building->ApplyDefinition(Def);
+	FKodStructureSpec Spec;
+	Spec.DefinitionId = FName(TEXT("RiteWell"));
+	Spec.DisplayId = FName(TEXT("RiteWell"));
+	Spec.TeamId = 0;
+	Spec.FootprintX = FMath::Max(1, Def->FootprintX);
+	Spec.FootprintY = FMath::Max(1, Def->FootprintY);
+	Spec.MaxHealth = Def->MaxHealth;
+	const FKodEntityId Id = Sim->RegisterStructure(Building, Spec);
+	Building->EntityId = Id;
+	Sim->SetStructureBuildFraction(Id, 0.f);
+	OutStructureId = Id.Value;
+	OutFocus = (Base + Building->GetActorLocation()) * 0.5f;
+	OutFocus.Z = Base.Z;
+	for (TActorIterator<AKodRTSCameraPawn> It(World); It; ++It)
+	{
+		if (It->IsA(AKodSpectatorPawn::StaticClass()))
+		{
+			continue;
+		}
+		It->JumpTo(OutFocus);
+		break;
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodShotRiteWell Place Loc=%.0f,%.0f,%.0f Focus=%.0f,%.0f"),
+		Building->GetActorLocation().X,
+		Building->GetActorLocation().Y,
+		Building->GetActorLocation().Z,
+		OutFocus.X,
+		OutFocus.Y);
+	return Id.IsValid();
+}
+
 void AKodSlice0GameMode::RegisterCommandCenterDropOff()
 {
 	UWorld* World = GetWorld();
@@ -2452,21 +2602,7 @@ void AKodSlice0GameMode::SpawnWorkersIfNeeded()
 		return;
 	}
 
-	AActor* Anchor = nullptr;
-	for (TActorIterator<AActor> It(World); It; ++It)
-	{
-		AActor* Actor = *It;
-		if (!IsSlice0CommandCenter(Actor))
-		{
-			continue;
-		}
-		const bool bStart = Actor->ActorHasTag(FName(TEXT("KodStartSpot_0")));
-		const bool bAnchorStart = Anchor && Anchor->ActorHasTag(FName(TEXT("KodStartSpot_0")));
-		if (!Anchor || (bStart && !bAnchorStart) || (bStart == bAnchorStart && Actor->GetName() < Anchor->GetName()))
-		{
-			Anchor = Actor;
-		}
-	}
+	AActor* Anchor = FindPlayerBaseActor(World);
 
 	const FVector AnchorLocation = Anchor ? Anchor->GetActorLocation() : SmokeRangerOffset;
 	int32 Nearby = 0;

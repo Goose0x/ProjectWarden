@@ -1041,6 +1041,12 @@ void AKodHUD::PollShotAfter()
 	static bool bGateSelectMove = false;
 	static bool bGateZoom = false;
 	static bool bGateBuildings = false;
+	static bool bGatePan = false;
+	static bool bGateVoice = false;
+	static bool bGateRite = false;
+	static int32 GatePanStep = 0;
+	static int32 GateRiteStep = 0;
+	static int32 GateRiteId = 0;
 	static bool bGateActed = false;
 	static bool bGatePrepared = false;
 	static bool bGateQueued = false;
@@ -1052,25 +1058,31 @@ void AKodHUD::PollShotAfter()
 		int32 SelectFlag = 0;
 		int32 ZoomFlag = 0;
 		int32 BuildingsFlag = 0;
+		int32 PanFlag = 0;
+		int32 VoiceFlag = 0;
+		int32 RiteFlag = 0;
 		const TCHAR* CommandLine = FCommandLine::Get();
 		bGateSelectMove = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotSelectMove="), SelectFlag) && SelectFlag != 0;
 		bGateZoom = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotZoom="), ZoomFlag) && ZoomFlag != 0;
 		bGateBuildings = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotBuildings="), BuildingsFlag) && BuildingsFlag != 0;
+		bGatePan = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotPan="), PanFlag) && PanFlag != 0;
+		bGateVoice = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotVoiceSpam="), VoiceFlag) && VoiceFlag != 0;
+		bGateRite = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotRiteWell="), RiteFlag) && RiteFlag != 0;
 	}
-	if ((bGateSelectMove || bGateZoom || bGateBuildings) && World)
+	if ((bGateSelectMove || bGateZoom || bGateBuildings || bGatePan || bGateVoice || bGateRite) && World)
 	{
 		const float Now = World->GetTimeSeconds();
+		AKodPlayerController* GatePC = Cast<AKodPlayerController>(GetOwningPlayerController());
+		if (!GatePC)
+		{
+			GatePC = Cast<AKodPlayerController>(World->GetFirstPlayerController());
+		}
+		AKodRTSCameraPawn* CameraPawn = GatePC ? Cast<AKodRTSCameraPawn>(GatePC->GetPawn()) : nullptr;
 		if (!bGateActed)
 		{
-			AKodPlayerController* GatePC = Cast<AKodPlayerController>(GetOwningPlayerController());
-			if (!GatePC)
-			{
-				GatePC = Cast<AKodPlayerController>(World->GetFirstPlayerController());
-			}
-			AKodRTSCameraPawn* CameraPawn = GatePC ? Cast<AKodRTSCameraPawn>(GatePC->GetPawn()) : nullptr;
 			const AKodGameMode* MatchMode = World->GetAuthGameMode<AKodGameMode>();
 			const bool bFactionReady = !MatchMode || !MatchMode->IsAwaitingFactionPrompt();
-			const bool bCameraReady = (!bGateZoom && !bGateBuildings) || (CameraPawn && CameraPawn->HasStartViewSettled());
+			const bool bCameraReady = (!bGateZoom && !bGateBuildings && !bGatePan && !bGateRite) || (CameraPawn && CameraPawn->HasStartViewSettled());
 			int32 WorkerId = MAX_int32;
 			if (bGateSelectMove)
 			{
@@ -1141,8 +1153,120 @@ void AKodHUD::PollShotAfter()
 				}
 				UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Focus=%.0f,%.0f,%.0f"), Focus.X, Focus.Y, Focus.Z);
 			}
+			if (bGateVoice)
+			{
+				const FKodSimEntityState* VoiceState = nullptr;
+				for (const FKodSimEntityState& State : FrameStates)
+				{
+					if (State.TeamId == ReadLocalTeamId() && State.Health > 0.f && !State.DefinitionId.IsNone())
+					{
+						VoiceState = &State;
+						break;
+					}
+				}
+				if (UKodCueSubsystem* Cues = World->GetSubsystem<UKodCueSubsystem>())
+				{
+					const float Times[] = { 0.f, 0.2f, 0.4f, 1.7f, 3.3f, 4.9f, 5.3f, 11.f };
+					const FName VoiceId = VoiceState ? VoiceState->DefinitionId : FName(KodWardenPaths::Id_Marine);
+					const int32 VoiceEntity = VoiceState ? VoiceState->Id.Value : 1;
+					const FVector VoiceAt = VoiceState ? VoiceState->Position : FVector::ZeroVector;
+					for (int32 Step = 0; Step < UE_ARRAY_COUNT(Times); ++Step)
+					{
+						const bool bPlayed = Cues->PlayUnitVoice(VoiceId, FName(TEXT("Select")), VoiceEntity, VoiceAt, Times[Step]);
+						UE_LOG(LogTemp, Log, TEXT("KodShotVoiceSpam Step=%d Time=%.1f Played=%d Unit=%s"),
+							Step,
+							Times[Step],
+							bPlayed ? 1 : 0,
+							*VoiceId.ToString());
+					}
+				}
+			}
+			if (bGateRite)
+			{
+				FVector Focus = FVector::ZeroVector;
+				if (AKodGameMode* GateMode = World->GetAuthGameMode<AKodGameMode>())
+				{
+					GateMode->PlaceShotRiteWell(Focus, GateRiteId);
+				}
+				if (CameraPawn)
+				{
+					CameraPawn->JumpTo(Focus);
+				}
+				if (GEngine)
+				{
+					GEngine->Exec(World, TEXT("stat GPU"));
+				}
+				if (UKodSimSubsystem* RiteSim = World->GetSubsystem<UKodSimSubsystem>())
+				{
+					FKodEntityId RiteId;
+					RiteId.Value = GateRiteId;
+					RiteSim->SetStructureBuildFraction(RiteId, 0.f);
+				}
+				UE_LOG(LogTemp, Log, TEXT("KodShotRiteWell Focus=%.0f,%.0f,%.0f Id=%d"), Focus.X, Focus.Y, Focus.Z, GateRiteId);
+			}
 		}
-		const float Wait = (bGateZoom || bGateBuildings) ? 3.f : 2.f;
+		const float Wait = (bGateZoom || bGateBuildings || bGatePan || bGateRite) ? 3.f : 2.f;
+		if (bGateRite && GateRiteStep < 4)
+		{
+			const float Fractions[] = { 0.f, 0.33f, 0.66f, 1.f };
+			if ((Now - GateArmSeconds) < static_cast<float>(GateRiteStep + 1) * 0.8f)
+			{
+				return;
+			}
+			UE_LOG(LogTemp, Log, TEXT("KodShotRiteWell Step=%d Fraction=%.2f Id=%d"),
+				GateRiteStep,
+				Fractions[GateRiteStep],
+				GateRiteId);
+			GetHighResScreenshotConfig().SetResolution(1920, 1080);
+			if (GEngine)
+			{
+				GEngine->Exec(World, TEXT("HighResShot 1920x1080"));
+			}
+			++GateRiteStep;
+			if (GateRiteStep < 4)
+			{
+				if (UKodSimSubsystem* RiteSim = World->GetSubsystem<UKodSimSubsystem>())
+				{
+					FKodEntityId RiteId;
+					RiteId.Value = GateRiteId;
+					RiteSim->SetStructureBuildFraction(RiteId, Fractions[GateRiteStep]);
+				}
+				return;
+			}
+		}
+		if (bGatePan && CameraPawn && GatePanStep < 3)
+		{
+			if ((Now - GateArmSeconds) < static_cast<float>(GatePanStep) * 1.5f)
+			{
+				return;
+			}
+			const AActor* PanBase = CameraPawn->FindCommandCenter();
+			FVector PanFocus = PanBase ? PanBase->GetActorLocation() : CameraPawn->GetActorLocation();
+			PanFocus.X += 2500.f * static_cast<float>(GatePanStep);
+			CameraPawn->JumpTo(PanFocus);
+			const FVector Center = CameraPawn->GetActorLocation();
+			int32 InFrame = 0;
+			for (const FKodSimEntityState& State : FrameStates)
+			{
+				if (State.Health > 0.f && FVector::Dist2D(State.Position, Center) < 6000.f)
+				{
+					InFrame = 1;
+					break;
+				}
+			}
+			UE_LOG(LogTemp, Log, TEXT("KodShotPan Step=%d Focus=%.0f,%.0f InFrame=%d"), GatePanStep, Center.X, Center.Y, InFrame);
+			checkf(InFrame > 0, TEXT("KodShotPan Step=%d has no unit in frame at %.0f,%.0f"), GatePanStep, Center.X, Center.Y);
+			GetHighResScreenshotConfig().SetResolution(1920, 1080);
+			if (GEngine)
+			{
+				GEngine->Exec(World, TEXT("HighResShot 1920x1080"));
+			}
+			++GatePanStep;
+			if (GatePanStep < 3)
+			{
+				return;
+			}
+		}
 		if (!bGateQueued)
 		{
 			if ((Now - GateArmSeconds) < Wait)

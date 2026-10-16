@@ -433,6 +433,7 @@ void AKodPlayerController::PlayerTick(float DeltaTime)
 			{
 				if (GetLocalSelection().Num() > 0 && GetLocalSelection()[0])
 				{
+					// Screen center is the rig focus, so the portrait unit lands in the middle.
 					FocusPawn->JumpTo(GetLocalSelection()[0]->GetActorLocation());
 				}
 			}

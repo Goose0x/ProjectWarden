@@ -164,31 +164,14 @@ namespace
 	void SeatOctagon(UWorld* World)
 	{
 		const FVector Socket(-7500.f, -7500.f, 340.f);
-		SpawnOctagon(World, FVector(Socket.X, Socket.Y, 300.f));
 		SpawnOctagon(World, FVector(900.f, -7900.f, 0.f));
-		AActor* Anchor = nullptr;
-		for (TActorIterator<AActor> It(World); It; ++It)
-		{
-			AActor* Actor = *It;
-			if (!Actor)
-			{
-				continue;
-			}
-			const FString Label = Actor->GetActorNameOrLabel();
-			if (!Label.Contains(TEXT("PROXY_CC")) && !Actor->ActorHasTag(FName(TEXT("KodStartSpot_0"))))
-			{
-				continue;
-			}
-			if (!Anchor || Actor->GetName() < Anchor->GetName())
-			{
-				Anchor = Actor;
-			}
-		}
+		AActor* Anchor = AKodSlice0GameMode::FindBaseToSeat(World);
 		if (!Anchor)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("KodFaultline CC Miss Socket=-7500,-7500"));
 			return;
 		}
+		Anchor->Tags.AddUnique(FName(TEXT("KodStartSpot_0")));
 		TInlineComponentArray<UPrimitiveComponent*> Primitives;
 		Anchor->GetComponents(Primitives);
 		for (UPrimitiveComponent* Primitive : Primitives)
@@ -198,13 +181,17 @@ namespace
 				Primitive->SetMobility(EComponentMobility::Movable);
 			}
 		}
-		if (USceneComponent* Root = Anchor->GetRootComponent())
-		{
-			Root->SetMobility(EComponentMobility::Movable);
-		}
-		Anchor->SetActorLocation(Socket, false, nullptr, ETeleportType::TeleportPhysics);
+		AKodSlice0GameMode::PlaceActorAt(Anchor, Socket);
 		AKodSlice0GameMode::ApplyCommandCenterMesh(Anchor);
 		const FVector Seated = Anchor->GetActorLocation();
+		if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+		{
+			const FKodEntityId Id = Sim->FindIdForActor(Anchor);
+			if (Id.IsValid())
+			{
+				Sim->SetEntityGroundPosition(Id, Seated);
+			}
+		}
 		UE_LOG(LogTemp, Log, TEXT("KodFaultline CC Octagon Loc=%.0f,%.0f,%.0f"), Seated.X, Seated.Y, Seated.Z);
 	}
 

@@ -36,5 +36,13 @@ bool FKodMatchStartTest::RunTest(const FString& Parameters)
 	const FKodMatchStart Select = FKodSkirmishSetup::ResolveMatchStart(TEXT("-kod.ShotSelectMove=1 -kod.Faction=SC"), FString());
 	TestFalse(TEXT("select shot skips the prompt"), Select.bPrompt);
 	TestEqual(TEXT("select shot scinder"), Select.FactionIndex, 1);
+
+	const FKodMatchStart Pan = FKodSkirmishSetup::ResolveMatchStart(TEXT("-kod.ShotPan=1 -kod.Faction=VG"), FString());
+	TestFalse(TEXT("pan shot skips the prompt"), Pan.bPrompt);
+	const FKodMatchStart Voice = FKodSkirmishSetup::ResolveMatchStart(TEXT("-kod.ShotVoiceSpam=1 -kod.Faction=VG"), FString());
+	TestFalse(TEXT("voice shot skips the prompt"), Voice.bPrompt);
+	const FKodMatchStart Rite = FKodSkirmishSetup::ResolveMatchStart(TEXT("-kod.ShotRiteWell=1 -kod.Faction=SC"), FString());
+	TestFalse(TEXT("rite well shot skips the prompt"), Rite.bPrompt);
+	TestEqual(TEXT("rite well shot scinder"), Rite.FactionIndex, 1);
 	return true;
 }

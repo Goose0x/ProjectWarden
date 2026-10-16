@@ -28,6 +28,12 @@ public:
 	virtual void StartPlay() override;
 	virtual void ApplyStartFaction(int32 FactionIndex) override;
 	virtual bool PlaceShotBuildings(FVector& OutFocus) override;
+	virtual bool PlaceShotRiteWell(FVector& OutFocus, int32& OutStructureId) override;
+
+	/** Level PROXY_CC even while it is still at the origin. Seating moves this actor. */
+	static AActor* FindBaseToSeat(UWorld* World);
+	/** Player command center after it has left the origin, else the start spot. */
+	static AActor* FindPlayerBaseActor(UWorld* World);
 
 	/** Leaves one atmosphere directional light. Spawned suns are movable. Returns the enabled count. */
 	static int32 KeepSingleDirectionalSun(UWorld* World, bool bTutorialLook);
@@ -37,6 +43,9 @@ public:
 
 	/** SM_general when it loads, otherwise a cube whose footprint is 1000 cm. */
 	static void ApplyCommandCenterMesh(AActor* Actor);
+
+	/** Moves an actor even when its root was static or missing. False if it stays put. */
+	static bool PlaceActorAt(AActor* Actor, const FVector& Dest);
 
 	/** When true, spawn one Ranger at origin+offset for walk gate smoke. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Slice0")

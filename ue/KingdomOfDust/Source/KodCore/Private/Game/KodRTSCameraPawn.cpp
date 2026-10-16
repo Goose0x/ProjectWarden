@@ -123,13 +123,19 @@ AKodRTSCameraPawn::AKodRTSCameraPawn()
 	CameraBoom->bEnableCameraLag = false;
 	CameraBoom->bEnableCameraRotationLag = false;
 	CameraBoom->bInheritPitch = false;
+	CameraBoom->bInheritYaw = true;
 	CameraBoom->bInheritRoll = false;
 	CameraBoom->bUsePawnControlRotation = false;
+	CameraBoom->TargetOffset = FVector::ZeroVector;
+	CameraBoom->SocketOffset = FVector::ZeroVector;
+	CameraBoom->SetRelativeLocation(FVector::ZeroVector);
 	CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, RollDegrees));
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	Camera->bUsePawnControlRotation = false;
+	Camera->SetRelativeLocation(FVector::ZeroVector);
+	Camera->SetRelativeRotation(FRotator::ZeroRotator);
 
 	CurrentArmLength = DefaultArmLength;
 	TargetArmLength = DefaultArmLength;
@@ -297,6 +303,11 @@ void AKodRTSCameraPawn::Tick(float DeltaSeconds)
 	{
 		bFollowUnit = false;
 		FollowTarget = nullptr;
+		bPendingPlayerFocus = false;
+	}
+	if (bPendingPlayerFocus)
+	{
+		SnapToPlayerStart();
 	}
 	PollFollow();
 	if (bFollowUnit)
@@ -432,23 +443,33 @@ AActor* AKodRTSCameraPawn::FindCommandCenter() const
 	{
 		return nullptr;
 	}
+	TArray<AActor*> Candidates;
+	auto Consider = [&Candidates](AActor* Actor)
+	{
+		if (Actor && !Candidates.Contains(Actor))
+		{
+			Candidates.Add(Actor);
+		}
+	};
 	if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
 	{
 		TArray<FKodStructureState> Structures;
 		Sim->CopyStructures(Structures);
 		for (const FKodStructureState& Structure : Structures)
 		{
-			if (Structure.TeamId != 0 || Structure.DefinitionId != FName(KodWardenPaths::Id_CommandCenter))
+			if (Structure.TeamId != 0)
 			{
 				continue;
 			}
-			if (AActor* Actor = Sim->ResolveEntity(Structure.Id))
+			const bool bHall = Structure.DefinitionId == FName(KodWardenPaths::Id_CommandCenter)
+				|| Structure.DefinitionId == FName(TEXT("ScinderHQ"));
+			if (!bHall)
 			{
-				return Actor;
+				continue;
 			}
+			Consider(Sim->ResolveEntity(Structure.Id));
 		}
 	}
-	AActor* Best = nullptr;
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
 		AActor* Actor = *It;
@@ -458,14 +479,37 @@ AActor* AKodRTSCameraPawn::FindCommandCenter() const
 		}
 		const bool bCc = Actor->ActorHasTag(FName(TEXT("KodBuildingCommandCenter")))
 			|| Actor->ActorHasTag(FName(TEXT("P1_SPAWN")))
+			|| Actor->ActorHasTag(FName(TEXT("KodStartSpot_0")))
 			|| Actor->GetActorNameOrLabel().Contains(TEXT("PROXY_CC"));
-		if (!bCc)
+		if (bCc)
 		{
-			continue;
+			Consider(Actor);
 		}
-		if (!Best || Actor->GetName() < Best->GetName())
+	}
+	AActor* Best = nullptr;
+	int32 BestScore = MIN_int32;
+	for (AActor* Actor : Candidates)
+	{
+		const FVector At = Actor->GetActorLocation();
+		const bool bOrigin = FMath::Abs(At.X) < 50.f && FMath::Abs(At.Y) < 50.f;
+		int32 Score = bOrigin ? 0 : 500;
+		if (Actor->ActorHasTag(FName(TEXT("KodStartSpot_0"))))
+		{
+			Score += 1000;
+		}
+		if (Actor->GetActorNameOrLabel().Contains(TEXT("PROXY_CC")))
+		{
+			Score += 200;
+		}
+		if (Actor->ActorHasTag(FName(TEXT("KodBuildingCommandCenter")))
+			|| Actor->ActorHasTag(FName(TEXT("P1_SPAWN"))))
+		{
+			Score += 100;
+		}
+		if (!Best || Score > BestScore || (Score == BestScore && Actor->GetName() < Best->GetName()))
 		{
 			Best = Actor;
+			BestScore = Score;
 		}
 	}
 	return Best;
@@ -473,17 +517,35 @@ AActor* AKodRTSCameraPawn::FindCommandCenter() const
 
 void AKodRTSCameraPawn::SnapToPlayerStart()
 {
-	if (AActor* Anchor = FindCommandCenter())
+	if (!WantsCommandCenterFraming())
 	{
-		SnapToStartView(Anchor->GetActorLocation());
+		return;
 	}
+	AActor* Anchor = FindCommandCenter();
+	if (!Anchor)
+	{
+		return;
+	}
+	const FVector At = Anchor->GetActorLocation();
+	if (FMath::Abs(At.X) < 50.f && FMath::Abs(At.Y) < 50.f)
+	{
+		return;
+	}
+	SnapToStartView(At);
+	bPendingPlayerFocus = false;
+	UE_LOG(LogTemp, Log, TEXT("KodCam Focus CC Loc=%.0f,%.0f,%.0f"), At.X, At.Y, GetActorLocation().Z);
 }
 
 void AKodRTSCameraPawn::JumpTo(FVector WorldLocation)
 {
+	bPendingPlayerFocus = false;
 	FVector Loc = GetActorLocation();
 	Loc.X = WorldLocation.X;
 	Loc.Y = WorldLocation.Y;
+	if (bHaveGround)
+	{
+		Loc.Z = TargetGroundZ;
+	}
 	SetActorLocation(Loc);
 	PanVelocity = FVector::ZeroVector;
 	bGrabbing = false;
@@ -491,6 +553,8 @@ void AKodRTSCameraPawn::JumpTo(FVector WorldLocation)
 	FollowTarget = nullptr;
 	UpdateTerrain(0.f, true);
 	ClampToPlayable();
+	MaintainBoom();
+	UE_LOG(LogTemp, Log, TEXT("KodCam Focus X=%.0f Y=%.0f Z=%.0f"), Loc.X, Loc.Y, GetActorLocation().Z);
 }
 
 void AKodRTSCameraPawn::FrameGroundSpan(FVector WorldLocation, float SpanXcm, float SpanYcm)
@@ -690,10 +754,26 @@ void AKodRTSCameraPawn::MaintainBoom()
 	{
 		return;
 	}
+	if (!bAllowAltDragRotate)
+	{
+		SetActorRotation(FRotator(0.f, YawDegrees, 0.f));
+	}
+	CameraBoom->TargetOffset = FVector::ZeroVector;
+	CameraBoom->SocketOffset = FVector::ZeroVector;
+	CameraBoom->SetRelativeLocation(FVector::ZeroVector);
 	CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, RollDegrees));
 	CameraBoom->bDoCollisionTest = false;
 	CameraBoom->bEnableCameraLag = false;
 	CameraBoom->bEnableCameraRotationLag = false;
+	CameraBoom->bInheritPitch = false;
+	CameraBoom->bInheritYaw = true;
+	CameraBoom->bInheritRoll = false;
+	if (Camera)
+	{
+		Camera->SetRelativeLocation(FVector::ZeroVector);
+		Camera->SetRelativeRotation(FRotator::ZeroRotator);
+	}
+	CameraBoom->UpdateComponentToWorld();
 }
 
 void AKodRTSCameraPawn::FocusCommandCenter()
@@ -1221,16 +1301,24 @@ void AKodRTSCameraPawn::UpdateTerrain(float DeltaSeconds, bool bInstant)
 			break;
 		}
 	}
-	if (bSampled)
+	// The first ground hit locks the play plane. Later samples, including cliffs, do not move it.
+	if (bSampled && !bHaveGround)
 	{
-		TargetGroundZ = (!bHaveGround || bInstant)
-			? SampledZ
-			: KodCameraSettings::HoldPlaneZ(TargetGroundZ, SampledZ, KodCameraSettings::PlaneHoldUU);
+		TargetGroundZ = SampledZ;
 		bHaveGround = true;
 	}
+	else if (bSampled)
+	{
+		TargetGroundZ = KodCameraSettings::HoldPlaneZ(TargetGroundZ, SampledZ, KodCameraSettings::PlaneHoldUU);
+	}
+	(void)bInstant;
 	if (!bHaveGround)
 	{
 		return;
+	}
+	if (CameraBoom)
+	{
+		CameraBoom->bDoCollisionTest = false;
 	}
 	FVector Moved = Loc;
 	Moved.Z = TargetGroundZ;

@@ -1087,6 +1087,10 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		S->bInfantry = Infantry != 0;
 		S->bHealer = Healer != 0;
 		S->bFlyer = Flyer != 0;
+		if (const FKodTrainSpec* LightTrain = TrainSpecs.Find(S->DefinitionId))
+		{
+			S->bLight = LightTrain->bLight;
+		}
 		S->CargoSize = CargoSize;
 		S->InsideBunker.Value = Inside;
 		S->LoadTarget.Value = Load;

@@ -25,6 +25,7 @@ public class KingdomOfDust : ModuleRules
 		{
 			"Niagara",
 			"AssetRegistry",
+			"GameplayTags",
 			"Json"
 		});
 	}
