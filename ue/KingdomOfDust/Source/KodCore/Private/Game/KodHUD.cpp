@@ -2769,8 +2769,27 @@ void AKodHUD::RefreshReadout()
 			ShownLuminene = Luminene;
 			UE_LOG(LogTemp, Log, TEXT("KodHUD Readout Update J=%d L=%d"), Jadeite, Luminene);
 		}
+		if (SupplyUsed != ShownSupplyUsed || SupplyCap != ShownSupplyCap)
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodHUD Supply Update Used=%d Cap=%d"), SupplyUsed, SupplyCap);
+		}
 		ShownSupplyUsed = SupplyUsed;
 		ShownSupplyCap = SupplyCap;
+		if (HudWidgetInstance)
+		{
+			if (UFunction* PushSupply = HudWidgetInstance->FindFunction(TEXT("PushSupply")))
+			{
+				struct FKodPushSupplyParams
+				{
+					int32 Used;
+					int32 Cap;
+				};
+				FKodPushSupplyParams Params;
+				Params.Used = SupplyUsed;
+				Params.Cap = SupplyCap;
+				HudWidgetInstance->ProcessEvent(PushSupply, &Params);
+			}
+		}
 	}
 
 	const int32 DrawJadeite = ShownJadeite == MIN_int32 ? 0 : ShownJadeite;

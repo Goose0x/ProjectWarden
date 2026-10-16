@@ -113,6 +113,7 @@ void UKodSimSubsystem::RecalcSupplyCap(int32 TeamId)
 			Sum += Spec->SupplyProvided;
 		}
 	}
+	// Buildings and living units share one cap. 200 is the hard ceiling.
 	Sum = FMath::Min(Sum, KodEconomyDefaults::SupplyHardCap);
 	FKodSupplyState& Row = Supply.FindOrAdd(TeamId);
 	if (Row.Cap == Sum)

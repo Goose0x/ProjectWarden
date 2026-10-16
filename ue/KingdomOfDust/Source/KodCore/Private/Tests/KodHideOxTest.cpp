@@ -122,6 +122,17 @@ bool FKodHideOxTest::RunTest(const FString& Parameters)
 	Sim->TryGetSupply(0, Used, Cap);
 	TestEqual(TEXT("death removes the last"), Cap, 0);
 
+	FKodTrainSpec Pile;
+	Pile.UnitId = FName(TEXT("SupplyPile"));
+	Pile.SupplyProvided = KodEconomyDefaults::SupplyHardCap + Row.SupplyProvided;
+	Sim->RegisterTrainSpec(Pile);
+	const FKodEntityId PileId = SpawnSheetUnit(World, Sim, Pile.UnitId, FVector(1200.f, 400.f, 0.f), 0);
+	Sim->TryGetSupply(0, Used, Cap);
+	TestEqual(TEXT("supply clamps at 200"), Cap, KodEconomyDefaults::SupplyHardCap);
+	Sim->UnregisterEntity(PileId);
+	Sim->TryGetSupply(0, Used, Cap);
+	TestEqual(TEXT("despawn clears the pile"), Cap, 0);
+
 	FKodBuildSpec Pad;
 	Pad.TypeId = FName(TEXT("HideOxPad"));
 	Pad.FootprintX = 1;

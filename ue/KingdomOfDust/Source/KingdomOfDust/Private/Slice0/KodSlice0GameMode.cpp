@@ -749,6 +749,7 @@ void AKodSlice0GameMode::StartPlay()
 				Spec.bOrganic = Def->UsesOrganicDeath();
 				Spec.bHealer = Def->bHealer;
 				Spec.CargoSize = Def->CargoSize;
+				Spec.SupplyProvided = FMath::Max(0, Def->SupplyProvided);
 				Spec.BaseArmor = FMath::Max(0, FMath::RoundToInt(Def->Armor));
 				Spec.EnergyMax = Def->EnergyMax;
 				Spec.EnergyStart = Def->EnergyStart;

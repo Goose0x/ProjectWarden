@@ -4,6 +4,7 @@
 #include "Data/KodAbilityDefinition.h"
 #include "Data/KodWeaponDefinition.h"
 #include "Data/KodUnitDefinition.h"
+#include "Data/KodMeshCatalog.h"
 #include "Data/KodBuildingDefinition.h"
 #include "Data/KodFactionDefinition.h"
 #include "Data/KodResourceNodeDefinition.h"
@@ -449,10 +450,32 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeHideOx(UObject* Outer)
 	Unit->Cost.Credits = Row.Credits;
 	Unit->Cost.Luminene = Row.Luminene;
 	Unit->Cost.Supply = Row.SupplyCost;
+	Unit->SupplyProvided = FMath::Max(0, Row.SupplyProvided);
 	Unit->Cost.BuildTime = Row.BuildTicks();
 	Unit->BuildTicks = Row.BuildTicks();
 	Unit->BuildTimeSeconds = Row.BuildSeconds;
 	Unit->PrimaryWeapon.Reset();
+	FKodMeshRow MeshRow;
+	if (KodMeshCatalogFindRow(Unit->DefinitionId, MeshRow))
+	{
+		if (!MeshRow.GrazeAnim.IsEmpty())
+		{
+			Unit->IdleAnim = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(MeshRow.GrazeAnim));
+		}
+		if (!MeshRow.WalkAnim.IsEmpty())
+		{
+			Unit->WalkAnim = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(MeshRow.WalkAnim));
+		}
+		if (!MeshRow.DeathAnim.IsEmpty())
+		{
+			Unit->DeathAnim = TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(MeshRow.DeathAnim));
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodAnim %s Graze=%s Walk=%s Death=%s"),
+			*Unit->DefinitionId.ToString(),
+			*MeshRow.GrazeAnim,
+			*MeshRow.WalkAnim,
+			*MeshRow.DeathAnim);
+	}
 	Unit->SkeletalMesh.Reset();
 	Unit->StaticMesh.Reset();
 	return Unit;
