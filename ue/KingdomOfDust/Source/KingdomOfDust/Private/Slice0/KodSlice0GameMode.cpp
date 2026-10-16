@@ -23,6 +23,7 @@
 #include "Data/KodMeshCatalog.h"
 #include "Warden/KodWardenPaths.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Sim/KodUnitSheet.h"
 #include "Components/LightComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneComponent.h"
@@ -805,6 +806,11 @@ void AKodSlice0GameMode::StartPlay()
 			if (const UKodUnitDefinition* ScnWorker = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_ScnWorker), this))
 			{
 				RegisterUnit(ScnWorker, FName(KodWardenPaths::Id_ScnWorker), FName(TEXT("Worker")));
+			}
+			FKodUnitCsvRow HideOxRow;
+			if (FKodUnitSheet::Find(FName(KodWardenPaths::Id_ScnHideOx), HideOxRow, FString(), false))
+			{
+				Sim->RegisterTrainSpec(HideOxRow.ToTrainSpec());
 			}
 			auto RegisterBuild = [Sim, this](const TCHAR* TypeId, const TArray<FName>& Trains)
 			{

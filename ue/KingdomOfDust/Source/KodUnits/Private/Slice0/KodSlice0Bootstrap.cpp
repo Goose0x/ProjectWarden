@@ -10,6 +10,7 @@
 #include "Actors/KodUnit.h"
 #include "Warden/KodWardenPaths.h"
 #include "Sim/KodBuildTicks.h"
+#include "Sim/KodUnitSheet.h"
 #include "Engine/World.h"
 #include "Misc/PackageName.h"
 #include "UObject/Package.h"
@@ -78,6 +79,7 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	UKodUnitDefinition* ScnFighter = MakeScnFighter(Catalog);
 	UKodUnitDefinition* ScnTwinblade = MakeScnTwinblade(Catalog);
 	UKodUnitDefinition* ScnWorker = MakeScnWorker(Catalog);
+	UKodUnitDefinition* HideOx = MakeHideOx(Catalog);
 	UKodUnitDefinition* Dozer = MakeDozer(Catalog);
 	UKodBuildingDefinition* CC = MakeCommandCenter(Catalog, Dozer);
 	UKodUnitDefinition* Medic = MakeMedic(Catalog);
@@ -128,6 +130,10 @@ UKodDataCatalog* UKodSlice0Bootstrap::BuildCatalog(UObject* Outer)
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScnFighter), ScnFighter);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScnTwinblade), ScnTwinblade);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_ScnWorker), ScnWorker);
+	if (HideOx)
+	{
+		Catalog->RegisterAsset(HideOx->DefinitionId, HideOx);
+	}
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Dozer), Dozer);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_CommandCenter), CC);
 	Catalog->RegisterAsset(FName(KodWardenPaths::Id_Barracks), Barracks);
@@ -418,6 +424,35 @@ UKodUnitDefinition* UKodSlice0Bootstrap::MakeScnWorker(UObject* Outer)
 	Unit->Cost.BuildTime = 12 * 16;
 	Unit->BuildTicks = 12 * 16;
 	Unit->bCanGather = true;
+	Unit->SkeletalMesh.Reset();
+	Unit->StaticMesh.Reset();
+	return Unit;
+}
+
+UKodUnitDefinition* UKodSlice0Bootstrap::MakeHideOx(UObject* Outer)
+{
+	FKodUnitCsvRow Row;
+	if (!FKodUnitSheet::Find(FName(KodWardenPaths::Id_ScnHideOx), Row))
+	{
+		return nullptr;
+	}
+	UKodUnitDefinition* Unit = NewObject<UKodUnitDefinition>(Outer, Row.Id, RF_Public | RF_Transient);
+	Unit->DefinitionId = Row.Id;
+	Unit->DisplayName = FText::FromString(Row.DisplayName);
+	Unit->MaxHealth = Row.Hp;
+	Unit->Armor = static_cast<float>(Row.Armor);
+	Unit->bBiological = Row.HasTag(TEXT("Biological")) || Row.HasTag(TEXT("Organic"));
+	Unit->bInfantry = Row.HasTag(TEXT("Infantry"));
+	Unit->bFlyer = Row.HasTag(TEXT("Air")) || Row.HasTag(TEXT("Flyer"));
+	Unit->MoveSpeed = Row.MoveSpeedUU();
+	Unit->SightRadius = static_cast<float>(Row.SightUU());
+	Unit->Cost.Credits = Row.Credits;
+	Unit->Cost.Luminene = Row.Luminene;
+	Unit->Cost.Supply = Row.SupplyCost;
+	Unit->Cost.BuildTime = Row.BuildTicks();
+	Unit->BuildTicks = Row.BuildTicks();
+	Unit->BuildTimeSeconds = Row.BuildSeconds;
+	Unit->PrimaryWeapon.Reset();
 	Unit->SkeletalMesh.Reset();
 	Unit->StaticMesh.Reset();
 	return Unit;

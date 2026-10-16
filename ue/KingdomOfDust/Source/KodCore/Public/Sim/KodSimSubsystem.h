@@ -1027,6 +1027,10 @@ protected:
 	void FinishSalvage(int32 StructureId);
 	void StepRepair();
 	bool CellHasUnit(int32 CellX, int32 CellY) const;
+	/** True when the train spec says this unit cannot wall. */
+	bool IsSoftCollision(const FKodSimEntityState& State) const;
+	/** Loads SCN_HIDEOX from units.csv the first time a hall is registered. */
+	void EnsureHideOxTrain();
 	bool IsCellTerrainBlocked(int32 CellX, int32 CellY) const;
 	void InvalidatePathsOverFootprint(int32 CellX, int32 CellY, int32 SizeX, int32 SizeY);
 	void EvaluateMatch();

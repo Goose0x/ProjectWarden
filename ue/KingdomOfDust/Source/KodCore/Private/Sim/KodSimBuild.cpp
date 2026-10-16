@@ -405,7 +405,7 @@ FKodPlacementResult UKodSimSubsystem::QueryPlacement(int32 TeamId, FName TypeId,
 	for (int32 Key : UnitKeys)
 	{
 		const FKodSimEntityState* State = States.Find(Key);
-		if (!State || State->Health <= 0.f || State->InsideBunker.IsValid())
+		if (!State || State->Health <= 0.f || State->InsideBunker.IsValid() || IsSoftCollision(*State))
 		{
 			continue;
 		}

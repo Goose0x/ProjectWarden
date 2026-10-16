@@ -89,6 +89,7 @@ protected:
 	static UKodUnitDefinition* MakeScnFighter(UObject* Outer);
 	static UKodUnitDefinition* MakeScnTwinblade(UObject* Outer);
 	static UKodUnitDefinition* MakeScnWorker(UObject* Outer);
+	static UKodUnitDefinition* MakeHideOx(UObject* Outer);
 	static UKodUnitDefinition* MakeDozer(UObject* Outer);
 	static UKodBuildingDefinition* MakeCommandCenter(UObject* Outer, UKodUnitDefinition* Dozer);
 	static UKodBuildingDefinition* MakeBarracks(UObject* Outer, UKodUnitDefinition* Marine);

@@ -75,7 +75,7 @@ bool UKodSimSubsystem::CellHasUnit(int32 CellX, int32 CellY) const
 	for (int32 Key : Keys)
 	{
 		const FKodSimEntityState* State = States.Find(Key);
-		if (!State || !State->bMobile || State->Health <= 0.f || State->InsideBunker.IsValid())
+		if (!State || !State->bMobile || State->Health <= 0.f || State->InsideBunker.IsValid() || IsSoftCollision(*State))
 		{
 			continue;
 		}
@@ -85,6 +85,12 @@ bool UKodSimSubsystem::CellHasUnit(int32 CellX, int32 CellY) const
 		}
 	}
 	return false;
+}
+
+bool UKodSimSubsystem::IsSoftCollision(const FKodSimEntityState& State) const
+{
+	const FKodTrainSpec* Spec = TrainSpecs.Find(State.DefinitionId);
+	return Spec && Spec->bSoftCollision;
 }
 
 void UKodSimSubsystem::ApplyRoster(FKodEntityId Id)
@@ -107,6 +113,34 @@ void UKodSimSubsystem::ApplyRoster(FKodEntityId Id)
 		State->Energy = FMath::Clamp(Spec->EnergyStart, 0, State->EnergyMax);
 		State->bAutocastHeal = Spec->bHealer;
 		State->GatherRatePermille = FMath::Max(1, Spec->GatherRatePermille > 0 ? Spec->GatherRatePermille : 1000);
+		if (Spec->bFromSheet)
+		{
+			if (Spec->SheetHealth > 0.f)
+			{
+				State->MaxHealth = Spec->SheetHealth;
+				State->Health = Spec->SheetHealth;
+			}
+			if (Spec->SheetMoveSpeed > 0.f)
+			{
+				State->MoveSpeed = Spec->SheetMoveSpeed;
+			}
+			if (Spec->SheetSightUU > 0)
+			{
+				State->SightRadiusUU = FMath::Clamp(Spec->SheetSightUU, 0, 10000);
+			}
+			if (Spec->SheetWeaponDamage >= 0.f)
+			{
+				State->WeaponDamage = Spec->SheetWeaponDamage;
+				if (Spec->SheetWeaponDamage <= 0.f)
+				{
+					State->WeaponRange = 0.f;
+					State->WeaponCooldownTicks = 0;
+					State->WeaponCooldownSeconds = 0.f;
+					State->WeaponBackswingTicks = 0;
+				}
+			}
+		}
+		RecalcSupplyCap(State->TeamId);
 	}
 	if (const FKodBuildSpec* Build = BuildSpecs.Find(State->DefinitionId))
 	{

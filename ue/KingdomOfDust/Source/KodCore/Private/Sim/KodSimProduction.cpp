@@ -1,6 +1,7 @@
 #include "Game/KodLanding.h"
 #include "Game/KodMeshSockets.h"
 #include "Sim/KodSimSubsystem.h"
+#include "Sim/KodUnitSheet.h"
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -29,6 +30,21 @@ namespace
 	{
 		UE_LOG(LogTemp, Log, TEXT("KodEcon Supply Team=%d Used=%d Cap=%d"), TeamId, Supply.Used, Supply.Cap);
 	}
+}
+
+void UKodSimSubsystem::EnsureHideOxTrain()
+{
+	const FName HideId(KodWardenPaths::Id_ScnHideOx);
+	if (TrainSpecs.Contains(HideId))
+	{
+		return;
+	}
+	FKodUnitCsvRow Row;
+	if (!FKodUnitSheet::Find(HideId, Row))
+	{
+		return;
+	}
+	RegisterTrainSpec(Row.ToTrainSpec());
 }
 
 void UKodSimSubsystem::RegisterTrainSpec(const FKodTrainSpec& Spec)
@@ -79,6 +95,22 @@ void UKodSimSubsystem::RecalcSupplyCap(int32 TeamId)
 		{
 			Sum += FMath::Max(0, Structure->SupplyProvided);
 			Sum += FMath::Max(0, Structure->BonusSupply);
+		}
+	}
+	TArray<int32> UnitKeys;
+	States.GetKeys(UnitKeys);
+	UnitKeys.Sort();
+	for (int32 Key : UnitKeys)
+	{
+		const FKodSimEntityState* UnitState = States.Find(Key);
+		if (!UnitState || UnitState->Health <= 0.f || UnitState->TeamId != TeamId)
+		{
+			continue;
+		}
+		const FKodTrainSpec* Spec = TrainSpecs.Find(UnitState->DefinitionId);
+		if (Spec && Spec->SupplyProvided > 0)
+		{
+			Sum += Spec->SupplyProvided;
 		}
 	}
 	Sum = FMath::Min(Sum, KodEconomyDefaults::SupplyHardCap);
@@ -200,6 +232,17 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	Structure.CellX = KodBuildGrid::CellOf(Structure.Position.X) - (Structure.FootprintX - 1) / 2;
 	Structure.CellY = KodBuildGrid::CellOf(Structure.Position.Y) - (Structure.FootprintY - 1) / 2;
 	Structure.Trains = Spec.Trains;
+	EnsureHideOxTrain();
+	if (const FKodTrainSpec* HideOx = TrainSpecs.Find(FName(KodWardenPaths::Id_ScnHideOx)))
+	{
+		const int32 ScinderTeam = PlayerFaction == 1 ? 0 : 1;
+		const bool bScinderHall = Structure.DefinitionId == HideOx->BuildingId
+			|| (Structure.DefinitionId == FName(KodWardenPaths::Id_CommandCenter) && Structure.TeamId == ScinderTeam);
+		if (bScinderHall && !HideOx->UnitId.IsNone() && !Structure.Trains.Contains(HideOx->UnitId))
+		{
+			Structure.Trains.Add(HideOx->UnitId);
+		}
+	}
 	// Half the footprint plus one cell. A 5×5 CC exits at ~700 uu, outside the blocked cells.
 	const int32 HalfSpan = (FMath::Max(Structure.FootprintX, Structure.FootprintY) * KodBuildGrid::CellUU) / 2;
 	const float ExitDistance = static_cast<float>(HalfSpan + KodBuildGrid::CellUU);

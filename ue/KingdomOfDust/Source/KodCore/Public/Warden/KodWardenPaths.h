@@ -81,6 +81,9 @@ namespace KodWardenPaths
 	constexpr const TCHAR* Id_ScnFighter = TEXT("SCN_FIGHTER");
 	constexpr const TCHAR* Id_ScnTwinblade = TEXT("SCN_TWINBLADE");
 	constexpr const TCHAR* Id_ScnWorker = TEXT("SCN_WORKER");
+	/** Scinder supply unit. Stats live in Config/KodBalance/units.csv. */
+	constexpr const TCHAR* Id_ScnHideOx = TEXT("SCN_HIDEOX");
+	constexpr const TCHAR* Id_ScinderHQ = TEXT("ScinderHQ");
 	constexpr const TCHAR* Id_CombatStim = TEXT("CombatStim");
 	constexpr const TCHAR* Id_Dozer = TEXT("Dozer");
 	constexpr const TCHAR* Id_DozerMelee = TEXT("DozerMelee");

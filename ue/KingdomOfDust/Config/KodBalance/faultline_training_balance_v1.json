@@ -294,6 +294,7 @@
       "regen_hp_s": 2.0,
       "regen_rule": "always-on (core HM_SCI_REGEN_STRUCT)",
       "rationale": "A 100-credit supply building should not outlast a Barracks; SC2 Depot 400 / Pylon 200+200",
+      "note": "Faultline Training does not spawn this as Scinder's supply. A living Hide-Ox (SCN_HIDEOX) provides that supply and loses it on death. The Vanguard player still builds a Supply Depot.",
       "placeholder": "PLACEHOLDER"
     },
     {
@@ -379,12 +380,12 @@
     {
       "step": 2,
       "id": "PACE_SUPPLY",
-      "objective": "Build a Supply Depot",
+      "objective": "Train a Hide-Ox",
       "m01_obj": "Obj 1",
       "target_s": 105,
       "max_s": 180,
       "placeholder": "PLACEHOLDER",
-      "note": "cumulative mission clock"
+      "note": "Scinder supply on this map is a living Hide-Ox, which replaces SCN_DEPOT. The Vanguard player still completes the step by building a Supply Depot."
     },
     {
       "step": 3,
