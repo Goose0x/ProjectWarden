@@ -44,6 +44,13 @@ struct KODUNITS_API FKodMeshRow
 	FString LowerAnim;
 	FString DeckExtendAnim;
 	FString DeckRetractAnim;
+	/** Scaffold, Vfx, or Stages. Empty means Scaffold. */
+	FString BuildVisual;
+	FString Stage1;
+	FString Stage2;
+	FString Stage3;
+	/** Three scales inside the footprint, separated by |. Empty uses 0.45, 0.70, 0.92. */
+	FString StageScales;
 };
 
 /**
