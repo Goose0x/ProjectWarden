@@ -28,16 +28,28 @@ bool UKodSimSubsystem::IsPathCellClear(int32 X0, int32 Y0, int32 X1, int32 Y1, i
 	int32 Err = DX - DY;
 	while (X != X1 || Y != Y1)
 	{
+		const int32 PrevX = X;
+		const int32 PrevY = Y;
+		bool bStepX = false;
+		bool bStepY = false;
 		const int32 Twice = Err * 2;
 		if (Twice > -DY)
 		{
 			Err -= DY;
 			X += StepX;
+			bStepX = true;
 		}
 		if (Twice < DX)
 		{
 			Err += DX;
 			Y += StepY;
+			bStepY = true;
+		}
+		if (bStepX && bStepY
+			&& (IsCellBlocked(PrevX + StepX, PrevY, TeamId, true)
+				|| IsCellBlocked(PrevX, PrevY + StepY, TeamId, true)))
+		{
+			return false;
 		}
 		if ((X != X1 || Y != Y1) && IsCellBlocked(X, Y, TeamId, true))
 		{

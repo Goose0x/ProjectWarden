@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Game/KodLanding.h"
 #include "GameFramework/Actor.h"
 #include "KodBuildGhost.generated.h"
 
@@ -23,6 +24,8 @@ public:
 	void SetValidTint(bool bValid);
 	/** Building mesh at the shared yaw. The cell pad stays on the square grid. */
 	void SetPreview(FName TypeId);
+	/** One preview for placement and landing. Transform is the canonical pose. */
+	void Show(FName TypeId, const FKodLandingPose& Pose, const TArray<uint8>& CellOk, bool bValid);
 
 private:
 	UPROPERTY()

@@ -1978,7 +1978,7 @@ void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 		}
 		Comp->SetMobility(EComponentMobility::Movable);
 		Comp->SetStaticMesh(Mesh);
-		const float ShownYaw = KodBuildingYaw::PresentationYaw(Choice.Yaw);
+		const float ShownYaw = KodBuildingYaw::OffsetDegrees();
 		Comp->SetRelativeScale3D(Scale);
 		Comp->SetRelativeRotation(FRotator(0.f, ShownYaw, 0.f));
 		Comp->SetRelativeLocation(FVector(0.f, 0.f, Choice.Z));

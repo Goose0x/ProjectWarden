@@ -1,5 +1,6 @@
 #include "Slice0/KodBuildGhost.h"
 
+#include "Components/MeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -7,7 +8,6 @@
 #include "Engine/EngineTypes.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
-#include "Game/KodBuildingYaw.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Sim/KodBuildTypes.h"
@@ -115,10 +115,40 @@ void AKodBuildGhost::SetValidTint(bool bValid)
 		Mesh->SetMaterial(0, Tint);
 	}
 	const FLinearColor Color = bValid
-		? FLinearColor(FColor(0x3D, 0xFF, 0x6A))
-		: FLinearColor(FColor(0xFF, 0x3D, 0x3D));
-		Tint->SetVectorParameterValue(TEXT("Color"), Color);
+		? FLinearColor(0.15f, 1.f, 0.35f, 0.45f)
+		: FLinearColor(1.f, 0.2f, 0.15f, 0.45f);
+	Tint->SetVectorParameterValue(TEXT("Color"), Color);
 	Tint->SetVectorParameterValue(TEXT("BaseColor"), Color);
+	auto Paint = [Color](UMeshComponent* Visual)
+	{
+		if (!Visual || !Visual->IsVisible())
+		{
+			return;
+		}
+		const int32 Slots = FMath::Max(1, Visual->GetNumMaterials());
+		for (int32 Slot = 0; Slot < Slots; ++Slot)
+		{
+			UMaterialInterface* Parent = Visual->GetMaterial(Slot);
+			UMaterialInstanceDynamic* Mid = Cast<UMaterialInstanceDynamic>(Parent);
+			if (!Mid && Parent)
+			{
+				Mid = UMaterialInstanceDynamic::Create(Parent, Visual);
+				if (Mid)
+				{
+					Visual->SetMaterial(Slot, Mid);
+				}
+			}
+			if (!Mid)
+			{
+				continue;
+			}
+			Mid->SetVectorParameterValue(TEXT("Color"), Color);
+			Mid->SetVectorParameterValue(TEXT("BaseColor"), Color);
+			Mid->SetScalarParameterValue(TEXT("Opacity"), 0.45f);
+		}
+	};
+	Paint(Mesh);
+	Paint(PreviewSkel);
 }
 
 void AKodBuildGhost::SetPreview(FName TypeId)
@@ -128,7 +158,8 @@ void AKodBuildGhost::SetPreview(FName TypeId)
 		return;
 	}
 	const FKodMeshChoice Choice = FKodMeshCatalog::Resolve(TypeId);
-	const float Yaw = KodBuildingYaw::PresentationYaw(Choice.Yaw);
+	// Catalog fit sits slightly inside the footprint. That gap is visual only.
+	// Pathing uses the full cells, so do not scale the mesh up to close it.
 	const FVector Scale(FMath::Max(0.01f, Choice.Scale));
 	if (Choice.bLoaded && Choice.StaticMesh)
 	{
@@ -138,7 +169,7 @@ void AKodBuildGhost::SetPreview(FName TypeId)
 		}
 		Mesh->SetStaticMesh(Choice.StaticMesh);
 		Mesh->SetVisibility(true);
-		Mesh->SetRelativeRotation(FRotator(0.f, Yaw, 0.f));
+		Mesh->SetRelativeRotation(FRotator::ZeroRotator);
 		Mesh->SetRelativeScale3D(Scale);
 		Mesh->SetRelativeLocation(FVector(0.f, 0.f, Choice.Z));
 		return;
@@ -156,7 +187,7 @@ void AKodBuildGhost::SetPreview(FName TypeId)
 		}
 		PreviewSkel->SetSkeletalMeshAsset(Choice.SkeletalMesh);
 		PreviewSkel->SetVisibility(true);
-		PreviewSkel->SetRelativeRotation(FRotator(0.f, Yaw, 0.f));
+		PreviewSkel->SetRelativeRotation(FRotator::ZeroRotator);
 		PreviewSkel->SetRelativeScale3D(Scale);
 		PreviewSkel->SetRelativeLocation(FVector(0.f, 0.f, Choice.Z));
 		return;
@@ -166,4 +197,13 @@ void AKodBuildGhost::SetPreview(FName TypeId)
 	{
 		PreviewSkel->SetVisibility(false);
 	}
+}
+
+void AKodBuildGhost::Show(FName TypeId, const FKodLandingPose& Pose, const TArray<uint8>& CellOk, bool bValid)
+{
+	SetActorLocation(Pose.Location, false, nullptr, ETeleportType::TeleportPhysics);
+	SetActorRotation(FRotator(0.f, Pose.Yaw, 0.f), ETeleportType::TeleportPhysics);
+	SetPreview(TypeId);
+	SetCells(Pose.FootX, Pose.FootY, CellOk);
+	SetValidTint(bValid);
 }
