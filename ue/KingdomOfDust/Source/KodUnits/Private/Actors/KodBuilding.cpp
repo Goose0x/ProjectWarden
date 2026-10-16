@@ -1,5 +1,6 @@
 #include "Actors/KodBuilding.h"
 #include "Actors/KodMeshAttach.h"
+#include "Game/KodBuildVisual.h"
 #include "Game/KodLanding.h"
 #include "Game/KodCollision.h"
 #include "Actors/KodJadeiteVisual.h"
@@ -16,7 +17,10 @@
 #include "Animation/AnimSequence.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/CollisionProfile.h"
+#include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Misc/Paths.h"
+#include "UObject/SoftObjectPath.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -28,7 +32,6 @@
 #include "Sim/KodSimSubsystem.h"
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "UObject/ConstructorHelpers.h"
-#include "UObject/SoftObjectPath.h"
 
 AKodBuilding::AKodBuilding()
 {
@@ -100,7 +103,7 @@ int32 AKodBuilding::GetScaffoldStage() const
 	{
 		return 3;
 	}
-	return FMath::Clamp((Structure.BuildTicksDone * 3) / Structure.BuildTimeTotal, 0, 2);
+	return KodBuildVisual::StageIndex(KodBuildVisual::Progress(Structure.BuildTicksDone, Structure.BuildTimeTotal));
 }
 
 void AKodBuilding::Tick(float DeltaSeconds)
@@ -118,7 +121,6 @@ void AKodBuilding::Tick(float DeltaSeconds)
 		return;
 	}
 	FKodStructureState Structure;
-	const int32 Stage = GetScaffoldStage();
 	FVector Scale = BaseScale;
 	float Rise = 0.f;
 	if (Sim->TryGetStructure(EntityId, Structure))
@@ -154,12 +156,12 @@ void AKodBuilding::Tick(float DeltaSeconds)
 		}
 		else if (!Structure.bComplete && Structure.BuildTimeTotal > 0)
 		{
-			const float StageScale[4] = {0.2f, 0.45f, 0.75f, 1.f};
-			Scale *= StageScale[FMath::Clamp(Stage, 0, 3)];
+			ApplyConstructionVisual(Sim, Structure, Scale);
 			bSawIncomplete = true;
 		}
 		else if (!bSawComplete)
 		{
+			RestoreFinalPresentation(Sim);
 			bSawComplete = true;
 			const FKodLandingPose DonePose = KodLanding::MakePose(
 				Structure.CellX,
@@ -174,6 +176,14 @@ void AKodBuilding::Tick(float DeltaSeconds)
 				FlashLeft = 0.35f;
 			}
 		}
+		const float GhostProgress = (Structure.bComplete || Structure.BuildTimeTotal <= 0)
+			? 1.f
+			: KodBuildVisual::Progress(Structure.BuildTicksDone, Structure.BuildTimeTotal);
+		UpdateDynastyGhost(GhostProgress);
+		const int32 PoolStage = (Structure.bComplete || Structure.BuildTimeTotal <= 0)
+			? 3
+			: KodBuildVisual::StageIndex(KodBuildVisual::Progress(Structure.BuildTicksDone, Structure.BuildTimeTotal));
+		UpdatePoolSurface(DeltaSeconds, PoolStage);
 	}
 	if (bCompletionFlash)
 	{
@@ -676,8 +686,381 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 	{
 		AttachBody = BuildingMesh;
 	}
-	KodMeshAttach::Apply(this, AttachBody, MeshId, Choice.bLoaded && !Choice.bFallback);
+	ActiveMeshId = MeshId;
+	bFinalPrimaryBody = Choice.bLoaded && !Choice.bFallback;
+	RememberFinalMesh();
+	bool bDeferAttach = false;
+	if (UWorld* DeferWorld = GetWorld())
+	{
+		if (UKodSimSubsystem* DeferSim = DeferWorld->GetSubsystem<UKodSimSubsystem>())
+		{
+			FKodStructureState DeferStructure;
+			if (DeferSim->TryGetStructure(EntityId, DeferStructure) && !DeferStructure.bComplete && DeferStructure.BuildTimeTotal > 0)
+			{
+				FKodMeshRow DeferRow;
+				const bool bDeferRow = KodMeshCatalogFindRow(MeshId, DeferRow);
+				const bool bHasStages = bDeferRow && !DeferRow.Stage1.IsEmpty() && !DeferRow.Stage2.IsEmpty() && !DeferRow.Stage3.IsEmpty();
+				const EKodBuildVisual Requested = bDeferRow ? KodBuildVisual::ParseMode(DeferRow.BuildVisual) : EKodBuildVisual::Scaffold;
+				const EKodBuildVisual Mode = KodBuildVisual::Resolve(MeshId, Requested, bHasStages);
+				bDeferAttach = Mode == EKodBuildVisual::Stages || Mode == EKodBuildVisual::Vfx;
+			}
+		}
+	}
+	if (bDeferAttach)
+	{
+		bDeferredAttach = true;
+	}
+	else
+	{
+		KodMeshAttach::Apply(this, AttachBody, MeshId, bFinalPrimaryBody);
+	}
 	RefreshJadeiteEmissive();
+}
+
+namespace
+{
+	UStaticMesh* LoadStageMesh(const FString& Path)
+	{
+		if (Path.IsEmpty())
+		{
+			return nullptr;
+		}
+		FString Full = Path;
+		if (!Full.Contains(TEXT(".")))
+		{
+			Full += TEXT(".") + FPaths::GetBaseFilename(Full);
+		}
+		return Cast<UStaticMesh>(FSoftObjectPath(Full).TryLoad());
+	}
+
+	float StageScaleAt(const FKodMeshRow& Row, int32 Stage)
+	{
+		const float Defaults[3] = {0.45f, 0.70f, 0.92f};
+		TArray<FString> Parts;
+		Row.StageScales.ParseIntoArray(Parts, TEXT("|"), true);
+		const int32 Index = FMath::Clamp(Stage, 0, 2);
+		if (Parts.IsValidIndex(Index))
+		{
+			const float Parsed = FCString::Atof(*Parts[Index]);
+			if (Parsed > 0.f && Parsed <= 1.f)
+			{
+				return Parsed;
+			}
+		}
+		return Defaults[Index];
+	}
+
+	const FString& StagePath(const FKodMeshRow& Row, int32 Stage)
+	{
+		if (Stage <= 0)
+		{
+			return Row.Stage1;
+		}
+		if (Stage == 1)
+		{
+			return Row.Stage2;
+		}
+		return Row.Stage3;
+	}
+}
+
+void AKodBuilding::RememberFinalMesh()
+{
+	bFinalSkeletal = BuildingSkel && !BuildingSkel->bHiddenInGame && BuildingSkel->GetSkeletalMeshAsset() != nullptr;
+	bFinalSkelHidden = !BuildingSkel || BuildingSkel->bHiddenInGame;
+	bFinalStaticHidden = !BuildingMesh || BuildingMesh->bHiddenInGame;
+	FinalStaticMesh = BuildingMesh ? BuildingMesh->GetStaticMesh() : nullptr;
+}
+
+void AKodBuilding::SetConstructionAttachesVisible(bool bVisible)
+{
+	TInlineComponentArray<USceneComponent*> Pieces;
+	GetComponents(Pieces);
+	for (USceneComponent* Piece : Pieces)
+	{
+		if (Piece && Piece->ComponentHasTag(FName(TEXT("KodMeshAttach"))))
+		{
+			Piece->SetHiddenInGame(!bVisible);
+			Piece->SetVisibility(bVisible);
+		}
+	}
+}
+
+void AKodBuilding::UpdateDynastyGhost(float Progress)
+{
+	if (!KodBuildVisual::DynastyGhostEnabled())
+	{
+		if (DynastyGhost)
+		{
+			DynastyGhost->SetHiddenInGame(true);
+			DynastyGhost->SetVisibility(false);
+		}
+		return;
+	}
+	if (!bLoggedDynastyGhost)
+	{
+		bLoggedDynastyGhost = true;
+		UE_LOG(LogTemp, Log, TEXT("KodBuild DynastyGhost hook Id=%s"), *ActiveMeshId.ToString());
+	}
+	if (!DynastyGhost && FinalStaticMesh)
+	{
+		DynastyGhost = NewObject<UStaticMeshComponent>(this, TEXT("DynastyGhost"));
+		DynastyGhost->SetupAttachment(GetRootComponent());
+		DynastyGhost->SetStaticMesh(FinalStaticMesh);
+		DynastyGhost->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		DynastyGhost->SetRelativeScale3D(BaseScale);
+		DynastyGhost->RegisterComponent();
+	}
+	if (DynastyGhost)
+	{
+		const bool bShow = Progress < 0.999f;
+		DynastyGhost->SetHiddenInGame(!bShow);
+		DynastyGhost->SetVisibility(bShow);
+	}
+}
+
+void AKodBuilding::RestoreFinalPresentation(UKodSimSubsystem* Sim)
+{
+	(void)Sim;
+	if (bConstructionMeshSwap || bConstructionHidden)
+	{
+		if (BuildingMesh)
+		{
+			if (FinalStaticMesh)
+			{
+				BuildingMesh->SetStaticMesh(FinalStaticMesh);
+			}
+			BuildingMesh->SetHiddenInGame(bFinalStaticHidden);
+			BuildingMesh->SetVisibility(!bFinalStaticHidden);
+		}
+		if (BuildingSkel)
+		{
+			BuildingSkel->SetHiddenInGame(bFinalSkelHidden);
+			BuildingSkel->SetVisibility(!bFinalSkelHidden);
+		}
+		bConstructionMeshSwap = false;
+		bConstructionHidden = false;
+	}
+	ShownStage = 3;
+	SetConstructionAttachesVisible(true);
+	if (bDeferredAttach)
+	{
+		USceneComponent* AttachBody = nullptr;
+		if (bFinalSkeletal && BuildingSkel)
+		{
+			AttachBody = BuildingSkel;
+		}
+		else if (BuildingMesh && BuildingMesh->GetStaticMesh())
+		{
+			AttachBody = BuildingMesh;
+		}
+		KodMeshAttach::Apply(this, AttachBody, ActiveMeshId, bFinalPrimaryBody && AttachBody != nullptr);
+		bDeferredAttach = false;
+	}
+}
+
+void AKodBuilding::ApplyConstructionVisual(UKodSimSubsystem* Sim, FKodStructureState& Structure, FVector& Scale)
+{
+	if (ActiveMeshId.IsNone())
+	{
+		ActiveMeshId = Structure.DefinitionId;
+	}
+	const float BuildProgress = KodBuildVisual::Progress(Structure.BuildTicksDone, Structure.BuildTimeTotal);
+	FKodMeshRow Row;
+	const bool bRow = KodMeshCatalogFindRow(ActiveMeshId, Row);
+	const bool bHasStages = bRow && !Row.Stage1.IsEmpty() && !Row.Stage2.IsEmpty() && !Row.Stage3.IsEmpty();
+	const EKodBuildVisual Requested = bRow ? KodBuildVisual::ParseMode(Row.BuildVisual) : EKodBuildVisual::Scaffold;
+	const EKodBuildVisual Mode = KodBuildVisual::Resolve(ActiveMeshId, Requested, bHasStages);
+	if (Requested == EKodBuildVisual::Stages && Mode != EKodBuildVisual::Stages && !bLoggedStageFallback)
+	{
+		bLoggedStageFallback = true;
+		UE_LOG(LogTemp, Log, TEXT("KodBuild ScaffoldFallback Id=%s"), *ActiveMeshId.ToString());
+	}
+	const int32 Stage = KodBuildVisual::StageIndex(BuildProgress);
+	SetConstructionAttachesVisible(false);
+	if (Mode == EKodBuildVisual::Vfx)
+	{
+		if (BuildingMesh)
+		{
+			BuildingMesh->SetHiddenInGame(true);
+		}
+		if (BuildingSkel)
+		{
+			BuildingSkel->SetHiddenInGame(true);
+		}
+		bConstructionHidden = true;
+		if (ShownStage != Stage)
+		{
+			ShownStage = Stage;
+			Sim->RaiseCue(FName(TEXT("build_dust")), GetActorLocation(), true);
+			UE_LOG(LogTemp, Log, TEXT("KodVfx DustPuff Id=%s Stage=%d"), *ActiveMeshId.ToString(), Stage);
+		}
+		return;
+	}
+	if (Mode == EKodBuildVisual::Stages)
+	{
+		if (ShownStage != Stage)
+		{
+			if (UStaticMesh* StageMesh = LoadStageMesh(StagePath(Row, Stage)))
+			{
+				if (BuildingMesh)
+				{
+					BuildingMesh->SetStaticMesh(StageMesh);
+					BuildingMesh->SetHiddenInGame(false);
+					BuildingMesh->SetVisibility(true);
+				}
+				if (BuildingSkel)
+				{
+					BuildingSkel->SetHiddenInGame(true);
+				}
+				bConstructionMeshSwap = true;
+			}
+			ShownStage = Stage;
+			Sim->RaiseCue(FName(TEXT("build_dust")), GetActorLocation(), true);
+			UE_LOG(LogTemp, Log, TEXT("KodVfx DustPuff Id=%s Stage=%d"), *ActiveMeshId.ToString(), Stage);
+		}
+		Scale *= StageScaleAt(Row, Stage);
+		return;
+	}
+	const float ScaffoldScale[3] = {0.2f, 0.45f, 0.75f};
+	Scale *= ScaffoldScale[FMath::Clamp(Stage, 0, 2)];
+	if (ShownStage != Stage)
+	{
+		ShownStage = Stage;
+		Sim->RaiseCue(FName(TEXT("build_dust")), GetActorLocation(), true);
+		UE_LOG(LogTemp, Log, TEXT("KodVfx DustPuff Id=%s Stage=%d"), *ActiveMeshId.ToString(), Stage);
+	}
+}
+
+void AKodBuilding::UpdatePoolSurface(float DeltaSeconds, int32 Stage)
+{
+	if (bPoolMissing)
+	{
+		return;
+	}
+	FKodMeshRow Row;
+	if (ActiveMeshId.IsNone() || !KodMeshCatalogFindRow(ActiveMeshId, Row))
+	{
+		return;
+	}
+	if (Row.PoolMesh.IsEmpty() && Row.PoolMotes.IsEmpty() && Row.PoolPulse.IsEmpty())
+	{
+		return;
+	}
+	const int32 ClampedStage = FMath::Clamp(Stage, 0, 3);
+	const float Fill = KodBuildVisual::StageFillLevel(ClampedStage);
+	const float TargetZ = KodBuildVisual::PoolSurfaceZcm(ClampedStage);
+	const bool bStageSwap = PoolVisualStage != ClampedStage;
+
+	if (!bPoolResolved)
+	{
+		bPoolResolved = true;
+		USceneComponent* Body = (BuildingSkel && !BuildingSkel->bHiddenInGame) ? static_cast<USceneComponent*>(BuildingSkel) : static_cast<USceneComponent*>(BuildingMesh);
+		if (!Body)
+		{
+			Body = GetRootComponent();
+		}
+		FName Socket = Row.PoolSocket.IsEmpty() ? FName(TEXT("SOCKET_FX_Pool")) : FName(*Row.PoolSocket);
+		if (Body && !Body->DoesSocketExist(Socket) && Body->DoesSocketExist(FName(TEXT("FX_Pool"))))
+		{
+			Socket = FName(TEXT("FX_Pool"));
+		}
+		const bool bHasSocket = Body && Body->DoesSocketExist(Socket);
+		UStaticMesh* SurfaceMesh = Row.PoolMesh.IsEmpty() ? nullptr : LoadStageMesh(Row.PoolMesh);
+		UNiagaraSystem* Motes = Row.PoolMotes.IsEmpty() ? nullptr : LoadObject<UNiagaraSystem>(nullptr, *Row.PoolMotes, nullptr, LOAD_NoWarn);
+		UNiagaraSystem* Pulse = Row.PoolPulse.IsEmpty() ? nullptr : LoadObject<UNiagaraSystem>(nullptr, *Row.PoolPulse, nullptr, LOAD_NoWarn);
+		if (!SurfaceMesh && !Motes && !Pulse)
+		{
+			bPoolMissing = true;
+			UE_LOG(LogTemp, Log, TEXT("KodVfx Pool Miss Id=%s"), *ActiveMeshId.ToString());
+			return;
+		}
+		if (SurfaceMesh && Body)
+		{
+			PoolSurface = NewObject<UStaticMeshComponent>(this, TEXT("RiteWellPool"));
+			PoolSurface->SetupAttachment(Body, bHasSocket ? Socket : NAME_None);
+			PoolSurface->SetStaticMesh(SurfaceMesh);
+			PoolSurface->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			PoolSurface->SetRelativeLocation(FVector(0.f, 0.f, TargetZ));
+			PoolSurface->RegisterComponent();
+			if (UMaterialInstanceDynamic* SurfaceMat = PoolSurface->CreateDynamicMaterialInstance(0))
+			{
+				SurfaceMat->SetScalarParameterValue(FName(TEXT("FillLevel")), Fill);
+			}
+		}
+		USceneComponent* FxParent = PoolSurface ? static_cast<USceneComponent*>(PoolSurface) : Body;
+		auto SpawnFx = [FxParent](UNiagaraSystem* System, const TCHAR* Name) -> UNiagaraComponent*
+		{
+			if (!System || !FxParent)
+			{
+				return nullptr;
+			}
+			(void)Name;
+			return UNiagaraFunctionLibrary::SpawnSystemAttached(
+				System,
+				FxParent,
+				NAME_None,
+				FVector::ZeroVector,
+				FRotator::ZeroRotator,
+				EAttachLocation::KeepRelativeOffset,
+				false,
+				true,
+				ENCPoolMethod::AutoRelease,
+				true);
+		};
+		PoolMotes = SpawnFx(Motes, TEXT("RiteWellMotes"));
+		PoolPulse = SpawnFx(Pulse, TEXT("RiteWellPulse"));
+		PoolZFrom = TargetZ;
+		PoolZTo = TargetZ;
+		PoolZElapsed = KodBuildVisual::PoolZInterpSeconds;
+	}
+
+	if (bStageSwap)
+	{
+		if (PoolVisualStage >= 0 && PoolSurface)
+		{
+			PoolZFrom = PoolSurface->GetRelativeLocation().Z;
+			PoolZElapsed = 0.f;
+		}
+		else
+		{
+			PoolZFrom = TargetZ;
+			PoolZElapsed = KodBuildVisual::PoolZInterpSeconds;
+		}
+		PoolZTo = TargetZ;
+		PoolVisualStage = ClampedStage;
+		if (PoolSurface)
+		{
+			if (UMaterialInstanceDynamic* SurfaceMat = Cast<UMaterialInstanceDynamic>(PoolSurface->GetMaterial(0)))
+			{
+				SurfaceMat->SetScalarParameterValue(FName(TEXT("FillLevel")), Fill);
+			}
+		}
+		auto PushFill = [Fill](UNiagaraComponent* Component, bool bPulse)
+		{
+			if (!Component)
+			{
+				return;
+			}
+			Component->SetVariableFloat(FName(TEXT("FillLevel")), Fill);
+			Component->SetVariableFloat(FName(TEXT("User.FillLevel")), Fill);
+			if (bPulse)
+			{
+				Component->SetVariableBool(FName(TEXT("PulseTrigger")), true);
+				Component->SetVariableBool(FName(TEXT("User.PulseTrigger")), true);
+				Component->ResetSystem();
+			}
+		};
+		PushFill(PoolMotes, false);
+		PushFill(PoolPulse, true);
+	}
+
+	PoolZElapsed += FMath::Max(0.f, DeltaSeconds);
+	if (PoolSurface)
+	{
+		const float Z = KodBuildVisual::InterpPoolZ(PoolZFrom, PoolZTo, PoolZElapsed);
+		PoolSurface->SetRelativeLocation(FVector(0.f, 0.f, Z));
+	}
 }
 
 void AKodBuilding::BindJadeitePalette()

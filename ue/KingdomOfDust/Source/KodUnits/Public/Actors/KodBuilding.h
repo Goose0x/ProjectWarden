@@ -7,12 +7,14 @@
 #include "NiagaraComponent.h"
 #include "Sim/KodEntityId.h"
 #include "KodBuilding.generated.h"
+#include "Engine/StaticMesh.h"
 
 class UKodBuildingDefinition;
 class UKodBuildQueueComponent;
 class UKodSimSubsystem;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
+struct FKodStructureState;
 
 /**
  * Stationary production / power / defense structure.
@@ -30,7 +32,7 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaSeconds) override;
 
-	/** 0, 1, 2, 3 for build progress under 33%, 66%, 100%, and finished. Art reads this. */
+	/** 0, 1, 2 while building, 3 when finished. Thresholds are kod.Build.Stage2 and Stage3. */
 	int32 GetScaffoldStage() const;
 
 	/** Smoke under 35% HP and fire under 15%. Empty Niagara slots do nothing. */
@@ -75,7 +77,47 @@ private:
 	bool bDepotLowerKnown = false;
 	bool bDepotLowerLatched = false;
 	bool bDepotClipDriven = false;
+	FName ActiveMeshId;
+	int32 ShownStage = -1;
+	bool bDeferredAttach = false;
+	bool bFinalPrimaryBody = false;
+	bool bConstructionMeshSwap = false;
+	bool bConstructionHidden = false;
+	bool bFinalSkeletal = false;
+	bool bFinalStaticHidden = false;
+	bool bFinalSkelHidden = true;
+	bool bLoggedStageFallback = false;
+	bool bLoggedDynastyGhost = false;
+	bool bPoolResolved = false;
+	bool bPoolMissing = false;
+	int32 PoolVisualStage = -1;
+	float PoolZFrom = 0.f;
+	float PoolZTo = 0.f;
+	float PoolZElapsed = 0.f;
+
+	UPROPERTY()
+	TObjectPtr<UStaticMesh> FinalStaticMesh;
+
+	/** Post-demo dynasty ghost. Created only when kod.Build.DynastyGhost is on. */
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> DynastyGhost;
+
+	/** RiteWell pool. Visual only. Absent when the ini assets do not load. */
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> PoolSurface;
+
+	UPROPERTY()
+	TObjectPtr<UNiagaraComponent> PoolMotes;
+
+	UPROPERTY()
+	TObjectPtr<UNiagaraComponent> PoolPulse;
 	void PlayDepotCommandAnim(bool bLower);
+	void ApplyConstructionVisual(UKodSimSubsystem* Sim, FKodStructureState& Structure, FVector& Scale);
+	void RestoreFinalPresentation(UKodSimSubsystem* Sim);
+	void UpdateDynastyGhost(float Progress);
+	void UpdatePoolSurface(float DeltaSeconds, int32 Stage);
+	void SetConstructionAttachesVisible(bool bVisible);
+	void RememberFinalMesh();
 	void SyncBunkerTurret(UKodSimSubsystem* Sim, float DeltaSeconds);
 	void FlashBunkerMuzzle();
 	bool bLoggedTurretSocket = false;

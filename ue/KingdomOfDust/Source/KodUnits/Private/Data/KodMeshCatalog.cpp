@@ -148,6 +148,42 @@ namespace
 			{
 				Row.DeckRetractAnim = Value;
 			}
+			else if (Key.Equals(TEXT("BuildVisual"), ESearchCase::IgnoreCase))
+			{
+				Row.BuildVisual = Value;
+			}
+			else if (Key.Equals(TEXT("Stage1"), ESearchCase::IgnoreCase))
+			{
+				Row.Stage1 = Value;
+			}
+			else if (Key.Equals(TEXT("Stage2"), ESearchCase::IgnoreCase))
+			{
+				Row.Stage2 = Value;
+			}
+			else if (Key.Equals(TEXT("Stage3"), ESearchCase::IgnoreCase))
+			{
+				Row.Stage3 = Value;
+			}
+			else if (Key.Equals(TEXT("StageScales"), ESearchCase::IgnoreCase))
+			{
+				Row.StageScales = Value;
+			}
+			else if (Key.Equals(TEXT("PoolSocket"), ESearchCase::IgnoreCase))
+			{
+				Row.PoolSocket = Value;
+			}
+			else if (Key.Equals(TEXT("PoolMesh"), ESearchCase::IgnoreCase))
+			{
+				Row.PoolMesh = Value;
+			}
+			else if (Key.Equals(TEXT("PoolMotes"), ESearchCase::IgnoreCase))
+			{
+				Row.PoolMotes = Value;
+			}
+			else if (Key.Equals(TEXT("PoolPulse"), ESearchCase::IgnoreCase))
+			{
+				Row.PoolPulse = Value;
+			}
 		}
 		if (Row.Scale <= 0.f)
 		{

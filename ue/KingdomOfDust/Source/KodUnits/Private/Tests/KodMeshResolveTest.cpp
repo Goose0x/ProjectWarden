@@ -19,6 +19,14 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("barracks footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(KodWardenPaths::Id_Barracks)), 800.f));
 	TestTrue(TEXT("depot footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(KodWardenPaths::Id_SupplyDepot)), 450.f));
 	TestTrue(TEXT("rite well footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(TEXT("RiteWell"))), 450.f));
+	FKodMeshRow RiteWellRow;
+	if (KodMeshCatalogFindRow(FName(TEXT("RiteWell")), RiteWellRow))
+	{
+		TestTrue(TEXT("rite well pool mesh path"), RiteWellRow.PoolMesh.Contains(TEXT("/Game/Warden/VFX/RiteWell/")));
+		TestTrue(TEXT("rite well motes path"), RiteWellRow.PoolMotes.Contains(TEXT("NS_RiteWell_Motes")));
+		TestTrue(TEXT("rite well pulse path"), RiteWellRow.PoolPulse.Contains(TEXT("NS_RiteWell_Pulse")));
+		TestEqual(TEXT("rite well pool socket"), RiteWellRow.PoolSocket, FString(TEXT("SOCKET_FX_Pool")));
+	}
 
 	const TArray<FName> Required = {
 		FName(KodWardenPaths::Id_CommandCenter),
@@ -172,5 +180,15 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("fallback is the old HQ mesh"), Old.Path.Contains(TEXT("SM_general")));
 		NewMeshes->Set(Previous, ECVF_SetByCode);
 	}
+	FKodMeshRow HallRow;
+	TestTrue(TEXT("command center row"), KodMeshCatalogFindRow(FName(KodWardenPaths::Id_CommandCenter), HallRow));
+	TestTrue(TEXT("command center requests stages"), HallRow.BuildVisual.Equals(TEXT("Stages"), ESearchCase::IgnoreCase));
+	TestFalse(TEXT("command center stage meshes"), HallRow.Stage1.IsEmpty() || HallRow.Stage2.IsEmpty() || HallRow.Stage3.IsEmpty());
+	FKodMeshRow OutpostRow;
+	TestTrue(TEXT("outpost row"), KodMeshCatalogFindRow(FName(TEXT("KodEnemyOutpost")), OutpostRow));
+	TestTrue(TEXT("outpost is vfx"), OutpostRow.BuildVisual.Equals(TEXT("Vfx"), ESearchCase::IgnoreCase));
+	FKodMeshRow BaseRow;
+	TestTrue(TEXT("enemy base row"), KodMeshCatalogFindRow(FName(TEXT("KodEnemyBase")), BaseRow));
+	TestTrue(TEXT("enemy base is scaffold"), BaseRow.BuildVisual.Equals(TEXT("Scaffold"), ESearchCase::IgnoreCase));
 	return true;
 }
