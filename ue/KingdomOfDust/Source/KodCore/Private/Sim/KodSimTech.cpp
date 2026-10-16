@@ -741,6 +741,8 @@ void UKodSimSubsystem::StepTech()
 					if (Spec->AttackDamage > 0)
 					{
 						Structure->bTurret = true;
+						Structure->PaidCredits += FMath::Max(0, Spec->Credits);
+						Structure->PaidLuminene += FMath::Max(0, Spec->Luminene);
 						ApplyInstalledTurret(*Structure);
 						UE_LOG(LogTemp, Log, TEXT("KodBunker Turret Id=%d Damage=%d Range=%d Air=%d"),
 							Structure->Id.Value,

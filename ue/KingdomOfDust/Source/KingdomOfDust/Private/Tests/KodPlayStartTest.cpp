@@ -47,7 +47,8 @@ bool FKodPlayStartTest::RunTest(const FString& Parameters)
 		CameraPawn->SetActorLocation(FVector(0.f, 0.f, 0.f));
 		CameraPawn->SnapToPlayerStart();
 		const float Distance = Base ? FVector::Dist2D(CameraPawn->GetActorLocation(), Base->GetActorLocation()) : 99999.f;
-		TestTrue(TEXT("camera on the command center"), Distance < 1500.f);
+		TestTrue(TEXT("camera on the command center"), Distance < 500.f);
+		TestTrue(TEXT("command center is not at the origin"), Base && FVector::Dist2D(Base->GetActorLocation(), FVector::ZeroVector) > 500.f);
 	}
 
 	World->DestroyWorld(false);
