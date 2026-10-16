@@ -34,6 +34,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Identity")
 	FGameplayTag BuildingTag;
 
+	/** Combat attributes such as Armored and Structure. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Identity")
+	FGameplayTagContainer AttributeTags;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Combat")
+	int32 Armor = 0;
+
 	/** Silhouette for a selected structure. 128 source, scaled by the HUD. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|UI")
 	TSoftObjectPtr<UTexture2D> Wireframe;

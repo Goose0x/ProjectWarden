@@ -10,6 +10,10 @@ namespace KodGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Building, "Kod.Building");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Building_Barracks, "Kod.Building.Barracks");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Building_CommandCenter, "Kod.Building.CommandCenter");
+	UE_DEFINE_GAMEPLAY_TAG(Kod_Building_VgBunker, "Kod.Building.VG_BUNKER");
+	UE_DEFINE_GAMEPLAY_TAG(Kod_Attribute_Armored, "Kod.Attribute.Armored");
+	UE_DEFINE_GAMEPLAY_TAG(Kod_Attribute_Structure, "Kod.Attribute.Structure");
+	UE_DEFINE_GAMEPLAY_TAG(Kod_Attribute_Light, "Kod.Attribute.Light");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Power, "Kod.Power");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Power_DustStorm, "Kod.Power.DustStorm");
 	UE_DEFINE_GAMEPLAY_TAG(Kod_Resource_Cash, "Kod.Resource.Cash");

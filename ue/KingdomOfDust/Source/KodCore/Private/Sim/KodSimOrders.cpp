@@ -303,7 +303,19 @@ bool UKodSimSubsystem::TryApplyWeapon(FKodSimEntityState& State, FKodSimEntitySt
 			Armor += Tech->InfantryArmor;
 		}
 	}
-	const float Dealt = FMath::Max(0.5f, State.WeaponDamage + static_cast<float>(WeaponBonus) - static_cast<float>(Armor));
+	int32 TypedBonus = 0;
+	if (const FKodStructureState* Gun = Structures.Find(State.Id.Value))
+	{
+		if (Gun->BonusVsLight > 0)
+		{
+			const FKodTrainSpec* TargetSpec = TrainSpecs.Find(Target.DefinitionId);
+			if (TargetSpec && TargetSpec->bLight)
+			{
+				TypedBonus = Gun->BonusVsLight;
+			}
+		}
+	}
+	const float Dealt = FMath::Max(0.5f, State.WeaponDamage + static_cast<float>(WeaponBonus + TypedBonus) - static_cast<float>(Armor));
 	const int32 DealtInt = FMath::Max(1, FMath::RoundToInt(Dealt));
 	if (AttackerTeam == 0)
 	{

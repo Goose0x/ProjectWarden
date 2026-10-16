@@ -18,6 +18,8 @@ struct KODCORE_API FKodTrainSpec
 	/** Body death. Infantry, biological units, and workers. Not saved on the entity. */
 	bool bOrganic = false;
 	bool bHealer = false;
+	/** SC2 Light. The bunker turret adds its bonus against these units. */
+	bool bLight = false;
 	int32 CargoSize = 0;
 	int32 BaseArmor = 0;
 	int32 EnergyMax = 0;
@@ -40,11 +42,17 @@ struct KODCORE_API FKodUpgradeSpec
 	int32 SatelliteFeed = 0;
 	int32 EnergyMax = 0;
 	int32 EnergyStart = 0;
-	/** Per-bunker weapon. 0 means this upgrade is not a turret. Placeholder until Strategy sets it. */
+	/** Per-bunker weapon. 0 means this upgrade is not a turret. Placeholder until the Director stamps it. */
 	int32 AttackDamage = 0;
 	int32 AttackRangeUU = 0;
 	/** 0 shoots ground. 1 is air-only, same rule as the missile turret. Strategy owns the flag. */
 	int32 AttacksAir = 0;
+	/** Ticks from one shot to the next, including the 1-tick windup. 14 is 0.875s at 16 Hz. */
+	int32 CooldownTicks = 0;
+	/** Added when the target train spec is Light. */
+	int32 BonusVsLight = 0;
+	/** Added to the bunker's max and current HP once. */
+	int32 BonusHealth = 0;
 };
 
 struct KODCORE_API FKodPowerSpec
@@ -158,6 +166,15 @@ struct KODCORE_API FKodStructureState
 	bool bAttacksAir = false;
 	/** VG_BUNKER turret is installed. The mesh hangs on TurretMount. */
 	bool bTurret = false;
+	/** HP already added by the turret, so a second apply does not stack. */
+	int32 TurretHpBonus = 0;
+	/** Turret damage added against Light targets. */
+	int32 BonusVsLight = 0;
+	/** Counts down while Salvage is running. 0 is idle. 80 ticks is 5s. */
+	int32 SalvageTicksRemaining = 0;
+	/** Millicredits owed by workers repairing this building. */
+	int32 RepairCreditMilli = 0;
+	int32 RepairGasMilli = 0;
 	/** Shots fired from this building since spawn. Presentation only. Not hashed and not saved. */
 	int32 MuzzleSerial = 0;
 	TArray<FKodProductionSlot> Research;

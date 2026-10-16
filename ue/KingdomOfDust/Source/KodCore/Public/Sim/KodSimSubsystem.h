@@ -738,6 +738,10 @@ public:
 	bool LoadUnitIntoBunker(FKodEntityId UnitId, FKodEntityId BunkerId);
 	bool UnloadUnit(FKodEntityId BunkerId, int32 UnitId);
 	bool UnloadAll(FKodEntityId BunkerId);
+	/** Refund 75% of the bunker cost after 5s, then remove it and eject the cargo. */
+	bool IssueSalvage(FKodEntityId StructureId);
+	/** AMP (or any gatherer) walks to a damaged friendly building and restores HP. */
+	bool IssueRepair(FKodEntityId WorkerId, FKodEntityId StructureId);
 	void SetHealAutocast(FKodEntityId UnitId, bool bEnabled);
 	bool CastHeal(FKodEntityId UnitId);
 	void RaiseCue(FName CueId, FVector Location, bool bAtLocation);
@@ -1020,6 +1024,8 @@ protected:
 	void EjectBunker(FKodEntityId BunkerId);
 	/** Copies VG_BUNKER_TURRET placeholder stats onto a bunker that already has bTurret. */
 	void ApplyInstalledTurret(FKodStructureState& Structure);
+	void FinishSalvage(int32 StructureId);
+	void StepRepair();
 	bool CellHasUnit(int32 CellX, int32 CellY) const;
 	bool IsCellTerrainBlocked(int32 CellX, int32 CellY) const;
 	void InvalidatePathsOverFootprint(int32 CellX, int32 CellY, int32 SizeX, int32 SizeY);

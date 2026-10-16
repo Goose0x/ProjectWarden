@@ -98,6 +98,7 @@ void UKodSimSubsystem::ApplyRoster(FKodEntityId Id)
 	{
 		State->bBiological = Spec->bBiological;
 		State->bInfantry = Spec->bInfantry;
+		State->bLight = Spec->bLight;
 		State->bFlyer = Spec->bFlyer;
 		State->bHealer = Spec->bHealer;
 		State->CargoSize = FMath::Max(0, Spec->CargoSize);
@@ -109,6 +110,10 @@ void UKodSimSubsystem::ApplyRoster(FKodEntityId Id)
 	}
 	if (const FKodBuildSpec* Build = BuildSpecs.Find(State->DefinitionId))
 	{
+		if (Build->Armor > 0)
+		{
+			State->ArmorPoints = Build->Armor;
+		}
 		if (Build->AttackDamage > 0)
 		{
 			State->WeaponDamage = static_cast<float>(Build->AttackDamage);
@@ -449,6 +454,99 @@ void UKodSimSubsystem::EjectBunker(FKodEntityId BunkerId)
 	UnloadAll(BunkerId);
 }
 
+bool UKodSimSubsystem::IssueSalvage(FKodEntityId StructureId)
+{
+	FKodStructureState* Structure = Structures.Find(StructureId.Value);
+	if (!Structure || !Structure->bComplete || Structure->bAirborne || Structure->SalvageTicksRemaining > 0)
+	{
+		return false;
+	}
+	if (Structure->DefinitionId != FName(KodWardenPaths::Id_Bunker))
+	{
+		return false;
+	}
+	Structure->SalvageTicksRemaining = 5 * 16;
+	UE_LOG(LogTemp, Log, TEXT("KodBunker Salvage Start Id=%d Ticks=%d"), StructureId.Value, Structure->SalvageTicksRemaining);
+	return true;
+}
+
+void UKodSimSubsystem::FinishSalvage(int32 StructureId)
+{
+	FKodStructureState* Structure = Structures.Find(StructureId);
+	if (!Structure)
+	{
+		return;
+	}
+	int32 Credits = Structure->PaidCredits;
+	int32 Gas = Structure->PaidLuminene;
+	if (Credits <= 0 && Gas <= 0)
+	{
+		if (const FKodBuildSpec* Spec = BuildSpecs.Find(Structure->DefinitionId))
+		{
+			Credits = FMath::Max(0, Spec->Cost.Credits);
+			Gas = FMath::Max(0, Spec->Cost.Luminene);
+		}
+	}
+	const int32 RefundCredits = (FMath::Max(0, Credits) * 3) / 4;
+	const int32 RefundGas = (FMath::Max(0, Gas) * 3) / 4;
+	const int32 TeamId = Structure->TeamId;
+	TArray<int32> Workers;
+	States.GetKeys(Workers);
+	Workers.Sort();
+	for (int32 WorkerKey : Workers)
+	{
+		if (FKodSimEntityState* Worker = States.Find(WorkerKey))
+		{
+			if (Worker->BuildSite.Value == StructureId)
+			{
+				Worker->BuildSite = FKodEntityId();
+			}
+		}
+	}
+	FKodEntityId Id;
+	Id.Value = StructureId;
+	if (RefundCredits > 0 || RefundGas > 0)
+	{
+		FKodResourceCost Refund;
+		Refund.Jadeite = RefundCredits;
+		Refund.Luminene = RefundGas;
+		Deposit(TeamId, Refund);
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodBunker Salvage Refund Id=%d Credits=%d Luminene=%d"), StructureId, RefundCredits, RefundGas);
+	UnregisterEntity(Id);
+}
+
+bool UKodSimSubsystem::IssueRepair(FKodEntityId WorkerId, FKodEntityId StructureId)
+{
+	FKodSimEntityState* Worker = States.Find(WorkerId.Value);
+	FKodStructureState* Structure = Structures.Find(StructureId.Value);
+	FKodSimEntityState* Combat = States.Find(StructureId.Value);
+	if (!Worker || !Structure || !Combat || !Worker->bCanGather || Worker->Health <= 0.f)
+	{
+		return false;
+	}
+	if (!Structure->bComplete || Structure->bAirborne || Worker->TeamId != Structure->TeamId)
+	{
+		return false;
+	}
+	if (Combat->Health + 0.5f >= Combat->MaxHealth)
+	{
+		return false;
+	}
+	const float Dist = FVector::Dist2D(Worker->Position, Structure->Position);
+	if (Dist > 180.f)
+	{
+		const FVector Goal = Structure->StandPoint.IsNearlyZero() ? Structure->Position : Structure->StandPoint;
+		IssueMove(WorkerId, Goal);
+	}
+	if (FKodSimEntityState* Live = States.Find(WorkerId.Value))
+	{
+		Live->BuildSite = StructureId;
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodRepair Order Worker=%d Structure=%d"), WorkerId.Value, StructureId.Value);
+	return true;
+}
+
 void UKodSimSubsystem::ApplyInstalledTurret(FKodStructureState& Structure)
 {
 	if (!Structure.bTurret)
@@ -456,24 +554,33 @@ void UKodSimSubsystem::ApplyInstalledTurret(FKodStructureState& Structure)
 		return;
 	}
 	const FKodUpgradeSpec* Spec = UpgradeSpecs.Find(FName(KodWardenPaths::Id_BunkerTurret));
-	const int32 Damage = (Spec && Spec->AttackDamage > 0) ? Spec->AttackDamage : 6;
-	const int32 Range = (Spec && Spec->AttackRangeUU > 0) ? Spec->AttackRangeUU : 6 * KodBuildGrid::CellUU;
+	const int32 Damage = (Spec && Spec->AttackDamage > 0) ? Spec->AttackDamage : 12;
+	const int32 Range = (Spec && Spec->AttackRangeUU > 0) ? Spec->AttackRangeUU : 1200;
 	const bool bAir = Spec && Spec->AttacksAir != 0;
+	const int32 BonusHp = (Spec && Spec->BonusHealth > 0) ? Spec->BonusHealth : 100;
+	const int32 VsLight = (Spec && Spec->BonusVsLight > 0) ? Spec->BonusVsLight : 6;
+	const int32 Period = (Spec && Spec->CooldownTicks > 1) ? Spec->CooldownTicks : 14;
 	Structure.AttackDamage = Damage;
 	Structure.AttackRangeUU = Range;
 	Structure.bAttacksAir = bAir;
+	Structure.BonusVsLight = VsLight;
+	if (Structure.TurretHpBonus < BonusHp)
+	{
+		const int32 Add = BonusHp - Structure.TurretHpBonus;
+		Structure.MaxHealth += static_cast<float>(Add);
+		Structure.TurretHpBonus = BonusHp;
+		if (FKodSimEntityState* Combat = States.Find(Structure.Id.Value))
+		{
+			Combat->MaxHealth += static_cast<float>(Add);
+			Combat->Health += static_cast<float>(Add);
+		}
+	}
 	if (FKodSimEntityState* Combat = States.Find(Structure.Id.Value))
 	{
 		Combat->WeaponDamage = static_cast<float>(Damage);
 		Combat->WeaponRange = static_cast<float>(Range);
-		if (Combat->WeaponCooldownTicks <= 0)
-		{
-			Combat->WeaponCooldownTicks = 16;
-		}
-		if (Combat->WeaponBackswingTicks <= 0)
-		{
-			Combat->WeaponBackswingTicks = 2;
-		}
+		Combat->WeaponBackswingTicks = 1;
+		Combat->WeaponCooldownTicks = FMath::Max(1, Period - 1);
 	}
 }
 
@@ -597,6 +704,16 @@ void UKodSimSubsystem::StepTech()
 		if (!Structure || !Structure->bComplete || Structure->bAirborne)
 		{
 			continue;
+		}
+		if (Structure->SalvageTicksRemaining > 0)
+		{
+			const int32 SalvageId = Structure->Id.Value;
+			--Structure->SalvageTicksRemaining;
+			if (Structure->SalvageTicksRemaining <= 0)
+			{
+				FinishSalvage(SalvageId);
+				continue;
+			}
 		}
 		if (Structure->Research.Num() > 0)
 		{
