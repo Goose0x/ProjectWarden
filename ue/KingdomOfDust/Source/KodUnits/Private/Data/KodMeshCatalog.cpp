@@ -128,6 +128,18 @@ namespace
 			{
 				Row.Anim = Value;
 			}
+			else if (Key.Equals(TEXT("Graze"), ESearchCase::IgnoreCase))
+			{
+				Row.GrazeAnim = Value;
+			}
+			else if (Key.Equals(TEXT("Walk"), ESearchCase::IgnoreCase))
+			{
+				Row.WalkAnim = Value;
+			}
+			else if (Key.Equals(TEXT("Death"), ESearchCase::IgnoreCase))
+			{
+				Row.DeathAnim = Value;
+			}
 			else if (Key.Equals(TEXT("AnimFolder"), ESearchCase::IgnoreCase))
 			{
 				Row.AnimFolder = Value;

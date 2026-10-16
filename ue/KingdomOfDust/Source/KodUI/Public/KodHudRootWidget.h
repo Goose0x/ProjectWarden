@@ -37,6 +37,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|HUD")
 	UKodResourceBarWidget* GetResourceBar() const { return ResourceBar; }
 
+	/** Live supply from the sim. The bar clamps the max at 200. */
+	UFUNCTION(BlueprintCallable, Category = "Kod|UI|HUD")
+	void PushSupply(int32 Used, int32 Cap);
+
 	UFUNCTION(BlueprintPure, Category = "Kod|UI|HUD")
 	UKodMinimapWidget* GetMinimap() const { return Minimap; }
 

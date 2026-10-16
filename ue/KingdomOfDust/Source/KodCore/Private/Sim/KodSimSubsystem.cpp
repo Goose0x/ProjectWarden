@@ -2365,12 +2365,21 @@ void UKodSimSubsystem::UnregisterEntityIfActor(FKodEntityId Id, AActor* Actor)
 
 void UKodSimSubsystem::UnregisterEntity(FKodEntityId Id)
 {
+	int32 SupplyTeam = INDEX_NONE;
+	if (const FKodSimEntityState* State = States.Find(Id.Value))
+	{
+		SupplyTeam = State->TeamId;
+	}
 	ReleaseCountedSupply(Id);
 	ReleaseStructureRecord(Id);
 	Entities.Remove(Id.Value);
 	States.Remove(Id.Value);
 	PrevPositions.Remove(Id.Value);
 	PrevYaws.Remove(Id.Value);
+	if (SupplyTeam != INDEX_NONE)
+	{
+		RecalcSupplyCap(SupplyTeam);
+	}
 }
 
 AActor* UKodSimSubsystem::ResolveEntity(FKodEntityId Id) const

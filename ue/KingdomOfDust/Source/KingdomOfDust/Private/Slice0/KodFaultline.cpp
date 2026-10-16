@@ -277,6 +277,7 @@ namespace
 		Script.WorkerRegenMilli = 1000;
 		Buildings.Add(TEXT("SCN_HQ"), FScnBuilding{ 1500, 1, 2000 });
 		Buildings.Add(TEXT("SCN_OUTPOST"), FScnBuilding{ 1000, 1, 2000 });
+		// HP fallback only. Scinder supply on this map is a living Hide-Ox, not a spawned depot.
 		Buildings.Add(TEXT("SCN_DEPOT"), FScnBuilding{ 400, 1, 2000 });
 		Buildings.Add(TEXT("SCN_EXTRACTOR"), FScnBuilding{ 400, 1, 2000 });
 		Buildings.Add(TEXT("SCN_BARRACKS"), FScnBuilding{ 1000, 1, 2000 });

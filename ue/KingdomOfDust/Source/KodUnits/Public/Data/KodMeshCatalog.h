@@ -38,6 +38,10 @@ struct KODUNITS_API FKodMeshRow
 	/** Length rows only. Floor on the fitted length. Raises the scale only when FitCm is shorter. 0 ignores it. */
 	float MinHeightCm = 0.f;
 	FString Anim;
+	/** Idle graze, walk, and death clips. Empty leaves the unit definition alone. */
+	FString GrazeAnim;
+	FString WalkAnim;
+	FString DeathAnim;
 	/** Folder of short-named sequences, for example the supply-depot raise and lower clips. */
 	FString AnimFolder;
 	FString RaiseAnim;

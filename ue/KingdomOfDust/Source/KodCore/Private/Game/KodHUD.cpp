@@ -1429,6 +1429,7 @@ void AKodHUD::DrawFaultlineObjectives()
 	int32 Depots = 0;
 	int32 Barracks = 0;
 	int32 Infantry = 0;
+	int32 HideOx = 0;
 	int32 Outposts = 0;
 	int32 Bases = 0;
 	for (const FKodStructureState& Structure : FrameStructures)
@@ -1460,14 +1461,19 @@ void AKodHUD::DrawFaultlineObjectives()
 	}
 	for (const FKodSimEntityState& State : FrameStates)
 	{
+		if (State.TeamId == 0 && State.Health > 0.f && State.DefinitionId == FName(KodWardenPaths::Id_ScnHideOx))
+		{
+			++HideOx;
+		}
 		if (State.TeamId == 0 && State.bInfantry && State.Health > 0.f)
 		{
 			++Infantry;
 		}
 	}
+	const bool bScinderPlayer = Sim->GetPlayerFaction() == 1;
 	const bool Done[] = {
 		Collected >= 300,
-		Depots >= 1,
+		bScinderPlayer ? HideOx >= 1 : (Depots >= 1 || HideOx >= 1),
 		Barracks >= 1,
 		Infantry >= 5 || Trained >= 5,
 		Outposts == 0,
@@ -1475,7 +1481,7 @@ void AKodHUD::DrawFaultlineObjectives()
 	};
 	const TCHAR* Lines[] = {
 		TEXT("Gather 300 Jadeite"),
-		TEXT("Build a supply structure"),
+		bScinderPlayer ? TEXT("Train a Hide-Ox") : TEXT("Build a supply structure"),
 		TEXT("Build a barracks"),
 		TEXT("Train 5 infantry"),
 		TEXT("Destroy the enemy outpost"),
@@ -2763,8 +2769,27 @@ void AKodHUD::RefreshReadout()
 			ShownLuminene = Luminene;
 			UE_LOG(LogTemp, Log, TEXT("KodHUD Readout Update J=%d L=%d"), Jadeite, Luminene);
 		}
+		if (SupplyUsed != ShownSupplyUsed || SupplyCap != ShownSupplyCap)
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodHUD Supply Update Used=%d Cap=%d"), SupplyUsed, SupplyCap);
+		}
 		ShownSupplyUsed = SupplyUsed;
 		ShownSupplyCap = SupplyCap;
+		if (HudWidgetInstance)
+		{
+			if (UFunction* PushSupply = HudWidgetInstance->FindFunction(TEXT("PushSupply")))
+			{
+				struct FKodPushSupplyParams
+				{
+					int32 Used;
+					int32 Cap;
+				};
+				FKodPushSupplyParams Params;
+				Params.Used = SupplyUsed;
+				Params.Cap = SupplyCap;
+				HudWidgetInstance->ProcessEvent(PushSupply, &Params);
+			}
+		}
 	}
 
 	const int32 DrawJadeite = ShownJadeite == MIN_int32 ? 0 : ShownJadeite;

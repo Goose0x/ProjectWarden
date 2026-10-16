@@ -14,6 +14,14 @@
 #include "Components/Image.h"
 #include "Components/Spacer.h"
 
+void UKodHudRootWidget::PushSupply(int32 Used, int32 Cap)
+{
+	if (ResourceBar)
+	{
+		ResourceBar->SetSupply(Used, Cap);
+	}
+}
+
 namespace KodHudRootPrivate
 {
 	void ApplyFill(UWidget* Widget, float Weight)

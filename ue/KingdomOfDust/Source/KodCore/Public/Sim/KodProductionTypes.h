@@ -26,6 +26,21 @@ struct KODCORE_API FKodTrainSpec
 	int32 EnergyStart = 0;
 	int32 GatherRatePermille = 1000;
 	int32 PowerPoints = 0;
+	/** Units overlap and do not block placement. Read from the train spec, not stored on the entity. */
+	bool bSoftCollision = false;
+	/** Armored attribute from the unit sheet. */
+	bool bArmored = false;
+	/** Filled from units.csv. ApplyRoster copies the sheet stats and leaves other specs alone. */
+	bool bFromSheet = false;
+	/** Added to the team supply cap while one of these units is alive. */
+	int32 SupplyProvided = 0;
+	float SheetHealth = 0.f;
+	float SheetMoveSpeed = 0.f;
+	int32 SheetSightUU = 0;
+	/** Negative means this spec has no sheet weapon. Zero is a unit with no attack. */
+	float SheetWeaponDamage = -1.f;
+	/** Building that trains this unit. SCI_HQ in the sheet is ScinderHQ. */
+	FName BuildingId;
 };
 
 /** Researched at a building. Level 1 placeholders. The sim does not load an asset. */

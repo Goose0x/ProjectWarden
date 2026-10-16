@@ -74,6 +74,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
 	FKodTrainCost Cost;
 
+	/**
+	 * Added to the team supply cap while this unit is alive.
+	 * Death and despawn take it back. The sim clamps the total at 200.
+	 * 0 is a normal trainee. Hide-Ox reads this from units.csv.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
+	int32 SupplyProvided = 0;
+
 	/** Dozer (AMP). Copied onto the sim entity. Marines stay false. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Economy")
 	bool bCanGather = false;
