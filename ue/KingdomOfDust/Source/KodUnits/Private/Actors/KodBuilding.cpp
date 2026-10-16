@@ -1,6 +1,8 @@
 #include "Actors/KodBuilding.h"
 #include "Actors/KodMeshAttach.h"
+#include "Game/KodBuildStage.h"
 #include "Game/KodLanding.h"
+#include "HAL/IConsoleManager.h"
 #include "Game/KodCollision.h"
 #include "Actors/KodJadeiteVisual.h"
 #include "Game/KodJadeitePalette.h"
@@ -25,6 +27,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "Sim/KodBuildTypes.h"
+#include "Sim/KodBuildTicks.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Slice0/KodSlice0Bootstrap.h"
 #include "UObject/ConstructorHelpers.h"
@@ -75,6 +78,7 @@ void AKodBuilding::BeginPlay()
 	}
 	BindJadeitePalette();
 	RefreshJadeiteEmissive();
+	PreloadConstructionStages();
 	if (bBoundStructure)
 	{
 		if (UWorld* World = GetWorld())
@@ -92,15 +96,11 @@ int32 AKodBuilding::GetScaffoldStage() const
 	const UWorld* World = GetWorld();
 	const UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
 	FKodStructureState Structure;
-	if (!Sim || !Sim->TryGetStructure(EntityId, Structure) || Structure.bComplete || Structure.BuildTimeTotal <= 0)
+	if (!Sim || !Sim->TryGetStructure(EntityId, Structure))
 	{
 		return 3;
 	}
-	if (Structure.BuildTicksDone >= Structure.BuildTimeTotal)
-	{
-		return 3;
-	}
-	return FMath::Clamp((Structure.BuildTicksDone * 3) / Structure.BuildTimeTotal, 0, 2);
+	return KodBuildStage::FromProgress(Structure.BuildProgress()).StageIndex;
 }
 
 void AKodBuilding::Tick(float DeltaSeconds)
@@ -118,7 +118,6 @@ void AKodBuilding::Tick(float DeltaSeconds)
 		return;
 	}
 	FKodStructureState Structure;
-	const int32 Stage = GetScaffoldStage();
 	FVector Scale = BaseScale;
 	float Rise = 0.f;
 	if (Sim->TryGetStructure(EntityId, Structure))
@@ -154,8 +153,6 @@ void AKodBuilding::Tick(float DeltaSeconds)
 		}
 		else if (!Structure.bComplete && Structure.BuildTimeTotal > 0)
 		{
-			const float StageScale[4] = {0.2f, 0.45f, 0.75f, 1.f};
-			Scale *= StageScale[FMath::Clamp(Stage, 0, 3)];
 			bSawIncomplete = true;
 		}
 		else if (!bSawComplete)
@@ -209,11 +206,256 @@ void AKodBuilding::Tick(float DeltaSeconds)
 	}
 	bWasAirborne = bAir;
 	FKodSimEntityState Combat;
+	float Health = 1.f;
 	if (Sim->TryGetState(EntityId, Combat))
 	{
+		Health = Combat.Health;
 		UpdateLowHealthFx(Combat.Health, Combat.MaxHealth);
 	}
+	if (Sim->TryGetStructure(EntityId, Structure))
+	{
+		ApplyConstructionVisual(Structure, Health);
+	}
 	SyncBunkerTurret(Sim, DeltaSeconds);
+}
+
+namespace
+{
+	TAutoConsoleVariable<int32> CVarDynastyGhost(
+		TEXT("kod.Build.DynastyGhost"),
+		1,
+		TEXT("1 draws the construction dynasty ghost. 0 hides it. Scalability."),
+		ECVF_Scalability);
+
+	bool IsDeadHealth(float Health)
+	{
+		return Health <= 0.f;
+	}
+}
+
+bool AKodBuilding::IsConstructionExempt() const
+{
+	if (ActorHasTag(FName(TEXT("KodDestructible"))))
+	{
+		return true;
+	}
+	const UKodBuildingDefinition* Def = Definition.Get();
+	if (Def && Def->DefinitionId == FName(TEXT("KodDestructible")))
+	{
+		return true;
+	}
+	if (BuildingMesh && KodBuildStage::IsExemptClassName(BuildingMesh->GetClass()->GetName()))
+	{
+		return true;
+	}
+	return false;
+}
+
+void AKodBuilding::PreloadConstructionStages()
+{
+	if (bConstructionPreloaded || IsConstructionExempt())
+	{
+		return;
+	}
+	UKodBuildingDefinition* Def = Definition.Get();
+	if (!Def)
+	{
+		Def = GetDefinition();
+	}
+	if (!Def)
+	{
+		return;
+	}
+	TArray<FSoftObjectPath> Paths;
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		if (!Def->ConstructionStageMeshes[Index].IsNull())
+		{
+			Paths.Add(Def->ConstructionStageMeshes[Index].ToSoftObjectPath());
+		}
+	}
+	if (!Def->ConstructionRevealMaterial.IsNull())
+	{
+		Paths.Add(Def->ConstructionRevealMaterial.ToSoftObjectPath());
+	}
+	if (!Def->DynastyGhostMaterial.IsNull())
+	{
+		Paths.Add(Def->DynastyGhostMaterial.ToSoftObjectPath());
+	}
+	if (!Def->ChiWispSystem.IsNull())
+	{
+		Paths.Add(Def->ChiWispSystem.ToSoftObjectPath());
+	}
+	if (Paths.Num() == 0)
+	{
+		return;
+	}
+	bConstructionPreloaded = true;
+	ConstructionHandle = LowHealthStream.RequestAsyncLoad(Paths);
+}
+
+void AKodBuilding::RestoreFinishedMesh()
+{
+	if (BuildingMesh && FinishedMesh && BuildingMesh->GetStaticMesh() != FinishedMesh)
+	{
+		BuildingMesh->SetStaticMesh(FinishedMesh);
+	}
+	ShownStage = 3;
+	if (DynastyGhost)
+	{
+		DynastyGhost->SetVisibility(false);
+		DynastyGhost->SetHiddenInGame(true);
+	}
+}
+
+void AKodBuilding::ReleaseChiWisp()
+{
+	if (!ChiWisp)
+	{
+		return;
+	}
+	ChiWisp->SetVariableFloat(TEXT("BuildRate"), 0.f);
+	ChiWisp->Deactivate();
+	ChiWisp = nullptr;
+}
+
+void AKodBuilding::ApplyConstructionVisual(const FKodStructureState& Structure, float Health)
+{
+	if (!BuildingMesh || IsConstructionExempt())
+	{
+		if (!bLoggedConstructionExempt && IsConstructionExempt())
+		{
+			bLoggedConstructionExempt = true;
+			UE_LOG(LogTemp, Log, TEXT("KodBuild StageSkip Id=%d Reason=Destructible"), EntityId.Value);
+		}
+		return;
+	}
+	if (IsDeadHealth(Health))
+	{
+		ReleaseChiWisp();
+		if (DynastyGhost)
+		{
+			DynastyGhost->SetVisibility(false);
+			DynastyGhost->SetHiddenInGame(true);
+		}
+		return;
+	}
+	if (!FinishedMesh)
+	{
+		FinishedMesh = BuildingMesh->GetStaticMesh();
+	}
+	const FKodBuildStageView View = KodBuildStage::FromProgress(Structure.BuildProgress());
+	if (View.bFinal)
+	{
+		RestoreFinishedMesh();
+		ReleaseChiWisp();
+		return;
+	}
+
+	UKodBuildingDefinition* Def = Definition.Get();
+	if (!Def)
+	{
+		Def = GetDefinition();
+	}
+	UStaticMesh* StageMesh = nullptr;
+	if (Def && View.StageIndex >= 0 && View.StageIndex < 3)
+	{
+		StageMesh = Def->ConstructionStageMeshes[View.StageIndex].Get();
+	}
+	if (StageMesh && BuildingMesh->GetStaticMesh() != StageMesh)
+	{
+		BuildingMesh->SetStaticMesh(StageMesh);
+		ShownStage = View.StageIndex;
+		if (UMaterialInterface* Reveal = Def ? Def->ConstructionRevealMaterial.Get() : nullptr)
+		{
+			const int32 Slots = FMath::Max(1, BuildingMesh->GetNumMaterials());
+			for (int32 Slot = 0; Slot < Slots; ++Slot)
+			{
+				BuildingMesh->SetMaterial(Slot, Reveal);
+			}
+		}
+	}
+	else if (!StageMesh)
+	{
+		ShownStage = View.StageIndex;
+	}
+
+	const FLinearColor Faction = KodBuildStage::FactionColor(Structure.TeamId);
+	BuildingMesh->SetCustomPrimitiveDataFloat(KodBuildStage::RevealDataIndex, View.Reveal);
+	BuildingMesh->SetCustomPrimitiveDataFloat(KodBuildStage::FactionDataIndex, Faction.R);
+	BuildingMesh->SetCustomPrimitiveDataFloat(KodBuildStage::FactionDataIndex + 1, Faction.G);
+	BuildingMesh->SetCustomPrimitiveDataFloat(KodBuildStage::FactionDataIndex + 2, Faction.B);
+
+	const bool bGhostOn = CVarDynastyGhost.GetValueOnGameThread() != 0;
+	if (bGhostOn && FinishedMesh)
+	{
+		if (!DynastyGhost)
+		{
+			DynastyGhost = NewObject<UStaticMeshComponent>(this, TEXT("DynastyGhost"));
+			DynastyGhost->SetupAttachment(BuildingMesh);
+			DynastyGhost->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			DynastyGhost->SetCastShadow(false);
+			DynastyGhost->SetForceDisableNanite(true);
+			DynastyGhost->SetForcedLodModel(2);
+			DynastyGhost->ComponentTags.Add(FName(TEXT("KodFx")));
+			DynastyGhost->RegisterComponent();
+		}
+		if (DynastyGhost->GetStaticMesh() != FinishedMesh)
+		{
+			DynastyGhost->SetStaticMesh(FinishedMesh);
+			DynastyGhost->SetForceDisableNanite(true);
+			DynastyGhost->SetForcedLodModel(2);
+		}
+		if (Def)
+		{
+			if (UMaterialInterface* GhostMaterial = Def->DynastyGhostMaterial.Get())
+			{
+				const int32 Slots = FMath::Max(1, DynastyGhost->GetNumMaterials());
+				for (int32 Slot = 0; Slot < Slots; ++Slot)
+				{
+					if (DynastyGhost->GetMaterial(Slot) != GhostMaterial)
+					{
+						DynastyGhost->SetMaterial(Slot, GhostMaterial);
+					}
+				}
+			}
+		}
+		DynastyGhost->SetVisibility(true);
+		DynastyGhost->SetHiddenInGame(false);
+	}
+	else if (DynastyGhost)
+	{
+		DynastyGhost->SetVisibility(false);
+		DynastyGhost->SetHiddenInGame(true);
+	}
+
+	if (Def)
+	{
+		if (UNiagaraSystem* WispSystem = Def->ChiWispSystem.Get())
+		{
+			if (!ChiWisp)
+			{
+				ChiWisp = UNiagaraFunctionLibrary::SpawnSystemAttached(
+					WispSystem,
+					BuildingMesh,
+					NAME_None,
+					FVector::ZeroVector,
+					FRotator::ZeroRotator,
+					EAttachLocation::KeepRelativeOffset,
+					true,
+					true,
+					ENCPoolMethod::AutoRelease,
+					true);
+			}
+			if (ChiWisp)
+			{
+				const float Rate = Structure.BuildTimeTotal > 0
+					? (static_cast<float>(KodBuildTicks::SimHz) / static_cast<float>(Structure.BuildTimeTotal))
+					: 0.f;
+				ChiWisp->SetVariableFloat(TEXT("BuildRate"), Rate);
+			}
+		}
+	}
 }
 
 void AKodBuilding::FlashBunkerMuzzle()

@@ -101,6 +101,28 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Combat")
 	bool bAttacksAir = false;
 
+	/**
+	 * Three in-progress meshes, thirds of BuildProgress. Empty keeps the finished mesh.
+	 * The actor swaps them on one component. It does not spawn a component per stage.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	TSoftObjectPtr<UStaticMesh> ConstructionStageMeshes[3];
+
+	/**
+	 * Masked master material. Reads BuildReveal and faction color from custom primitive data.
+	 * Not a per-actor instance, and not translucent.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	TSoftObjectPtr<UMaterialInterface> ConstructionRevealMaterial;
+
+	/** Unlit additive ghost on the finished mesh LOD1. Hidden when construction ends. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
+	TSoftObjectPtr<UMaterialInterface> DynastyGhostMaterial;
+
+	/** One GPU Niagara system. User param BuildRate is progress per second. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|FX")
+	TSoftObjectPtr<UNiagaraSystem> ChiWispSystem;
+
 	/** Optional presentation. Empty keeps the placed greybox mesh. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Kod|Mesh")
 	TSoftObjectPtr<UStaticMesh> Mesh;

@@ -6,6 +6,7 @@
 #include "Components/PointLightComponent.h"
 #include "NiagaraComponent.h"
 #include "Sim/KodEntityId.h"
+#include "Sim/KodProductionTypes.h"
 #include "KodBuilding.generated.h"
 
 class UKodBuildingDefinition;
@@ -32,6 +33,9 @@ public:
 
 	/** 0, 1, 2, 3 for build progress under 33%, 66%, 100%, and finished. Art reads this. */
 	int32 GetScaffoldStage() const;
+
+	/** Async-load the three stage meshes, the reveal material, the ghost material, and the wisp. */
+	void PreloadConstructionStages();
 
 	/** Smoke under 35% HP and fire under 15%. Empty Niagara slots do nothing. */
 	void UpdateLowHealthFx(float Health, float MaxHealth);
@@ -76,6 +80,24 @@ private:
 	bool bDepotLowerLatched = false;
 	bool bDepotClipDriven = false;
 	void PlayDepotCommandAnim(bool bLower);
+	void ApplyConstructionVisual(const FKodStructureState& Structure, float Health);
+	void RestoreFinishedMesh();
+	void ReleaseChiWisp();
+	bool IsConstructionExempt() const;
+	int32 ShownStage = -1;
+	bool bConstructionPreloaded = false;
+	bool bLoggedConstructionExempt = false;
+
+	UPROPERTY()
+	TObjectPtr<UStaticMesh> FinishedMesh;
+
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> DynastyGhost;
+
+	UPROPERTY()
+	TObjectPtr<UNiagaraComponent> ChiWisp;
+
+	TSharedPtr<FStreamableHandle> ConstructionHandle;
 	void SyncBunkerTurret(UKodSimSubsystem* Sim, float DeltaSeconds);
 	void FlashBunkerMuzzle();
 	bool bLoggedTurretSocket = false;
