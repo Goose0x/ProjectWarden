@@ -142,6 +142,33 @@ namespace KodCameraSettings
 	}
 
 	/**
+	 * Spring-arm offset from the focus to the camera. The arm looks along
+	 * (Pitch, Yaw) and the socket sits behind that look, so the screen center
+	 * ray hits the focus. TargetOffset and SocketOffset stay zero.
+	 */
+	inline FVector RtsCameraOffset(float Pitch, float Yaw, float ArmUU)
+	{
+		return -FRotator(Pitch, Yaw, 0.f).Vector() * ArmUU;
+	}
+
+	/** Where the view-center ray meets a horizontal plane. False if it aims away. */
+	inline bool RayHitsHorizontalPlane(const FVector& Origin, const FVector& Direction, float PlaneZ, FVector& OutHit)
+	{
+		const FVector Dir = Direction.GetSafeNormal();
+		if (FMath::Abs(Dir.Z) < 0.001f)
+		{
+			return false;
+		}
+		const float Distance = (PlaneZ - Origin.Z) / Dir.Z;
+		if (Distance <= 0.f)
+		{
+			return false;
+		}
+		OutHit = Origin + Dir * Distance;
+		return true;
+	}
+
+	/**
 	 * Edge pan snaps to the requested velocity. Releasing the keys or the edge
 	 * zeroes it on that step, so it does not coast. Keyboard accel cannot pass the target.
 	 */

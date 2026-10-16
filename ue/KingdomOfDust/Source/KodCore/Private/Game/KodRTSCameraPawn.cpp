@@ -123,13 +123,19 @@ AKodRTSCameraPawn::AKodRTSCameraPawn()
 	CameraBoom->bEnableCameraLag = false;
 	CameraBoom->bEnableCameraRotationLag = false;
 	CameraBoom->bInheritPitch = false;
+	CameraBoom->bInheritYaw = true;
 	CameraBoom->bInheritRoll = false;
 	CameraBoom->bUsePawnControlRotation = false;
+	CameraBoom->TargetOffset = FVector::ZeroVector;
+	CameraBoom->SocketOffset = FVector::ZeroVector;
+	CameraBoom->SetRelativeLocation(FVector::ZeroVector);
 	CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, RollDegrees));
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	Camera->bUsePawnControlRotation = false;
+	Camera->SetRelativeLocation(FVector::ZeroVector);
+	Camera->SetRelativeRotation(FRotator::ZeroRotator);
 
 	CurrentArmLength = DefaultArmLength;
 	TargetArmLength = DefaultArmLength;
@@ -297,6 +303,11 @@ void AKodRTSCameraPawn::Tick(float DeltaSeconds)
 	{
 		bFollowUnit = false;
 		FollowTarget = nullptr;
+		bPendingPlayerFocus = false;
+	}
+	if (bPendingPlayerFocus)
+	{
+		SnapToPlayerStart();
 	}
 	PollFollow();
 	if (bFollowUnit)
@@ -473,17 +484,31 @@ AActor* AKodRTSCameraPawn::FindCommandCenter() const
 
 void AKodRTSCameraPawn::SnapToPlayerStart()
 {
+	if (!bPendingPlayerFocus || !WantsCommandCenterFraming())
+	{
+		return;
+	}
 	if (AActor* Anchor = FindCommandCenter())
 	{
 		SnapToStartView(Anchor->GetActorLocation());
+		bPendingPlayerFocus = false;
+		UE_LOG(LogTemp, Log, TEXT("KodCam Focus CC Loc=%.0f,%.0f,%.0f"),
+			Anchor->GetActorLocation().X,
+			Anchor->GetActorLocation().Y,
+			GetActorLocation().Z);
 	}
 }
 
 void AKodRTSCameraPawn::JumpTo(FVector WorldLocation)
 {
+	bPendingPlayerFocus = false;
 	FVector Loc = GetActorLocation();
 	Loc.X = WorldLocation.X;
 	Loc.Y = WorldLocation.Y;
+	if (bHaveGround)
+	{
+		Loc.Z = TargetGroundZ;
+	}
 	SetActorLocation(Loc);
 	PanVelocity = FVector::ZeroVector;
 	bGrabbing = false;
@@ -491,6 +516,8 @@ void AKodRTSCameraPawn::JumpTo(FVector WorldLocation)
 	FollowTarget = nullptr;
 	UpdateTerrain(0.f, true);
 	ClampToPlayable();
+	MaintainBoom();
+	UE_LOG(LogTemp, Log, TEXT("KodCam Focus X=%.0f Y=%.0f Z=%.0f"), Loc.X, Loc.Y, GetActorLocation().Z);
 }
 
 void AKodRTSCameraPawn::FrameGroundSpan(FVector WorldLocation, float SpanXcm, float SpanYcm)
@@ -690,10 +717,26 @@ void AKodRTSCameraPawn::MaintainBoom()
 	{
 		return;
 	}
+	if (!bAllowAltDragRotate)
+	{
+		SetActorRotation(FRotator(0.f, YawDegrees, 0.f));
+	}
+	CameraBoom->TargetOffset = FVector::ZeroVector;
+	CameraBoom->SocketOffset = FVector::ZeroVector;
+	CameraBoom->SetRelativeLocation(FVector::ZeroVector);
 	CameraBoom->SetRelativeRotation(FRotator(PitchDegrees, 0.f, RollDegrees));
 	CameraBoom->bDoCollisionTest = false;
 	CameraBoom->bEnableCameraLag = false;
 	CameraBoom->bEnableCameraRotationLag = false;
+	CameraBoom->bInheritPitch = false;
+	CameraBoom->bInheritYaw = true;
+	CameraBoom->bInheritRoll = false;
+	if (Camera)
+	{
+		Camera->SetRelativeLocation(FVector::ZeroVector);
+		Camera->SetRelativeRotation(FRotator::ZeroRotator);
+	}
+	CameraBoom->UpdateDesiredArmLocation(false, false, false, 0.f);
 }
 
 void AKodRTSCameraPawn::FocusCommandCenter()
