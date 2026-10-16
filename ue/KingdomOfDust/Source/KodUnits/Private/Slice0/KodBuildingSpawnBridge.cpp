@@ -59,6 +59,7 @@ void UKodBuildingSpawnBridge::Tick(float DeltaTime)
 			Sim->TryGetState(Existing, Kept);
 		}
 		Building->FinishSpawning(Xform);
+		Building->PreloadConstructionStages();
 		KodLanding::ValidateLandingOrientation(Building, Pose);
 		if (bRestore)
 		{

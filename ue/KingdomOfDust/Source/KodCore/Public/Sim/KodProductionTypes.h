@@ -128,6 +128,16 @@ struct KODCORE_API FKodStructureState
 	int32 BuildTimeTotal = 0;
 	int32 BuildTicksDone = 0;
 	bool bComplete = true;
+
+	/** 0 while the site is new, 1 when construction is finished. The view does not invent this. */
+	float BuildProgress() const
+	{
+		if (bComplete || BuildTimeTotal <= 0)
+		{
+			return 1.f;
+		}
+		return FMath::Clamp(static_cast<float>(BuildTicksDone) / static_cast<float>(FMath::Max(1, BuildTimeTotal)), 0.f, 1.f);
+	}
 	bool bActivelyBuilding = false;
 	int32 LastProgressBucket = -1;
 	FKodEntityId BuilderId;
