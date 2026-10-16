@@ -534,7 +534,7 @@ bool UKodSimSubsystem::IssueRepair(FKodEntityId WorkerId, FKodEntityId Structure
 		return false;
 	}
 	const float Dist = FVector::Dist2D(Worker->Position, Structure->Position);
-	if (Dist > 180.f)
+	if (Dist > RepairReachUU(*Structure))
 	{
 		const FVector Goal = Structure->StandPoint.IsNearlyZero() ? Structure->Position : Structure->StandPoint;
 		IssueMove(WorkerId, Goal);
@@ -788,15 +788,11 @@ void UKodSimSubsystem::StepTech()
 			}
 		}
 
-		if (Structure->AttackDamage <= 0)
+			if (Structure->AttackDamage > 0)
 		{
-			continue;
-		}
 		FKodSimEntityState* Tower = States.Find(Structure->Id.Value);
-		if (!Tower || Tower->Health <= 0.f)
+		if (Tower && Tower->Health > 0.f)
 		{
-			continue;
-		}
 		const float Range = static_cast<float>(Structure->AttackRangeUU);
 		FKodEntityId Best;
 		float BestDist = 0.f;
@@ -842,6 +838,8 @@ void UKodSimSubsystem::StepTech()
 					}
 				}
 			}
+		}
+		}
 
 		for (int32 RiderId : Structure->Cargo)
 		{

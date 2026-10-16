@@ -165,29 +165,13 @@ namespace
 	{
 		const FVector Socket(-7500.f, -7500.f, 340.f);
 		SpawnOctagon(World, FVector(900.f, -7900.f, 0.f));
-		AActor* Anchor = nullptr;
-		for (TActorIterator<AActor> It(World); It; ++It)
-		{
-			AActor* Actor = *It;
-			if (!Actor)
-			{
-				continue;
-			}
-			const FString Label = Actor->GetActorNameOrLabel();
-			if (!Label.Contains(TEXT("PROXY_CC")) && !Actor->ActorHasTag(FName(TEXT("KodStartSpot_0"))))
-			{
-				continue;
-			}
-			if (!Anchor || Actor->GetName() < Anchor->GetName())
-			{
-				Anchor = Actor;
-			}
-		}
+		AActor* Anchor = AKodSlice0GameMode::FindBaseToSeat(World);
 		if (!Anchor)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("KodFaultline CC Miss Socket=-7500,-7500"));
 			return;
 		}
+		Anchor->Tags.AddUnique(FName(TEXT("KodStartSpot_0")));
 		TInlineComponentArray<UPrimitiveComponent*> Primitives;
 		Anchor->GetComponents(Primitives);
 		for (UPrimitiveComponent* Primitive : Primitives)

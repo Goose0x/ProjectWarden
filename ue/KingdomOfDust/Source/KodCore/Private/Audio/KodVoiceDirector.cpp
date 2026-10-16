@@ -100,6 +100,7 @@ FKodVoiceChoice FKodVoiceDirector::Choose(FName UnitId, FName Category, int32 En
 			const FClicks* Playing = Clicks.Find(EntityId);
 			if (NowSeconds < *Busy && Playing && Playing->bAnnoyedLine)
 			{
+				Choice.bThrottled = true;
 				return Choice;
 			}
 		}
@@ -118,6 +119,7 @@ FKodVoiceChoice FKodVoiceDirector::Choose(FName UnitId, FName Category, int32 En
 	{
 		if (NowSeconds < *Until)
 		{
+			Choice.bThrottled = true;
 			return Choice;
 		}
 	}

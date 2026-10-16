@@ -8,6 +8,8 @@ struct KODCORE_API FKodVoiceChoice
 	FName Cue;
 	FName Category;
 	bool bPlay = false;
+	/** True when a select was ignored because this unit type is still talking. */
+	bool bThrottled = false;
 };
 
 /**

@@ -358,16 +358,18 @@ bool UKodCueSubsystem::PlayUnitVoice(FName UnitId, FName Category, int32 EntityI
 	UWorld* World = GetWorld();
 	const float Now = TimeSeconds >= 0.f ? TimeSeconds : (World ? World->GetTimeSeconds() : 0.f);
 	const FKodVoiceChoice Choice = VoiceDirector.Choose(UnitId, Category, EntityId, Now);
+	UE_LOG(LogTemp, Log, TEXT("KodVoice Unit=%s Category=%s Cue=%s Entity=%d Play=%d Throttle=%d"),
+		*UnitId.ToString(),
+		*Choice.Category.ToString(),
+		*Choice.Cue.ToString(),
+		EntityId,
+		Choice.bPlay ? 1 : 0,
+		Choice.bThrottled ? 1 : 0);
 	if (!Choice.bPlay)
 	{
 		return false;
 	}
 	PlayCueNow(Choice.Cue, Location, true, true);
-	UE_LOG(LogTemp, Log, TEXT("KodVoice Unit=%s Category=%s Cue=%s Entity=%d"),
-		*UnitId.ToString(),
-		*Choice.Category.ToString(),
-		*Choice.Cue.ToString(),
-		EntityId);
 	return true;
 }
 

@@ -31,6 +31,12 @@ public:
 	 */
 	virtual bool PlaceShotBuildings(FVector& OutFocus);
 
+	/**
+	 * -kod.ShotRiteWell=1. Place a RiteWell beside the player base.
+	 * OutStructureId is the sim id so the shot can step build progress.
+	 */
+	virtual bool PlaceShotRiteWell(FVector& OutFocus, int32& OutStructureId);
+
 	/** Drop a faction-select camera fade so the view is not held black or tinted. */
 	void ClearMatchCameraFade();
 

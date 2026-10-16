@@ -443,23 +443,33 @@ AActor* AKodRTSCameraPawn::FindCommandCenter() const
 	{
 		return nullptr;
 	}
+	TArray<AActor*> Candidates;
+	auto Consider = [&Candidates](AActor* Actor)
+	{
+		if (Actor && !Candidates.Contains(Actor))
+		{
+			Candidates.Add(Actor);
+		}
+	};
 	if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
 	{
 		TArray<FKodStructureState> Structures;
 		Sim->CopyStructures(Structures);
 		for (const FKodStructureState& Structure : Structures)
 		{
-			if (Structure.TeamId != 0 || Structure.DefinitionId != FName(KodWardenPaths::Id_CommandCenter))
+			if (Structure.TeamId != 0)
 			{
 				continue;
 			}
-			if (AActor* Actor = Sim->ResolveEntity(Structure.Id))
+			const bool bHall = Structure.DefinitionId == FName(KodWardenPaths::Id_CommandCenter)
+				|| Structure.DefinitionId == FName(TEXT("ScinderHQ"));
+			if (!bHall)
 			{
-				return Actor;
+				continue;
 			}
+			Consider(Sim->ResolveEntity(Structure.Id));
 		}
 	}
-	AActor* Best = nullptr;
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
 		AActor* Actor = *It;
@@ -469,14 +479,37 @@ AActor* AKodRTSCameraPawn::FindCommandCenter() const
 		}
 		const bool bCc = Actor->ActorHasTag(FName(TEXT("KodBuildingCommandCenter")))
 			|| Actor->ActorHasTag(FName(TEXT("P1_SPAWN")))
+			|| Actor->ActorHasTag(FName(TEXT("KodStartSpot_0")))
 			|| Actor->GetActorNameOrLabel().Contains(TEXT("PROXY_CC"));
-		if (!bCc)
+		if (bCc)
 		{
-			continue;
+			Consider(Actor);
 		}
-		if (!Best || Actor->GetName() < Best->GetName())
+	}
+	AActor* Best = nullptr;
+	int32 BestScore = MIN_int32;
+	for (AActor* Actor : Candidates)
+	{
+		const FVector At = Actor->GetActorLocation();
+		const bool bOrigin = FMath::Abs(At.X) < 50.f && FMath::Abs(At.Y) < 50.f;
+		int32 Score = bOrigin ? 0 : 500;
+		if (Actor->ActorHasTag(FName(TEXT("KodStartSpot_0"))))
+		{
+			Score += 1000;
+		}
+		if (Actor->GetActorNameOrLabel().Contains(TEXT("PROXY_CC")))
+		{
+			Score += 200;
+		}
+		if (Actor->ActorHasTag(FName(TEXT("KodBuildingCommandCenter")))
+			|| Actor->ActorHasTag(FName(TEXT("P1_SPAWN"))))
+		{
+			Score += 100;
+		}
+		if (!Best || Score > BestScore || (Score == BestScore && Actor->GetName() < Best->GetName()))
 		{
 			Best = Actor;
+			BestScore = Score;
 		}
 	}
 	return Best;

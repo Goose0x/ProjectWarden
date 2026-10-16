@@ -113,6 +113,7 @@ bool FKodVoiceDirectorTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("annoyed starts at 01"), FirstAnnoyed.Cue, FName(TEXT("Annoyed_01")));
 	const FKodVoiceChoice Swallowed = Hold.Choose(Marine, FName(TEXT("Select")), 4, 2.f);
 	TestFalse(TEXT("annoyed is not cut off"), Swallowed.bPlay);
+	TestTrue(TEXT("swallowed click is throttled"), Swallowed.bThrottled);
 	const FKodVoiceChoice NextAnnoyed = Hold.Choose(Marine, FName(TEXT("Select")), 4, 0.4f + 5.8f);
 	TestTrue(TEXT("next click after the line plays"), NextAnnoyed.bPlay);
 	TestEqual(TEXT("escalation continues at 02"), NextAnnoyed.Cue, FName(TEXT("Annoyed_02")));

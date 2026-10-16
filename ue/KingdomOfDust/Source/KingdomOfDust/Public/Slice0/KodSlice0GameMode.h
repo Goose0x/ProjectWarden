@@ -28,6 +28,12 @@ public:
 	virtual void StartPlay() override;
 	virtual void ApplyStartFaction(int32 FactionIndex) override;
 	virtual bool PlaceShotBuildings(FVector& OutFocus) override;
+	virtual bool PlaceShotRiteWell(FVector& OutFocus, int32& OutStructureId) override;
+
+	/** Level PROXY_CC even while it is still at the origin. Seating moves this actor. */
+	static AActor* FindBaseToSeat(UWorld* World);
+	/** Player command center after it has left the origin, else the start spot. */
+	static AActor* FindPlayerBaseActor(UWorld* World);
 
 	/** Leaves one atmosphere directional light. Spawned suns are movable. Returns the enabled count. */
 	static int32 KeepSingleDirectionalSun(UWorld* World, bool bTutorialLook);

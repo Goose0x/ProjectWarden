@@ -750,6 +750,10 @@ public:
 	bool IssueSalvage(FKodEntityId StructureId);
 	/** AMP (or any gatherer) walks to a damaged friendly building and restores HP. */
 	bool IssueRepair(FKodEntityId WorkerId, FKodEntityId StructureId);
+	/** Half the footprint plus one cell, so a worker standing just outside can repair. */
+	float RepairReachUU(const FKodStructureState& Structure) const;
+	/** Shot harness. Fraction 0..1 drives construction stages. 1 marks the structure complete. */
+	void SetStructureBuildFraction(FKodEntityId Id, float Fraction);
 	void SetHealAutocast(FKodEntityId UnitId, bool bEnabled);
 	bool CastHeal(FKodEntityId UnitId);
 	void RaiseCue(FName CueId, FVector Location, bool bAtLocation);

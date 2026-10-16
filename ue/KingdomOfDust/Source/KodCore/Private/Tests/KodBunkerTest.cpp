@@ -107,6 +107,9 @@ bool FKodBunkerTest::RunTest(const FString& Parameters)
 	BarracksRow.FootprintY = 3;
 	BarracksRow.MaxHealth = 1500.f;
 	Sim->RegisterStructure(BarracksActor, BarracksRow);
+	FKodResourceCost PlacePay;
+	PlacePay.Jadeite = 50;
+	Sim->Deposit(0, PlacePay);
 	const FKodPlacementResult Open = Sim->QueryPlacement(0, BunkerSpec.TypeId, BlockedCursor);
 	TestTrue(TEXT("bunker places after a barracks"), Open.bValid);
 
@@ -206,6 +209,8 @@ bool FKodBunkerTest::RunTest(const FString& Parameters)
 	FKodResourceCost Grant;
 	Grant.Jadeite = 10;
 	Sim->Deposit(0, Grant);
+	FKodResourceCost BeforeRepair;
+	TestTrue(TEXT("bank before repair"), Sim->TryGetBank(0, BeforeRepair));
 	const FKodEntityId Amp = SpawnUnit(World, Sim, FName(KodWardenPaths::Id_Dozer), YardAt, 0, 60.f, 0.f, 0.f);
 	Sim->ConfigureEntity(Amp, FName(KodWardenPaths::Id_Dozer), 60.f, 400.f, 16.f, true, 0.f, 0.f, 1.f, 0, true, 34, 1200);
 	TestTrue(TEXT("AMP repairs"), Sim->IssueRepair(Amp, YardId));
@@ -215,7 +220,7 @@ bool FKodBunkerTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("repair restored HP"), YardFixed.Health > 300.f);
 	FKodResourceCost Bank;
 	TestTrue(TEXT("bank"), Sim->TryGetBank(0, Bank));
-	TestTrue(TEXT("repair spent credits"), Bank.Jadeite < 10);
+	TestTrue(TEXT("repair spent credits"), Bank.Jadeite < BeforeRepair.Jadeite);
 	const int32 AfterRepair = Bank.Jadeite;
 	TestTrue(TEXT("salvage started"), Sim->IssueSalvage(YardId));
 	Sim->AdvanceSimTicks(79);
