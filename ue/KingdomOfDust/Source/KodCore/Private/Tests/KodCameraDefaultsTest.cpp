@@ -78,14 +78,19 @@ bool FKodCameraDefaultsTest::RunTest(const FString& Parameters)
 
 	TestTrue(TEXT("bump stays on the plane"), FMath::IsNearlyEqual(KodCameraSettings::HoldPlaneZ(100.f, 112.f, KodCameraSettings::PlaneHoldUU), 100.f));
 	TestTrue(TEXT("dip stays on the plane"), FMath::IsNearlyEqual(KodCameraSettings::HoldPlaneZ(100.f, 70.f, KodCameraSettings::PlaneHoldUU), 100.f));
-	TestTrue(TEXT("plateau steps the plane"), FMath::IsNearlyEqual(KodCameraSettings::HoldPlaneZ(100.f, 400.f, KodCameraSettings::PlaneHoldUU), 400.f));
+	TestTrue(TEXT("cliff stays on the plane"), FMath::IsNearlyEqual(KodCameraSettings::HoldPlaneZ(100.f, 400.f, KodCameraSettings::PlaneHoldUU), 100.f));
 	float PanZ = 0.f;
-	const float Bumps[] = { 4.f, -12.f, 18.f, -6.f, 9.f };
+	const float Bumps[] = { 4.f, -12.f, 18.f, -6.f, 9.f, 800.f, -400.f };
 	for (float Bump : Bumps)
 	{
 		PanZ = KodCameraSettings::HoldPlaneZ(PanZ, Bump, KodCameraSettings::PlaneHoldUU);
 	}
-	TestTrue(TEXT("pan over uneven ground holds Z"), FMath::IsNearlyEqual(PanZ, 0.f));
+	TestTrue(TEXT("pan over cliffs holds Z"), FMath::IsNearlyEqual(PanZ, 0.f));
+	const KodCameraSettings::FKodMapRect Trapezoid = KodCameraSettings::AxisAlignedBounds(0.f, 2.f, 10.f, 0.f, 14.f, 9.f, 1.f, 8.f);
+	TestTrue(TEXT("view bounds are a rectangle"), Trapezoid.bValid);
+	TestTrue(TEXT("rect covers the trapezoid"), FMath::IsNearlyEqual(Trapezoid.MinX, 0.f) && FMath::IsNearlyEqual(Trapezoid.MaxX, 14.f) && FMath::IsNearlyEqual(Trapezoid.MinY, 0.f) && FMath::IsNearlyEqual(Trapezoid.MaxY, 9.f));
+	const KodCameraSettings::FKodMapRect Clamped = KodCameraSettings::ClampRect(Trapezoid, 0.f, 0.f, 10.f, 8.f);
+	TestTrue(TEXT("rect clamps to the map"), FMath::IsNearlyEqual(Clamped.MaxX, 10.f) && FMath::IsNearlyEqual(Clamped.MaxY, 8.f));
 
 	const FVector EdgeSpeed(4800.f, 0.f, 0.f);
 	float Travel30 = 0.f;

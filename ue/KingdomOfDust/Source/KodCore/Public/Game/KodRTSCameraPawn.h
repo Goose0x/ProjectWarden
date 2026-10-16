@@ -193,6 +193,8 @@ protected:
 
 	bool bFrameOnCommandCenter = true;
 	bool bSupportsUnitFollow = false;
+	/** BeginPlay can run before the command center exists. Tick retries once. */
+	bool bPendingPlayerFocus = true;
 
 	UFUNCTION()
 	void HandleUnitHit(AActor* Attacker, AActor* Target, float Health, int32 TargetId);

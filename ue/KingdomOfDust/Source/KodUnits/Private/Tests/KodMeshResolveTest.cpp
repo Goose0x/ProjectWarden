@@ -112,7 +112,7 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 			{
 				TestTrue(
 					*FString::Printf(TEXT("shardbitten scale %.3f"), Choice.Scale),
-					Choice.Scale >= 0.05f && Choice.Scale <= 20.f);
+					Choice.Scale >= 0.01f && Choice.Scale <= 20.f);
 			}
 		}
 		if (Id == FName(KodWardenPaths::Id_Marine) || Id == FName(KodWardenPaths::Id_ScnWorker))

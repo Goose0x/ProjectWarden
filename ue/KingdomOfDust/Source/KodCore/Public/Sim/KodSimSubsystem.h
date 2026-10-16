@@ -325,6 +325,14 @@ struct KODCORE_API FKodSimEntityState
 	UPROPERTY()
 	bool bFlyer = false;
 
+	/**
+	 * SC2 Light. The bunker turret adds its bonus against these units.
+	 * Not written into the save blob. ApplyRoster copies it from the train spec,
+	 * and a loaded entity copies it again from that spec.
+	 */
+	UPROPERTY()
+	bool bLight = false;
+
 	UPROPERTY()
 	int32 CargoSize = 0;
 

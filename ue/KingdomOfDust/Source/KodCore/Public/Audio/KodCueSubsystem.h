@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Audio/KodVoiceDirector.h"
 #include "Engine/StreamableManager.h"
 #include "Sound/SoundBase.h"
 #include "Subsystems/WorldSubsystem.h"
@@ -52,11 +53,11 @@ public:
 	void PlayCueNow(FName CueId, FVector Location, bool bAtLocation, bool bSkipAnnouncerGap);
 
 	/**
-	 * One line from the unit's shuffle bag for Category (Select, Ack, Attack, Annoyed).
-	 * Select waits 1.5 s per entity. Six rapid selects play Annoyed when that bag exists.
-	 * False when the category has no lines.
+	 * Select, Ack, and Attack rotate through a no-repeat shuffle.
+	 * Four selects on one unit inside 3 s walk Annoyed in order.
+	 * Missing Annoyed lines fall back to Select. One voice per unit type at a time.
 	 */
-	bool PlayUnitVoice(FName UnitId, FName Category, int32 EntityId, FVector Location);
+	bool PlayUnitVoice(FName UnitId, FName Category, int32 EntityId, FVector Location, float TimeSeconds = -1.f);
 
 	/** Announcer lines and ids that start with vo_. Portrait talk uses this. */
 	static bool IsVoiceCue(FName CueId);
@@ -78,29 +79,10 @@ private:
 	bool bPreloadFinished = false;
 	TMap<FName, float> AnnouncerUntil;
 
-	struct FVoiceClick
-	{
-		int32 Count = 0;
-		float LastSeconds = -1000.f;
-	};
-
-	struct FVoiceBag
-	{
-		TArray<FName> Lines;
-		TArray<int32> Order;
-		int32 Cursor = 0;
-		FName Last;
-	};
-
 	void DiscoverVoiceLines();
-	FName PickVoiceLine(FName UnitId, FName Category);
-	bool HasVoiceCategory(FName UnitId, FName Category) const;
 
 	bool bVoiceDiscovered = false;
-	TMap<FName, FVoiceBag> VoiceBags;
-	TMap<int32, float> SelectVoiceUntil;
-	TMap<int32, FVoiceClick> SelectClicks;
-	FRandomStream VoiceStream;
+	FKodVoiceDirector VoiceDirector;
 
 	UPROPERTY()
 	TMap<FName, FKodCachedCue> CueCache;

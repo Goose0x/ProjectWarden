@@ -38,6 +38,9 @@ public:
 	/** SM_general when it loads, otherwise a cube whose footprint is 1000 cm. */
 	static void ApplyCommandCenterMesh(AActor* Actor);
 
+	/** Moves an actor even when its root was static or missing. False if it stays put. */
+	static bool PlaceActorAt(AActor* Actor, const FVector& Dest);
+
 	/** When true, spawn one Ranger at origin+offset for walk gate smoke. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Slice0")
 	bool bSpawnSmokeRanger = false;
