@@ -2,6 +2,7 @@
 
 #include "Actors/KodBuilding.h"
 #include "Data/KodBuildingDefinition.h"
+#include "Game/KodLanding.h"
 #include "Engine/World.h"
 #include "Sim/KodSimSubsystem.h"
 #include "Sim/KodEntityId.h"
@@ -27,7 +28,12 @@ void UKodBuildingSpawnBridge::Tick(float DeltaTime)
 			continue;
 		}
 		UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(Request.TypeId, this);
-		const FTransform Xform(FRotator(0.f, static_cast<float>(Request.YawDegrees), 0.f), Request.Location);
+		FKodStructureState SpawnedStructure;
+		const bool bHaveStructure = Sim->TryGetStructure(StructureId, SpawnedStructure);
+		const FKodLandingPose Pose = bHaveStructure
+			? KodLanding::MakePose(SpawnedStructure.CellX, SpawnedStructure.CellY, SpawnedStructure.FootprintX, SpawnedStructure.FootprintY, Request.Location.Z)
+			: KodLanding::MakePose(0, 0, Request.FootprintX, Request.FootprintY, Request.Location.Z);
+		const FTransform Xform(FRotator(0.f, Pose.Yaw, 0.f), Pose.Location);
 		AKodBuilding* Building = World->SpawnActorDeferred<AKodBuilding>(
 			AKodBuilding::StaticClass(),
 			Xform,
@@ -53,6 +59,7 @@ void UKodBuildingSpawnBridge::Tick(float DeltaTime)
 			Sim->TryGetState(Existing, Kept);
 		}
 		Building->FinishSpawning(Xform);
+		KodLanding::ValidateLandingOrientation(Building, Pose);
 		if (bRestore)
 		{
 			Sim->RestoreImportedState(Building->EntityId, Kept);

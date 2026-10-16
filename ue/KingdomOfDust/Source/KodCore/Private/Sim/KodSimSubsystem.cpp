@@ -2256,15 +2256,22 @@ void UKodSimSubsystem::SyncActorPresentation(float Alpha) const
 		const FVector Lerped = FMath::Lerp(From, To, Alpha);
 		Actor->SetActorLocation(Lerped, false, nullptr, ETeleportType::None);
 
-		const float* PrevYaw = PrevYaws.Find(Pair.Key);
-		const float YawFrom = PrevYaw ? *PrevYaw : Pair.Value.YawDegrees;
-		const float YawTo = Pair.Value.YawDegrees;
-		const float Yaw = YawFrom + FMath::FindDeltaAngleDegrees(YawFrom, YawTo) * Alpha;
-		FRotator Rot = Actor->GetActorRotation();
-		Rot.Yaw = Yaw;
-		// None keeps the previous transform so motion vectors stay continuous.
-		// TeleportPhysics would zero them and smear the skinned mesh under TAA.
-		Actor->SetActorRotation(Rot, ETeleportType::None);
+		const FKodStructureState* Lift = Structures.Find(Pair.Key);
+		const bool bLandingEase = Lift && Lift->bAirborne;
+		if (!bLandingEase)
+		{
+			const float* PrevYaw = PrevYaws.Find(Pair.Key);
+			const float YawFrom = PrevYaw ? *PrevYaw : Pair.Value.YawDegrees;
+			const float YawTo = Pair.Value.YawDegrees;
+			const float Yaw = YawFrom + FMath::FindDeltaAngleDegrees(YawFrom, YawTo) * Alpha;
+			FRotator Rot = Actor->GetActorRotation();
+			Rot.Yaw = Yaw;
+			Rot.Pitch = 0.f;
+			Rot.Roll = 0.f;
+			// None keeps the previous transform so motion vectors stay continuous.
+			// TeleportPhysics would zero them and smear the skinned mesh under TAA.
+			Actor->SetActorRotation(Rot, ETeleportType::None);
+		}
 
 		if (Pair.Value.InsideBunker.IsValid())
 		{

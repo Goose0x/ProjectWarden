@@ -2,6 +2,7 @@
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "Game/KodHUD.h"
+#include "Game/KodLanding.h"
 #include "Game/KodRTSCameraPawn.h"
 #include "Game/KodSpectatorPawn.h"
 #include "Data/KodBuildingDefinition.h"
@@ -699,7 +700,9 @@ void AKodSlice0PlayerController::CancelPlacement()
 
 void AKodSlice0PlayerController::UpdateBuildGhost()
 {
-	if (PlaceType.IsNone() || !HasSelectedWorker())
+	const bool bLand = ArmedOrder == FName(TEXT("Land")) && ArmedStructureId != 0;
+	const bool bPlace = !PlaceType.IsNone() && HasSelectedWorker();
+	if (!bLand && !bPlace)
 	{
 		if (AKodBuildGhost* Ghost = BuildGhost.Get())
 		{
@@ -713,12 +716,24 @@ void AKodSlice0PlayerController::UpdateBuildGhost()
 	{
 		return;
 	}
+	FName TypeId = PlaceType;
+	if (bLand)
+	{
+		FKodEntityId LandId;
+		LandId.Value = ArmedStructureId;
+		FKodStructureState Landed;
+		if (!Sim->TryGetStructure(LandId, Landed))
+		{
+			return;
+		}
+		TypeId = Landed.DefinitionId;
+	}
 	FHitResult Hit;
 	if (!GetHitResultUnderCursor(ECC_Visibility, true, Hit))
 	{
 		return;
 	}
-	const FKodPlacementResult Placement = Sim->QueryPlacement(0, PlaceType, Hit.ImpactPoint);
+	const FKodPlacementResult Placement = Sim->QueryPlacement(0, TypeId, Hit.ImpactPoint);
 	if (!BuildGhost.IsValid())
 	{
 		FActorSpawnParameters Params;
@@ -730,17 +745,17 @@ void AKodSlice0PlayerController::UpdateBuildGhost()
 	{
 		return;
 	}
-	Ghost->SetActorHiddenInGame(false);
-	Ghost->SetActorLocation(Placement.WorldCenter);
-	Ghost->SetPreview(PlaceType);
+	FKodBuildSpec Spec;
 	int32 CellsX = 1;
 	int32 CellsY = 1;
-	if (const UKodBuildingDefinition* Def = UKodSlice0Bootstrap::ResolveBuilding(PlaceType, this))
+	if (Sim->TryGetBuildSpec(TypeId, Spec))
 	{
-		CellsX = Def->FootprintX;
-		CellsY = Def->FootprintY;
+		CellsX = FMath::Max(1, Spec.FootprintX);
+		CellsY = FMath::Max(1, Spec.FootprintY);
 	}
-	Ghost->SetCells(CellsX, CellsY, Placement.CellOk);
+	const FKodLandingPose Pose = KodLanding::MakePose(Placement.CellX, Placement.CellY, CellsX, CellsY, Placement.WorldCenter.Z);
+	Ghost->SetActorHiddenInGame(false);
+	Ghost->Show(TypeId, Pose, Placement.CellOk, Placement.bValid);
 }
 
 bool AKodSlice0PlayerController::ConsumePlacementLeftClick()
@@ -1413,9 +1428,11 @@ bool AKodSlice0PlayerController::ConsumeArmedOrderClick()
 	{
 		FKodEntityId StructureId;
 		StructureId.Value = ArmedStructureId;
-		if (Cursor.bHasMovePoint)
+		// Same visibility hit the ghost used, so the building lands on that pad.
+		FHitResult LandHit;
+		if (GetHitResultUnderCursor(ECC_Visibility, true, LandHit))
 		{
-			Sim->IssueLand(StructureId, Cursor.MovePoint);
+			Sim->IssueLand(StructureId, LandHit.ImpactPoint);
 		}
 		ArmedOrder = FName();
 		ArmedStructureId = 0;

@@ -1,3 +1,4 @@
+#include "Game/KodLanding.h"
 #include "Game/KodMeshSockets.h"
 #include "Sim/KodSimSubsystem.h"
 
@@ -175,6 +176,7 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	Structure.Id = Id;
 	Structure.TeamId = Spec.TeamId;
 	Structure.DefinitionId = Spec.DefinitionId;
+	Actor->SetActorRotation(KodLanding::CanonicalRotation(), ETeleportType::TeleportPhysics);
 	Structure.Position = Actor->GetActorLocation();
 	QuantizeResourcePosition(Structure.Position);
 	FVector Forward = Actor->GetActorForwardVector();

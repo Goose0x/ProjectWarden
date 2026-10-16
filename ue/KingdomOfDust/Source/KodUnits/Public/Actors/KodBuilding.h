@@ -63,6 +63,7 @@ private:
 	float MeshZ = 0.f;
 	bool bSawIncomplete = false;
 	bool bSawComplete = false;
+	bool bWasAirborne = false;
 	bool bCompletionFlash = false;
 	float FlashLeft = 0.f;
 	bool bLoggedLowHealth = false;

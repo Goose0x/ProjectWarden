@@ -1,6 +1,6 @@
 #include "Actors/KodBuilding.h"
 #include "Actors/KodMeshAttach.h"
-#include "Game/KodBuildingYaw.h"
+#include "Game/KodLanding.h"
 #include "Game/KodCollision.h"
 #include "Actors/KodJadeiteVisual.h"
 #include "Game/KodJadeitePalette.h"
@@ -159,6 +159,13 @@ void AKodBuilding::Tick(float DeltaSeconds)
 		else if (!bSawComplete)
 		{
 			bSawComplete = true;
+			const FKodLandingPose DonePose = KodLanding::MakePose(
+				Structure.CellX,
+				Structure.CellY,
+				Structure.FootprintX,
+				Structure.FootprintY,
+				Structure.Position.Z);
+			KodLanding::ValidateLandingOrientation(this, DonePose);
 			if (bSawIncomplete)
 			{
 				bCompletionFlash = true;
@@ -175,16 +182,30 @@ void AKodBuilding::Tick(float DeltaSeconds)
 			bCompletionFlash = false;
 		}
 	}
-	const float ShownYaw = KodBuildingYaw::PresentationYaw(MeshYaw);
+	const bool bAir = Sim->TryGetStructure(EntityId, Structure) && Structure.bAirborne;
+	const FRotator Facing = bAir
+		? KodLanding::EaseTowardCanonical(GetActorRotation(), DeltaSeconds)
+		: KodLanding::CanonicalRotation();
 	BuildingMesh->SetRelativeScale3D(Scale);
-	BuildingMesh->SetRelativeRotation(FRotator(0.f, ShownYaw, 0.f));
+	BuildingMesh->SetRelativeRotation(Facing);
 	BuildingMesh->SetRelativeLocation(FVector(0.f, 0.f, MeshZ + Rise));
 	if (BuildingSkel && !BuildingSkel->bHiddenInGame)
 	{
 		BuildingSkel->SetRelativeScale3D(BaseScale);
-		BuildingSkel->SetRelativeRotation(FRotator(0.f, ShownYaw, 0.f));
+		BuildingSkel->SetRelativeRotation(FRotator::ZeroRotator);
 		BuildingSkel->SetRelativeLocation(FVector(0.f, 0.f, MeshZ + Rise));
 	}
+	if (bWasAirborne && !bAir)
+	{
+		const FKodLandingPose Pose = KodLanding::MakePose(
+			Structure.CellX,
+			Structure.CellY,
+			Structure.FootprintX,
+			Structure.FootprintY,
+			Structure.Position.Z);
+		KodLanding::ValidateLandingOrientation(this, Pose);
+	}
+	bWasAirborne = bAir;
 	FKodSimEntityState Combat;
 	if (Sim->TryGetState(EntityId, Combat))
 	{
@@ -409,9 +430,9 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 		BuildingSkel->bPauseAnims = true;
 		MeshYaw = Choice.Yaw;
 		MeshZ = Choice.Z;
-		const float SkelYaw = KodBuildingYaw::PresentationYaw(MeshYaw);
 		BuildingSkel->SetRelativeScale3D(FVector(Choice.Scale));
-		BuildingSkel->SetRelativeRotation(FRotator(0.f, SkelYaw, 0.f));
+		BuildingSkel->SetRelativeRotation(FRotator::ZeroRotator);
+		BuildingMesh->SetRelativeRotation(KodLanding::CanonicalRotation());
 		BuildingSkel->SetRelativeLocation(FVector(0.f, 0.f, MeshZ));
 		BuildingSkel->SetHiddenInGame(false);
 		BuildingSkel->SetVisibility(true);
@@ -444,7 +465,7 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 				BaseScale = FVector(Choice.Scale);
 				MeshYaw = Choice.Yaw;
 				MeshZ = Choice.Z;
-				BuildingMesh->SetRelativeRotation(FRotator(0.f, KodBuildingYaw::PresentationYaw(MeshYaw), 0.f));
+				BuildingMesh->SetRelativeRotation(KodLanding::CanonicalRotation());
 				BuildingMesh->SetRelativeLocation(FVector(0.f, 0.f, MeshZ));
 				BuildingMesh->SetRelativeScale3D(BaseScale);
 			}
@@ -463,8 +484,7 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 				}
 				MeshYaw = 0.f;
 			}
-			const float BodyYaw = KodBuildingYaw::PresentationYaw(MeshYaw);
-			BuildingMesh->SetRelativeRotation(FRotator(0.f, BodyYaw, 0.f));
+			BuildingMesh->SetRelativeRotation(KodLanding::CanonicalRotation());
 			BuildingMesh->SetRelativeScale3D(BaseScale);
 		}
 		else if (BuildingMesh)
@@ -472,8 +492,7 @@ void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
 			const float Span = static_cast<float>(FMath::Max(Def->FootprintX, Def->FootprintY)) * 2.f;
 			BaseScale = FVector(Span, Span, Span * 0.6f);
 			MeshYaw = 0.f;
-			const float FallbackYaw = KodBuildingYaw::PresentationYaw(MeshYaw);
-			BuildingMesh->SetRelativeRotation(FRotator(0.f, FallbackYaw, 0.f));
+			BuildingMesh->SetRelativeRotation(KodLanding::CanonicalRotation());
 			BuildingMesh->SetRelativeScale3D(BaseScale);
 		}
 	}

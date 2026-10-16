@@ -1,6 +1,7 @@
 #include "Sim/KodSimSubsystem.h"
 
 #include "EngineUtils.h"
+#include "Game/KodLanding.h"
 #include "Warden/KodWardenPaths.h"
 
 #include "GameFramework/Actor.h"
@@ -197,8 +198,29 @@ FVector UKodSimSubsystem::SteerAroundBuildings(const FKodSimEntityState& State, 
 		return DesiredDelta;
 	}
 	const FVector Proposed = State.Position + DesiredDelta;
-	if (!IsCellBlocked(KodBuildGrid::CellOf(State.Position.X), KodBuildGrid::CellOf(State.Position.Y), State.TeamId, true)
-		&& !IsCellBlocked(KodBuildGrid::CellOf(Proposed.X), KodBuildGrid::CellOf(Proposed.Y), State.TeamId, true))
+	const int32 FromX = KodBuildGrid::CellOf(State.Position.X);
+	const int32 FromY = KodBuildGrid::CellOf(State.Position.Y);
+	const int32 ToX = KodBuildGrid::CellOf(Proposed.X);
+	const int32 ToY = KodBuildGrid::CellOf(Proposed.Y);
+	if (FromX != ToX && FromY != ToY)
+	{
+		const bool bSideX = IsCellBlocked(ToX, FromY, State.TeamId, true);
+		const bool bSideY = IsCellBlocked(FromX, ToY, State.TeamId, true);
+		if (bSideX || bSideY)
+		{
+			if (!bSideY)
+			{
+				return FVector(0.f, DesiredDelta.Y, 0.f);
+			}
+			if (!bSideX)
+			{
+				return FVector(DesiredDelta.X, 0.f, 0.f);
+			}
+			return FVector::ZeroVector;
+		}
+	}
+	if (!IsCellBlocked(FromX, FromY, State.TeamId, true)
+		&& !IsCellBlocked(ToX, ToY, State.TeamId, true))
 	{
 		return DesiredDelta;
 	}
@@ -383,7 +405,12 @@ FKodPlacementResult UKodSimSubsystem::QueryPlacement(int32 TeamId, FName TypeId,
 	for (int32 Key : UnitKeys)
 	{
 		const FKodSimEntityState* State = States.Find(Key);
-		if (!State || !State->bMobile || State->Health <= 0.f || State->InsideBunker.IsValid() || State->TeamId == TeamId)
+		if (!State || State->Health <= 0.f || State->InsideBunker.IsValid())
+		{
+			continue;
+		}
+		const bool bCanStepAside = State->bMobile && State->TeamId == TeamId;
+		if (bCanStepAside)
 		{
 			continue;
 		}
@@ -664,7 +691,7 @@ bool UKodSimSubsystem::TryPlaceStructure(int32 TeamId, FName TypeId, FVector Cur
 	Spawn.Location = Structure.Position;
 	Spawn.FootprintX = SizeX;
 	Spawn.FootprintY = SizeY;
-	Spawn.YawDegrees = GetTeamFacing(TeamId);
+	Spawn.YawDegrees = FMath::RoundToInt(KodLanding::CanonicalYaw());
 	PendingBuildingSpawns.Add(Spawn);
 
 	RaiseCue(FName(TEXT("building_placed")), Structure.Position, true);
@@ -917,6 +944,22 @@ void UKodSimSubsystem::StepConstruction()
 			UE_LOG(LogTemp, Log, TEXT("KodBuild Complete Id=%d Type=%s"),
 				Structure->Id.Value,
 				*Structure->DisplayId.ToString());
+			if (FKodSimEntityState* Done = States.Find(Structure->Id.Value))
+			{
+				Done->YawDegrees = KodLanding::CanonicalYaw();
+				QuantizePose(*Done);
+				PrevYaws.Add(Structure->Id.Value, Done->YawDegrees);
+			}
+			if (AActor* DoneActor = ResolveEntity(Structure->Id))
+			{
+				const FKodLandingPose DonePose = KodLanding::MakePose(
+					Structure->CellX,
+					Structure->CellY,
+					Structure->FootprintX,
+					Structure->FootprintY,
+					Structure->Position.Z);
+				KodLanding::ValidateLandingOrientation(DoneActor, DonePose);
+			}
 			RaiseCue(FName(TEXT("structure_complete")), Structure->Position, true);
 			const bool bWall = Structure->DefinitionId == FName(KodWardenPaths::Id_SupplyDepot)
 				|| Structure->DefinitionId == FName(KodWardenPaths::Id_Barracks);
@@ -945,6 +988,13 @@ bool UKodSimSubsystem::IssueLiftoff(FKodEntityId StructureId)
 		UE_LOG(LogTemp, Log, TEXT("KodEcon DropOff Lift Id=%d"), StructureId.Value);
 	}
 	InvalidatePathsOverFootprint(Structure->CellX, Structure->CellY, Structure->FootprintX, Structure->FootprintY);
+	if (FKodSimEntityState* Lifted = States.Find(StructureId.Value))
+	{
+		Lifted->YawDegrees = KodLanding::CanonicalYaw();
+		QuantizePose(*Lifted);
+		PrevYaws.Add(StructureId.Value, Lifted->YawDegrees);
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodLanding Liftoff Id=%d"), StructureId.Value);
 	UE_LOG(LogTemp, Log, TEXT("KodBuild Liftoff Id=%d"), StructureId.Value);
 	return true;
 }
@@ -963,8 +1013,25 @@ bool UKodSimSubsystem::IssueLand(FKodEntityId StructureId, FVector Target)
 		return false;
 	}
 	Structure->bLiftMoving = true;
-	Structure->LiftGoalX = FMath::RoundToInt(Placement.WorldCenter.X);
-	Structure->LiftGoalY = FMath::RoundToInt(Placement.WorldCenter.Y);
+	// Same pose the placement ghost shows. Store the center, not a cell index:
+	// an even footprint's center sits on a boundary, and CellOf(center) is the next cell.
+	const FKodLandingPose Ordered = KodLanding::MakePose(
+		Placement.CellX,
+		Placement.CellY,
+		Structure->FootprintX,
+		Structure->FootprintY,
+		Placement.WorldCenter.Z);
+	Structure->LiftGoalX = FMath::RoundToInt(Ordered.Location.X);
+	Structure->LiftGoalY = FMath::RoundToInt(Ordered.Location.Y);
+	// Ground height is the ghost's. XY keeps moving; Z is the pad the ghost already showed.
+	Structure->Position.Z = Ordered.Location.Z;
+	QuantizeResourcePosition(Structure->Position);
+	if (FKodSimEntityState* Combat = States.Find(StructureId.Value))
+	{
+		Combat->Position.Z = Structure->Position.Z;
+		QuantizePose(*Combat);
+		PrevPositions.Add(StructureId.Value, Combat->Position);
+	}
 	UE_LOG(LogTemp, Log, TEXT("KodBuild Land Order Id=%d X=%d Y=%d"), StructureId.Value, Structure->LiftGoalX, Structure->LiftGoalY);
 	return true;
 }
@@ -982,30 +1049,53 @@ void UKodSimSubsystem::StepLiftoff()
 			continue;
 		}
 		const float Speed = static_cast<float>(FMath::Max(1, Structure->LiftSpeedUU)) / 16.f;
+		const int32 FootX = FMath::Max(1, Structure->FootprintX);
+		const int32 FootY = FMath::Max(1, Structure->FootprintY);
+		const float Cell = static_cast<float>(KodBuildGrid::CellUU);
+		const int32 OriginX = FMath::RoundToInt((static_cast<float>(Structure->LiftGoalX) - static_cast<float>(FootX) * Cell * 0.5f) / Cell);
+		const int32 OriginY = FMath::RoundToInt((static_cast<float>(Structure->LiftGoalY) - static_cast<float>(FootY) * Cell * 0.5f) / Cell);
 		const FVector Goal(static_cast<float>(Structure->LiftGoalX), static_cast<float>(Structure->LiftGoalY), Structure->Position.Z);
 		FVector Delta = Goal - Structure->Position;
 		Delta.Z = 0.f;
 		const float Dist = Delta.Size2D();
 		if (Dist <= Speed)
 		{
-			const FKodPlacementResult Placement = QueryPlacement(Structure->TeamId, Structure->DefinitionId, Goal);
-			if (!Placement.bValid)
+			// Probe the cell that maps back to this origin. The footprint center is on a
+			// boundary for even sizes, and querying there would slide the building one cell.
+			const FVector Probe(
+				KodBuildGrid::CellCenter(OriginX + (FootX - 1) / 2),
+				KodBuildGrid::CellCenter(OriginY + (FootY - 1) / 2),
+				Structure->Position.Z);
+			const FKodPlacementResult Placement = QueryPlacement(Structure->TeamId, Structure->DefinitionId, Probe);
+			if (!Placement.bValid || Placement.CellX != OriginX || Placement.CellY != OriginY)
 			{
 				Structure->bLiftMoving = false;
 				UE_LOG(LogTemp, Log, TEXT("KodBuild Land Reject Id=%d Reason=%s"), Key, *Placement.Reason.ToString());
 				continue;
 			}
-			Structure->Position = Placement.WorldCenter;
+			const FKodLandingPose Landed = KodLanding::MakePose(
+				OriginX,
+				OriginY,
+				FootX,
+				FootY,
+				Structure->Position.Z);
+			Structure->Position = Landed.Location;
 			QuantizeResourcePosition(Structure->Position);
-			Structure->CellX = Placement.CellX;
-			Structure->CellY = Placement.CellY;
+			Structure->CellX = Landed.CellX;
+			Structure->CellY = Landed.CellY;
 			Structure->bAirborne = false;
 			Structure->bLiftMoving = false;
 			if (FKodSimEntityState* Combat = States.Find(Key))
 			{
 				Combat->Position = Structure->Position;
-				Combat->YawDegrees = static_cast<float>(GetTeamFacing(Structure->TeamId));
+				Combat->YawDegrees = Landed.Yaw;
 				QuantizePose(*Combat);
+				PrevPositions.Add(Key, Combat->Position);
+				PrevYaws.Add(Key, Combat->YawDegrees);
+			}
+			if (AActor* LandedActor = ResolveEntity(Structure->Id))
+			{
+				KodLanding::ValidateLandingOrientation(LandedActor, Landed);
 			}
 			EnsureStructureDropOff(*Structure, 0);
 			InvalidatePathsOverFootprint(Structure->CellX, Structure->CellY, Structure->FootprintX, Structure->FootprintY);
@@ -1018,7 +1108,6 @@ void UKodSimSubsystem::StepLiftoff()
 		if (FKodSimEntityState* Combat = States.Find(Key))
 		{
 			Combat->Position = Structure->Position;
-			Combat->YawDegrees = static_cast<float>(GetTeamFacing(Structure->TeamId));
 			QuantizePose(*Combat);
 		}
 	}
