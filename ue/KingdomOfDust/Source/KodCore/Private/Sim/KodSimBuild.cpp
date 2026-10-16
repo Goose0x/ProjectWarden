@@ -758,6 +758,61 @@ bool UKodSimSubsystem::CancelConstruction(FKodEntityId StructureId)
 	return true;
 }
 
+void UKodSimSubsystem::StepRepair()
+{
+	TArray<int32> Keys;
+	States.GetKeys(Keys);
+	Keys.Sort();
+	for (int32 Key : Keys)
+	{
+		FKodSimEntityState* Worker = States.Find(Key);
+		if (!Worker || !Worker->bCanGather || Worker->Health <= 0.f || Worker->InsideBunker.IsValid() || !Worker->BuildSite.IsValid())
+		{
+			continue;
+		}
+		FKodStructureState* Structure = Structures.Find(Worker->BuildSite.Value);
+		if (!Structure || !Structure->bComplete || Structure->bAirborne || Structure->SalvageTicksRemaining > 0)
+		{
+			continue;
+		}
+		FKodSimEntityState* Combat = States.Find(Structure->Id.Value);
+		if (!Combat || Combat->Health + 0.5f >= Combat->MaxHealth)
+		{
+			Worker->BuildSite = FKodEntityId();
+			continue;
+		}
+		if (FVector::Dist2D(Worker->Position, Structure->Position) > 180.f)
+		{
+			continue;
+		}
+		const FKodBuildSpec* Spec = BuildSpecs.Find(Structure->DefinitionId);
+		const int32 Cost = Spec ? FMath::Max(0, Spec->Cost.Credits) : 0;
+		const int32 Gas = Spec ? FMath::Max(0, Spec->Cost.Luminene) : 0;
+		const int32 Hp = FMath::Max(1, FMath::RoundToInt(Combat->MaxHealth));
+		const int32 CreditMilli = (Cost * 1000) / Hp;
+		const int32 GasMilli = (Gas * 1000) / Hp;
+		Structure->RepairCreditMilli += CreditMilli;
+		Structure->RepairGasMilli += GasMilli;
+		const int32 SpendCredits = Structure->RepairCreditMilli / 1000;
+		const int32 SpendGas = Structure->RepairGasMilli / 1000;
+		if (SpendCredits > 0 || SpendGas > 0)
+		{
+			FKodResourceCost Price;
+			Price.Jadeite = SpendCredits;
+			Price.Luminene = SpendGas;
+			if (!Spend(Structure->TeamId, Price))
+			{
+				Structure->RepairCreditMilli -= CreditMilli;
+				Structure->RepairGasMilli -= GasMilli;
+				continue;
+			}
+			Structure->RepairCreditMilli -= SpendCredits * 1000;
+			Structure->RepairGasMilli -= SpendGas * 1000;
+		}
+		Combat->Health = FMath::Min(Combat->MaxHealth, Combat->Health + 1.f);
+	}
+}
+
 bool UKodSimSubsystem::TryGetPrimaryTrain(FKodEntityId StructureId, FName& OutUnitId) const
 {
 	const FKodStructureState* Structure = Structures.Find(StructureId.Value);

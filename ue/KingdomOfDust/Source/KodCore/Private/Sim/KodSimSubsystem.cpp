@@ -1190,6 +1190,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 	StepVision();
 	StepProduction();
 	StepConstruction();
+	StepRepair();
 	StepAbilities();
 	EvaluateMatch();
 	StepAI();
@@ -4002,6 +4003,11 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&Structure.AttackDamage, sizeof(Structure.AttackDamage));
 		Append(&Structure.AttackRangeUU, sizeof(Structure.AttackRangeUU));
 		Append(&TurretAir, sizeof(TurretAir));
+		Append(&Structure.TurretHpBonus, sizeof(Structure.TurretHpBonus));
+		Append(&Structure.BonusVsLight, sizeof(Structure.BonusVsLight));
+		Append(&Structure.SalvageTicksRemaining, sizeof(Structure.SalvageTicksRemaining));
+		Append(&Structure.RepairCreditMilli, sizeof(Structure.RepairCreditMilli));
+		Append(&Structure.RepairGasMilli, sizeof(Structure.RepairGasMilli));
 	}
 
 	const uint8 Outcome = static_cast<uint8>(MatchOutcome);

@@ -853,7 +853,7 @@ void AKodSlice0PlayerController::HandleRightClickCommand()
 			}
 		}
 	}
-	if (TryResumeBuildUnderCursor())
+	if (TryResumeBuildUnderCursor() || TryRepairUnderCursor())
 	{
 		return;
 	}
@@ -908,6 +908,38 @@ bool AKodSlice0PlayerController::TryResumeBuildUnderCursor()
 	Cmd.SourceEntities.Add(Worker);
 	Commands->Enqueue(Cmd);
 	return true;
+}
+
+bool AKodSlice0PlayerController::TryRepairUnderCursor()
+{
+	const FKodEntityId Worker = FirstSelectedWorker();
+	if (!Worker.IsValid())
+	{
+		return false;
+	}
+	UWorld* World = GetWorld();
+	UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr;
+	if (!Sim)
+	{
+		return false;
+	}
+	FHitResult Hit;
+	if (!GetHitResultUnderCursor(ECC_Pawn, true, Hit) || !Hit.GetActor())
+	{
+		return false;
+	}
+	const FKodEntityId HitId = Sim->FindIdForActor(Hit.GetActor());
+	FKodStructureState Structure;
+	FKodSimEntityState Combat;
+	if (!Sim->TryGetStructure(HitId, Structure) || !Structure.bComplete || !Sim->TryGetState(HitId, Combat))
+	{
+		return false;
+	}
+	if (Combat.Health + 0.5f >= Combat.MaxHealth)
+	{
+		return false;
+	}
+	return Sim->IssueRepair(Worker, HitId);
 }
 
 bool AKodSlice0PlayerController::CancelSelectedConstruction()
@@ -1244,6 +1276,18 @@ bool AKodSlice0PlayerController::ConsumeHudCommandClick()
 				FKodEntityId Id;
 				Id.Value = Hit.StructureId;
 				Sim->UnloadAll(Id);
+			}
+		}
+	}
+	else if (Hit.Action == TEXT("Salvage"))
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UKodSimSubsystem* Sim = World->GetSubsystem<UKodSimSubsystem>())
+			{
+				FKodEntityId Id;
+				Id.Value = Hit.StructureId;
+				Sim->IssueSalvage(Id);
 			}
 		}
 	}

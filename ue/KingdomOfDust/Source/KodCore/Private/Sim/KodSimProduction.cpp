@@ -234,6 +234,13 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 		Existing->bMobile = false;
 		Existing->MoveSpeed = 0.f;
 		Existing->TeamId = Structure.TeamId;
+		if (const FKodBuildSpec* Build = BuildSpecs.Find(Structure.DefinitionId))
+		{
+			if (Build->Armor > 0)
+			{
+				Existing->ArmorPoints = Build->Armor;
+			}
+		}
 		Existing->SightRadiusUU = 2000;
 		QuantizePose(*Existing);
 		PrevPositions.Add(Id.Value, Existing->Position);
@@ -251,6 +258,13 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 		Combat.bMobile = false;
 		Combat.MoveSpeed = 0.f;
 		Combat.TeamId = Structure.TeamId;
+		if (const FKodBuildSpec* Build = BuildSpecs.Find(Structure.DefinitionId))
+		{
+			if (Build->Armor > 0)
+			{
+				Combat.ArmorPoints = Build->Armor;
+			}
+		}
 		Combat.SightRadiusUU = 2000;
 		QuantizePose(Combat);
 		States.Add(Id.Value, Combat);

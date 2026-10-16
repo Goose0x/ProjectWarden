@@ -607,6 +607,11 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlobAtVersion(int32 Version) const
 			Blob.WInt(Structure.AttackDamage);
 			Blob.WInt(Structure.AttackRangeUU);
 			Blob.WU8(Structure.bAttacksAir ? 1 : 0);
+			Blob.WInt(Structure.TurretHpBonus);
+			Blob.WInt(Structure.BonusVsLight);
+			Blob.WInt(Structure.SalvageTicksRemaining);
+			Blob.WInt(Structure.RepairCreditMilli);
+			Blob.WInt(Structure.RepairGasMilli);
 		}
 	}
 	Blob.WU8(static_cast<uint8>(MatchOutcome));
@@ -1379,6 +1384,11 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 			Blob.RU8(Air);
 			Structure->bTurret = Turret != 0;
 			Structure->bAttacksAir = Air != 0;
+			Blob.RInt(Structure->TurretHpBonus);
+			Blob.RInt(Structure->BonusVsLight);
+			Blob.RInt(Structure->SalvageTicksRemaining);
+			Blob.RInt(Structure->RepairCreditMilli);
+			Blob.RInt(Structure->RepairGasMilli);
 		}
 	}
 	{

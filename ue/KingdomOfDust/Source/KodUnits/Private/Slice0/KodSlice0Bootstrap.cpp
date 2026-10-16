@@ -604,13 +604,17 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeBunker(UObject* Outer)
 	UKodBuildingDefinition* B = NewObject<UKodBuildingDefinition>(Outer, FName(KodWardenPaths::Id_Bunker), RF_Public | RF_Transient);
 	B->DefinitionId = FName(KodWardenPaths::Id_Bunker);
 	B->DisplayName = NSLOCTEXT("Kod", "Building_Bunker", "Vanguard Bunker");
-	// Placeholder HP and cost. Strategy replaces the balance row.
+	B->BuildingTag = FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Building.VG_BUNKER")), false);
+	B->AttributeTags.AddTag(FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Attribute.Armored")), false));
+	B->AttributeTags.AddTag(FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Attribute.Structure")), false));
+	// Placeholder HP, armour, and cost until the Director stamps the balance row.
 	B->MaxHealth = 400.f;
+	B->Armor = 1;
 	B->Cost.Credits = 100;
 	B->Cost.Luminene = 0;
-	B->Cost.BuildTime = 30 * 16;
+	B->Cost.BuildTime = 29 * 16;
 	B->BuildTicks = B->Cost.BuildTime;
-	B->BuildTimeSeconds = 30.f;
+	B->BuildTimeSeconds = 29.f;
 	B->FootprintX = 3;
 	B->FootprintY = 3;
 	B->MenuTier = 0;
