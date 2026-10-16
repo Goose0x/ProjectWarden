@@ -180,6 +180,10 @@ void AKodBuilding::Tick(float DeltaSeconds)
 			? 1.f
 			: KodBuildVisual::Progress(Structure.BuildTicksDone, Structure.BuildTimeTotal);
 		UpdateDynastyGhost(GhostProgress);
+		const int32 PoolStage = (Structure.bComplete || Structure.BuildTimeTotal <= 0)
+			? 3
+			: KodBuildVisual::StageIndex(KodBuildVisual::Progress(Structure.BuildTicksDone, Structure.BuildTimeTotal));
+		UpdatePoolSurface(DeltaSeconds, PoolStage);
 	}
 	if (bCompletionFlash)
 	{
@@ -925,6 +929,137 @@ void AKodBuilding::ApplyConstructionVisual(UKodSimSubsystem* Sim, FKodStructureS
 		ShownStage = Stage;
 		Sim->RaiseCue(FName(TEXT("build_dust")), GetActorLocation(), true);
 		UE_LOG(LogTemp, Log, TEXT("KodVfx DustPuff Id=%s Stage=%d"), *ActiveMeshId.ToString(), Stage);
+	}
+}
+
+void AKodBuilding::UpdatePoolSurface(float DeltaSeconds, int32 Stage)
+{
+	if (bPoolMissing)
+	{
+		return;
+	}
+	FKodMeshRow Row;
+	if (ActiveMeshId.IsNone() || !KodMeshCatalogFindRow(ActiveMeshId, Row))
+	{
+		return;
+	}
+	if (Row.PoolMesh.IsEmpty() && Row.PoolMotes.IsEmpty() && Row.PoolPulse.IsEmpty())
+	{
+		return;
+	}
+	const int32 ClampedStage = FMath::Clamp(Stage, 0, 3);
+	const float Fill = KodBuildVisual::StageFillLevel(ClampedStage);
+	const float TargetZ = KodBuildVisual::PoolSurfaceZcm(ClampedStage);
+	const bool bStageSwap = PoolVisualStage != ClampedStage;
+
+	if (!bPoolResolved)
+	{
+		bPoolResolved = true;
+		USceneComponent* Body = (BuildingSkel && !BuildingSkel->bHiddenInGame) ? static_cast<USceneComponent*>(BuildingSkel) : static_cast<USceneComponent*>(BuildingMesh);
+		if (!Body)
+		{
+			Body = GetRootComponent();
+		}
+		FName Socket = Row.PoolSocket.IsEmpty() ? FName(TEXT("SOCKET_FX_Pool")) : FName(*Row.PoolSocket);
+		if (Body && !Body->DoesSocketExist(Socket) && Body->DoesSocketExist(FName(TEXT("FX_Pool"))))
+		{
+			Socket = FName(TEXT("FX_Pool"));
+		}
+		const bool bHasSocket = Body && Body->DoesSocketExist(Socket);
+		UStaticMesh* SurfaceMesh = Row.PoolMesh.IsEmpty() ? nullptr : LoadStageMesh(Row.PoolMesh);
+		UNiagaraSystem* Motes = Row.PoolMotes.IsEmpty() ? nullptr : LoadObject<UNiagaraSystem>(nullptr, *Row.PoolMotes, nullptr, LOAD_NoWarn);
+		UNiagaraSystem* Pulse = Row.PoolPulse.IsEmpty() ? nullptr : LoadObject<UNiagaraSystem>(nullptr, *Row.PoolPulse, nullptr, LOAD_NoWarn);
+		if (!SurfaceMesh && !Motes && !Pulse)
+		{
+			bPoolMissing = true;
+			UE_LOG(LogTemp, Log, TEXT("KodVfx Pool Miss Id=%s"), *ActiveMeshId.ToString());
+			return;
+		}
+		if (SurfaceMesh && Body)
+		{
+			PoolSurface = NewObject<UStaticMeshComponent>(this, TEXT("RiteWellPool"));
+			PoolSurface->SetupAttachment(Body, bHasSocket ? Socket : NAME_None);
+			PoolSurface->SetStaticMesh(SurfaceMesh);
+			PoolSurface->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			PoolSurface->SetRelativeLocation(FVector(0.f, 0.f, TargetZ));
+			PoolSurface->RegisterComponent();
+			if (UMaterialInstanceDynamic* SurfaceMat = PoolSurface->CreateDynamicMaterialInstance(0))
+			{
+				SurfaceMat->SetScalarParameterValue(FName(TEXT("FillLevel")), Fill);
+			}
+		}
+		USceneComponent* FxParent = PoolSurface ? static_cast<USceneComponent*>(PoolSurface) : Body;
+		auto SpawnFx = [FxParent](UNiagaraSystem* System, const TCHAR* Name) -> UNiagaraComponent*
+		{
+			if (!System || !FxParent)
+			{
+				return nullptr;
+			}
+			(void)Name;
+			return UNiagaraFunctionLibrary::SpawnSystemAttached(
+				System,
+				FxParent,
+				NAME_None,
+				FVector::ZeroVector,
+				FRotator::ZeroRotator,
+				EAttachLocation::KeepRelativeOffset,
+				false,
+				true,
+				ENCPoolMethod::AutoRelease,
+				true);
+		};
+		PoolMotes = SpawnFx(Motes, TEXT("RiteWellMotes"));
+		PoolPulse = SpawnFx(Pulse, TEXT("RiteWellPulse"));
+		PoolZFrom = TargetZ;
+		PoolZTo = TargetZ;
+		PoolZElapsed = KodBuildVisual::PoolZInterpSeconds;
+	}
+
+	if (bStageSwap)
+	{
+		if (PoolVisualStage >= 0 && PoolSurface)
+		{
+			PoolZFrom = PoolSurface->GetRelativeLocation().Z;
+			PoolZElapsed = 0.f;
+		}
+		else
+		{
+			PoolZFrom = TargetZ;
+			PoolZElapsed = KodBuildVisual::PoolZInterpSeconds;
+		}
+		PoolZTo = TargetZ;
+		PoolVisualStage = ClampedStage;
+		if (PoolSurface)
+		{
+			if (UMaterialInstanceDynamic* SurfaceMat = Cast<UMaterialInstanceDynamic>(PoolSurface->GetMaterial(0)))
+			{
+				SurfaceMat->SetScalarParameterValue(FName(TEXT("FillLevel")), Fill);
+			}
+		}
+		auto PushFill = [Fill](UNiagaraComponent* Component, bool bPulse)
+		{
+			if (!Component)
+			{
+				return;
+			}
+			Component->SetVariableFloat(FName(TEXT("FillLevel")), Fill);
+			Component->SetVariableFloat(FName(TEXT("User.FillLevel")), Fill);
+			if (bPulse)
+			{
+				Component->SetVariableBool(FName(TEXT("PulseTrigger")), true);
+				Component->SetVariableBool(FName(TEXT("User.PulseTrigger")), true);
+				Component->ResetSystem();
+			}
+		};
+		PushFill(PoolMotes, false);
+		PushFill(PoolPulse, true);
+	}
+
+	PoolZElapsed += FMath::Max(0.f, DeltaSeconds);
+	if (PoolSurface)
+	{
+		const float Z = KodBuildVisual::InterpPoolZ(PoolZFrom, PoolZTo, PoolZElapsed);
+		PoolSurface->SetRelativeLocation(FVector(0.f, 0.f, Z));
 	}
 }
 

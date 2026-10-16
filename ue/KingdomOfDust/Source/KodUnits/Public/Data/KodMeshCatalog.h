@@ -51,6 +51,11 @@ struct KODUNITS_API FKodMeshRow
 	FString Stage3;
 	/** Three scales inside the footprint, separated by |. Empty uses 0.45, 0.70, 0.92. */
 	FString StageScales;
+	/** Optional pool surface hung on SOCKET_FX_Pool. Empty skips the hook. */
+	FString PoolSocket;
+	FString PoolMesh;
+	FString PoolMotes;
+	FString PoolPulse;
 };
 
 /**

@@ -26,4 +26,41 @@ namespace KodBuildVisual
 	KODCORE_API int32 StageIndex(float Progress);
 	/** kod.Build.DynastyGhost. 0 for the Oct 20 demo. The hook stays in the building. */
 	KODCORE_API bool DynastyGhostEnabled();
+
+	/** RiteWell pool. Stage 0..3 maps to fill 0, 0.33, 0.66, 1. */
+	inline float StageFillLevel(int32 Stage)
+	{
+		switch (FMath::Clamp(Stage, 0, 3))
+		{
+		case 0: return 0.f;
+		case 1: return 0.33f;
+		case 2: return 0.66f;
+		default: return 1.f;
+		}
+	}
+
+	/** Pool surface relative Z in centimeters for that same stage. */
+	inline float PoolSurfaceZcm(int32 Stage)
+	{
+		switch (FMath::Clamp(Stage, 0, 3))
+		{
+		case 0: return -160.f;
+		case 1: return -42.f;
+		case 2: return -10.f;
+		default: return 0.f;
+		}
+	}
+
+	inline constexpr float PoolZInterpSeconds = 0.5f;
+
+	/** Visual-only slide from one pool height to the next. */
+	inline float InterpPoolZ(float FromZ, float ToZ, float ElapsedSeconds, float DurationSeconds = PoolZInterpSeconds)
+	{
+		if (DurationSeconds <= KINDA_SMALL_NUMBER)
+		{
+			return ToZ;
+		}
+		const float Alpha = FMath::Clamp(ElapsedSeconds / DurationSeconds, 0.f, 1.f);
+		return FMath::Lerp(FromZ, ToZ, Alpha);
+	}
 }

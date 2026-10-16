@@ -88,6 +88,12 @@ private:
 	bool bFinalSkelHidden = true;
 	bool bLoggedStageFallback = false;
 	bool bLoggedDynastyGhost = false;
+	bool bPoolResolved = false;
+	bool bPoolMissing = false;
+	int32 PoolVisualStage = -1;
+	float PoolZFrom = 0.f;
+	float PoolZTo = 0.f;
+	float PoolZElapsed = 0.f;
 
 	UPROPERTY()
 	TObjectPtr<UStaticMesh> FinalStaticMesh;
@@ -95,10 +101,21 @@ private:
 	/** Post-demo dynasty ghost. Created only when kod.Build.DynastyGhost is on. */
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> DynastyGhost;
+
+	/** RiteWell pool. Visual only. Absent when the ini assets do not load. */
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> PoolSurface;
+
+	UPROPERTY()
+	TObjectPtr<UNiagaraComponent> PoolMotes;
+
+	UPROPERTY()
+	TObjectPtr<UNiagaraComponent> PoolPulse;
 	void PlayDepotCommandAnim(bool bLower);
 	void ApplyConstructionVisual(UKodSimSubsystem* Sim, FKodStructureState& Structure, FVector& Scale);
 	void RestoreFinalPresentation(UKodSimSubsystem* Sim);
 	void UpdateDynastyGhost(float Progress);
+	void UpdatePoolSurface(float DeltaSeconds, int32 Stage);
 	void SetConstructionAttachesVisible(bool bVisible);
 	void RememberFinalMesh();
 	void SyncBunkerTurret(UKodSimSubsystem* Sim, float DeltaSeconds);

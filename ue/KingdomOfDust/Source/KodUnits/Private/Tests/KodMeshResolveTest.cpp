@@ -19,6 +19,14 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("barracks footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(KodWardenPaths::Id_Barracks)), 800.f));
 	TestTrue(TEXT("depot footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(KodWardenPaths::Id_SupplyDepot)), 450.f));
 	TestTrue(TEXT("rite well footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(TEXT("RiteWell"))), 450.f));
+	FKodMeshRow RiteWellRow;
+	if (KodMeshCatalogFindRow(FName(TEXT("RiteWell")), RiteWellRow))
+	{
+		TestTrue(TEXT("rite well pool mesh path"), RiteWellRow.PoolMesh.Contains(TEXT("/Game/Warden/VFX/RiteWell/")));
+		TestTrue(TEXT("rite well motes path"), RiteWellRow.PoolMotes.Contains(TEXT("NS_RiteWell_Motes")));
+		TestTrue(TEXT("rite well pulse path"), RiteWellRow.PoolPulse.Contains(TEXT("NS_RiteWell_Pulse")));
+		TestEqual(TEXT("rite well pool socket"), RiteWellRow.PoolSocket, FString(TEXT("SOCKET_FX_Pool")));
+	}
 
 	const TArray<FName> Required = {
 		FName(KodWardenPaths::Id_CommandCenter),
