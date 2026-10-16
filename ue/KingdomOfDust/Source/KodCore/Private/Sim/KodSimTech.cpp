@@ -162,6 +162,10 @@ bool UKodSimSubsystem::EnqueueResearch(FKodEntityId StructureId, FName UpgradeId
 			return false;
 		}
 	}
+	if (Spec->AttackDamage > 0 && Structure->bTurret)
+	{
+		return false;
+	}
 	FKodResourceCost Price;
 	Price.Jadeite = FMath::Max(0, Spec->Credits);
 	Price.Luminene = FMath::Max(0, Spec->Luminene);
@@ -445,6 +449,34 @@ void UKodSimSubsystem::EjectBunker(FKodEntityId BunkerId)
 	UnloadAll(BunkerId);
 }
 
+void UKodSimSubsystem::ApplyInstalledTurret(FKodStructureState& Structure)
+{
+	if (!Structure.bTurret)
+	{
+		return;
+	}
+	const FKodUpgradeSpec* Spec = UpgradeSpecs.Find(FName(KodWardenPaths::Id_BunkerTurret));
+	const int32 Damage = (Spec && Spec->AttackDamage > 0) ? Spec->AttackDamage : 6;
+	const int32 Range = (Spec && Spec->AttackRangeUU > 0) ? Spec->AttackRangeUU : 6 * KodBuildGrid::CellUU;
+	const bool bAir = Spec && Spec->AttacksAir != 0;
+	Structure.AttackDamage = Damage;
+	Structure.AttackRangeUU = Range;
+	Structure.bAttacksAir = bAir;
+	if (FKodSimEntityState* Combat = States.Find(Structure.Id.Value))
+	{
+		Combat->WeaponDamage = static_cast<float>(Damage);
+		Combat->WeaponRange = static_cast<float>(Range);
+		if (Combat->WeaponCooldownTicks <= 0)
+		{
+			Combat->WeaponCooldownTicks = 16;
+		}
+		if (Combat->WeaponBackswingTicks <= 0)
+		{
+			Combat->WeaponBackswingTicks = 2;
+		}
+	}
+}
+
 void UKodSimSubsystem::SetHealAutocast(FKodEntityId UnitId, bool bEnabled)
 {
 	if (FKodSimEntityState* State = States.Find(UnitId.Value))
@@ -589,6 +621,16 @@ void UKodSimSubsystem::StepTech()
 				Structure->Research.RemoveAt(0);
 				if (const FKodUpgradeSpec* Spec = UpgradeSpecs.Find(UpgradeId))
 				{
+					if (Spec->AttackDamage > 0)
+					{
+						Structure->bTurret = true;
+						ApplyInstalledTurret(*Structure);
+						UE_LOG(LogTemp, Log, TEXT("KodBunker Turret Id=%d Damage=%d Range=%d Air=%d"),
+							Structure->Id.Value,
+							Structure->AttackDamage,
+							Structure->AttackRangeUU,
+							Structure->bAttacksAir ? 1 : 0);
+					}
 					FKodTeamTech& Tech = TeamTech.FindOrAdd(Structure->TeamId);
 					Tech.InfantryWeapons += FMath::Max(0, Spec->WeaponBonus);
 					Tech.InfantryArmor += FMath::Max(0, Spec->ArmorBonus);
@@ -669,15 +711,18 @@ void UKodSimSubsystem::StepTech()
 				Best.Value = UnitKey;
 			}
 		}
-		if (bFound)
-		{
-			if (FKodSimEntityState* Target = States.Find(Best.Value))
+			if (bFound)
 			{
-				Tower->WeaponDamage = static_cast<float>(Structure->AttackDamage);
-				Tower->WeaponRange = Range;
-				TryApplyWeapon(*Tower, *Target);
+				if (FKodSimEntityState* Target = States.Find(Best.Value))
+				{
+					Tower->WeaponDamage = static_cast<float>(Structure->AttackDamage);
+					Tower->WeaponRange = Range;
+					if (TryApplyWeapon(*Tower, *Target))
+					{
+						++Structure->MuzzleSerial;
+					}
+				}
 			}
-		}
 
 		for (int32 RiderId : Structure->Cargo)
 		{
@@ -721,7 +766,10 @@ void UKodSimSubsystem::StepTech()
 				{
 					const FVector Saved = Rider->Position;
 					Rider->Position = Structure->Position;
-					TryApplyWeapon(*Rider, *Target);
+					if (TryApplyWeapon(*Rider, *Target))
+					{
+						++Structure->MuzzleSerial;
+					}
 					if (FKodSimEntityState* Live = States.Find(RiderId))
 					{
 						Live->Position = Saved;

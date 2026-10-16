@@ -1018,6 +1018,8 @@ protected:
 	void AppendBalanceHash(TArray<uint8>& Bytes) const;
 	void ApplyRoster(FKodEntityId Id);
 	void EjectBunker(FKodEntityId BunkerId);
+	/** Copies VG_BUNKER_TURRET placeholder stats onto a bunker that already has bTurret. */
+	void ApplyInstalledTurret(FKodStructureState& Structure);
 	bool CellHasUnit(int32 CellX, int32 CellY) const;
 	bool IsCellTerrainBlocked(int32 CellX, int32 CellY) const;
 	void InvalidatePathsOverFootprint(int32 CellX, int32 CellY, int32 SizeX, int32 SizeY);

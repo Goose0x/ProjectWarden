@@ -603,7 +603,8 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeBunker(UObject* Outer)
 {
 	UKodBuildingDefinition* B = NewObject<UKodBuildingDefinition>(Outer, FName(KodWardenPaths::Id_Bunker), RF_Public | RF_Transient);
 	B->DefinitionId = FName(KodWardenPaths::Id_Bunker);
-	B->DisplayName = NSLOCTEXT("Kod", "Building_Bunker", "Bunker");
+	B->DisplayName = NSLOCTEXT("Kod", "Building_Bunker", "Vanguard Bunker");
+	// Placeholder HP and cost. Strategy replaces the balance row.
 	B->MaxHealth = 400.f;
 	B->Cost.Credits = 100;
 	B->Cost.Luminene = 0;
@@ -614,6 +615,7 @@ UKodBuildingDefinition* UKodSlice0Bootstrap::MakeBunker(UObject* Outer)
 	B->FootprintY = 3;
 	B->MenuTier = 0;
 	B->CargoCap = 4;
+	B->RequiresId = FName(KodWardenPaths::Id_Barracks);
 	B->SightRadius = 1400.f;
 	return B;
 }

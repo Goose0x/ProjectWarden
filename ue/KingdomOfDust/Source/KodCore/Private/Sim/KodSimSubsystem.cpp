@@ -3996,6 +3996,12 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&Structure.LiftGoalX, sizeof(Structure.LiftGoalX));
 		Append(&Structure.LiftGoalY, sizeof(Structure.LiftGoalY));
 		Append(&Structure.LiftSpeedUU, sizeof(Structure.LiftSpeedUU));
+		const uint8 Turret = Structure.bTurret ? 1 : 0;
+		const uint8 TurretAir = Structure.bAttacksAir ? 1 : 0;
+		Append(&Turret, sizeof(Turret));
+		Append(&Structure.AttackDamage, sizeof(Structure.AttackDamage));
+		Append(&Structure.AttackRangeUU, sizeof(Structure.AttackRangeUU));
+		Append(&TurretAir, sizeof(TurretAir));
 	}
 
 	const uint8 Outcome = static_cast<uint8>(MatchOutcome);

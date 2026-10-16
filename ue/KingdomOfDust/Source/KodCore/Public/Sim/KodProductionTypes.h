@@ -40,6 +40,11 @@ struct KODCORE_API FKodUpgradeSpec
 	int32 SatelliteFeed = 0;
 	int32 EnergyMax = 0;
 	int32 EnergyStart = 0;
+	/** Per-bunker weapon. 0 means this upgrade is not a turret. Placeholder until Strategy sets it. */
+	int32 AttackDamage = 0;
+	int32 AttackRangeUU = 0;
+	/** 0 shoots ground. 1 is air-only, same rule as the missile turret. Strategy owns the flag. */
+	int32 AttacksAir = 0;
 };
 
 struct KODCORE_API FKodPowerSpec
@@ -141,6 +146,10 @@ struct KODCORE_API FKodStructureState
 	int32 AttackDamage = 0;
 	int32 AttackRangeUU = 0;
 	bool bAttacksAir = false;
+	/** VG_BUNKER turret is installed. The mesh hangs on TurretMount. */
+	bool bTurret = false;
+	/** Shots fired from this building since spawn. Presentation only. Not hashed and not saved. */
+	int32 MuzzleSerial = 0;
 	TArray<FKodProductionSlot> Research;
 	int32 ResearchTicksRemaining = 0;
 	int32 ResearchBuildTime = 0;

@@ -849,10 +849,17 @@ void AKodSlice0GameMode::StartPlay()
 				{
 					Spec.bCanLower = true;
 				}
-				else if (Spec.TypeId == FName(KodWardenPaths::Id_Bunker) && Spec.CargoCap <= 0)
+				else if (Spec.TypeId == FName(KodWardenPaths::Id_Bunker))
 				{
-					Spec.CargoCap = 4;
-					Spec.MaxHealth = 400.f;
+					if (Spec.CargoCap <= 0)
+					{
+						Spec.CargoCap = 4;
+						Spec.MaxHealth = 400.f;
+					}
+					if (Spec.RequiresId.IsNone())
+					{
+						Spec.RequiresId = FName(KodWardenPaths::Id_Barracks);
+					}
 				}
 				else if (Spec.TypeId == FName(KodWardenPaths::Id_Turret))
 				{
@@ -944,6 +951,18 @@ void AKodSlice0GameMode::StartPlay()
 			Feed.EnergyMax = 200;
 			Feed.EnergyStart = 50;
 			Sim->RegisterUpgradeSpec(Feed);
+			// Placeholder turret stats. AttacksAir stays 0 (ground). Strategy sets the flag.
+			FKodUpgradeSpec BunkerTurret;
+			BunkerTurret.UpgradeId = FName(KodWardenPaths::Id_BunkerTurret);
+			BunkerTurret.DisplayId = FName(TEXT("Bunker Turret"));
+			BunkerTurret.BuildingId = FName(KodWardenPaths::Id_Bunker);
+			BunkerTurret.Credits = 50;
+			BunkerTurret.Luminene = 50;
+			BunkerTurret.BuildTicks = 40 * 16;
+			BunkerTurret.AttackDamage = 6;
+			BunkerTurret.AttackRangeUU = 6 * 200;
+			BunkerTurret.AttacksAir = 0;
+			Sim->RegisterUpgradeSpec(BunkerTurret);
 			auto AddOrbital = [Sim](FName Id, int32 Energy, int32 Cooldown, int32 Duration, int32 Supply, int32 GatherRate, int32 Sight, int32 Radius)
 			{
 				FKodAbilitySpec Spec;

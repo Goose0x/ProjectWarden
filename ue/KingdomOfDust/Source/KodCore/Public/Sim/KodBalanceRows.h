@@ -247,4 +247,15 @@ struct KODCORE_API FKodUpgradeBalanceRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
 	int32 EnergyStart = 0;
+
+	/** VG_BUNKER_TURRET weapon. 0 on the engineering-bay rows. Placeholder until Strategy sets it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 AttackDamage = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 AttackRangeUU = 0;
+
+	/** 0 shoots ground. 1 is air-only. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 AttacksAir = 0;
 };

@@ -601,6 +601,13 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlobAtVersion(int32 Version) const
 		Blob.WInt(Structure.LiftGoalX);
 		Blob.WInt(Structure.LiftGoalY);
 		Blob.WInt(Structure.LiftSpeedUU);
+		if (Version >= 14)
+		{
+			Blob.WU8(Structure.bTurret ? 1 : 0);
+			Blob.WInt(Structure.AttackDamage);
+			Blob.WInt(Structure.AttackRangeUU);
+			Blob.WU8(Structure.bAttacksAir ? 1 : 0);
+		}
 	}
 	Blob.WU8(static_cast<uint8>(MatchOutcome));
 	Blob.WU8(bAiEnabled ? 1 : 0);
@@ -1362,6 +1369,17 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 		Blob.RInt(Structure->LiftSpeedUU);
 		Structure->bAirborne = Airborne != 0;
 		Structure->bLiftMoving = LiftMoving != 0;
+		if (Version >= 14)
+		{
+			uint8 Turret = 0;
+			uint8 Air = 0;
+			Blob.RU8(Turret);
+			Blob.RInt(Structure->AttackDamage);
+			Blob.RInt(Structure->AttackRangeUU);
+			Blob.RU8(Air);
+			Structure->bTurret = Turret != 0;
+			Structure->bAttacksAir = Air != 0;
+		}
 	}
 	{
 		TArray<int32> StructureKeys;

@@ -193,6 +193,10 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	Structure.MaxHealth = FMath::Max(1.f, Spec.MaxHealth);
 	Structure.FootprintX = FMath::Max(1, Spec.FootprintX);
 	Structure.FootprintY = FMath::Max(1, Spec.FootprintY);
+	if (const FKodBuildSpec* Build = BuildSpecs.Find(Structure.DefinitionId))
+	{
+		Structure.CargoCap = FMath::Max(0, Build->CargoCap);
+	}
 	Structure.CellX = KodBuildGrid::CellOf(Structure.Position.X) - (Structure.FootprintX - 1) / 2;
 	Structure.CellY = KodBuildGrid::CellOf(Structure.Position.Y) - (Structure.FootprintY - 1) / 2;
 	Structure.Trains = Spec.Trains;
@@ -201,7 +205,8 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	const float ExitDistance = static_cast<float>(HalfSpan + KodBuildGrid::CellUU);
 	FVector SocketExit;
 	if (KodMeshSockets::TryGet(Actor, KodMeshSockets::UnitExit, SocketExit)
-		|| KodMeshSockets::TryGet(Actor, KodMeshSockets::Door, SocketExit))
+		|| KodMeshSockets::TryGet(Actor, KodMeshSockets::Door, SocketExit)
+		|| KodMeshSockets::TryGet(Actor, KodMeshSockets::Exit, SocketExit))
 	{
 		Structure.ExitPoint = SocketExit;
 	}

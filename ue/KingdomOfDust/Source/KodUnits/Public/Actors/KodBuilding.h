@@ -3,12 +3,14 @@
 #include "CoreMinimal.h"
 #include "Engine/StreamableManager.h"
 #include "GameFramework/Actor.h"
+#include "Components/PointLightComponent.h"
 #include "NiagaraComponent.h"
 #include "Sim/KodEntityId.h"
 #include "KodBuilding.generated.h"
 
 class UKodBuildingDefinition;
 class UKodBuildQueueComponent;
+class UKodSimSubsystem;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
 
@@ -74,6 +76,22 @@ private:
 	bool bDepotLowerLatched = false;
 	bool bDepotClipDriven = false;
 	void PlayDepotCommandAnim(bool bLower);
+	void SyncBunkerTurret(UKodSimSubsystem* Sim, float DeltaSeconds);
+	void FlashBunkerMuzzle();
+	bool bLoggedTurretSocket = false;
+	bool bLoggedPortSocket = false;
+	int32 SeenMuzzle = 0;
+	int32 NextPort = 0;
+	float MuzzleFlashLeft = 0.f;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> TurretPieces;
+
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> BunkerMuzzle;
+
+	UPROPERTY()
+	TObjectPtr<UPointLightComponent> BunkerMuzzleLight;
 
 	UPROPERTY()
 	TObjectPtr<UKodBuildingDefinition> CachedDef;

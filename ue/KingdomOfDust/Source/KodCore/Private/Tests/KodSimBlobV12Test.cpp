@@ -47,7 +47,7 @@ bool FKodSimBlobV12Test::RunTest(const FString& Parameters)
 	TestEqual(TEXT("lane armed"), Sim->GetFaultlineLaneCount(), 2);
 
 	const TArray<uint8> V12 = Sim->ExportSimBlobAtVersion(12);
-	const TArray<uint8> V13 = Sim->ExportSimBlobAtVersion(KodWardenPaths::SimSaveVersion);
+	const TArray<uint8> Current = Sim->ExportSimBlobAtVersion(KodWardenPaths::SimSaveVersion);
 	TestTrue(TEXT("v12 blob has a header"), V12.Num() >= static_cast<int32>(sizeof(int32)));
 	int32 Header = 0;
 	if (V12.Num() >= static_cast<int32>(sizeof(int32)))
@@ -55,7 +55,7 @@ bool FKodSimBlobV12Test::RunTest(const FString& Parameters)
 		FMemory::Memcpy(&Header, V12.GetData(), sizeof(int32));
 	}
 	TestEqual(TEXT("blob version is 12"), Header, 12);
-	TestEqual(TEXT("v13 is the focus id longer"), V13.Num(), V12.Num() + static_cast<int32>(sizeof(int32)));
+	TestEqual(TEXT("current blob adds the focus id over v12"), Current.Num(), V12.Num() + static_cast<int32>(sizeof(int32)));
 
 	TArray<uint8> WithTrailingFocus = V12;
 	const int32 FakeFocus = 4242;

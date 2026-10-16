@@ -259,9 +259,11 @@ void UKodSimSubsystem::EnsureBalanceTables()
 	BayRow.CanLiftoff = 1;
 	BayRow.LiftSpeed = 140;
 	AddStructure(KodWardenPaths::Id_EngineeringBay, BayRow);
+	// Placeholder HP, cost, and build time. Strategy replaces these.
 	FKodStructureBalanceRow Bunker = Structure(400, 100, 30 * 16, 0, 3, 3, 1400);
 	Bunker.CargoCap = 4;
 	AddStructure(KodWardenPaths::Id_Bunker, Bunker);
+	UE_LOG(LogTemp, Warning, TEXT("KodBalance Placeholder VG_BUNKER HP=400 Cost=100 Build=30s Cargo=4 for Strategy"));
 	FKodStructureBalanceRow Turret = Structure(250, 100, 25 * 16, 0, 2, 2, 1400);
 	Turret.MenuTier = 1;
 	Turret.AttackDamage = 12;
@@ -281,6 +283,19 @@ void UKodSimSubsystem::EnsureBalanceTables()
 		Feed.EnergyMax = 200;
 		Feed.EnergyStart = 50;
 		UpgradeTable->AddRow(FName(KodWardenPaths::Id_SatelliteFeed), Feed);
+	}
+	if (!UpgradeTable->FindRow<FKodUpgradeBalanceRow>(FName(KodWardenPaths::Id_BunkerTurret), TEXT("KodBalance"), false))
+	{
+		// Placeholder weapon. AttacksAir 0 shoots ground. Set 1 for air-only if Strategy wants it.
+		FKodUpgradeBalanceRow TurretUpgrade;
+		TurretUpgrade.Credits = 50;
+		TurretUpgrade.Luminene = 50;
+		TurretUpgrade.BuildTicks = 40 * 16;
+		TurretUpgrade.AttackDamage = 6;
+		TurretUpgrade.AttackRangeUU = 6 * 200;
+		TurretUpgrade.AttacksAir = 0;
+		UpgradeTable->AddRow(FName(KodWardenPaths::Id_BunkerTurret), TurretUpgrade);
+		UE_LOG(LogTemp, Warning, TEXT("KodBalance Placeholder VG_BUNKER_TURRET Damage=6 Range=1200 AttacksAir=0 Cost=50/50 for Strategy"));
 	}
 	FKodUnitBalanceRow Gatherer;
 	Gatherer.MaxHealth = 60;
@@ -449,6 +464,10 @@ void UKodSimSubsystem::ApplyBalance()
 			Structure->AttackDamage = Row->AttackDamage;
 			Structure->AttackRangeUU = Row->AttackRangeUU;
 			Structure->bAttacksAir = Row->AttacksAir != 0;
+			if (Structure->bTurret)
+			{
+				ApplyInstalledTurret(*Structure);
+			}
 			if (FKodSimEntityState* Combat = States.Find(Key))
 			{
 				const int32 OldMax = FMath::Max(1, FMath::RoundToInt(Combat->MaxHealth));
@@ -456,7 +475,12 @@ void UKodSimSubsystem::ApplyBalance()
 				Combat->MaxHealth = Structure->MaxHealth;
 				Combat->Health = bFull ? Combat->MaxHealth : FMath::Min(Combat->Health, Combat->MaxHealth);
 				Combat->SightRadiusUU = FMath::Max(Combat->SightRadiusUU, Row->Sight);
-				if (Row->AttackDamage > 0)
+				if (Structure->bTurret)
+				{
+					Combat->WeaponDamage = static_cast<float>(Structure->AttackDamage);
+					Combat->WeaponRange = static_cast<float>(Structure->AttackRangeUU);
+				}
+				else if (Row->AttackDamage > 0)
 				{
 					Combat->WeaponDamage = static_cast<float>(Row->AttackDamage);
 					Combat->WeaponRange = static_cast<float>(Row->AttackRangeUU);
@@ -511,6 +535,9 @@ void UKodSimSubsystem::ApplyBalance()
 		Spec->SatelliteFeed = Row->SatelliteFeed;
 		Spec->EnergyMax = Row->EnergyMax;
 		Spec->EnergyStart = Row->EnergyStart;
+		Spec->AttackDamage = Row->AttackDamage;
+		Spec->AttackRangeUU = Row->AttackRangeUU;
+		Spec->AttacksAir = Row->AttacksAir;
 	}
 
 	PowerSpecs.Reset();

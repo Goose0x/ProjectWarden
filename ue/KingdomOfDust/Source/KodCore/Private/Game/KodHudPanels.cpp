@@ -1010,20 +1010,39 @@ void AKodHUD::DrawSelectionPanel()
 		}
 		if (const FKodStructureState* CargoStructure = FindFrameStructure(Tile.EntityId))
 		{
-			if (CargoStructure->Cargo.Num() > 0 && TextY < Info.Y + Info.H - Line)
+			if (CargoStructure->CargoCap > 0 && TextY < Info.Y + Info.H - Line)
 			{
 				DrawText(TEXT("Unload all"), Tok(0xE6, 0xE6, 0xE0), Info.X, TextY, Font, 0.7f * Scale, false);
 				RememberChrome(FName(TEXT("UnloadAll")), CargoStructure->Id.Value, FName(), Info.X, TextY, Info.X + 120.f * Scale, TextY + Line);
 				TextY += Line;
-				for (int32 Rider : CargoStructure->Cargo)
+				const float Icon = 28.f * Scale;
+				const int32 SlotCount = FMath::Clamp(CargoStructure->CargoCap, 1, 8);
+				for (int32 Slot = 0; Slot < SlotCount; ++Slot)
 				{
-					if (TextY >= Info.Y + Info.H)
+					if (TextY + Icon > Info.Y + Info.H)
 					{
 						break;
 					}
-					DrawText(FString::Printf(TEXT("Unload %d"), Rider), Tok(0x8E, 0x94, 0x9A), Info.X, TextY, Font, 0.65f * Scale, false);
-					RememberChrome(FName(TEXT("Unload")), Rider, FName(), Info.X, TextY, Info.X + 120.f * Scale, TextY + Line);
-					TextY += Line;
+					const bool bFilled = CargoStructure->Cargo.IsValidIndex(Slot);
+					FName IconId;
+					int32 Rider = 0;
+					if (bFilled)
+					{
+						Rider = CargoStructure->Cargo[Slot];
+						FKodEntityId RiderId;
+						RiderId.Value = Rider;
+						FKodSimEntityState RiderState;
+						if (Sim->TryGetState(RiderId, RiderState))
+						{
+							IconId = RiderState.DefinitionId;
+						}
+					}
+					DrawIconSlot(IconId, Info.X, TextY, Icon, Icon, bFilled ? 1.f : 0.35f);
+					if (bFilled)
+					{
+						RememberChrome(FName(TEXT("Unload")), Rider, IconId, Info.X, TextY, Info.X + Icon, TextY + Icon);
+					}
+					TextY += Icon + 2.f * Scale;
 				}
 			}
 		}
