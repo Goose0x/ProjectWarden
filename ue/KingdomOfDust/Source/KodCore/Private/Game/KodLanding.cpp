@@ -16,7 +16,8 @@ namespace
 		KodMeshSockets::UnitExit,
 		KodMeshSockets::WorkerExit,
 		KodMeshSockets::BayRamp,
-		KodMeshSockets::Rally
+		KodMeshSockets::Rally,
+		KodMeshSockets::Exit
 	};
 
 	void CollectSockets(const AActor* Actor, TArray<FVector>& OutLocal, TArray<FVector>& OutWorld)

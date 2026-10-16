@@ -268,6 +268,10 @@ namespace
 	const FKodMeshRow* FindRow(FName Id)
 	{
 		LoadRows();
+		if (Id == FName(TEXT("Bunker")))
+		{
+			Id = FName(KodWardenPaths::Id_Bunker);
+		}
 		for (const FKodMeshRow& Row : GRows)
 		{
 			if (Row.Id == Id)
@@ -586,6 +590,10 @@ float FKodMeshCatalog::FootprintCm(FName Id)
 	if (Id == FName(KodWardenPaths::Id_SupplyDepot) || Id == FName(TEXT("RiteWell")))
 	{
 		return 450.f;
+	}
+	if (Id == FName(KodWardenPaths::Id_Bunker) || Id == FName(TEXT("Bunker")))
+	{
+		return 600.f;
 	}
 	return 0.f;
 }

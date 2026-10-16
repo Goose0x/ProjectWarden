@@ -58,6 +58,7 @@ protected:
 	void CancelPlacement();
 	bool CancelSelectedConstruction();
 	bool TryResumeBuildUnderCursor();
+	bool TryRepairUnderCursor();
 	bool AllowTrain(FName UnitId);
 	bool TryArmPower(FName PowerId);
 	void TryBeginPlace(FName TypeId);

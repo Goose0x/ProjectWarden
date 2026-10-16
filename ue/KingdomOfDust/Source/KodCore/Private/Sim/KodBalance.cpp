@@ -259,9 +259,12 @@ void UKodSimSubsystem::EnsureBalanceTables()
 	BayRow.CanLiftoff = 1;
 	BayRow.LiftSpeed = 140;
 	AddStructure(KodWardenPaths::Id_EngineeringBay, BayRow);
-	FKodStructureBalanceRow Bunker = Structure(400, 100, 30 * 16, 0, 3, 3, 1400);
+	// Placeholder until the Director stamps it. Armored + Structure.
+	FKodStructureBalanceRow Bunker = Structure(400, 100, 29 * 16, 0, 3, 3, 1400);
 	Bunker.CargoCap = 4;
+	Bunker.Armor = 1;
 	AddStructure(KodWardenPaths::Id_Bunker, Bunker);
+	UE_LOG(LogTemp, Warning, TEXT("KodBalance Placeholder VG_BUNKER HP=400 Armor=1 Cost=100 Build=29s Cargo=4 Salvage=75%% Armored+Structure for Strategy"));
 	FKodStructureBalanceRow Turret = Structure(250, 100, 25 * 16, 0, 2, 2, 1400);
 	Turret.MenuTier = 1;
 	Turret.AttackDamage = 12;
@@ -281,6 +284,22 @@ void UKodSimSubsystem::EnsureBalanceTables()
 		Feed.EnergyMax = 200;
 		Feed.EnergyStart = 50;
 		UpgradeTable->AddRow(FName(KodWardenPaths::Id_SatelliteFeed), Feed);
+	}
+	if (!UpgradeTable->FindRow<FKodUpgradeBalanceRow>(FName(KodWardenPaths::Id_BunkerTurret), TEXT("KodBalance"), false))
+	{
+		// Placeholder until the Director stamps it. 14 ticks is 0.875s, the nearest 16 Hz step to 0.86s.
+		FKodUpgradeBalanceRow TurretUpgrade;
+		TurretUpgrade.Credits = 50;
+		TurretUpgrade.Luminene = 25;
+		TurretUpgrade.BuildTicks = 25 * 16;
+		TurretUpgrade.AttackDamage = 12;
+		TurretUpgrade.AttackRangeUU = 1200;
+		TurretUpgrade.AttacksAir = 0;
+		TurretUpgrade.CooldownTicks = 14;
+		TurretUpgrade.BonusVsLight = 6;
+		TurretUpgrade.BonusHealth = 100;
+		UpgradeTable->AddRow(FName(KodWardenPaths::Id_BunkerTurret), TurretUpgrade);
+		UE_LOG(LogTemp, Warning, TEXT("KodBalance Placeholder VG_BUNKER_TURRET Damage=12 Period=0.875s VsLight=6 Range=1200 AttacksAir=0 Cost=50/25 HP+100 for Strategy"));
 	}
 	FKodUnitBalanceRow Gatherer;
 	Gatherer.MaxHealth = 60;
@@ -424,6 +443,12 @@ void UKodSimSubsystem::ApplyBalance()
 			Spec->bTownHall = Row->TownHall != 0;
 			Spec->bCanLower = Row->CanLower != 0;
 			Spec->CargoCap = Row->CargoCap;
+			Spec->Armor = Row->Armor;
+			if (Name == FName(KodWardenPaths::Id_Bunker))
+			{
+				Spec->bArmored = true;
+				Spec->bStructure = true;
+			}
 			Spec->AttackDamage = Row->AttackDamage;
 			Spec->AttackRangeUU = Row->AttackRangeUU;
 			Spec->bAttacksAir = Row->AttacksAir != 0;
@@ -443,12 +468,16 @@ void UKodSimSubsystem::ApplyBalance()
 			{
 				continue;
 			}
-			Structure->MaxHealth = static_cast<float>(FMath::Max(1, Row->MaxHealth));
+			Structure->MaxHealth = static_cast<float>(FMath::Max(1, Row->MaxHealth) + Structure->TurretHpBonus);
 			Structure->SupplyProvided = Row->SupplyProvided;
 			Structure->CargoCap = Row->CargoCap;
 			Structure->AttackDamage = Row->AttackDamage;
 			Structure->AttackRangeUU = Row->AttackRangeUU;
 			Structure->bAttacksAir = Row->AttacksAir != 0;
+			if (Structure->bTurret)
+			{
+				ApplyInstalledTurret(*Structure);
+			}
 			if (FKodSimEntityState* Combat = States.Find(Key))
 			{
 				const int32 OldMax = FMath::Max(1, FMath::RoundToInt(Combat->MaxHealth));
@@ -456,7 +485,16 @@ void UKodSimSubsystem::ApplyBalance()
 				Combat->MaxHealth = Structure->MaxHealth;
 				Combat->Health = bFull ? Combat->MaxHealth : FMath::Min(Combat->Health, Combat->MaxHealth);
 				Combat->SightRadiusUU = FMath::Max(Combat->SightRadiusUU, Row->Sight);
-				if (Row->AttackDamage > 0)
+				if (Row->Armor > 0)
+				{
+					Combat->ArmorPoints = Row->Armor;
+				}
+				if (Structure->bTurret)
+				{
+					Combat->WeaponDamage = static_cast<float>(Structure->AttackDamage);
+					Combat->WeaponRange = static_cast<float>(Structure->AttackRangeUU);
+				}
+				else if (Row->AttackDamage > 0)
 				{
 					Combat->WeaponDamage = static_cast<float>(Row->AttackDamage);
 					Combat->WeaponRange = static_cast<float>(Row->AttackRangeUU);
@@ -511,6 +549,12 @@ void UKodSimSubsystem::ApplyBalance()
 		Spec->SatelliteFeed = Row->SatelliteFeed;
 		Spec->EnergyMax = Row->EnergyMax;
 		Spec->EnergyStart = Row->EnergyStart;
+		Spec->AttackDamage = Row->AttackDamage;
+		Spec->AttackRangeUU = Row->AttackRangeUU;
+		Spec->AttacksAir = Row->AttacksAir;
+		Spec->CooldownTicks = Row->CooldownTicks;
+		Spec->BonusVsLight = Row->BonusVsLight;
+		Spec->BonusHealth = Row->BonusHealth;
 	}
 
 	PowerSpecs.Reset();

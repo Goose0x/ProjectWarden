@@ -16,6 +16,15 @@ namespace KodMeshSockets
 	inline const FName UnitExit(TEXT("UnitExit"));
 	/** Vanguard command center bay. Visual exit. Not a sim spawn point. */
 	inline const FName BayRamp(TEXT("BayRamp"));
+	/** VG_BUNKER trained-unit and unload side. 3D owes this socket. */
+	inline const FName Exit(TEXT("Exit"));
+	/** VG_BUNKER turret piece. 3D may author TurretMount or TurretMount_0..3. */
+	inline const FName TurretMount(TEXT("TurretMount"));
+	/** VG_BUNKER muzzle flashes. One socket per port. */
+	inline const FName Port0(TEXT("Port_0"));
+	inline const FName Port1(TEXT("Port_1"));
+	inline const FName Port2(TEXT("Port_2"));
+	inline const FName Port3(TEXT("Port_3"));
 
 	inline bool ComponentHasSocket(const USceneComponent* Component, FName Socket, FVector& OutWorld)
 	{

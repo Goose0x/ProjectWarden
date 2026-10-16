@@ -836,6 +836,9 @@ void AKodSlice0GameMode::StartPlay()
 				Spec.AttackDamage = Def->AttackDamage;
 				Spec.AttackRangeUU = Def->AttackRangeUU;
 				Spec.bAttacksAir = Def->bAttacksAir;
+				Spec.Armor = Def->Armor;
+				Spec.bArmored = Def->AttributeTags.HasTag(FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Attribute.Armored")), false));
+				Spec.bStructure = Def->AttributeTags.HasTag(FGameplayTag::RequestGameplayTag(FName(TEXT("Kod.Attribute.Structure")), false));
 				if (Spec.TypeId == FName(KodWardenPaths::Id_CommandCenter))
 				{
 					Spec.bTownHall = true;
@@ -849,10 +852,23 @@ void AKodSlice0GameMode::StartPlay()
 				{
 					Spec.bCanLower = true;
 				}
-				else if (Spec.TypeId == FName(KodWardenPaths::Id_Bunker) && Spec.CargoCap <= 0)
+				else if (Spec.TypeId == FName(KodWardenPaths::Id_Bunker))
 				{
-					Spec.CargoCap = 4;
-					Spec.MaxHealth = 400.f;
+					if (Spec.CargoCap <= 0)
+					{
+						Spec.CargoCap = 4;
+						Spec.MaxHealth = 400.f;
+					}
+					if (Spec.RequiresId.IsNone())
+					{
+						Spec.RequiresId = FName(KodWardenPaths::Id_Barracks);
+					}
+					if (Spec.Armor <= 0)
+					{
+						Spec.Armor = 1;
+					}
+					Spec.bArmored = true;
+					Spec.bStructure = true;
 				}
 				else if (Spec.TypeId == FName(KodWardenPaths::Id_Turret))
 				{
@@ -914,6 +930,11 @@ void AKodSlice0GameMode::StartPlay()
 			};
 			StampRoster(FName(KodWardenPaths::Id_Dozer), true, false, false, 0, 0, 0, FName());
 			StampRoster(FName(KodWardenPaths::Id_Marine), true, true, false, 1, 0, 0, FName());
+			if (FKodTrainSpec MarineLight; Sim->TryGetTrainSpec(FName(KodWardenPaths::Id_Marine), MarineLight))
+			{
+				MarineLight.bLight = true;
+				Sim->RegisterTrainSpec(MarineLight);
+			}
 			StampRoster(FName(KodWardenPaths::Id_Medic), true, true, true, 1, 200, 50, FName(KodWardenPaths::Id_EngineeringBay));
 			FKodUpgradeSpec Weapons;
 			Weapons.UpgradeId = FName(KodWardenPaths::Id_InfantryWeapons);
@@ -944,6 +965,21 @@ void AKodSlice0GameMode::StartPlay()
 			Feed.EnergyMax = 200;
 			Feed.EnergyStart = 50;
 			Sim->RegisterUpgradeSpec(Feed);
+			// Placeholder until the Director stamps it. 14 ticks is 0.875s at 16 Hz.
+			FKodUpgradeSpec BunkerTurret;
+			BunkerTurret.UpgradeId = FName(KodWardenPaths::Id_BunkerTurret);
+			BunkerTurret.DisplayId = FName(TEXT("Bunker Turret"));
+			BunkerTurret.BuildingId = FName(KodWardenPaths::Id_Bunker);
+			BunkerTurret.Credits = 50;
+			BunkerTurret.Luminene = 25;
+			BunkerTurret.BuildTicks = 25 * 16;
+			BunkerTurret.AttackDamage = 12;
+			BunkerTurret.AttackRangeUU = 1200;
+			BunkerTurret.AttacksAir = 0;
+			BunkerTurret.CooldownTicks = 14;
+			BunkerTurret.BonusVsLight = 6;
+			BunkerTurret.BonusHealth = 100;
+			Sim->RegisterUpgradeSpec(BunkerTurret);
 			auto AddOrbital = [Sim](FName Id, int32 Energy, int32 Cooldown, int32 Duration, int32 Supply, int32 GatherRate, int32 Sight, int32 Radius)
 			{
 				FKodAbilitySpec Spec;

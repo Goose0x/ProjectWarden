@@ -43,6 +43,10 @@ struct KODCORE_API FKodBuildSpec
 	int32 AttackDamage = 0;
 	int32 AttackRangeUU = 0;
 	bool bAttacksAir = false;
+	/** VG_BUNKER is 1. Placeholder until the Director stamps it. */
+	int32 Armor = 0;
+	bool bArmored = false;
+	bool bStructure = false;
 	bool bCanLiftoff = false;
 	int32 LiftSpeedUU = 0;
 	int32 PowerPoints = 0;

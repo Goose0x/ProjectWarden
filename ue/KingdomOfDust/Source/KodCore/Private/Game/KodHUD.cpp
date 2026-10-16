@@ -4115,6 +4115,32 @@ void AKodHUD::DrawCommandCard()
 	if (bBunker && !bTrainCard)
 	{
 		AddButton(0, 0, OriginX, OriginY, TEXT("Unload"), TEXT("U"), TEXT("UnloadAll"), FName(), SelectedBuilding.Id.Value, INDEX_NONE, SelectedBuilding.Cargo.Num() > 0, FName(), TEXT("Unload all"));
+		if (!SelectedBuilding.bTurret)
+		{
+			bool bInstalling = false;
+			for (const FKodProductionSlot& Job : SelectedBuilding.Research)
+			{
+				if (Job.UnitId == FName(KodWardenPaths::Id_BunkerTurret))
+				{
+					bInstalling = true;
+				}
+			}
+			FKodUpgradeSpec TurretSpec;
+			const bool bHaveTurret = Sim->TryGetUpgradeSpec(FName(KodWardenPaths::Id_BunkerTurret), TurretSpec);
+			FName TurretFail = bHaveTurret ? PeekResourceFail(TurretSpec.Credits, TurretSpec.Luminene, 0) : FName();
+			if (bInstalling)
+			{
+				TurretFail = FName(TEXT("Full"));
+			}
+			const FString TurretTip = FString::Printf(
+				TEXT("Bunker Turret\n%d Credits\n%d Luminene\n%ds\n12 dmg / 0.86s\n+6 vs Light\n+100 HP\nPlaceholder until the Director stamps it"),
+				bHaveTurret ? TurretSpec.Credits : 50,
+				bHaveTurret ? TurretSpec.Luminene : 25,
+				(bHaveTurret ? TurretSpec.BuildTicks : 25 * 16) / 16);
+			AddButton(1, 0, OriginX, OriginY, TEXT("Turret"), TEXT("T"), TEXT("Research"), FName(KodWardenPaths::Id_BunkerTurret), SelectedBuilding.Id.Value, INDEX_NONE, TurretFail.IsNone(), TurretFail, TurretTip);
+		}
+		const bool bSalvaging = SelectedBuilding.SalvageTicksRemaining > 0;
+		AddButton(2, 0, OriginX, OriginY, TEXT("Salvage"), TEXT("V"), TEXT("Salvage"), FName(), SelectedBuilding.Id.Value, INDEX_NONE, !bSalvaging, bSalvaging ? FName(TEXT("Full")) : FName(), TEXT("Refund 75% over 5s"));
 	}
 	const bool bCc = bHaveBuilding && SelectedBuilding.DefinitionId == FName(KodWardenPaths::Id_CommandCenter);
 	if (bCc)

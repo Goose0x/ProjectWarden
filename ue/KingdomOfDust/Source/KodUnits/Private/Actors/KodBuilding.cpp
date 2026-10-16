@@ -8,6 +8,8 @@
 #include "Data/KodMeshCatalog.h"
 #include "Warden/KodWardenPaths.h"
 #include "Components/MeshComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Game/KodMeshSockets.h"
 #include "Animation/AnimEnums.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -210,6 +212,166 @@ void AKodBuilding::Tick(float DeltaSeconds)
 	if (Sim->TryGetState(EntityId, Combat))
 	{
 		UpdateLowHealthFx(Combat.Health, Combat.MaxHealth);
+	}
+	SyncBunkerTurret(Sim, DeltaSeconds);
+}
+
+void AKodBuilding::FlashBunkerMuzzle()
+{
+	const FName Ports[] = {
+		KodMeshSockets::Port0,
+		KodMeshSockets::Port1,
+		KodMeshSockets::Port2,
+		KodMeshSockets::Port3
+	};
+	FVector At = GetActorLocation() + FVector(0.f, 0.f, 120.f);
+	bool bSocket = false;
+	FName Used = KodMeshSockets::Port0;
+	for (int32 Step = 0; Step < 4; ++Step)
+	{
+		const int32 Index = (NextPort + Step) % 4;
+		FVector SocketAt = FVector::ZeroVector;
+		if (KodMeshSockets::TryGet(this, Ports[Index], SocketAt))
+		{
+			At = SocketAt;
+			Used = Ports[Index];
+			NextPort = (Index + 1) % 4;
+			bSocket = true;
+			break;
+		}
+	}
+	if (!bSocket && !bLoggedPortSocket)
+	{
+		bLoggedPortSocket = true;
+		UE_LOG(LogTemp, Warning, TEXT("KodMesh SocketMissing Id=%s Socket=Port_0"), *FName(KodWardenPaths::Id_Bunker).ToString());
+	}
+	if (!BunkerMuzzle)
+	{
+		UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+		BunkerMuzzle = NewObject<UStaticMeshComponent>(this, TEXT("BunkerMuzzle"));
+		BunkerMuzzle->SetupAttachment(GetRootComponent());
+		BunkerMuzzle->SetStaticMesh(Sphere);
+		BunkerMuzzle->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		BunkerMuzzle->SetCastShadow(false);
+		BunkerMuzzle->ComponentTags.Add(FName(TEXT("KodFx")));
+		BunkerMuzzle->RegisterComponent();
+	}
+	if (!BunkerMuzzleLight)
+	{
+		BunkerMuzzleLight = NewObject<UPointLightComponent>(this, TEXT("BunkerMuzzleLight"));
+		BunkerMuzzleLight->SetupAttachment(GetRootComponent());
+		BunkerMuzzleLight->SetIntensity(40000.f);
+		BunkerMuzzleLight->SetAttenuationRadius(400.f);
+		BunkerMuzzleLight->SetCastShadows(false);
+		BunkerMuzzleLight->SetLightColor(FLinearColor(1.f, 0.72f, 0.35f));
+		BunkerMuzzleLight->ComponentTags.Add(FName(TEXT("KodFx")));
+		BunkerMuzzleLight->RegisterComponent();
+	}
+	BunkerMuzzle->SetWorldLocation(At);
+	BunkerMuzzle->SetWorldScale3D(FVector(0.15f));
+	BunkerMuzzle->SetVisibility(true);
+	BunkerMuzzle->SetHiddenInGame(false);
+	BunkerMuzzleLight->SetWorldLocation(At);
+	BunkerMuzzleLight->SetVisibility(true);
+	BunkerMuzzleLight->SetHiddenInGame(false);
+	MuzzleFlashLeft = 0.06f;
+	UE_LOG(LogTemp, Log, TEXT("KodBunker Muzzle Id=%d Port=%s"), EntityId.Value, *Used.ToString());
+}
+
+void AKodBuilding::SyncBunkerTurret(UKodSimSubsystem* Sim, float DeltaSeconds)
+{
+	if (MuzzleFlashLeft > 0.f)
+	{
+		MuzzleFlashLeft -= DeltaSeconds;
+		if (MuzzleFlashLeft <= 0.f)
+		{
+			if (BunkerMuzzle)
+			{
+				BunkerMuzzle->SetVisibility(false);
+				BunkerMuzzle->SetHiddenInGame(true);
+			}
+			if (BunkerMuzzleLight)
+			{
+				BunkerMuzzleLight->SetVisibility(false);
+				BunkerMuzzleLight->SetHiddenInGame(true);
+			}
+		}
+	}
+	FKodStructureState Structure;
+	if (!Sim || !Sim->TryGetStructure(EntityId, Structure) || Structure.DefinitionId != FName(KodWardenPaths::Id_Bunker))
+	{
+		return;
+	}
+	if (Structure.MuzzleSerial != SeenMuzzle)
+	{
+		SeenMuzzle = Structure.MuzzleSerial;
+		FlashBunkerMuzzle();
+	}
+	if (!Structure.bTurret || TurretPieces.Num() > 0)
+	{
+		return;
+	}
+	const FKodMeshChoice Choice = FKodMeshCatalog::Resolve(FName(KodWardenPaths::Id_BunkerTurret));
+	UStaticMesh* Mesh = (Choice.bLoaded && Choice.StaticMesh) ? Choice.StaticMesh : nullptr;
+	if (!Mesh)
+	{
+		Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	}
+	if (Mesh && Mesh->GetPathName().Contains(TEXT("/Engine/BasicShapes/Cube")))
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodMesh Placeholder Id=%s Path=%s"), *FName(KodWardenPaths::Id_BunkerTurret).ToString(), *Mesh->GetPathName());
+	}
+	USceneComponent* Body = BuildingSkel && !BuildingSkel->bHiddenInGame ? static_cast<USceneComponent*>(BuildingSkel) : static_cast<USceneComponent*>(BuildingMesh);
+	const FName Mounts[] = {
+		KodMeshSockets::TurretMount,
+		FName(TEXT("TurretMount_0")),
+		FName(TEXT("TurretMount_1")),
+		FName(TEXT("TurretMount_2")),
+		FName(TEXT("TurretMount_3"))
+	};
+	TArray<FName> Found;
+	if (Body)
+	{
+		for (const FName& Mount : Mounts)
+		{
+			if (Body->DoesSocketExist(Mount))
+			{
+				Found.Add(Mount);
+				continue;
+			}
+			const FName Prefixed(*FString::Printf(TEXT("SOCKET_%s"), *Mount.ToString()));
+			if (Body->DoesSocketExist(Prefixed))
+			{
+				Found.Add(Prefixed);
+			}
+		}
+	}
+	if (Found.Num() == 0)
+	{
+		Found.Add(NAME_None);
+		if (!bLoggedTurretSocket)
+		{
+			bLoggedTurretSocket = true;
+			UE_LOG(LogTemp, Warning, TEXT("KodMesh SocketMissing Id=%s Socket=TurretMount"), *FName(KodWardenPaths::Id_Bunker).ToString());
+		}
+	}
+	const float Scale = (Choice.bLoaded && Choice.Scale > 0.01f) ? Choice.Scale : 0.4f;
+	for (int32 Index = 0; Index < Found.Num(); ++Index)
+	{
+		UStaticMeshComponent* Piece = NewObject<UStaticMeshComponent>(this);
+		Piece->SetupAttachment(Body ? Body : GetRootComponent(), Found[Index]);
+		Piece->SetStaticMesh(Mesh);
+		Piece->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Piece->SetCastShadow(false);
+		Piece->ComponentTags.Add(FName(TEXT("KodBunkerTurret")));
+		Piece->ComponentTags.Add(FName(TEXT("KodFx")));
+		Piece->SetRelativeScale3D(FVector(Scale));
+		if (Found[Index].IsNone())
+		{
+			Piece->SetRelativeLocation(FVector(0.f, 0.f, 80.f));
+		}
+		Piece->RegisterComponent();
+		TurretPieces.Add(Piece);
 	}
 }
 

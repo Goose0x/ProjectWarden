@@ -191,6 +191,10 @@ struct KODCORE_API FKodStructureBalanceRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
 	int32 PowerPoints = 0;
+
+	/** VG_BUNKER is 1. 0 on the other rows. Placeholder until the Director stamps it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 Armor = 0;
 };
 
 /** Vanguard power integers. Cooldowns and delays are sim ticks. */
@@ -247,4 +251,25 @@ struct KODCORE_API FKodUpgradeBalanceRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
 	int32 EnergyStart = 0;
+
+	/** VG_BUNKER_TURRET weapon. 0 on the engineering-bay rows. Placeholder until Strategy sets it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 AttackDamage = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 AttackRangeUU = 0;
+
+	/** 0 shoots ground. 1 is air-only. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 AttacksAir = 0;
+
+	/** Shot period in sim ticks, including the 1-tick windup. 14 is the 0.86s placeholder. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 CooldownTicks = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 BonusVsLight = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kod|Balance")
+	int32 BonusHealth = 0;
 };

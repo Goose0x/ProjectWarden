@@ -57,18 +57,22 @@ namespace KodWardenPaths
 	/** Legacy infantry id. Ranger is Marine. Used only to read blobs older than version 11. */
 	constexpr const TCHAR* Id_Ranger = TEXT("Ranger");
 
-	/** Current sim blob. Version 11 writes Marine. Version 12 adds the Faultline lane. Version 13 adds the wave focus id. */
-	inline constexpr int32 SimSaveVersion = 13;
+	/** Current sim blob. Version 11 writes Marine. Version 12 adds the Faultline lane. Version 13 adds the wave focus id. Version 14 adds the bunker turret. */
+	inline constexpr int32 SimSaveVersion = 14;
 
 	/**
-	 * Saves and replays below SimSaveVersion stored the Marine as Ranger.
-	 * The alias is applied on load only. It is not part of the idle hash.
+	 * Saves and replays below version 11 stored the Marine as Ranger.
+	 * Saves before VG_BUNKER stored the bunker as Bunker. The alias is load-only.
 	 */
 	inline FName AliasLegacyMarineId(FName Id, int32 LoadedVersion)
 	{
 		if (LoadedVersion < 11 && Id == FName(Id_Ranger))
 		{
 			return FName(Id_Marine);
+		}
+		if (Id == FName(TEXT("Bunker")))
+		{
+			return FName(TEXT("VG_BUNKER"));
 		}
 		return Id;
 	}
@@ -85,7 +89,10 @@ namespace KodWardenPaths
 	constexpr const TCHAR* Id_SupplyDepot = TEXT("SupplyDepot");
 	constexpr const TCHAR* Id_Rig = TEXT("Rig");
 	constexpr const TCHAR* Id_EngineeringBay = TEXT("EngineeringBay");
-	constexpr const TCHAR* Id_Bunker = TEXT("Bunker");
+	/** Vanguard bunker. Older blobs used the id Bunker. */
+	constexpr const TCHAR* Id_Bunker = TEXT("VG_BUNKER");
+	/** Per-bunker turret. Placeholder damage, range, and the air flag are for Strategy. */
+	constexpr const TCHAR* Id_BunkerTurret = TEXT("VG_BUNKER_TURRET");
 	constexpr const TCHAR* Id_Turret = TEXT("Turret");
 	constexpr const TCHAR* Id_Medic = TEXT("Medic");
 	constexpr const TCHAR* Id_InfantryWeapons = TEXT("InfantryWeapons");
