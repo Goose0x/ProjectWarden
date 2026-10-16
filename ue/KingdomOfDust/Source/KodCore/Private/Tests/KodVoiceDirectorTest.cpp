@@ -85,5 +85,36 @@ bool FKodVoiceDirectorTest::RunTest(const FString& Parameters)
 	const FKodVoiceChoice AttackB = Ack.Choose(Marine, FName(TEXT("Attack")), 1, 0.3f);
 	TestTrue(TEXT("attack plays"), AttackA.bPlay && AttackB.bPlay);
 	TestTrue(TEXT("attack does not repeat"), AttackA.Cue != AttackB.Cue);
+
+	FKodVoiceDirector OnlyAlt;
+	OnlyAlt.AddLine(FName(TEXT("SCN_WORKER")), FName(TEXT("Annoyed")), FName(TEXT("SCN_WORKER_Annoyed_05_alt")));
+	TestFalse(TEXT("an alt-only bag is empty"), OnlyAlt.HasCategory(FName(TEXT("SCN_WORKER")), FName(TEXT("Annoyed"))));
+
+	FKodVoiceDirector Alt;
+	Alt.AddLine(FName(TEXT("SCN_WORKER")), FName(TEXT("Annoyed")), FName(TEXT("SCN_WORKER_Annoyed_05_alt")));
+	Alt.AddLine(FName(TEXT("SCN_WORKER")), FName(TEXT("Annoyed")), FName(TEXT("SCN_WORKER_Annoyed_01")));
+	TestTrue(TEXT("real annoyed line stays"), Alt.HasCategory(FName(TEXT("SCN_WORKER")), FName(TEXT("Annoyed"))));
+	const FKodVoiceChoice AltChoice = Alt.Choose(FName(TEXT("SCN_WORKER")), FName(TEXT("Annoyed")), 1, 0.f);
+	TestEqual(TEXT("alt name is not chosen"), AltChoice.Cue, FName(TEXT("SCN_WORKER_Annoyed_01")));
+
+	FKodVoiceDirector Hold;
+	Hold.SelectCooldown = 0.f;
+	Hold.AnnoyedCooldown = 5.7f;
+	Hold.AnnoyedWindow = 3.f;
+	Hold.AnnoyedAfter = 4;
+	Hold.AddLine(Marine, FName(TEXT("Select")), FName(TEXT("S")));
+	Hold.AddLine(Marine, FName(TEXT("Annoyed")), FName(TEXT("Annoyed_01")));
+	Hold.AddLine(Marine, FName(TEXT("Annoyed")), FName(TEXT("Annoyed_02")));
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		Hold.Choose(Marine, FName(TEXT("Select")), 4, static_cast<float>(Index) * 0.1f);
+	}
+	const FKodVoiceChoice FirstAnnoyed = Hold.Choose(Marine, FName(TEXT("Select")), 4, 0.4f);
+	TestEqual(TEXT("annoyed starts at 01"), FirstAnnoyed.Cue, FName(TEXT("Annoyed_01")));
+	const FKodVoiceChoice Swallowed = Hold.Choose(Marine, FName(TEXT("Select")), 4, 2.f);
+	TestFalse(TEXT("annoyed is not cut off"), Swallowed.bPlay);
+	const FKodVoiceChoice NextAnnoyed = Hold.Choose(Marine, FName(TEXT("Select")), 4, 0.4f + 5.8f);
+	TestTrue(TEXT("next click after the line plays"), NextAnnoyed.bPlay);
+	TestEqual(TEXT("escalation continues at 02"), NextAnnoyed.Cue, FName(TEXT("Annoyed_02")));
 	return true;
 }

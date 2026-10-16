@@ -21,12 +21,14 @@ class KODCORE_API FKodVoiceDirector
 {
 public:
 	void AddLine(FName UnitId, FName Category, FName Cue);
+	static bool IsAltTake(FName Cue);
 	bool HasCategory(FName UnitId, FName Category) const;
 	FKodVoiceChoice Choose(FName UnitId, FName Category, int32 EntityId, float NowSeconds);
 
 	float SelectCooldown = 1.5f;
 	float AckCooldown = 0.8f;
-	float AnnoyedCooldown = 1.2f;
+	/** Annoyed clips run about 4-5.7s. The next select waits until this ends. */
+	float AnnoyedCooldown = 5.7f;
 	float AnnoyedWindow = 3.f;
 	int32 AnnoyedAfter = 4;
 
@@ -44,6 +46,7 @@ private:
 		int32 Count = 0;
 		int32 AnnoyedIndex = 0;
 		float LastSeconds = -1000.f;
+		bool bAnnoyedLine = false;
 	};
 
 	FName Key(FName UnitId, FName Category) const;

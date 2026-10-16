@@ -1041,6 +1041,9 @@ void AKodHUD::PollShotAfter()
 	static bool bGateSelectMove = false;
 	static bool bGateZoom = false;
 	static bool bGateBuildings = false;
+	static bool bGatePan = false;
+	static bool bGateVoice = false;
+	static int32 GatePanStep = 0;
 	static bool bGateActed = false;
 	static bool bGatePrepared = false;
 	static bool bGateQueued = false;
@@ -1052,12 +1055,16 @@ void AKodHUD::PollShotAfter()
 		int32 SelectFlag = 0;
 		int32 ZoomFlag = 0;
 		int32 BuildingsFlag = 0;
+		int32 PanFlag = 0;
+		int32 VoiceFlag = 0;
 		const TCHAR* CommandLine = FCommandLine::Get();
 		bGateSelectMove = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotSelectMove="), SelectFlag) && SelectFlag != 0;
 		bGateZoom = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotZoom="), ZoomFlag) && ZoomFlag != 0;
 		bGateBuildings = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotBuildings="), BuildingsFlag) && BuildingsFlag != 0;
+		bGatePan = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotPan="), PanFlag) && PanFlag != 0;
+		bGateVoice = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotVoiceSpam="), VoiceFlag) && VoiceFlag != 0;
 	}
-	if ((bGateSelectMove || bGateZoom || bGateBuildings) && World)
+	if ((bGateSelectMove || bGateZoom || bGateBuildings || bGatePan || bGateVoice) && World)
 	{
 		const float Now = World->GetTimeSeconds();
 		if (!bGateActed)
@@ -1070,7 +1077,7 @@ void AKodHUD::PollShotAfter()
 			AKodRTSCameraPawn* CameraPawn = GatePC ? Cast<AKodRTSCameraPawn>(GatePC->GetPawn()) : nullptr;
 			const AKodGameMode* MatchMode = World->GetAuthGameMode<AKodGameMode>();
 			const bool bFactionReady = !MatchMode || !MatchMode->IsAwaitingFactionPrompt();
-			const bool bCameraReady = (!bGateZoom && !bGateBuildings) || (CameraPawn && CameraPawn->HasStartViewSettled());
+			const bool bCameraReady = (!bGateZoom && !bGateBuildings && !bGatePan) || (CameraPawn && CameraPawn->HasStartViewSettled());
 			int32 WorkerId = MAX_int32;
 			if (bGateSelectMove)
 			{
@@ -1141,8 +1148,66 @@ void AKodHUD::PollShotAfter()
 				}
 				UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Focus=%.0f,%.0f,%.0f"), Focus.X, Focus.Y, Focus.Z);
 			}
+			if (bGateVoice)
+			{
+				const FKodSimEntityState* VoiceState = nullptr;
+				for (const FKodSimEntityState& State : FrameStates)
+				{
+					if (State.TeamId == ReadLocalTeamId() && State.Health > 0.f && !State.DefinitionId.IsNone())
+					{
+						VoiceState = &State;
+						break;
+					}
+				}
+				if (UKodCueSubsystem* Cues = World->GetSubsystem<UKodCueSubsystem>())
+				{
+					const float Times[] = { 0.f, 1.6f, 3.2f, 4.8f, 11.f };
+					const FName VoiceId = VoiceState ? VoiceState->DefinitionId : FName(KodWardenPaths::Id_Marine);
+					const int32 VoiceEntity = VoiceState ? VoiceState->Id.Value : 1;
+					const FVector VoiceAt = VoiceState ? VoiceState->Position : FVector::ZeroVector;
+					for (int32 Step = 0; Step < 5; ++Step)
+					{
+						const bool bPlayed = Cues->PlayUnitVoice(VoiceId, FName(TEXT("Select")), VoiceEntity, VoiceAt, Times[Step]);
+						UE_LOG(LogTemp, Log, TEXT("KodShotVoiceSpam Step=%d Played=%d Unit=%s"),
+							Step,
+							bPlayed ? 1 : 0,
+							*VoiceId.ToString());
+					}
+				}
+			}
 		}
-		const float Wait = (bGateZoom || bGateBuildings) ? 3.f : 2.f;
+		const float Wait = (bGateZoom || bGateBuildings || bGatePan) ? 3.f : 2.f;
+		if (bGatePan && CameraPawn && GatePanStep < 3)
+		{
+			if ((Now - GateArmSeconds) < static_cast<float>(GatePanStep) * 1.5f)
+			{
+				return;
+			}
+			FVector PanFocus = CameraPawn->GetActorLocation();
+			PanFocus.X += 2500.f;
+			CameraPawn->JumpTo(PanFocus);
+			const FVector Center = CameraPawn->GetActorLocation();
+			int32 InFrame = 0;
+			for (const FKodSimEntityState& State : FrameStates)
+			{
+				if (State.Health > 0.f && FVector::Dist2D(State.Position, Center) < 6000.f)
+				{
+					InFrame = 1;
+					break;
+				}
+			}
+			UE_LOG(LogTemp, Log, TEXT("KodShotPan Step=%d Focus=%.0f,%.0f InFrame=%d"), GatePanStep, Center.X, Center.Y, InFrame);
+			GetHighResScreenshotConfig().SetResolution(1920, 1080);
+			if (GEngine)
+			{
+				GEngine->Exec(World, TEXT("HighResShot 1920x1080"));
+			}
+			++GatePanStep;
+			if (GatePanStep < 3)
+			{
+				return;
+			}
+		}
 		if (!bGateQueued)
 		{
 			if ((Now - GateArmSeconds) < Wait)

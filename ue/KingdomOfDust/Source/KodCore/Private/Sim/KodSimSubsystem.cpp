@@ -1215,6 +1215,14 @@ void UKodSimSubsystem::SetEntityGroundPosition(FKodEntityId Id, const FVector& P
 	State->Position = Position;
 	QuantizePose(*State);
 	PrevPositions.Add(Id.Value, State->Position);
+	if (FKodStructureState* Structure = Structures.Find(Id.Value))
+	{
+		Structure->Position = State->Position;
+		const int32 FootX = FMath::Max(1, Structure->FootprintX);
+		const int32 FootY = FMath::Max(1, Structure->FootprintY);
+		Structure->CellX = KodBuildGrid::CellOf(State->Position.X) - (FootX - 1) / 2;
+		Structure->CellY = KodBuildGrid::CellOf(State->Position.Y) - (FootY - 1) / 2;
+	}
 }
 
 void UKodSimSubsystem::SetPlayerFaction(int32 Faction)
@@ -3800,6 +3808,8 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&Healer, sizeof(Healer));
 		const uint8 Flyer = S.bFlyer ? 1 : 0;
 		Append(&Flyer, sizeof(Flyer));
+		const uint8 Light = S.bLight ? 1 : 0;
+		Append(&Light, sizeof(Light));
 		Append(&S.CargoSize, sizeof(S.CargoSize));
 		Append(&S.InsideBunker.Value, sizeof(S.InsideBunker.Value));
 		Append(&S.LoadTarget.Value, sizeof(S.LoadTarget.Value));

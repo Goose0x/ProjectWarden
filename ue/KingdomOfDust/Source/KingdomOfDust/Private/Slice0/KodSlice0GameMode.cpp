@@ -1287,21 +1287,12 @@ void AKodSlice0GameMode::SeatPlayerBase()
 	TArray<AActor*> Ignored;
 	Ignored.Add(Anchor);
 	const float FloorZ = ResolveResourceFloorZ(World, Sim, -Base, -Base, Anchor->GetActorLocation().Z, Ignored);
-	if (USceneComponent* AnchorRoot = Anchor->GetRootComponent())
-	{
-		AnchorRoot->SetMobility(EComponentMobility::Movable);
-	}
-	TInlineComponentArray<UPrimitiveComponent*> Primitives;
-	Anchor->GetComponents(Primitives);
-	for (UPrimitiveComponent* Primitive : Primitives)
-	{
-		if (Primitive)
-		{
-			Primitive->SetMobility(EComponentMobility::Movable);
-		}
-	}
-	Anchor->SetActorLocation(FVector(-Base, -Base, FloorZ), false, nullptr, ETeleportType::TeleportPhysics);
+	PlaceActorAt(Anchor, FVector(-Base, -Base, FloorZ));
 	const FVector Seated = Anchor->GetActorLocation();
+	if (FKodEntityId SeatedId = Sim->FindIdForActor(Anchor); SeatedId.IsValid())
+	{
+		Sim->SetEntityGroundPosition(SeatedId, Seated);
+	}
 	UE_LOG(LogTemp, Log, TEXT("KodBase Player Loc=%.0f,%.0f,%.0f"), Seated.X, Seated.Y, Seated.Z);
 }
 
@@ -1949,6 +1940,35 @@ static void ApplyPrototypeStructureMesh(AActor* Actor, const UKodBuildingDefinit
 	AKodSlice0GameMode::ApplyCommandCenterMesh(Actor);
 }
 
+bool AKodSlice0GameMode::PlaceActorAt(AActor* Actor, const FVector& Dest)
+{
+	if (!Actor)
+	{
+		return false;
+	}
+	if (USceneComponent* Root = Actor->GetRootComponent())
+	{
+		Root->SetMobility(EComponentMobility::Movable);
+	}
+	else
+	{
+		USceneComponent* Root = NewObject<USceneComponent>(Actor, TEXT("KodMoveRoot"));
+		Actor->SetRootComponent(Root);
+		Root->RegisterComponent();
+	}
+	TInlineComponentArray<UPrimitiveComponent*> Primitives;
+	Actor->GetComponents(Primitives);
+	for (UPrimitiveComponent* Primitive : Primitives)
+	{
+		if (Primitive)
+		{
+			Primitive->SetMobility(EComponentMobility::Movable);
+		}
+	}
+	Actor->SetActorLocation(Dest, false, nullptr, ETeleportType::TeleportPhysics);
+	return FVector::Dist2D(Actor->GetActorLocation(), Dest) <= 50.f;
+}
+
 void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 {
 	if (!Actor)
@@ -2204,7 +2224,17 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 			BaseActor = Actor;
 		}
 	}
-	const FVector Base = BaseActor ? BaseActor->GetActorLocation() : FVector(-7500.f, -7500.f, 80.f);
+	FVector Base = BaseActor ? BaseActor->GetActorLocation() : FVector(-7500.f, -7500.f, 80.f);
+	if (BaseActor && FMath::Abs(Base.X) < 50.f && FMath::Abs(Base.Y) < 50.f)
+	{
+		const FVector Start( -7500.f, -7500.f, Base.Z > 1.f ? Base.Z : 80.f);
+		PlaceActorAt(BaseActor, Start);
+		Base = BaseActor->GetActorLocation();
+		if (FKodEntityId BaseId = Sim->FindIdForActor(BaseActor); BaseId.IsValid())
+		{
+			Sim->SetEntityGroundPosition(BaseId, Base);
+		}
+	}
 	ApplyCommandCenterMesh(BaseActor);
 	const int32 Faction = Sim->GetPlayerFaction();
 	const bool bScinder = Faction == 1;

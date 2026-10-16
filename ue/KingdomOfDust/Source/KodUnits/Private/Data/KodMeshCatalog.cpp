@@ -507,7 +507,7 @@ namespace
 
 	void ClampDegenerateScale(FName Id, float RawCm, float& InOutScale, float& InOutBounds)
 	{
-		constexpr float MinScale = 0.05f;
+		constexpr float MinScale = 0.01f;
 		constexpr float MaxScale = 20.f;
 		if (InOutScale >= MinScale && InOutScale <= MaxScale)
 		{

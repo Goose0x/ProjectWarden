@@ -98,9 +98,7 @@ void UKodCueSubsystem::Deinitialize()
 		CueHandle.Reset();
 	}
 	CueCache.Reset();
-	VoiceBags.Reset();
-	SelectVoiceUntil.Reset();
-	SelectClicks.Reset();
+	VoiceDirector = FKodVoiceDirector();
 	bVoiceDiscovered = false;
 	bPreloadFinished = false;
 	bBound = false;
@@ -325,6 +323,10 @@ void UKodCueSubsystem::DiscoverVoiceLines()
 			{
 				continue;
 			}
+			if (FKodVoiceDirector::IsAltTake(Asset.AssetName))
+			{
+				continue;
+			}
 			TArray<FString> Segments;
 			Asset.PackagePath.ToString().ParseIntoArray(Segments, TEXT("/"), true);
 			FName UnitId;
@@ -346,7 +348,7 @@ void UKodCueSubsystem::DiscoverVoiceLines()
 	UE_LOG(LogTemp, Log, TEXT("KodVoice Discovered"));
 }
 
-bool UKodCueSubsystem::PlayUnitVoice(FName UnitId, FName Category, int32 EntityId, FVector Location)
+bool UKodCueSubsystem::PlayUnitVoice(FName UnitId, FName Category, int32 EntityId, FVector Location, float TimeSeconds)
 {
 	if (UnitId.IsNone() || Category.IsNone())
 	{
@@ -354,7 +356,7 @@ bool UKodCueSubsystem::PlayUnitVoice(FName UnitId, FName Category, int32 EntityI
 	}
 	DiscoverVoiceLines();
 	UWorld* World = GetWorld();
-	const float Now = World ? World->GetTimeSeconds() : 0.f;
+	const float Now = TimeSeconds >= 0.f ? TimeSeconds : (World ? World->GetTimeSeconds() : 0.f);
 	const FKodVoiceChoice Choice = VoiceDirector.Choose(UnitId, Category, EntityId, Now);
 	if (!Choice.bPlay)
 	{

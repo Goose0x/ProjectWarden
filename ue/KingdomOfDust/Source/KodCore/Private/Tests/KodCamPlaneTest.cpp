@@ -1,3 +1,4 @@
+#include "Camera/CameraComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
@@ -5,6 +6,7 @@
 #include "Engine/World.h"
 #include "Game/KodCameraSettings.h"
 #include "Game/KodRTSCameraPawn.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Misc/AutomationTest.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(

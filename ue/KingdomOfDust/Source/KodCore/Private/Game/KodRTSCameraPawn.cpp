@@ -484,19 +484,23 @@ AActor* AKodRTSCameraPawn::FindCommandCenter() const
 
 void AKodRTSCameraPawn::SnapToPlayerStart()
 {
-	if (!bPendingPlayerFocus || !WantsCommandCenterFraming())
+	if (!WantsCommandCenterFraming())
 	{
 		return;
 	}
-	if (AActor* Anchor = FindCommandCenter())
+	AActor* Anchor = FindCommandCenter();
+	if (!Anchor)
 	{
-		SnapToStartView(Anchor->GetActorLocation());
-		bPendingPlayerFocus = false;
-		UE_LOG(LogTemp, Log, TEXT("KodCam Focus CC Loc=%.0f,%.0f,%.0f"),
-			Anchor->GetActorLocation().X,
-			Anchor->GetActorLocation().Y,
-			GetActorLocation().Z);
+		return;
 	}
+	const FVector At = Anchor->GetActorLocation();
+	if (FMath::Abs(At.X) < 50.f && FMath::Abs(At.Y) < 50.f)
+	{
+		return;
+	}
+	SnapToStartView(At);
+	bPendingPlayerFocus = false;
+	UE_LOG(LogTemp, Log, TEXT("KodCam Focus CC Loc=%.0f,%.0f,%.0f"), At.X, At.Y, GetActorLocation().Z);
 }
 
 void AKodRTSCameraPawn::JumpTo(FVector WorldLocation)
@@ -736,7 +740,7 @@ void AKodRTSCameraPawn::MaintainBoom()
 		Camera->SetRelativeLocation(FVector::ZeroVector);
 		Camera->SetRelativeRotation(FRotator::ZeroRotator);
 	}
-	CameraBoom->UpdateDesiredArmLocation(false, false, false, 0.f);
+	CameraBoom->UpdateComponentToWorld();
 }
 
 void AKodRTSCameraPawn::FocusCommandCenter()

@@ -57,7 +57,7 @@ public:
 	 * Four selects on one unit inside 3 s walk Annoyed in order.
 	 * Missing Annoyed lines fall back to Select. One voice per unit type at a time.
 	 */
-	bool PlayUnitVoice(FName UnitId, FName Category, int32 EntityId, FVector Location);
+	bool PlayUnitVoice(FName UnitId, FName Category, int32 EntityId, FVector Location, float TimeSeconds = -1.f);
 
 	/** Announcer lines and ids that start with vo_. Portrait talk uses this. */
 	static bool IsVoiceCue(FName CueId);

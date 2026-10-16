@@ -1,3 +1,4 @@
+#include "Components/SceneComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -14,6 +15,20 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 namespace
 {
+	AActor* SpawnRooted(UWorld* World, const FVector& At)
+	{
+		AActor* Actor = World->SpawnActor<AActor>();
+		if (!Actor)
+		{
+			return nullptr;
+		}
+		USceneComponent* Root = NewObject<USceneComponent>(Actor, TEXT("Root"));
+		Actor->SetRootComponent(Root);
+		Root->RegisterComponent();
+		Actor->SetActorLocation(At);
+		return Actor;
+	}
+
 	FKodEntityId SpawnUnit(
 		UWorld* World,
 		UKodSimSubsystem* Sim,
@@ -24,8 +39,7 @@ namespace
 		float Damage,
 		float Range)
 	{
-		AActor* Actor = World->SpawnActor<AActor>();
-		Actor->SetActorLocation(At);
+		AActor* Actor = SpawnRooted(World, At);
 		const FKodEntityId Id = Sim->RegisterEntity(Actor);
 		Sim->ConfigureEntity(Id, TypeId, Health, 400.f, 16.f, true, Damage, Range, 1.f, TeamId, false, 34, 2000);
 		return Id;
@@ -86,8 +100,7 @@ bool FKodBunkerTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("bunker needs a barracks"), NeedsBarracks.bValid);
 	TestTrue(TEXT("require reason"), NeedsBarracks.Reason == FName(TEXT("Requires")));
 
-	AActor* BarracksActor = World->SpawnActor<AActor>();
-	BarracksActor->SetActorLocation(FVector(2300.f, 400.f, 0.f));
+	AActor* BarracksActor = SpawnRooted(World, FVector(2300.f, 400.f, 0.f));
 	FKodStructureSpec BarracksRow;
 	BarracksRow.DefinitionId = Barracks.TypeId;
 	BarracksRow.FootprintX = 3;
@@ -98,8 +111,7 @@ bool FKodBunkerTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("bunker places after a barracks"), Open.bValid);
 
 	const FVector BunkerAt(2300.f, 2300.f, 0.f);
-	AActor* BunkerActor = World->SpawnActor<AActor>();
-	BunkerActor->SetActorLocation(BunkerAt);
+	AActor* BunkerActor = SpawnRooted(World, BunkerAt);
 	FKodStructureSpec BunkerRow;
 	BunkerRow.DefinitionId = BunkerSpec.TypeId;
 	BunkerRow.FootprintX = 3;
@@ -142,8 +154,7 @@ bool FKodBunkerTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("death ejected the marine"), Ejected.InsideBunker.IsValid());
 
 	const FVector TurretAt(8300.f, 2300.f, 0.f);
-	AActor* TurretBunkerActor = World->SpawnActor<AActor>();
-	TurretBunkerActor->SetActorLocation(TurretAt);
+	AActor* TurretBunkerActor = SpawnRooted(World, TurretAt);
 	const FKodEntityId TurretBunker = Sim->RegisterStructure(TurretBunkerActor, BunkerRow);
 	FKodUpgradeSpec Turret;
 	Turret.UpgradeId = FName(KodWardenPaths::Id_BunkerTurret);
@@ -183,8 +194,7 @@ bool FKodBunkerTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("empty bunker turret hit Light for 18"), FMath::RoundToInt(TurretShot.Health), 62);
 
 	const FVector YardAt(12300.f, 2300.f, 0.f);
-	AActor* YardActor = World->SpawnActor<AActor>();
-	YardActor->SetActorLocation(YardAt);
+	AActor* YardActor = SpawnRooted(World, YardAt);
 	const FKodEntityId YardId = Sim->RegisterStructure(YardActor, BunkerRow);
 	const FKodEntityId Siege = SpawnUnit(World, Sim, FName(TEXT("Siege")), YardAt + FVector(100.f, 0.f, 0.f), 1, 50.f, 101.f, 500.f);
 	Sim->IssueAttack(Siege, YardId);

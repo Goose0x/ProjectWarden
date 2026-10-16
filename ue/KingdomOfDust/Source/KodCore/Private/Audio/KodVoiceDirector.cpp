@@ -1,8 +1,13 @@
 #include "Audio/KodVoiceDirector.h"
 
+bool FKodVoiceDirector::IsAltTake(FName Cue)
+{
+	return Cue.ToString().EndsWith(TEXT("_alt"));
+}
+
 void FKodVoiceDirector::AddLine(FName UnitId, FName Category, FName Cue)
 {
-	if (UnitId.IsNone() || Category.IsNone() || Cue.IsNone())
+	if (UnitId.IsNone() || Category.IsNone() || Cue.IsNone() || IsAltTake(Cue))
 	{
 		return;
 	}
@@ -90,11 +95,20 @@ FKodVoiceChoice FKodVoiceDirector::Choose(FName UnitId, FName Category, int32 En
 	FClicks* Click = nullptr;
 	if (Category == FName(TEXT("Select")))
 	{
+		if (const float* Busy = BusyUntil.Find(UnitId))
+		{
+			const FClicks* Playing = Clicks.Find(EntityId);
+			if (NowSeconds < *Busy && Playing && Playing->bAnnoyedLine)
+			{
+				return Choice;
+			}
+		}
 		Click = &Clicks.FindOrAdd(EntityId);
 		if (NowSeconds - Click->LastSeconds > AnnoyedWindow)
 		{
 			Click->Count = 0;
 			Click->AnnoyedIndex = 0;
+			Click->bAnnoyedLine = false;
 		}
 		++Click->Count;
 		Click->LastSeconds = NowSeconds;
@@ -122,6 +136,8 @@ FKodVoiceChoice FKodVoiceDirector::Choose(FName UnitId, FName Category, int32 En
 			{
 				++Click->AnnoyedIndex;
 			}
+			Click->bAnnoyedLine = true;
+			Click->LastSeconds = NowSeconds + FMath::Max(0.f, AnnoyedCooldown);
 		}
 	}
 	else

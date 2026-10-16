@@ -196,6 +196,11 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	if (const FKodBuildSpec* Build = BuildSpecs.Find(Structure.DefinitionId))
 	{
 		Structure.CargoCap = FMath::Max(0, Build->CargoCap);
+		if (Structure.PaidCredits <= 0 && Structure.PaidLuminene <= 0)
+		{
+			Structure.PaidCredits = FMath::Max(0, Build->Cost.Credits);
+			Structure.PaidLuminene = FMath::Max(0, Build->Cost.Luminene);
+		}
 	}
 	Structure.CellX = KodBuildGrid::CellOf(Structure.Position.X) - (Structure.FootprintX - 1) / 2;
 	Structure.CellY = KodBuildGrid::CellOf(Structure.Position.Y) - (Structure.FootprintY - 1) / 2;
