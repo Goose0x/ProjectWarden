@@ -208,7 +208,6 @@ void UKodCueSubsystem::DiscoverVoiceLines()
 		return;
 	}
 	bVoiceDiscovered = true;
-	VoiceStream.Initialize(0x5C2A11);
 
 	auto AddLine = [this](FName UnitId, FName Category, FName CueId, const FString& Path)
 	{
@@ -216,13 +215,7 @@ void UKodCueSubsystem::DiscoverVoiceLines()
 		{
 			return;
 		}
-		const FName Key(*FString::Printf(TEXT("%s|%s"), *UnitId.ToString(), *Category.ToString()));
-		FVoiceBag& Bag = VoiceBags.FindOrAdd(Key);
-		if (Bag.Lines.Contains(CueId))
-		{
-			return;
-		}
-		Bag.Lines.Add(CueId);
+		VoiceDirector.AddLine(UnitId, Category, CueId);
 		if (!Path.IsEmpty())
 		{
 			RememberCue(CueId, Path);
@@ -350,53 +343,7 @@ void UKodCueSubsystem::DiscoverVoiceLines()
 		}
 	}
 
-	for (TPair<FName, FVoiceBag>& Pair : VoiceBags)
-	{
-		Pair.Value.Lines.Sort([](const FName& A, const FName& B)
-		{
-			return A.LexicalLess(B);
-		});
-		UE_LOG(LogTemp, Log, TEXT("KodVoice Bag %s Lines=%d"), *Pair.Key.ToString(), Pair.Value.Lines.Num());
-	}
-}
-
-bool UKodCueSubsystem::HasVoiceCategory(FName UnitId, FName Category) const
-{
-	const FName Key(*FString::Printf(TEXT("%s|%s"), *UnitId.ToString(), *Category.ToString()));
-	const FVoiceBag* Bag = VoiceBags.Find(Key);
-	return Bag && Bag->Lines.Num() > 0;
-}
-
-FName UKodCueSubsystem::PickVoiceLine(FName UnitId, FName Category)
-{
-	const FName Key(*FString::Printf(TEXT("%s|%s"), *UnitId.ToString(), *Category.ToString()));
-	FVoiceBag* Bag = VoiceBags.Find(Key);
-	if (!Bag || Bag->Lines.Num() == 0)
-	{
-		return NAME_None;
-	}
-	if (Bag->Order.Num() != Bag->Lines.Num() || Bag->Cursor >= Bag->Order.Num())
-	{
-		Bag->Order.SetNum(Bag->Lines.Num());
-		for (int32 Index = 0; Index < Bag->Order.Num(); ++Index)
-		{
-			Bag->Order[Index] = Index;
-		}
-		for (int32 Index = Bag->Order.Num() - 1; Index > 0; --Index)
-		{
-			const int32 Swap = VoiceStream.RandRange(0, Index);
-			Bag->Order.Swap(Index, Swap);
-		}
-		if (Bag->Lines.Num() > 1 && Bag->Lines[Bag->Order[0]] == Bag->Last)
-		{
-			Bag->Order.Swap(0, 1);
-		}
-		Bag->Cursor = 0;
-	}
-	const FName Cue = Bag->Lines[Bag->Order[Bag->Cursor]];
-	++Bag->Cursor;
-	Bag->Last = Cue;
-	return Cue;
+	UE_LOG(LogTemp, Log, TEXT("KodVoice Discovered"));
 }
 
 bool UKodCueSubsystem::PlayUnitVoice(FName UnitId, FName Category, int32 EntityId, FVector Location)
@@ -408,43 +355,16 @@ bool UKodCueSubsystem::PlayUnitVoice(FName UnitId, FName Category, int32 EntityI
 	DiscoverVoiceLines();
 	UWorld* World = GetWorld();
 	const float Now = World ? World->GetTimeSeconds() : 0.f;
-	FName UseCategory = Category;
-	if (Category == FName(TEXT("Select")))
-	{
-		FVoiceClick& Click = SelectClicks.FindOrAdd(EntityId);
-		if (Now - Click.LastSeconds > 2.f)
-		{
-			Click.Count = 0;
-		}
-		++Click.Count;
-		Click.LastSeconds = Now;
-		if (Click.Count >= 6 && HasVoiceCategory(UnitId, FName(TEXT("Annoyed"))))
-		{
-			Click.Count = 0;
-			UseCategory = FName(TEXT("Annoyed"));
-		}
-		else if (const float* Until = SelectVoiceUntil.Find(EntityId))
-		{
-			if (Now < *Until)
-			{
-				return false;
-			}
-		}
-	}
-	const FName Cue = PickVoiceLine(UnitId, UseCategory);
-	if (Cue.IsNone())
+	const FKodVoiceChoice Choice = VoiceDirector.Choose(UnitId, Category, EntityId, Now);
+	if (!Choice.bPlay)
 	{
 		return false;
 	}
-	if (Category == FName(TEXT("Select")))
-	{
-		SelectVoiceUntil.Add(EntityId, Now + 1.5f);
-	}
-	PlayCueNow(Cue, Location, true, true);
+	PlayCueNow(Choice.Cue, Location, true, true);
 	UE_LOG(LogTemp, Log, TEXT("KodVoice Unit=%s Category=%s Cue=%s Entity=%d"),
 		*UnitId.ToString(),
-		*UseCategory.ToString(),
-		*Cue.ToString(),
+		*Choice.Category.ToString(),
+		*Choice.Cue.ToString(),
 		EntityId);
 	return true;
 }

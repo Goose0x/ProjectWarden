@@ -1221,16 +1221,24 @@ void AKodRTSCameraPawn::UpdateTerrain(float DeltaSeconds, bool bInstant)
 			break;
 		}
 	}
-	if (bSampled)
+	// The first ground hit locks the play plane. Later samples, including cliffs, do not move it.
+	if (bSampled && !bHaveGround)
 	{
-		TargetGroundZ = (!bHaveGround || bInstant)
-			? SampledZ
-			: KodCameraSettings::HoldPlaneZ(TargetGroundZ, SampledZ, KodCameraSettings::PlaneHoldUU);
+		TargetGroundZ = SampledZ;
 		bHaveGround = true;
 	}
+	else if (bSampled)
+	{
+		TargetGroundZ = KodCameraSettings::HoldPlaneZ(TargetGroundZ, SampledZ, KodCameraSettings::PlaneHoldUU);
+	}
+	(void)bInstant;
 	if (!bHaveGround)
 	{
 		return;
+	}
+	if (CameraBoom)
+	{
+		CameraBoom->bDoCollisionTest = false;
 	}
 	FVector Moved = Loc;
 	Moved.Z = TargetGroundZ;

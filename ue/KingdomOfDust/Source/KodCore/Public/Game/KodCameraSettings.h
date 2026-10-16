@@ -99,20 +99,46 @@ namespace KodCameraSettings
 	}
 
 	/**
-	 * Keep the camera on one height while the sample only jitters.
-	 * A step at least StepUU (a plateau) is accepted. Smaller bumps stay on LockedZ.
+	 * The play plane never follows the sample. Bumps and cliffs stay on LockedZ.
+	 * StepUU remains so older call sites still compile. It does not move the plane.
 	 */
 	inline float HoldPlaneZ(float LockedZ, float SampledZ, float StepUU)
 	{
-		if (StepUU <= 0.f)
-		{
-			return LockedZ;
-		}
-		if (FMath::Abs(SampledZ - LockedZ) < StepUU)
-		{
-			return LockedZ;
-		}
-		return SampledZ;
+		(void)SampledZ;
+		(void)StepUU;
+		return LockedZ;
+	}
+
+	/** Screen or world bounds of four view corners. A trapezoid becomes a rectangle. */
+	struct FKodMapRect
+	{
+		float MinX = 0.f;
+		float MinY = 0.f;
+		float MaxX = 0.f;
+		float MaxY = 0.f;
+		bool bValid = false;
+	};
+
+	inline FKodMapRect AxisAlignedBounds(float X0, float Y0, float X1, float Y1, float X2, float Y2, float X3, float Y3)
+	{
+		FKodMapRect Rect;
+		Rect.MinX = FMath::Min(FMath::Min(X0, X1), FMath::Min(X2, X3));
+		Rect.MaxX = FMath::Max(FMath::Max(X0, X1), FMath::Max(X2, X3));
+		Rect.MinY = FMath::Min(FMath::Min(Y0, Y1), FMath::Min(Y2, Y3));
+		Rect.MaxY = FMath::Max(FMath::Max(Y0, Y1), FMath::Max(Y2, Y3));
+		Rect.bValid = Rect.MaxX > Rect.MinX && Rect.MaxY > Rect.MinY;
+		return Rect;
+	}
+
+	inline FKodMapRect ClampRect(const FKodMapRect& Rect, float MinX, float MinY, float MaxX, float MaxY)
+	{
+		FKodMapRect Out = Rect;
+		Out.MinX = FMath::Clamp(Rect.MinX, MinX, MaxX);
+		Out.MaxX = FMath::Clamp(Rect.MaxX, MinX, MaxX);
+		Out.MinY = FMath::Clamp(Rect.MinY, MinY, MaxY);
+		Out.MaxY = FMath::Clamp(Rect.MaxY, MinY, MaxY);
+		Out.bValid = Out.MaxX > Out.MinX && Out.MaxY > Out.MinY;
+		return Out;
 	}
 
 	/**
@@ -132,7 +158,7 @@ namespace KodCameraSettings
 		return FMath::VInterpConstantTo(Current, Desired, DeltaSeconds, AccelPerSecond);
 	}
 
-	/** Landscape bumps smaller than this do not move the camera. A cliff still does. */
+	/** Kept for the ground-sample call. The plane no longer steps, so this does not move the camera. */
 	inline constexpr float PlaneHoldUU = 64.f;
 }
 
