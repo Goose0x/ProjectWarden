@@ -134,7 +134,7 @@ bool UKodSimSubsystem::IsCellBlocked(int32 CellX, int32 CellY, int32 TeamId, boo
 		{
 			continue;
 		}
-		if (bIgnoreLowered && Structure->bLowered && Structure->bCanLower)
+		if (bIgnoreLowered && Structure->bCanLower && Structure->bDepotWalkable)
 		{
 			continue;
 		}

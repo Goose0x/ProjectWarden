@@ -1049,6 +1049,9 @@ protected:
 	void AddSupplyUsed(int32 TeamId, int32 Delta);
 	void ReleaseCountedSupply(FKodEntityId Id);
 	void StepConstruction();
+	void StepDepotPoses();
+	void BeginDepotCommand(FKodStructureState& Structure, bool bWantLowered);
+	void SetDepotWalkable(FKodStructureState& Structure, bool bWalkable);
 	void ClearBuildAssignment(FKodSimEntityState& State);
 	bool IsWorldCellBlocked(const FVector& World) const;
 	FVector SteerAroundBuildings(const FKodSimEntityState& State, const FVector& DesiredDelta) const;

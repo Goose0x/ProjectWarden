@@ -149,6 +149,19 @@ struct KODCORE_API FKodStructureState
 	FVector StandPoint = FVector::ZeroVector;
 	bool bLowered = false;
 	bool bCanLower = false;
+	/**
+	 * EKodDepotPose. Raised idle, lowering, lowered idle, raising, or dying.
+	 * bLowered is the command. bDepotWalkable is the pathing flag, and it flips
+	 * on AN_Depot_NavWalkable / AN_Depot_RaiseStart rather than on the command.
+	 */
+	uint8 DepotPose = 0;
+	/** Ticks into the current clip. Death starts at -1 so the same step lands on frame 0. */
+	int32 DepotPoseTicks = 0;
+	bool bDepotWalkable = false;
+	/** Death clip is A_SupplyDepot_Death_Lowered when this is set. */
+	bool bDepotDeathLowered = false;
+	/** Killer team held until the death clip hands off to FinishEntityDeath. */
+	int32 DepotDeathKiller = 0;
 	int32 CargoCap = 0;
 	TArray<int32> Cargo;
 	int32 AttackDamage = 0;

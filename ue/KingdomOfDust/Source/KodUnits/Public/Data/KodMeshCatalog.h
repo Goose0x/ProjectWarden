@@ -42,6 +42,12 @@ struct KODUNITS_API FKodMeshRow
 	FString AnimFolder;
 	FString RaiseAnim;
 	FString LowerAnim;
+	FString IdleAnim;
+	FString LoweredIdleAnim;
+	FString DeathAnim;
+	FString DeathLoweredAnim;
+	/** Skeletal body tried before the static primary when the depot clips are imported. */
+	FString Skel;
 	FString DeckExtendAnim;
 	FString DeckRetractAnim;
 	/** Scaffold, Vfx, or Stages. Empty means Scaffold. */

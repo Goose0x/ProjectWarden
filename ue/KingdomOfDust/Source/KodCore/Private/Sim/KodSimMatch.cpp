@@ -1,5 +1,6 @@
 #include "Sim/KodSimSubsystem.h"
 
+#include "Sim/KodDepotClips.h"
 #include "Game/KodSkirmishSaveGame.h"
 #include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
@@ -612,6 +613,15 @@ TArray<uint8> UKodSimSubsystem::ExportSimBlobAtVersion(int32 Version) const
 			Blob.WInt(Structure.SalvageTicksRemaining);
 			Blob.WInt(Structure.RepairCreditMilli);
 			Blob.WInt(Structure.RepairGasMilli);
+		}
+		if (Version >= 15)
+		{
+			Blob.WU8(Structure.DepotPose);
+			Blob.WInt(Structure.DepotPoseTicks);
+			Blob.WU8(Structure.bDepotWalkable ? 1 : 0);
+			Blob.WU8(Structure.bDepotDeathLowered ? 1 : 0);
+			Blob.WInt(Structure.DepotDeathKiller);
+			Blob.WU8(Structure.bCanLower ? 1 : 0);
 		}
 	}
 	Blob.WU8(static_cast<uint8>(MatchOutcome));
@@ -1393,6 +1403,39 @@ void UKodSimSubsystem::ImportSimBlob(const TArray<uint8>& Bytes)
 			Blob.RInt(Structure->SalvageTicksRemaining);
 			Blob.RInt(Structure->RepairCreditMilli);
 			Blob.RInt(Structure->RepairGasMilli);
+		}
+		if (Version >= 15)
+		{
+			uint8 Pose = 0;
+			uint8 Walkable = 0;
+			uint8 DeathLowered = 0;
+			uint8 CanLower = 0;
+			Blob.RU8(Pose);
+			Blob.RInt(Structure->DepotPoseTicks);
+			Blob.RU8(Walkable);
+			Blob.RU8(DeathLowered);
+			Blob.RInt(Structure->DepotDeathKiller);
+			Blob.RU8(CanLower);
+			Structure->DepotPose = Pose;
+			Structure->bDepotWalkable = Walkable != 0;
+			Structure->bDepotDeathLowered = DeathLowered != 0;
+			Structure->bCanLower = CanLower != 0;
+		}
+		else
+		{
+			if (const FKodBuildSpec* LoadedSpec = BuildSpecs.Find(Structure->DefinitionId))
+			{
+				Structure->bCanLower = LoadedSpec->bCanLower;
+			}
+			else if (Structure->DefinitionId == FName(KodWardenPaths::Id_SupplyDepot))
+			{
+				Structure->bCanLower = true;
+			}
+			if (Structure->bLowered && Structure->bCanLower)
+			{
+				Structure->DepotPose = static_cast<uint8>(EKodDepotPose::Lowered);
+				Structure->bDepotWalkable = true;
+			}
 		}
 	}
 	{

@@ -1,5 +1,6 @@
 #include "Sim/KodSimSubsystem.h"
 
+#include "Sim/KodDepotClips.h"
 #include "Warden/KodWardenPaths.h"
 
 #include "GameFramework/Actor.h"
@@ -467,6 +468,29 @@ void UKodSimSubsystem::StripDeadFromCargo(int32 DeadId)
 
 void UKodSimSubsystem::FinishEntityDeath(FKodSimEntityState& Target, int32 KillerTeam)
 {
+	if (FKodStructureState* Depot = Structures.Find(Target.Id.Value))
+	{
+		if (Depot->bCanLower)
+		{
+			const EKodDepotPose Pose = static_cast<EKodDepotPose>(Depot->DepotPose);
+			if (Pose != EKodDepotPose::Dying)
+			{
+				const bool bLoweredDeath = Pose == EKodDepotPose::Lowering || Pose == EKodDepotPose::Lowered;
+				Depot->bDepotDeathLowered = bLoweredDeath;
+				Depot->DepotDeathKiller = KillerTeam;
+				Depot->DepotPose = static_cast<uint8>(EKodDepotPose::Dying);
+				Depot->DepotPoseTicks = -1;
+				UE_LOG(LogTemp, Log, TEXT("KodDepot Death Id=%d Clip=%s"), Depot->Id.Value, *KodDepotActiveClip(*Depot).ToString());
+				return;
+			}
+			const int32 DeathLength = FKodDepotClipTable::Get().ClipTicks(KodDepotActiveClip(*Depot));
+			if (Depot->DepotPoseTicks < DeathLength)
+			{
+				return;
+			}
+			KillerTeam = Depot->DepotDeathKiller;
+		}
+	}
 	const int32 TargetIdValue = Target.Id.Value;
 	const FKodEntityId DeadId = Target.Id;
 	const bool bStructureTarget = Structures.Contains(DeadId.Value);

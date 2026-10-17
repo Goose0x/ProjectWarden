@@ -1,5 +1,6 @@
 #include "Sim/KodSimSubsystem.h"
 
+#include "Sim/KodDepotClips.h"
 #include "Warden/KodWardenPaths.h"
 
 namespace
@@ -202,8 +203,14 @@ bool UKodSimSubsystem::ToggleDepot(FKodEntityId StructureId)
 	{
 		return false;
 	}
+	if (static_cast<EKodDepotPose>(Structure->DepotPose) == EKodDepotPose::Dying)
+	{
+		return false;
+	}
 	if (Structure->bLowered)
 	{
+		// SC2 push: a raise shoves occupants to the nearest free cell, or refuses and logs RaiseBlocked.
+		// Refuse-only would drop the push this command already has, so the push stays.
 		const int32 FootMinX = Structure->CellX;
 		const int32 FootMinY = Structure->CellY;
 		const int32 FootMaxX = Structure->CellX + FMath::Max(1, Structure->FootprintX);
@@ -327,16 +334,134 @@ bool UKodSimSubsystem::ToggleDepot(FKodEntityId StructureId)
 		{
 			UE_LOG(LogTemp, Log, TEXT("KodBuild Depot Id=%d Pushed=%d"), StructureId.Value, PushIds.Num());
 		}
-		Structure->bLowered = false;
+		BeginDepotCommand(*Structure, false);
 		InvalidatePathsOverFootprint(Structure->CellX, Structure->CellY, Structure->FootprintX, Structure->FootprintY);
 	}
 	else
 	{
-		Structure->bLowered = true;
+		BeginDepotCommand(*Structure, true);
 		InvalidatePathsOverFootprint(Structure->CellX, Structure->CellY, Structure->FootprintX, Structure->FootprintY);
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodBuild Depot Id=%d Lowered=%d"), StructureId.Value, Structure->bLowered ? 1 : 0);
 	return true;
+}
+
+void UKodSimSubsystem::SetDepotWalkable(FKodStructureState& Structure, bool bWalkable)
+{
+	if (Structure.bDepotWalkable == bWalkable)
+	{
+		return;
+	}
+	Structure.bDepotWalkable = bWalkable;
+	InvalidatePathsOverFootprint(Structure.CellX, Structure.CellY, Structure.FootprintX, Structure.FootprintY);
+	UE_LOG(LogTemp, Log, TEXT("KodDepot Nav Id=%d Walkable=%d"), Structure.Id.Value, bWalkable ? 1 : 0);
+}
+
+void UKodSimSubsystem::BeginDepotCommand(FKodStructureState& Structure, bool bWantLowered)
+{
+	Structure.bLowered = bWantLowered;
+	Structure.DepotPoseTicks = 0;
+	if (bWantLowered)
+	{
+		Structure.DepotPose = static_cast<uint8>(EKodDepotPose::Lowering);
+	}
+	else
+	{
+		Structure.DepotPose = static_cast<uint8>(EKodDepotPose::Raising);
+		if (FKodDepotClipTable::Get().RaiseBlockTick() <= 0)
+		{
+			SetDepotWalkable(Structure, false);
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodDepot Pose Id=%d Pose=%d Ticks=%d Walkable=%d"),
+		Structure.Id.Value,
+		static_cast<int32>(Structure.DepotPose),
+		Structure.DepotPoseTicks,
+		Structure.bDepotWalkable ? 1 : 0);
+}
+
+void UKodSimSubsystem::StepDepotPoses()
+{
+	TArray<int32> Keys;
+	Structures.GetKeys(Keys);
+	Keys.Sort();
+	TArray<int32> Handoff;
+	for (int32 Key : Keys)
+	{
+		FKodStructureState* Structure = Structures.Find(Key);
+		if (!Structure || !Structure->bCanLower)
+		{
+			continue;
+		}
+		const EKodDepotPose Pose = static_cast<EKodDepotPose>(Structure->DepotPose);
+		if (!Structure->bComplete && Pose != EKodDepotPose::Dying)
+		{
+			continue;
+		}
+		if (Pose == EKodDepotPose::Dying)
+		{
+			++Structure->DepotPoseTicks;
+			const int32 DeathLength = FKodDepotClipTable::Get().ClipTicks(KodDepotActiveClip(*Structure));
+			if (Structure->DepotPoseTicks >= DeathLength)
+			{
+				Handoff.Add(Key);
+			}
+			continue;
+		}
+		if (Pose == EKodDepotPose::Lowering)
+		{
+			++Structure->DepotPoseTicks;
+			if (Structure->DepotPoseTicks >= FKodDepotClipTable::Get().WalkableTick())
+			{
+				SetDepotWalkable(*Structure, true);
+			}
+			const int32 LowerLength = FKodDepotClipTable::Get().ClipTicks(FName(KodDepotClipId::Lower));
+			if (Structure->DepotPoseTicks >= LowerLength)
+			{
+				Structure->DepotPose = static_cast<uint8>(EKodDepotPose::Lowered);
+				Structure->DepotPoseTicks = 0;
+			}
+			continue;
+		}
+		if (Pose == EKodDepotPose::Raising)
+		{
+			++Structure->DepotPoseTicks;
+			const int32 BlockAt = FKodDepotClipTable::Get().RaiseBlockTick();
+			if (BlockAt > 0 && Structure->DepotPoseTicks >= BlockAt)
+			{
+				SetDepotWalkable(*Structure, false);
+			}
+			const int32 RaiseLength = FKodDepotClipTable::Get().ClipTicks(FName(KodDepotClipId::Raise));
+			if (Structure->DepotPoseTicks >= RaiseLength)
+			{
+				Structure->DepotPose = static_cast<uint8>(EKodDepotPose::Raised);
+				Structure->DepotPoseTicks = 0;
+			}
+			continue;
+		}
+		FName IdleClip = FName(KodDepotClipId::Idle);
+		if (Pose == EKodDepotPose::Lowered)
+		{
+			IdleClip = FName(KodDepotClipId::LoweredIdle);
+		}
+		++Structure->DepotPoseTicks;
+		const int32 LoopLength = FKodDepotClipTable::Get().ClipTicks(IdleClip);
+		if (LoopLength > 0 && Structure->DepotPoseTicks >= LoopLength)
+		{
+			Structure->DepotPoseTicks = 0;
+		}
+	}
+	for (int32 Key : Handoff)
+	{
+		FKodSimEntityState* State = States.Find(Key);
+		const FKodStructureState* Structure = Structures.Find(Key);
+		if (!State || !Structure)
+		{
+			continue;
+		}
+		const int32 Killer = Structure->DepotDeathKiller;
+		FinishEntityDeath(*State, Killer);
+	}
 }
 
 bool UKodSimSubsystem::LoadUnitIntoBunker(FKodEntityId UnitId, FKodEntityId BunkerId)

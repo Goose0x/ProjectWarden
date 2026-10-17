@@ -591,7 +591,7 @@ bool UKodSimSubsystem::IsRampWalled(int32 CellX, int32 CellY, int32 ForTeam) con
 		{
 			continue;
 		}
-		if (Structure->bLowered && Structure->bCanLower)
+		if (Structure->bCanLower && Structure->bDepotWalkable)
 		{
 			return false;
 		}
