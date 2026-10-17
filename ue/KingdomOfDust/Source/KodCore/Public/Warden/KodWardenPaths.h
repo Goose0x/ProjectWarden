@@ -57,8 +57,8 @@ namespace KodWardenPaths
 	/** Legacy infantry id. Ranger is Marine. Used only to read blobs older than version 11. */
 	constexpr const TCHAR* Id_Ranger = TEXT("Ranger");
 
-	/** Current sim blob. Version 11 writes Marine. Version 12 adds the Faultline lane. Version 13 adds the wave focus id. Version 14 adds the bunker turret. */
-	inline constexpr int32 SimSaveVersion = 14;
+	/** Current sim blob. Version 11 writes Marine. Version 12 adds the Faultline lane. Version 13 adds the wave focus id. Version 14 adds the bunker turret. Version 15 adds the supply-depot pose. */
+	inline constexpr int32 SimSaveVersion = 15;
 
 	/**
 	 * Saves and replays below version 11 stored the Marine as Ranger.

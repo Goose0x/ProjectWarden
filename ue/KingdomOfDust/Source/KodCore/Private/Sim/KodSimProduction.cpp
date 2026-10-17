@@ -196,6 +196,7 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 	if (const FKodBuildSpec* Build = BuildSpecs.Find(Structure.DefinitionId))
 	{
 		Structure.CargoCap = FMath::Max(0, Build->CargoCap);
+		Structure.bCanLower = Build->bCanLower;
 		if (Structure.PaidCredits <= 0 && Structure.PaidLuminene <= 0)
 		{
 			Structure.PaidCredits = FMath::Max(0, Build->Cost.Credits);

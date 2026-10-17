@@ -7,7 +7,13 @@
 #include "NiagaraComponent.h"
 #include "Sim/KodEntityId.h"
 #include "Engine/StaticMesh.h"
+#include "Sim/KodDepotClips.h"
 #include "KodBuilding.generated.h"
+
+class UAnimSequence;
+class UMeshComponent;
+class USkeletalMesh;
+struct FKodMeshRow;
 
 class UKodBuildingDefinition;
 class UKodBuildQueueComponent;
@@ -74,9 +80,21 @@ private:
 	/** 0 raised, 1 flush. Presentation only; the sim flag is bLowered. */
 	float DepotLowerAlpha = 0.f;
 	bool bDepotVisualInit = false;
-	bool bDepotLowerKnown = false;
-	bool bDepotLowerLatched = false;
 	bool bDepotClipDriven = false;
+	bool bDepotSkelTried = false;
+	bool bDepotPlateApplied = false;
+	bool bDepotCollisionInit = false;
+	bool bDepotPawnOpen = false;
+	uint8 DepotFxPose = 255;
+	int32 DepotFxTicks = -1;
+	int32 AmberPhasesLeft = 0;
+	float AmberPhaseLeft = 0.f;
+	bool bAmberLit = false;
+	FName ActiveDepotClip;
+	bool bDepotSequenceLoop = false;
+
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> DepotSequence;
 	FName ActiveMeshId;
 	int32 ShownStage = -1;
 	bool bDeferredAttach = false;
@@ -111,7 +129,21 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UNiagaraComponent> PoolPulse;
-	void PlayDepotCommandAnim(bool bLower);
+	void SyncDepotPresentation(const FKodStructureState& Structure, float DeltaSeconds);
+	void TryUseDepotSkeleton();
+	void ApplyDepotPlateClip(UMeshComponent* Mesh);
+	void ApplyDepotPawnCollision(bool bWalkable);
+	void PlayDepotClip(const FKodMeshRow& Row, FName ClipId, bool bLoop);
+	void SyncDepotClipPosition(const FKodStructureState& Structure);
+	void PumpDepotNotifies(const FKodStructureState& Structure);
+	void HandleDepotNotify(const FKodDepotNotify& Notify, int32 AtTick);
+	void PulseDepotAmber();
+	void TickDepotAmber(float DeltaSeconds);
+	void SetDepotAmber(float Value);
+	UAnimSequence* ResolveDepotSequence(const FKodMeshRow& Row, FName ClipId) const;
+	USkeletalMesh* ResolveDepotSkeleton(const FKodMeshRow& Row) const;
+	FVector DepotSocketLocation(FName SocketName) const;
+	FString DepotClipToken(const FKodMeshRow& Row, FName ClipId) const;
 	void ApplyConstructionVisual(UKodSimSubsystem* Sim, FKodStructureState& Structure, FVector& Scale);
 	void RestoreFinalPresentation(UKodSimSubsystem* Sim);
 	void UpdateDynastyGhost(float Progress);

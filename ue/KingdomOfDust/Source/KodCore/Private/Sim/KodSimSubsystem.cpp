@@ -1201,6 +1201,7 @@ void UKodSimSubsystem::StepSim(float FixedDt)
 	StepPowers();
 	StepExposed();
 	FlushDeferredCommands();
+	StepDepotPoses();
 	RecordMatchSample();
 	RecordScoreSample();
 }
@@ -3970,6 +3971,13 @@ FString UKodSimSubsystem::ComputeIdleHash() const
 		Append(&Structure.RallyUnit.Value, sizeof(Structure.RallyUnit.Value));
 		const uint8 Lowered = Structure.bLowered ? 1 : 0;
 		Append(&Lowered, sizeof(Lowered));
+		Append(&Structure.DepotPose, sizeof(Structure.DepotPose));
+		Append(&Structure.DepotPoseTicks, sizeof(Structure.DepotPoseTicks));
+		const uint8 DepotWalkable = Structure.bDepotWalkable ? 1 : 0;
+		Append(&DepotWalkable, sizeof(DepotWalkable));
+		const uint8 DepotDeathLowered = Structure.bDepotDeathLowered ? 1 : 0;
+		Append(&DepotDeathLowered, sizeof(DepotDeathLowered));
+		Append(&Structure.DepotDeathKiller, sizeof(Structure.DepotDeathKiller));
 		Append(&Structure.CargoCap, sizeof(Structure.CargoCap));
 		TArray<int32> Cargo = Structure.Cargo;
 		Cargo.Sort();

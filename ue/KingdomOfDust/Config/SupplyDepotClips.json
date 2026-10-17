@@ -1,0 +1,136 @@
+{
+  "note": "Anim-team notify table for SK_Vanguard_SupplyDepot. 30 fps, in place. Empty fx slots are no-ops. Death_Lowered mirrors Death (45 frames) until its own cut is filled in.",
+  "clips": {
+    "A_SupplyDepot_Idle": {
+      "frames": 60,
+      "loop": true,
+      "notifies": [
+        {
+          "name": "AN_Depot_VentTick",
+          "frame": 44,
+          "time_s": 1.466667,
+          "sockets": ["SOCKET_Vent"],
+          "chance": 0.35
+        }
+      ]
+    },
+    "A_SupplyDepot_Lower": {
+      "frames": 30,
+      "loop": false,
+      "notifies": [
+        {
+          "name": "AN_Depot_LowerStart",
+          "frame": 0,
+          "time_s": 0.0,
+          "sockets": []
+        },
+        {
+          "name": "AN_Depot_VentHiss",
+          "frame": 0,
+          "time_s": 0.0,
+          "sockets": ["SOCKET_Vent_FL", "SOCKET_Vent_FR", "SOCKET_Vent_BL", "SOCKET_Vent_BR"]
+        },
+        {
+          "name": "AN_Depot_Dust",
+          "frame": 8,
+          "time_s": 0.266667,
+          "sockets": ["FX_Dust_Base_0", "FX_Dust_Base_1", "FX_Dust_Base_2", "FX_Dust_Base_3"]
+        },
+        {
+          "name": "AN_Depot_Land",
+          "frame": 22,
+          "time_s": 0.733333,
+          "sockets": ["SOCKET_Dust_Ground"]
+        },
+        {
+          "name": "AN_Depot_NavWalkable",
+          "frame": 30,
+          "time_s": 1.0,
+          "sockets": []
+        }
+      ]
+    },
+    "A_SupplyDepot_Lowered_Idle": {
+      "frames": 60,
+      "loop": true,
+      "notifies": []
+    },
+    "A_SupplyDepot_Raise": {
+      "frames": 30,
+      "loop": false,
+      "notifies": [
+        {
+          "name": "AN_Depot_RaiseStart",
+          "frame": 0,
+          "time_s": 0.0,
+          "sockets": []
+        },
+        {
+          "name": "AN_Depot_VentHiss",
+          "frame": 0,
+          "time_s": 0.0,
+          "sockets": ["SOCKET_Vent_FL", "SOCKET_Vent_FR", "SOCKET_Vent_BL", "SOCKET_Vent_BR"]
+        },
+        {
+          "name": "AN_Depot_Dust",
+          "frame": 3,
+          "time_s": 0.1,
+          "sockets": ["FX_Dust_Base_0", "FX_Dust_Base_1", "FX_Dust_Base_2", "FX_Dust_Base_3"]
+        },
+        {
+          "name": "AN_Depot_Clunk",
+          "frame": 25,
+          "time_s": 0.833333,
+          "sockets": ["SOCKET_Dust_Ground"]
+        }
+      ]
+    },
+    "A_SupplyDepot_Death": {
+      "frames": 45,
+      "loop": false,
+      "notifies": [
+        {
+          "name": "AN_Depot_Death_Explosion",
+          "frame": 0,
+          "time_s": 0.0,
+          "sockets": ["SOCKET_Vent", "SOCKET_Door"]
+        },
+        {
+          "name": "AN_Depot_Death_Secondary",
+          "frame": 13,
+          "time_s": 0.433333,
+          "sockets": ["SOCKET_DecalFront"]
+        }
+      ]
+    },
+    "A_SupplyDepot_Death_Lowered": {
+      "frames": 45,
+      "loop": false,
+      "notifies": [
+        {
+          "name": "AN_Depot_Death_Explosion",
+          "frame": 0,
+          "time_s": 0.0,
+          "sockets": ["SOCKET_Vent", "SOCKET_Door"]
+        },
+        {
+          "name": "AN_Depot_Death_Secondary",
+          "frame": 13,
+          "time_s": 0.433333,
+          "sockets": ["SOCKET_DecalFront"]
+        }
+      ]
+    }
+  },
+  "fx": {
+    "AN_Depot_VentTick": { "niagara": "", "sound": "" },
+    "AN_Depot_LowerStart": { "niagara": "", "sound": "" },
+    "AN_Depot_RaiseStart": { "niagara": "", "sound": "" },
+    "AN_Depot_VentHiss": { "niagara": "", "sound": "" },
+    "AN_Depot_Dust": { "niagara": "", "sound": "" },
+    "AN_Depot_Land": { "niagara": "", "sound": "" },
+    "AN_Depot_Clunk": { "niagara": "", "sound": "" },
+    "AN_Depot_Death_Explosion": { "niagara": "", "sound": "" },
+    "AN_Depot_Death_Secondary": { "niagara": "", "sound": "" }
+  }
+}

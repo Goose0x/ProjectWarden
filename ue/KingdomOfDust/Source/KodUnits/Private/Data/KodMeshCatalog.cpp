@@ -140,6 +140,26 @@ namespace
 			{
 				Row.LowerAnim = Value;
 			}
+			else if (Key.Equals(TEXT("Idle"), ESearchCase::IgnoreCase))
+			{
+				Row.IdleAnim = Value;
+			}
+			else if (Key.Equals(TEXT("LoweredIdle"), ESearchCase::IgnoreCase))
+			{
+				Row.LoweredIdleAnim = Value;
+			}
+			else if (Key.Equals(TEXT("Death"), ESearchCase::IgnoreCase))
+			{
+				Row.DeathAnim = Value;
+			}
+			else if (Key.Equals(TEXT("DeathLowered"), ESearchCase::IgnoreCase))
+			{
+				Row.DeathLoweredAnim = Value;
+			}
+			else if (Key.Equals(TEXT("Skel"), ESearchCase::IgnoreCase))
+			{
+				Row.Skel = Value;
+			}
 			else if (Key.Equals(TEXT("DeckExtend"), ESearchCase::IgnoreCase))
 			{
 				Row.DeckExtendAnim = Value;

@@ -132,18 +132,12 @@ void AKodBuilding::Tick(float DeltaSeconds)
 				bDepotVisualInit = true;
 				DepotLowerAlpha = Structure.bLowered ? 1.f : 0.f;
 			}
-			if (!bDepotLowerKnown)
-			{
-				bDepotLowerKnown = true;
-				bDepotLowerLatched = Structure.bLowered;
-			}
-			else if (bDepotLowerLatched != Structure.bLowered)
-			{
-				bDepotLowerLatched = Structure.bLowered;
-				PlayDepotCommandAnim(Structure.bLowered);
-			}
 			const float Target = Structure.bLowered ? 1.f : 0.f;
 			DepotLowerAlpha = FMath::FInterpConstantTo(DepotLowerAlpha, Target, DeltaSeconds, 2.f);
+			if (Structure.bComplete)
+			{
+				SyncDepotPresentation(Structure, DeltaSeconds);
+			}
 		}
 		if (Structure.bAirborne)
 		{
@@ -499,41 +493,6 @@ UKodBuildingDefinition* AKodBuilding::GetDefinition() const
 		return UKodSlice0Bootstrap::ResolveBuilding(Definition.ToSoftObjectPath().GetAssetFName(), const_cast<AKodBuilding*>(this));
 	}
 	return nullptr;
-}
-
-void AKodBuilding::PlayDepotCommandAnim(bool bLower)
-{
-	bDepotClipDriven = false;
-	const UKodBuildingDefinition* Def = GetDefinition();
-	const FName MeshId = Def && !Def->DefinitionId.IsNone() ? Def->DefinitionId : FName(TEXT("SupplyDepot"));
-	FKodMeshRow Row;
-	if (!KodMeshCatalogFindRow(MeshId, Row) || !BuildingSkel || !BuildingSkel->GetSkeletalMeshAsset())
-	{
-		return;
-	}
-	const FString Clip = bLower ? Row.LowerAnim : Row.RaiseAnim;
-	if (Row.AnimFolder.IsEmpty() || Clip.IsEmpty())
-	{
-		return;
-	}
-	FString Folder = Row.AnimFolder;
-	if (!Folder.EndsWith(TEXT("/")))
-	{
-		Folder += TEXT("/");
-	}
-	const FString Path = Folder + Clip + TEXT(".") + Clip;
-	UAnimSequence* Sequence = LoadObject<UAnimSequence>(nullptr, *Path);
-	USkeleton* MeshSkeleton = BuildingSkel->GetSkeletalMeshAsset()->GetSkeleton();
-	if (!Sequence || (MeshSkeleton && Sequence->GetSkeleton() != MeshSkeleton))
-	{
-		UE_LOG(LogTemp, Log, TEXT("KodMesh AnimMismatch Id=%s Clip=%s"), *MeshId.ToString(), *Clip);
-		return;
-	}
-	BuildingSkel->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-	BuildingSkel->bPauseAnims = false;
-	BuildingSkel->PlayAnimation(Sequence, false);
-	bDepotClipDriven = true;
-	UE_LOG(LogTemp, Log, TEXT("KodMesh DepotAnim Id=%s Clip=%s Lower=%d"), *MeshId.ToString(), *Clip, bLower ? 1 : 0);
 }
 
 void AKodBuilding::ApplyDefinition(UKodBuildingDefinition* Def)
