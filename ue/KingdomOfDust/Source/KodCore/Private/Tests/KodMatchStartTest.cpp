@@ -48,5 +48,7 @@ bool FKodMatchStartTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("bunker shot skips the prompt"), BunkerShot.bPrompt);
 	const FKodMatchStart Shadow = FKodSkirmishSetup::ResolveMatchStart(TEXT("-kod.ShotShadowSquads=1 -kod.Faction=VG"), FString());
 	TestFalse(TEXT("shadow squad shot skips the prompt"), Shadow.bPrompt);
+	const FKodMatchStart ShotAt = FKodSkirmishSetup::ResolveMatchStart(TEXT("-kod.ShotAt=-1200,800 -kod.Faction=VG"), FString());
+	TestFalse(TEXT("shot at skips the prompt"), ShotAt.bPrompt);
 	return true;
 }

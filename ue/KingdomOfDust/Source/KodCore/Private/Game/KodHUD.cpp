@@ -1188,11 +1188,15 @@ void AKodHUD::PollShotAfter()
 	static bool bGateRite = false;
 	static bool bGateBunker = false;
 	static bool bGateShadow = false;
+	static bool bGateAt = false;
+	static float GateAtX = 0.f;
+	static float GateAtY = 0.f;
+	static bool bGpuArmed = false;
+	static uint64 GpuFrame = 0;
 	static int32 GatePanStep = 0;
 	static int32 GateRiteStep = 0;
 	static int32 GateRiteId = 0;
 	static int32 GateBuildStep = 0;
-	static bool bGpuDumped = false;
 	static bool bGateActed = false;
 	static bool bGatePrepared = false;
 	static bool bGateQueued = false;
@@ -1209,6 +1213,7 @@ void AKodHUD::PollShotAfter()
 		int32 RiteFlag = 0;
 		int32 BunkerShotFlag = 0;
 		int32 ShadowFlag = 0;
+		FString ShotAtText;
 		const TCHAR* CommandLine = FCommandLine::Get();
 		bGateSelectMove = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotSelectMove="), SelectFlag) && SelectFlag != 0;
 		bGateZoom = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotZoom="), ZoomFlag) && ZoomFlag != 0;
@@ -1218,8 +1223,28 @@ void AKodHUD::PollShotAfter()
 		bGateRite = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotRiteWell="), RiteFlag) && RiteFlag != 0;
 		bGateBunker = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotBunker="), BunkerShotFlag) && BunkerShotFlag != 0;
 		bGateShadow = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotShadowSquads="), ShadowFlag) && ShadowFlag != 0;
+		bGateAt = CommandLine && (FParse::Value(CommandLine, TEXT("-kod.ShotAt="), ShotAtText) || FParse::Value(CommandLine, TEXT("kod.ShotAt="), ShotAtText));
+		if (bGateAt)
+		{
+			TArray<FString> AtParts;
+			ShotAtText.ParseIntoArray(AtParts, TEXT(","), true);
+			if (AtParts.Num() >= 2)
+			{
+				GateAtX = FCString::Atof(*AtParts[0]);
+				GateAtY = FCString::Atof(*AtParts[1]);
+			}
+			else
+			{
+				bGateAt = false;
+			}
+		}
 	}
-	if ((bGateSelectMove || bGateZoom || bGateBuildings || bGatePan || bGateVoice || bGateRite || bGateBunker || bGateShadow) && World)
+	if (bGpuArmed && static_cast<uint64>(GFrameCounter) >= GpuFrame && World)
+	{
+		RequestKodGpuDump(World);
+		bGpuArmed = false;
+	}
+	if ((bGateSelectMove || bGateZoom || bGateBuildings || bGatePan || bGateVoice || bGateRite || bGateBunker || bGateShadow || bGateAt) && World)
 	{
 		const float Now = World->GetTimeSeconds();
 		AKodPlayerController* GatePC = Cast<AKodPlayerController>(GetOwningPlayerController());
@@ -1300,7 +1325,7 @@ void AKodHUD::PollShotAfter()
 				}
 				if (CameraPawn)
 				{
-					CameraPawn->JumpTo(Focus);
+					CameraPawn->LockShotFocus(Focus);
 				}
 				UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Focus=%.0f,%.0f,%.0f"), Focus.X, Focus.Y, Focus.Z);
 			}
@@ -1314,7 +1339,7 @@ void AKodHUD::PollShotAfter()
 				}
 				if (CameraPawn)
 				{
-					CameraPawn->JumpTo(Focus);
+					CameraPawn->LockShotFocus(Focus);
 				}
 				UE_LOG(LogTemp, Log, TEXT("KodShotBunker Focus=%.0f,%.0f,%.0f"), Focus.X, Focus.Y, Focus.Z);
 			}
@@ -1327,14 +1352,23 @@ void AKodHUD::PollShotAfter()
 				}
 				if (CameraPawn)
 				{
-					CameraPawn->JumpTo(Focus);
+					CameraPawn->LockShotFocus(Focus);
 				}
 				UE_LOG(LogTemp, Log, TEXT("KodShotShadowSquads Focus=%.0f,%.0f,%.0f"), Focus.X, Focus.Y, Focus.Z);
 			}
-			if ((bGateRite || bGateBuildings || bGateBunker) && !bGpuDumped)
+			if (bGateAt && CameraPawn)
 			{
-				bGpuDumped = true;
-				RequestKodGpuDump(World);
+				FHitResult AtHit;
+				FCollisionQueryParams AtParams(TEXT("KodShotAt"), false);
+				float AtZ = CameraPawn->GetActorLocation().Z;
+				if (World->LineTraceSingleByChannel(AtHit, FVector(GateAtX, GateAtY, AtZ + 8000.f), FVector(GateAtX, GateAtY, AtZ - 8000.f), ECC_WorldStatic, AtParams)
+					&& AtHit.bBlockingHit)
+				{
+					AtZ = AtHit.ImpactPoint.Z;
+				}
+				const FVector AtFocus(GateAtX, GateAtY, AtZ);
+				CameraPawn->LockShotFocus(AtFocus);
+				UE_LOG(LogTemp, Log, TEXT("KodShotAt Focus=%.0f,%.0f,%.0f"), AtFocus.X, AtFocus.Y, AtFocus.Z);
 			}
 			if (bGateVoice)
 			{
@@ -1373,7 +1407,7 @@ void AKodHUD::PollShotAfter()
 				}
 				if (CameraPawn)
 				{
-					CameraPawn->JumpTo(Focus);
+					CameraPawn->LockShotFocus(Focus);
 				}
 				if (GEngine)
 				{
@@ -1398,6 +1432,37 @@ void AKodHUD::PollShotAfter()
 				return;
 			}
 			UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Stage=%s Fraction=%.2f"), StageNames[GateBuildStep], Fractions[GateBuildStep]);
+			if (GateBuildStep == 3)
+			{
+				int32 Shown = 0;
+				for (TActorIterator<AActor> MeshIt(World); MeshIt; ++MeshIt)
+				{
+					AActor* Actor = *MeshIt;
+					if (!Actor || !Actor->ActorHasTag(FName(TEXT("KodShotLabel"))) || Actor->IsHidden())
+					{
+						continue;
+					}
+					TInlineComponentArray<UMeshComponent*> ShotMeshes;
+					Actor->GetComponents(ShotMeshes);
+					for (UMeshComponent* Mesh : ShotMeshes)
+					{
+						if (!Mesh || Mesh->bHiddenInGame || !Mesh->IsVisible())
+						{
+							continue;
+						}
+						const UStaticMeshComponent* StaticMesh = Cast<UStaticMeshComponent>(Mesh);
+						const USkeletalMeshComponent* Skel = Cast<USkeletalMeshComponent>(Mesh);
+						const bool bMesh = (StaticMesh && StaticMesh->GetStaticMesh()) || (Skel && Skel->GetSkeletalMeshAsset());
+						if (bMesh && Mesh->WasRecentlyRendered(1.f))
+						{
+							++Shown;
+							break;
+						}
+					}
+				}
+				UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Meshes=%d"), Shown);
+				checkf(Shown > 0, TEXT("KodShotBuildings final frame has no rendered mesh"));
+			}
 			GetHighResScreenshotConfig().SetResolution(1920, 1080);
 			if (GEngine)
 			{
@@ -1424,7 +1489,8 @@ void AKodHUD::PollShotAfter()
 				GateRiteStep,
 				Fractions[GateRiteStep],
 				GateRiteId);
-			RequestKodGpuDump(World);
+			bGpuArmed = true;
+			GpuFrame = static_cast<uint64>(GFrameCounter) + 4;
 			GetHighResScreenshotConfig().SetResolution(1920, 1080);
 			if (GEngine)
 			{
@@ -1495,6 +1561,29 @@ void AKodHUD::PollShotAfter()
 				return;
 			}
 			bGateQueued = true;
+			if (bGateShadow && CameraPawn)
+			{
+				int32 Red = 0;
+				int32 Blue = 0;
+				const FVector Cam = CameraPawn->GetActorLocation();
+				for (const FKodSimEntityState& State : FrameStates)
+				{
+					if (State.Health <= 0.f || FVector::Dist2D(State.Position, Cam) > 2500.f)
+					{
+						continue;
+					}
+					if (State.TeamId == 0)
+					{
+						++Red;
+					}
+					else if (State.TeamId == 1)
+					{
+						++Blue;
+					}
+				}
+				UE_LOG(LogTemp, Log, TEXT("KodShotShadowSquads InFrame Red=%d Blue=%d Cam=%.0f,%.0f"), Red, Blue, Cam.X, Cam.Y);
+				checkf(Red >= 5 && Blue >= 5, TEXT("KodShotShadowSquads expected both squads in frame, Red=%d Blue=%d"), Red, Blue);
+			}
 			GetHighResScreenshotConfig().SetResolution(1920, 1080);
 			if (GEngine)
 			{

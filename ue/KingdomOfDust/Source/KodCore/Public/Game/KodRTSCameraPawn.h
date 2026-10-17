@@ -47,6 +47,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Kod|Camera")
 	void JumpTo(FVector WorldLocation);
 
+	/** Shot framing. Stays at this point instead of clamping back to the start ground. */
+	void LockShotFocus(FVector WorldLocation);
+
 	/** Look at a point and fit a ground rectangle. Shot mode keeps this arm past the normal zoom clamp. */
 	void FrameGroundSpan(FVector WorldLocation, float SpanXcm, float SpanYcm);
 
@@ -243,6 +246,7 @@ protected:
 	bool bLoggedCamStart = false;
 	bool bStartViewSnapped = false;
 	bool bScreenAligned = false;
+	bool bHoldShotFocus = false;
 	uint64 StartViewFrame = 0;
 	FVector PanVelocity = FVector::ZeroVector;
 	bool bGrabbing = false;

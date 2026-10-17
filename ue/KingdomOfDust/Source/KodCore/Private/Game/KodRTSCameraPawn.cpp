@@ -9,7 +9,10 @@
 #include "Camera/CameraComponent.h"
 #include "Math/RotationMatrix.h"
 #include "CollisionQueryParams.h"
+#include "Components/MeshComponent.h"
 #include "Components/SceneComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
 #include "UnrealClient.h"
 #include "Engine/GameViewportClient.h"
@@ -495,7 +498,41 @@ AActor* AKodRTSCameraPawn::FindCommandCenter() const
 	{
 		const FVector At = Actor->GetActorLocation();
 		const bool bOrigin = FMath::Abs(At.X) < 50.f && FMath::Abs(At.Y) < 50.f;
+		bool bBody = false;
+		TInlineComponentArray<UMeshComponent*> Meshes;
+		Actor->GetComponents(Meshes);
+		for (const UMeshComponent* Mesh : Meshes)
+		{
+			if (!Mesh || Mesh->bHiddenInGame)
+			{
+				continue;
+			}
+			if (const UStaticMeshComponent* StaticMesh = Cast<UStaticMeshComponent>(Mesh))
+			{
+				if (StaticMesh->GetStaticMesh() && !StaticMesh->GetStaticMesh()->GetPathName().Contains(TEXT("/Engine/BasicShapes/")))
+				{
+					bBody = true;
+					break;
+				}
+			}
+			else if (const USkeletalMeshComponent* Skel = Cast<USkeletalMeshComponent>(Mesh))
+			{
+				if (Skel->GetSkeletalMeshAsset())
+				{
+					bBody = true;
+					break;
+				}
+			}
+		}
 		int32 Score = bOrigin ? 0 : 500;
+		if (bBody)
+		{
+			Score += 5000;
+		}
+		else if (bOrigin)
+		{
+			Score -= 5000;
+		}
 		if (Actor->ActorHasTag(FName(TEXT("KodStartSpot_0"))))
 		{
 			Score += 1000;
@@ -549,6 +586,29 @@ void AKodRTSCameraPawn::SnapToPlayerStart()
 	SnapToStartView(At);
 	bPendingPlayerFocus = false;
 	UE_LOG(LogTemp, Log, TEXT("KodCam Focus CC Loc=%.0f,%.0f,%.0f"), At.X, At.Y, GetActorLocation().Z);
+}
+
+void AKodRTSCameraPawn::LockShotFocus(FVector WorldLocation)
+{
+	bHoldShotFocus = true;
+	bPendingPlayerFocus = false;
+	bScreenAligned = true;
+	FVector Loc = GetActorLocation();
+	Loc.X = WorldLocation.X;
+	Loc.Y = WorldLocation.Y;
+	if (WorldLocation.Z > 1.f)
+	{
+		Loc.Z = WorldLocation.Z;
+		TargetGroundZ = WorldLocation.Z;
+		bHaveGround = true;
+	}
+	SetActorLocation(Loc);
+	PanVelocity = FVector::ZeroVector;
+	bGrabbing = false;
+	bFollowUnit = false;
+	FollowTarget = nullptr;
+	MaintainBoom();
+	UE_LOG(LogTemp, Log, TEXT("KodCam ShotFocus X=%.0f Y=%.0f Z=%.0f"), Loc.X, Loc.Y, Loc.Z);
 }
 
 void AKodRTSCameraPawn::JumpTo(FVector WorldLocation)
@@ -713,7 +773,7 @@ bool AKodRTSCameraPawn::GetGroundViewCorners(FVector& OutNearLeft, FVector& OutN
 
 void AKodRTSCameraPawn::AlignScreenCenterToFocus()
 {
-	if (bScreenAligned || bGrabbing || bPendingPlayerFocus || !HasStartViewSettled())
+	if (bHoldShotFocus || bScreenAligned || bGrabbing || bPendingPlayerFocus || !HasStartViewSettled())
 	{
 		return;
 	}
@@ -1452,6 +1512,10 @@ void AKodRTSCameraPawn::CachePlayableBounds()
 
 void AKodRTSCameraPawn::ClampToPlayable()
 {
+	if (bHoldShotFocus)
+	{
+		return;
+	}
 	if (!bPlayableCached || !CachedPlayable.IsValid)
 	{
 		CachePlayableBounds();

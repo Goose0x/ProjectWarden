@@ -47,6 +47,7 @@
 #include "Engine/ExponentialHeightFog.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/Texture.h"
+#include "Engine/TextureCube.h"
 #include "Camera/CameraComponent.h"
 #include "Components/MeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -502,6 +503,9 @@ struct FKodSunIni
 	bool bHaveWhiteBalance = false;
 	FLinearColor ShadowGrade = FLinearColor(0.90f, 0.86f, 0.98f);
 	bool bHaveShadowGrade = false;
+	FLinearColor FogInscattering = FLinearColor::FromSRGBColor(FColor(0xC4, 0xA0, 0x70));
+	bool bHaveFog = false;
+	FString SkyCubemap;
 };
 
 static bool ParseKodColor(const FString& Text, FLinearColor& Out)
@@ -705,6 +709,11 @@ static FKodSunIni ReadKodLighting()
 	{
 		Sun.bHaveShadowGrade = true;
 	}
+	if (ReadKodColor(TEXT("FogInscatteringColor"), Sun.FogInscattering))
+	{
+		Sun.bHaveFog = true;
+	}
+	GConfig->GetString(TEXT("KodLighting"), TEXT("SkyLightCubemap"), Sun.SkyCubemap, GGameIni);
 	return Sun;
 }
 
@@ -1021,21 +1030,43 @@ static void ApplyKodFillLights(UWorld* World, const FKodSunIni& Lighting)
 		{
 			Sky->OcclusionTint = Lighting.OcclusionTint.ToFColor(true);
 		}
+		if (!Lighting.SkyCubemap.IsEmpty())
+		{
+			FString CubemapPath = Lighting.SkyCubemap;
+			UTextureCube* Cubemap = LoadObject<UTextureCube>(nullptr, *CubemapPath);
+			if (!Cubemap && !CubemapPath.Contains(TEXT(".")))
+			{
+				const FString Leaf = FPaths::GetBaseFilename(CubemapPath);
+				CubemapPath = FString::Printf(TEXT("%s.%s"), *Lighting.SkyCubemap, *Leaf);
+				Cubemap = LoadObject<UTextureCube>(nullptr, *CubemapPath);
+			}
+			if (Cubemap)
+			{
+				Sky->SourceType = SLS_SpecifiedCubemap;
+				Sky->SetCubemap(Cubemap);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Log, TEXT("KodLighting Cubemap Miss %s"), *Lighting.SkyCubemap);
+			}
+		}
 		Sky->SetRealTimeCapture(true);
 		Sky->RecaptureSky();
-		UE_LOG(LogTemp, Log, TEXT("KodLighting Sky Name=%s Intensity=%.2f RealTime=%d Extra=%d Tint=%s Lower=%s"),
+		const FLinearColor Effective = Sky->GetLightColor();
+		UE_LOG(LogTemp, Log, TEXT("KodLighting SkyEffective Name=%s Intensity=%.3f Color=%s Lower=%s RealTime=%d Cubemap=%s Extra=%d"),
 			*SkyActor->GetName(),
 			Sky->Intensity,
+			*Effective.ToString(),
+			*Sky->LowerHemisphereColor.ToString(),
 			Sky->bRealTimeCapture ? 1 : 0,
-			SkyCount > 1 ? 1 : 0,
-			*SkyColor.ToString(),
-			*Lower.ToString());
+			Sky->Cubemap ? *Sky->Cubemap->GetPathName() : TEXT("CapturedScene"),
+			SkyCount > 1 ? 1 : 0);
 	}
 	if (SkyCount == 0)
 	{
 		UE_LOG(LogTemp, Log, TEXT("KodLighting Sky Name=None"));
 	}
-	const FLinearColor FogTint = Lower;
+	const FLinearColor FogTint = Lighting.bHaveFog ? Lighting.FogInscattering : Lower;
 	int32 FogCount = 0;
 	for (TActorIterator<AExponentialHeightFog> It(World); It; ++It)
 	{
@@ -1045,10 +1076,10 @@ static void ApplyKodFillLights(UWorld* World, const FKodSunIni& Lighting)
 			Fog->SetFogInscatteringColor(FogTint);
 			Fog->SetDirectionalInscatteringColor(SkyColor);
 			Fog->SetVolumetricFog(false);
-			UE_LOG(LogTemp, Log, TEXT("KodLighting Fog Name=%s Extra=%d Tint=%s"),
+			UE_LOG(LogTemp, Log, TEXT("KodLighting FogEffective Name=%s Extra=%d Inscattering=%s"),
 				*It->GetName(),
 				FogCount > 1 ? 1 : 0,
-				*FogTint.ToString());
+				*Fog->FogInscatteringColor.ToString());
 		}
 	}
 	APostProcessVolume* Owned = nullptr;
@@ -1081,7 +1112,7 @@ static void ApplyKodFillLights(UWorld* World, const FKodSunIni& Lighting)
 		Owned->Priority = 10000.f;
 		Owned->BlendWeight = 1.f;
 		WriteKodGrade(Owned->Settings, Lighting);
-		UE_LOG(LogTemp, Log, TEXT("KodLighting Volume Name=%s Priority=%.0f Weight=%.2f Other=%s OtherPriority=%.0f Exposure=%.2f WB=%.0f ShadowGrade=%s"),
+		UE_LOG(LogTemp, Log, TEXT("KodLighting Volume Name=%s Priority=%.0f Weight=%.2f Other=%s OtherPriority=%.0f Exposure=%.2f WB=%.0f ColorGainOverride=%d ShadowGrade=%s"),
 			*Owned->GetName(),
 			Owned->Priority,
 			Owned->BlendWeight,
@@ -1089,7 +1120,8 @@ static void ApplyKodFillLights(UWorld* World, const FKodSunIni& Lighting)
 			HighestOther ? HighestOther->Priority : 0.f,
 			Owned->Settings.AutoExposureBias,
 			Owned->Settings.WhiteTemp,
-			*Lighting.ShadowGrade.ToString());
+			Owned->Settings.bOverride_ColorGainShadows ? 1 : 0,
+			*Owned->Settings.ColorGainShadows.ToString());
 	}
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
@@ -1884,7 +1916,53 @@ void AKodSlice0GameMode::FocusOpeningCamera()
 			}
 		}
 		ApplyCommandCenterMesh(Base);
-		UE_LOG(LogTemp, Log, TEXT("KodCam WorkersOnCC Count=%d Loc=%.0f,%.0f"), Crew.Num(), Center.X, Center.Y);
+		const FVector BaseAt = Base->GetActorLocation();
+		for (TActorIterator<AActor> ProxyIt(World); ProxyIt; ++ProxyIt)
+		{
+			AActor* Proxy = *ProxyIt;
+			if (!Proxy || Proxy == Base || Proxy->IsHidden())
+			{
+				continue;
+			}
+			const FVector ProxyAt = Proxy->GetActorLocation();
+			const bool bOrigin = FMath::Abs(ProxyAt.X) < 50.f && FMath::Abs(ProxyAt.Y) < 50.f;
+			const bool bNamed = Proxy->GetName().Contains(TEXT("KodBuilding"))
+				|| Proxy->GetActorNameOrLabel().Contains(TEXT("PROXY_CC"))
+				|| Proxy->ActorHasTag(FName(TEXT("KodStartSpot_0")));
+			if (bOrigin && bNamed)
+			{
+				Proxy->SetActorHiddenInGame(true);
+				UE_LOG(LogTemp, Log, TEXT("KodCC HideProxy Name=%s Loc=%.0f,%.0f"), *Proxy->GetName(), ProxyAt.X, ProxyAt.Y);
+			}
+			if (FVector::Dist2D(ProxyAt, BaseAt) > 2500.f)
+			{
+				continue;
+			}
+			TInlineComponentArray<UStaticMeshComponent*> Shapes;
+			Proxy->GetComponents(Shapes);
+			for (UStaticMeshComponent* Shape : Shapes)
+			{
+				if (!Shape || !Shape->GetStaticMesh() || Shape->bHiddenInGame)
+				{
+					continue;
+				}
+				const FString MeshPath = Shape->GetStaticMesh()->GetPathName();
+				const bool bDisc = MeshPath.Contains(TEXT("/Engine/BasicShapes/Cylinder"))
+					|| MeshPath.Contains(TEXT("/Engine/BasicShapes/Sphere"));
+				if (!bDisc)
+				{
+					continue;
+				}
+				Shape->SetHiddenInGame(true);
+				Shape->SetVisibility(false);
+				UE_LOG(LogTemp, Log, TEXT("KodMarker Hide Name=%s Loc=%.0f,%.0f Mesh=%s"),
+					*Proxy->GetActorNameOrLabel(),
+					ProxyAt.X,
+					ProxyAt.Y,
+					*MeshPath);
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("KodCam WorkersOnCC Count=%d Loc=%.0f,%.0f"), Crew.Num(), BaseAt.X, BaseAt.Y);
 	}
 	for (TActorIterator<AKodRTSCameraPawn> It(World); It; ++It)
 	{
@@ -3004,8 +3082,18 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 		const float Half = Place.SpanCm * 0.5f;
 		const float Gap = Place.SpanCm + 200.f;
 		const float Center = Edge + Gap + Half;
-		// +Y keeps the row on open sand. +X runs into the ridge beside the base.
-		const FVector At = Base + FVector(0.f, Center + 1400.f, 0.f);
+		// Open sand to the right of the headquarters (+X, camera yaw 90).
+		const float PlaceX = Base.X + Center + 700.f;
+		const float PlaceY = Base.Y + 160.f;
+		FHitResult GroundHit;
+		FCollisionQueryParams GroundParams(TEXT("KodShotGround"), false);
+		float PlaceZ = Base.Z;
+		if (World->LineTraceSingleByChannel(GroundHit, FVector(PlaceX, PlaceY, Base.Z + 8000.f), FVector(PlaceX, PlaceY, Base.Z - 8000.f), ECC_WorldStatic, GroundParams)
+			&& GroundHit.bBlockingHit)
+		{
+			PlaceZ = GroundHit.ImpactPoint.Z;
+		}
+		const FVector At(PlaceX, PlaceY, PlaceZ + 30.f);
 		const int32 Cells = FMath::Max(1, FMath::RoundToInt(Place.SpanCm / static_cast<float>(KodBuildGrid::CellUU)));
 		if (Place.bBuilding)
 		{
@@ -3030,6 +3118,7 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 			continue;
 		}
 		It->FrameGroundSpan(OutFocus, RowSize.X, RowSize.Y);
+		It->LockShotFocus(OutFocus);
 		break;
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Faction=%d Focus=%.0f,%.0f,%.0f"),
@@ -3111,7 +3200,7 @@ bool AKodSlice0GameMode::PlaceShotRiteWell(FVector& OutFocus, int32& OutStructur
 		{
 			continue;
 		}
-		It->JumpTo(OutFocus);
+		It->LockShotFocus(OutFocus);
 		break;
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodShotRiteWell Place Loc=%.0f,%.0f,%.0f Focus=%.0f,%.0f"),
@@ -3183,7 +3272,7 @@ bool AKodSlice0GameMode::PlaceShotBunker(FVector& OutFocus)
 	{
 		if (!It->IsA(AKodSpectatorPawn::StaticClass()))
 		{
-			It->JumpTo(OutFocus);
+			It->LockShotFocus(OutFocus);
 			break;
 		}
 	}
@@ -3293,7 +3382,7 @@ bool AKodSlice0GameMode::PlaceShotShadowSquads(FVector& OutFocus)
 	{
 		if (!It->IsA(AKodSpectatorPawn::StaticClass()))
 		{
-			It->JumpTo(OutFocus);
+			It->LockShotFocus(OutFocus);
 			break;
 		}
 	}
