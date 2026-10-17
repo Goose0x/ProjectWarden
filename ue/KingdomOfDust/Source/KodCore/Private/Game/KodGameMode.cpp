@@ -178,3 +178,14 @@ bool AKodGameMode::PlaceShotRiteWell(FVector& OutFocus, int32& OutStructureId)
 	OutStructureId = 0;
 	return false;
 }
+
+bool AKodGameMode::PlaceShotBunker(FVector& OutFocus)
+{
+	OutFocus = FVector::ZeroVector;
+	return false;
+}
+
+void AKodGameMode::SetShotBuildFraction(float Fraction)
+{
+	(void)Fraction;
+}

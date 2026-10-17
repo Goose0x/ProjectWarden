@@ -444,7 +444,9 @@ namespace
 				Capped.Add(Path);
 				const bool bBuilding = MaxSize >= 4096;
 				Image->LODGroup = bBuilding ? TEXTUREGROUP_World : TEXTUREGROUP_Character;
+#if WITH_EDITORONLY_DATA
 				Image->MaxTextureSize = MaxSize;
+#endif
 				Image->UpdateResource();
 				UE_LOG(LogTemp, Log, TEXT("KodMesh TexCap Path=%s Max=%d"), *Path, MaxSize);
 			}

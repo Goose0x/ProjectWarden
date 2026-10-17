@@ -363,8 +363,10 @@ bool UKodSimSubsystem::LoadUnitIntoBunker(FKodEntityId UnitId, FKodEntityId Bunk
 	{
 		return false;
 	}
+	const int32 HalfSpan = (FMath::Max(Bunker->FootprintX, Bunker->FootprintY) * KodBuildGrid::CellUU) / 2;
+	const float LoadReach = static_cast<float>(HalfSpan + KodBuildGrid::CellUU * 2);
 	const float DistSq = FVector::DistSquared2D(Unit->Position, Bunker->Position);
-	if (DistSq > FMath::Square(static_cast<float>(KodBuildGrid::CellUU * 2)))
+	if (DistSq > FMath::Square(LoadReach))
 	{
 		if (Unit->LoadTarget.Value != BunkerId.Value)
 		{

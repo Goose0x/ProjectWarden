@@ -88,6 +88,12 @@ public:
 	/** HighResShot 1920x1080 this many seconds after the next HUD draw, then exit. */
 	static void ArmShotAfter(float Seconds);
 
+	/**
+	 * Opening-shot check. The command center must sit inside the ground view,
+	 * and the minimap rectangle centre must sit within MaxBlipPx of the CC blip.
+	 */
+	bool MeasureOpeningFrame(float MaxBlipPx, float& OutRectErrorPx, bool& bCcInFrame) const;
+
 	void AddMinimapPing(const FVector& WorldPoint, float Seconds = 6.f);
 
 	/** 0 move (green), 1 attack (red), 2 build complete (gold). Presentation only. */
@@ -304,6 +310,9 @@ protected:
 	TArray<FKodHudChromeHit> ChromeHits;
 	bool bCommandChrome = false;
 	bool bHasMinimap = false;
+	bool bHasViewRect = false;
+	float ViewRectCenterX = 0.f;
+	float ViewRectCenterY = 0.f;
 	bool bHasSelectionPanel = false;
 	bool bHasPortrait = false;
 	float PanelMinX = 0.f;

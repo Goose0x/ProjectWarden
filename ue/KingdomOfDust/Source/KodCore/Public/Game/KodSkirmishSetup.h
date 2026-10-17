@@ -77,7 +77,7 @@ struct KODCORE_API FKodSkirmishSetup
 	/**
 	 * Prompt is skipped for -kod.Autoplay, -kod.ShotAfter, -kod.ShotZoom,
 	 * -kod.ShotSelectMove, -kod.ShotBuildings, -kod.ShotPan, -kod.ShotVoiceSpam,
-	 * -kod.ShotRiteWell,
+	 * -kod.ShotRiteWell, -kod.ShotBunker,
 	 * or a front-end PFaction option.
 	 * Those runs use -kod.Faction=VG|SC|Vanguard|Scinder and default to Vanguard.
 	 */

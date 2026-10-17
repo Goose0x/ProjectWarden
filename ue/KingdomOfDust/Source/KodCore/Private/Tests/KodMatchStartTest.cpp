@@ -44,5 +44,7 @@ bool FKodMatchStartTest::RunTest(const FString& Parameters)
 	const FKodMatchStart Rite = FKodSkirmishSetup::ResolveMatchStart(TEXT("-kod.ShotRiteWell=1 -kod.Faction=SC"), FString());
 	TestFalse(TEXT("rite well shot skips the prompt"), Rite.bPrompt);
 	TestEqual(TEXT("rite well shot scinder"), Rite.FactionIndex, 1);
+	const FKodMatchStart BunkerShot = FKodSkirmishSetup::ResolveMatchStart(TEXT("-kod.ShotBunker=1 -kod.Faction=VG"), FString());
+	TestFalse(TEXT("bunker shot skips the prompt"), BunkerShot.bPrompt);
 	return true;
 }
