@@ -170,7 +170,7 @@ void AKodBuilding::Tick(float DeltaSeconds)
 				Structure.FootprintY,
 				Structure.Position.Z);
 			KodLanding::ValidateLandingOrientation(this, DonePose);
-			if (bSawIncomplete)
+			if (bSawIncomplete && !ActorHasTag(FName(TEXT("KodShotLabel"))))
 			{
 				bCompletionFlash = true;
 				FlashLeft = 0.35f;
@@ -1056,13 +1056,25 @@ void AKodBuilding::UpdatePoolSurface(float DeltaSeconds, int32 Stage)
 		};
 		PushFill(PoolMotes, false);
 		PushFill(PoolPulse, true);
+		if (ClampedStage >= 3)
+		{
+			UE_LOG(LogTemp, Log, TEXT("KodVfx Pool Full Z=0 Fill=1"));
+		}
 	}
 
 	PoolZElapsed += FMath::Max(0.f, DeltaSeconds);
 	if (PoolSurface)
 	{
-		const float Z = KodBuildVisual::InterpPoolZ(PoolZFrom, PoolZTo, PoolZElapsed);
+		const bool bFull = ClampedStage >= 3;
+		const float Z = bFull ? 0.f : KodBuildVisual::InterpPoolZ(PoolZFrom, PoolZTo, PoolZElapsed);
 		PoolSurface->SetRelativeLocation(FVector(0.f, 0.f, Z));
+		PoolSurface->SetHiddenInGame(false);
+		PoolSurface->SetVisibility(true);
+		if (bFull)
+		{
+			PoolZFrom = 0.f;
+			PoolZTo = 0.f;
+		}
 	}
 }
 
