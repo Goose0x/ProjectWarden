@@ -7,6 +7,7 @@
 #include "Slice0/KodMapLife.h"
 #include "Slice0/KodSlice0PlayerController.h"
 #include "Game/KodHUD.h"
+#include "Game/KodPlayerController.h"
 #include "Game/KodSkirmishSetup.h"
 #include "Engine/Light.h"
 #include "Game/KodUiArt.h"
@@ -46,6 +47,9 @@
 #include "Engine/ExponentialHeightFog.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/Texture.h"
+#include "Camera/CameraComponent.h"
+#include "Components/MeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkyLight.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
@@ -935,79 +939,8 @@ void AKodSlice0GameMode::ApplyMatchExposure(UWorld* World)
 	UE_LOG(LogTemp, Log, TEXT("KodLook Exposure Manual Bias=%.2f PreExposureOverride=0"), Bias);
 }
 
-static void ApplyKodFillLights(UWorld* World, const FKodSunIni& Lighting)
+static void WriteKodGrade(FPostProcessSettings& Settings, const FKodSunIni& Lighting)
 {
-	if (!World || !Lighting.bOverride)
-	{
-		return;
-	}
-	const FLinearColor SkyColor = Lighting.bHaveSkyTint
-		? Lighting.SkyTint
-		: FLinearColor::FromSRGBColor(FColor(0xFA, 0xBC, 0xA9));
-	const FLinearColor Lower = Lighting.bHaveLower
-		? Lighting.LowerHemisphere
-		: FLinearColor::FromSRGBColor(FColor(0x5E, 0x44, 0x38));
-	const float SkyIntensity = Lighting.bHaveSkyIntensity ? Lighting.SkyIntensity : 1.45f;
-	for (TActorIterator<ASkyLight> It(World); It; ++It)
-	{
-		ASkyLight* SkyActor = *It;
-		USkyLightComponent* Sky = SkyActor ? SkyActor->GetLightComponent() : nullptr;
-		if (!Sky)
-		{
-			continue;
-		}
-		if (Sky->Mobility == EComponentMobility::Static)
-		{
-			Sky->SetMobility(EComponentMobility::Movable);
-		}
-		Sky->SetIntensity(SkyIntensity);
-		Sky->SetLightColor(SkyColor);
-		Sky->bLowerHemisphereIsBlack = false;
-		Sky->SetLowerHemisphereColor(Lower);
-		Sky->SetIndirectLightingIntensity(1.f);
-		if (Lighting.bHaveMinOcclusion)
-		{
-			Sky->MinOcclusion = Lighting.MinOcclusion;
-		}
-		if (Lighting.bHaveOcclusionTint)
-		{
-			Sky->OcclusionTint = Lighting.OcclusionTint.ToFColor(true);
-		}
-		Sky->SetRealTimeCapture(Lighting.bRealTimeCapture);
-		Sky->RecaptureSky();
-		UE_LOG(LogTemp, Log, TEXT("KodLight SkyFill Intensity=%.2f Tint=%s Lower=%s Occlusion=%.2f"),
-			SkyIntensity,
-			*SkyColor.ToString(),
-			*Lower.ToString(),
-			Sky->MinOcclusion);
-		break;
-	}
-	const FLinearColor FogTint = Lower;
-	for (TActorIterator<AExponentialHeightFog> It(World); It; ++It)
-	{
-		if (UExponentialHeightFogComponent* Fog = It->GetComponent())
-		{
-			Fog->SetFogInscatteringColor(FogTint);
-			Fog->SetDirectionalInscatteringColor(SkyColor);
-			Fog->SetVolumetricFog(false);
-			UE_LOG(LogTemp, Log, TEXT("KodLight FogTint %s"), *FogTint.ToString());
-		}
-		break;
-	}
-	APostProcessVolume* UnboundPost = nullptr;
-	for (TActorIterator<APostProcessVolume> It(World); It; ++It)
-	{
-		if (It->bUnbound)
-		{
-			UnboundPost = *It;
-			break;
-		}
-	}
-	if (!UnboundPost)
-	{
-		return;
-	}
-	FPostProcessSettings& Settings = UnboundPost->Settings;
 	if (Lighting.bHaveExposure)
 	{
 		Settings.bOverride_AutoExposureBias = true;
@@ -1046,10 +979,133 @@ static void ApplyKodFillLights(UWorld* World, const FKodSunIni& Lighting)
 			UE_LOG(LogTemp, Log, TEXT("KodLighting LUT Miss %s"), *Lighting.LutPath);
 		}
 	}
-	UE_LOG(LogTemp, Log, TEXT("KodLighting Grade Exposure=%.2f WB=%.0f ShadowGrade=%s"),
-		Settings.AutoExposureBias,
-		Settings.WhiteTemp,
-		*Lighting.ShadowGrade.ToString());
+}
+
+static void ApplyKodFillLights(UWorld* World, const FKodSunIni& Lighting)
+{
+	if (!World || !Lighting.bOverride)
+	{
+		return;
+	}
+	const FLinearColor SkyColor = Lighting.bHaveSkyTint
+		? Lighting.SkyTint
+		: FLinearColor::FromSRGBColor(FColor(0xFA, 0xBC, 0xA9));
+	const FLinearColor Lower = Lighting.bHaveLower
+		? Lighting.LowerHemisphere
+		: FLinearColor::FromSRGBColor(FColor(0x5E, 0x44, 0x38));
+	const float SkyIntensity = Lighting.bHaveSkyIntensity ? Lighting.SkyIntensity : 1.45f;
+	int32 SkyCount = 0;
+	for (TActorIterator<ASkyLight> It(World); It; ++It)
+	{
+		ASkyLight* SkyActor = *It;
+		USkyLightComponent* Sky = SkyActor ? SkyActor->GetLightComponent() : nullptr;
+		if (!Sky)
+		{
+			continue;
+		}
+		++SkyCount;
+		if (Sky->Mobility == EComponentMobility::Static)
+		{
+			Sky->SetMobility(EComponentMobility::Movable);
+		}
+		Sky->SetIntensity(SkyIntensity);
+		Sky->SetLightColor(SkyColor);
+		Sky->bLowerHemisphereIsBlack = false;
+		Sky->SetLowerHemisphereColor(Lower);
+		Sky->SetIndirectLightingIntensity(1.f);
+		if (Lighting.bHaveMinOcclusion)
+		{
+			Sky->MinOcclusion = Lighting.MinOcclusion;
+		}
+		if (Lighting.bHaveOcclusionTint)
+		{
+			Sky->OcclusionTint = Lighting.OcclusionTint.ToFColor(true);
+		}
+		Sky->SetRealTimeCapture(true);
+		Sky->RecaptureSky();
+		UE_LOG(LogTemp, Log, TEXT("KodLighting Sky Name=%s Intensity=%.2f RealTime=%d Extra=%d Tint=%s Lower=%s"),
+			*SkyActor->GetName(),
+			Sky->Intensity,
+			Sky->bRealTimeCapture ? 1 : 0,
+			SkyCount > 1 ? 1 : 0,
+			*SkyColor.ToString(),
+			*Lower.ToString());
+	}
+	if (SkyCount == 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodLighting Sky Name=None"));
+	}
+	const FLinearColor FogTint = Lower;
+	int32 FogCount = 0;
+	for (TActorIterator<AExponentialHeightFog> It(World); It; ++It)
+	{
+		++FogCount;
+		if (UExponentialHeightFogComponent* Fog = It->GetComponent())
+		{
+			Fog->SetFogInscatteringColor(FogTint);
+			Fog->SetDirectionalInscatteringColor(SkyColor);
+			Fog->SetVolumetricFog(false);
+			UE_LOG(LogTemp, Log, TEXT("KodLighting Fog Name=%s Extra=%d Tint=%s"),
+				*It->GetName(),
+				FogCount > 1 ? 1 : 0,
+				*FogTint.ToString());
+		}
+	}
+	APostProcessVolume* Owned = nullptr;
+	APostProcessVolume* HighestOther = nullptr;
+	for (TActorIterator<APostProcessVolume> It(World); It; ++It)
+	{
+		if (It->ActorHasTag(FName(TEXT("KodLighting"))))
+		{
+			Owned = *It;
+		}
+		else if (It->bUnbound && (!HighestOther || It->Priority > HighestOther->Priority))
+		{
+			HighestOther = *It;
+		}
+	}
+	if (!Owned)
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		Owned = World->SpawnActor<APostProcessVolume>(APostProcessVolume::StaticClass(), FTransform::Identity, Params);
+		if (Owned)
+		{
+			Owned->Tags.Add(FName(TEXT("KodLighting")));
+		}
+	}
+	if (Owned)
+	{
+		Owned->bUnbound = true;
+		Owned->bEnabled = true;
+		Owned->Priority = 10000.f;
+		Owned->BlendWeight = 1.f;
+		WriteKodGrade(Owned->Settings, Lighting);
+		UE_LOG(LogTemp, Log, TEXT("KodLighting Volume Name=%s Priority=%.0f Weight=%.2f Other=%s OtherPriority=%.0f Exposure=%.2f WB=%.0f ShadowGrade=%s"),
+			*Owned->GetName(),
+			Owned->Priority,
+			Owned->BlendWeight,
+			HighestOther ? *HighestOther->GetName() : TEXT("None"),
+			HighestOther ? HighestOther->Priority : 0.f,
+			Owned->Settings.AutoExposureBias,
+			Owned->Settings.WhiteTemp,
+			*Lighting.ShadowGrade.ToString());
+	}
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		TInlineComponentArray<UCameraComponent*> Cameras;
+		It->GetComponents(Cameras);
+		for (UCameraComponent* Camera : Cameras)
+		{
+			if (!Camera)
+			{
+				continue;
+			}
+			Camera->PostProcessBlendWeight = 1.f;
+			WriteKodGrade(Camera->PostProcessSettings, Lighting);
+			UE_LOG(LogTemp, Log, TEXT("KodLighting Camera Name=%s Blend=%.2f"), *Camera->GetName(), Camera->PostProcessBlendWeight);
+		}
+	}
 }
 
 static void ApplySc2Look(UWorld* World)
@@ -1827,6 +1883,7 @@ void AKodSlice0GameMode::FocusOpeningCamera()
 				Sim->SetEntityGroundPosition(Crew[Index]->EntityId, Crew[Index]->GetActorLocation());
 			}
 		}
+		ApplyCommandCenterMesh(Base);
 		UE_LOG(LogTemp, Log, TEXT("KodCam WorkersOnCC Count=%d Loc=%.0f,%.0f"), Crew.Num(), Center.X, Center.Y);
 	}
 	for (TActorIterator<AKodRTSCameraPawn> It(World); It; ++It)
@@ -2476,6 +2533,40 @@ bool AKodSlice0GameMode::PlaceActorAt(AActor* Actor, const FVector& Dest)
 	return FVector::Dist2D(Actor->GetActorLocation(), Dest) <= 50.f;
 }
 
+static void LiftCommandCenterOntoGround(AActor* Actor)
+{
+	if (!Actor)
+	{
+		return;
+	}
+	UWorld* World = Actor->GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	const FVector Loc = Actor->GetActorLocation();
+	FCollisionQueryParams Params(TEXT("KodCCGround"), false, Actor);
+	FHitResult Hit;
+	float GroundZ = Loc.Z;
+	if (World->LineTraceSingleByChannel(Hit, Loc + FVector(0.f, 0.f, 6000.f), Loc - FVector(0.f, 0.f, 6000.f), ECC_WorldStatic, Params)
+		&& Hit.bBlockingHit)
+	{
+		GroundZ = Hit.ImpactPoint.Z;
+	}
+	Actor->UpdateComponentTransforms();
+	const FBox Bounds = Actor->GetComponentsBoundingBox(true);
+	if (Bounds.IsValid && Bounds.Min.Z < GroundZ + 2.f)
+	{
+		Actor->AddActorWorldOffset(FVector(0.f, 0.f, GroundZ + 6.f - Bounds.Min.Z));
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodCC Ground Actor=%s Loc=%.0f,%.0f,%.0f Ground=%.0f"),
+		*Actor->GetActorNameOrLabel(),
+		Actor->GetActorLocation().X,
+		Actor->GetActorLocation().Y,
+		Actor->GetActorLocation().Z,
+		GroundZ);
+}
+
 void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 {
 	if (!Actor)
@@ -2483,26 +2574,63 @@ void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 		return;
 	}
 	constexpr float Footprint = 5.f * static_cast<float>(KodBuildGrid::CellUU);
+	Actor->SetActorHiddenInGame(false);
 	if (AKodBuilding* Building = Cast<AKodBuilding>(Actor))
 	{
 		if (UKodBuildingDefinition* Def = Building->GetDefinition())
 		{
 			Building->ApplyDefinition(Def);
-			FString MeshName = TEXT("Placeholder");
-			if (Building->BuildingSkel && Building->BuildingSkel->GetSkeletalMeshAsset())
-			{
-				MeshName = Building->BuildingSkel->GetSkeletalMeshAsset()->GetName();
-			}
-			else if (Building->BuildingMesh && Building->BuildingMesh->GetStaticMesh())
-			{
-				MeshName = Building->BuildingMesh->GetStaticMesh()->GetName();
-			}
-			UE_LOG(LogTemp, Log, TEXT("KodCC Mesh=%s Span=%.0f Actor=%s"),
-				*MeshName,
-				Footprint,
-				*Actor->GetActorNameOrLabel());
-			return;
 		}
+		UMeshComponent* Shown = nullptr;
+		if (Building->BuildingSkel && Building->BuildingSkel->GetSkeletalMeshAsset())
+		{
+			Building->BuildingSkel->SetHiddenInGame(false);
+			Building->BuildingSkel->SetVisibility(true);
+			Shown = Building->BuildingSkel;
+		}
+		if (Building->BuildingMesh)
+		{
+			const bool bCube = !Building->BuildingMesh->GetStaticMesh()
+				|| Building->BuildingMesh->GetStaticMesh()->GetPathName().Contains(TEXT("/Engine/BasicShapes/"));
+			if (!Shown || bCube)
+			{
+				FName MeshId = FName(KodWardenPaths::Id_CommandCenter);
+				if (const UWorld* MeshWorld = Actor->GetWorld())
+				{
+					if (const UKodSimSubsystem* MeshSim = MeshWorld->GetSubsystem<UKodSimSubsystem>())
+					{
+						if (MeshSim->GetPlayerFaction() == 1)
+						{
+							MeshId = FName(TEXT("ScinderHQ"));
+						}
+					}
+				}
+				const FKodMeshChoice Choice = FKodMeshCatalog::Resolve(MeshId);
+				if (Choice.StaticMesh)
+				{
+					Building->BuildingMesh->SetStaticMesh(Choice.StaticMesh);
+					Building->BuildingMesh->SetRelativeScale3D(FVector(Choice.Scale));
+					if (Choice.bFallback || Choice.StaticMesh->GetPathName().Contains(TEXT("/Engine/BasicShapes/")))
+					{
+						UE_LOG(LogTemp, Log, TEXT("KodMesh Fallback Id=%s Path=%s"), *MeshId.ToString(), *Choice.StaticMesh->GetPathName());
+					}
+				}
+				Building->BuildingMesh->SetHiddenInGame(false);
+				Building->BuildingMesh->SetVisibility(true);
+				if (!Shown)
+				{
+					Shown = Building->BuildingMesh;
+				}
+			}
+		}
+		const FString MeshName = Shown ? Shown->GetName() : FString(TEXT("None"));
+		UE_LOG(LogTemp, Log, TEXT("KodCC Mesh=%s Span=%.0f Actor=%s Hidden=%d"),
+			*MeshName,
+			Footprint,
+			*Actor->GetActorNameOrLabel(),
+			Actor->IsHidden() ? 1 : 0);
+		LiftCommandCenterOntoGround(Actor);
+		return;
 	}
 	FName MeshId = FName(KodWardenPaths::Id_CommandCenter);
 	if (const UWorld* MeshWorld = Actor->GetWorld())
@@ -2533,25 +2661,47 @@ void AKodSlice0GameMode::ApplyCommandCenterMesh(AActor* Actor)
 	const FVector Scale = Choice.bLoaded ? FVector(Choice.Scale) : FVector(Footprint / 100.f, Footprint / 100.f, Footprint * 0.45f / 100.f);
 	TInlineComponentArray<UStaticMeshComponent*> Meshes;
 	Actor->GetComponents(Meshes);
-	for (UStaticMeshComponent* Comp : Meshes)
+	UStaticMeshComponent* Comp = nullptr;
+	for (UStaticMeshComponent* Candidate : Meshes)
 	{
-		if (!Comp || Comp->ComponentHasTag(FName(TEXT("KodFx"))))
+		if (Candidate && !Candidate->ComponentHasTag(FName(TEXT("KodFx"))))
 		{
-			continue;
+			Comp = Candidate;
+			break;
 		}
-		Comp->SetMobility(EComponentMobility::Movable);
-		Comp->SetStaticMesh(Mesh);
-		const float ShownYaw = KodBuildingYaw::OffsetDegrees();
-		Comp->SetRelativeScale3D(Scale);
-		Comp->SetRelativeRotation(FRotator(0.f, ShownYaw, 0.f));
-		Comp->SetRelativeLocation(FVector(0.f, 0.f, Choice.Z));
-		KodMeshAttach::Apply(Actor, Comp, MeshId, Choice.bLoaded && !Choice.bFallback);
-		break;
 	}
-	UE_LOG(LogTemp, Log, TEXT("KodCC Mesh=%s Span=%.0f Actor=%s"),
+	if (!Comp)
+	{
+		Comp = NewObject<UStaticMeshComponent>(Actor, TEXT("KodCCMesh"));
+		if (USceneComponent* Root = Actor->GetRootComponent())
+		{
+			Comp->SetupAttachment(Root);
+		}
+		else
+		{
+			Actor->SetRootComponent(Comp);
+		}
+		Comp->RegisterComponent();
+	}
+	Comp->SetMobility(EComponentMobility::Movable);
+	Comp->SetStaticMesh(Mesh);
+	Comp->SetHiddenInGame(false);
+	Comp->SetVisibility(true);
+	const float ShownYaw = KodBuildingYaw::OffsetDegrees();
+	Comp->SetRelativeScale3D(Scale);
+	Comp->SetRelativeRotation(FRotator(0.f, ShownYaw, 0.f));
+	Comp->SetRelativeLocation(FVector(0.f, 0.f, Choice.Z));
+	KodMeshAttach::Apply(Actor, Comp, MeshId, Choice.bLoaded && !Choice.bFallback);
+	if (Choice.bFallback || !Choice.bLoaded || Mesh->GetPathName().Contains(TEXT("/Engine/BasicShapes/")))
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodMesh Fallback Id=%s Path=%s"), *MeshId.ToString(), *Mesh->GetPathName());
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodCC Mesh=%s Span=%.0f Actor=%s Hidden=%d"),
 		*Mesh->GetName(),
 		Footprint,
-		*Actor->GetActorNameOrLabel());
+		*Actor->GetActorNameOrLabel(),
+		Actor->IsHidden() ? 1 : 0);
+	LiftCommandCenterOntoGround(Actor);
 }
 
 void AKodSlice0GameMode::ApplyStartFaction(int32 FactionIndex)
@@ -2829,7 +2979,7 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 	};
 	if (bScinder)
 	{
-		AddBuilding(FName(TEXT("ScinderHost")), 2);
+		AddUnit(FName(TEXT("ScinderHost")));
 		AddBuilding(FName(TEXT("RiteWell")), 2);
 		AddUnit(FName(KodWardenPaths::Id_ScnWorker));
 		AddUnit(FName(TEXT("Faultburst")));
@@ -2849,14 +2999,13 @@ bool AKodSlice0GameMode::PlaceShotBuildings(FVector& OutFocus)
 	}
 	const float HallHalf = Edge;
 	FBox RowBox(ForceInit);
-	RowBox += Base + FVector(HallHalf, HallHalf, 0.f);
-	RowBox += Base - FVector(HallHalf, HallHalf, 0.f);
 	for (const FShotPlace& Place : Plan)
 	{
 		const float Half = Place.SpanCm * 0.5f;
 		const float Gap = Place.SpanCm + 200.f;
 		const float Center = Edge + Gap + Half;
-		const FVector At = Base + FVector(Center, 0.f, 0.f);
+		// +Y keeps the row on open sand. +X runs into the ridge beside the base.
+		const FVector At = Base + FVector(0.f, Center + 1400.f, 0.f);
 		const int32 Cells = FMath::Max(1, FMath::RoundToInt(Place.SpanCm / static_cast<float>(KodBuildGrid::CellUU)));
 		if (Place.bBuilding)
 		{
@@ -3040,6 +3189,129 @@ bool AKodSlice0GameMode::PlaceShotBunker(FVector& OutFocus)
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodShotBunker Place Loc=%.0f,%.0f,%.0f"), OutFocus.X, OutFocus.Y, OutFocus.Z);
 	return Id.IsValid() && FVector::Dist2D(OutFocus, FVector::ZeroVector) > 50.f;
+}
+
+bool AKodSlice0GameMode::PlaceShotShadowSquads(FVector& OutFocus)
+{
+	OutFocus = FVector::ZeroVector;
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+	const FVector Base = FindPlayerBaseActor(World) ? FindPlayerBaseActor(World)->GetActorLocation() : FVector(-7500.f, -7500.f, 80.f);
+	AActor* Wall = nullptr;
+	float BestSpan = 0.f;
+	for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
+	{
+		AStaticMeshActor* Actor = *It;
+		if (!Actor || Actor->ActorHasTag(FName(TEXT("KodGround"))) || Actor->ActorHasTag(FName(TEXT("KodGeneratedGround")))
+			|| Actor->ActorHasTag(FName(TEXT("KodBaseSocket"))))
+		{
+			continue;
+		}
+		const FBox Bounds = Actor->GetComponentsBoundingBox(true);
+		if (!Bounds.IsValid)
+		{
+			continue;
+		}
+		const FVector Size = Bounds.GetSize();
+		const float Span = FMath::Max(Size.X, Size.Y);
+		if (Span < 1200.f || Size.Z < 200.f)
+		{
+			continue;
+		}
+		if (FVector::Dist2D(Bounds.GetCenter(), Base) > 12000.f)
+		{
+			continue;
+		}
+		if (!Wall || Span > BestSpan)
+		{
+			Wall = Actor;
+			BestSpan = Span;
+		}
+	}
+	FVector SunForward(1.f, 0.f, 0.f);
+	for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+	{
+		if (*It && !It->IsHidden())
+		{
+			SunForward = It->GetActorRotation().Vector().GetSafeNormal2D();
+			if (!SunForward.IsNearlyZero())
+			{
+				break;
+			}
+		}
+	}
+	if (SunForward.IsNearlyZero())
+	{
+		SunForward = FVector(1.f, 0.f, 0.f);
+	}
+	const FVector WallCenter = Wall ? Wall->GetActorLocation() : Base + FVector(2000.f, 0.f, 0.f);
+	const FVector ShadowAt = WallCenter + SunForward * 700.f;
+	const FVector LitAt = WallCenter - SunForward * 600.f;
+	UKodUnitDefinition* Marine = UKodSlice0Bootstrap::ResolveUnit(FName(KodWardenPaths::Id_Marine), this);
+	TArray<FKodEntityId> Blue;
+	auto SpawnMarine = [this, World, Marine, &Blue](const FVector& At, int32 Team, bool bSelect)
+	{
+		if (!Marine)
+		{
+			return;
+		}
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AKodUnit* Unit = World->SpawnActor<AKodUnit>(AKodUnit::StaticClass(), FTransform(FRotator::ZeroRotator, At), Params);
+		if (!Unit)
+		{
+			return;
+		}
+		Unit->TeamId = Team;
+		Unit->Definition = Marine;
+		Unit->ApplyDefinition(Marine);
+		PlaceActorAt(Unit, At);
+		if (bSelect && Unit->EntityId.IsValid())
+		{
+			Blue.Add(Unit->EntityId);
+		}
+	};
+	const FVector Across(-SunForward.Y, SunForward.X, 0.f);
+	auto AtHeight = [Base](const FVector& Point) -> FVector
+	{
+		return FVector(Point.X, Point.Y, Base.Z);
+	};
+	for (int32 Index = 0; Index < 5; ++Index)
+	{
+		const FVector Step = Across * (static_cast<float>(Index) - 2.f) * 140.f;
+		SpawnMarine(AtHeight(ShadowAt + Step), 0, false);
+		SpawnMarine(AtHeight(ShadowAt + Step + Across * 160.f), 1, true);
+	}
+	SpawnMarine(AtHeight(LitAt), 0, false);
+	SpawnMarine(AtHeight(LitAt + Across * 180.f), 1, false);
+	OutFocus = ShadowAt;
+	OutFocus.Z = Base.Z;
+	for (TActorIterator<AKodRTSCameraPawn> It(World); It; ++It)
+	{
+		if (!It->IsA(AKodSpectatorPawn::StaticClass()))
+		{
+			It->JumpTo(OutFocus);
+			break;
+		}
+	}
+	if (APlayerController* PC = World->GetFirstPlayerController())
+	{
+		if (AKodPlayerController* KodPC = Cast<AKodPlayerController>(PC))
+		{
+			KodPC->SetLocalSelectionFromIds(Blue, false);
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodShotShadowSquads Wall=%s Shadow=%.0f,%.0f Lit=%.0f,%.0f Blue=%d"),
+		Wall ? *Wall->GetActorNameOrLabel() : TEXT("None"),
+		ShadowAt.X,
+		ShadowAt.Y,
+		LitAt.X,
+		LitAt.Y,
+		Blue.Num());
+	return Blue.Num() == 5;
 }
 
 void AKodSlice0GameMode::SetShotBuildFraction(float Fraction)

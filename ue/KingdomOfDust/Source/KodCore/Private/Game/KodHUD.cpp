@@ -29,6 +29,7 @@
 #include "Engine/Canvas.h"
 #include "CanvasItem.h"
 #include "Engine/Texture.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
@@ -1077,16 +1078,97 @@ bool AKodHUD::MeasureOpeningFrame(float MaxBlipPx, float& OutRectErrorPx, bool& 
 	const float MinY = FMath::Min(FMath::Min(NearLeft.Y, NearRight.Y), FMath::Min(FarRight.Y, FarLeft.Y)) - 400.f;
 	const float MaxY = FMath::Max(FMath::Max(NearLeft.Y, NearRight.Y), FMath::Max(FarRight.Y, FarLeft.Y)) + 400.f;
 	bCcInFrame = At.X >= MinX && At.X <= MaxX && At.Y >= MinY && At.Y <= MaxY;
+	UPrimitiveComponent* Body = nullptr;
+	FString MeshPath = TEXT("None");
+	TInlineComponentArray<UMeshComponent*> Meshes;
+	CommandCenter->GetComponents(Meshes);
+	for (UMeshComponent* Mesh : Meshes)
+	{
+		if (!Mesh || Mesh->bHiddenInGame || !Mesh->IsVisible() || Mesh->ComponentHasTag(FName(TEXT("KodFx"))))
+		{
+			continue;
+		}
+		if (const UStaticMeshComponent* StaticMesh = Cast<UStaticMeshComponent>(Mesh))
+		{
+			if (!StaticMesh->GetStaticMesh())
+			{
+				continue;
+			}
+			MeshPath = StaticMesh->GetStaticMesh()->GetPathName();
+			if (MeshPath.Contains(TEXT("/Engine/BasicShapes/Cube")))
+			{
+				continue;
+			}
+		}
+		else if (const USkeletalMeshComponent* Skel = Cast<USkeletalMeshComponent>(Mesh))
+		{
+			if (!Skel->GetSkeletalMeshAsset())
+			{
+				continue;
+			}
+			MeshPath = Skel->GetSkeletalMeshAsset()->GetPathName();
+		}
+		else
+		{
+			continue;
+		}
+		Body = Mesh;
+		break;
+	}
+	const bool bHiddenActor = CommandCenter->IsHidden();
+	const bool bRendered = Body && Body->WasRecentlyRendered(1.f);
+	bool bOnScreen = false;
+	if (Body)
+	{
+		if (APlayerController* PC = Cast<APlayerController>(CameraPawn->GetController()))
+		{
+			int32 SizeX = 0;
+			int32 SizeY = 0;
+			PC->GetViewportSize(SizeX, SizeY);
+			const FBoxSphereBounds Bounds = Body->Bounds;
+			const FVector Extent = Bounds.BoxExtent;
+			const FVector Origin = Bounds.Origin;
+			float MinSX = MAX_flt;
+			float MinSY = MAX_flt;
+			float MaxSX = -MAX_flt;
+			float MaxSY = -MAX_flt;
+			int32 Projected = 0;
+			for (int32 Corner = 0; Corner < 8; ++Corner)
+			{
+				const FVector Point = Origin + FVector(
+					(Corner & 1) ? Extent.X : -Extent.X,
+					(Corner & 2) ? Extent.Y : -Extent.Y,
+					(Corner & 4) ? Extent.Z : -Extent.Z);
+				FVector2D Screen = FVector2D::ZeroVector;
+				if (!PC->ProjectWorldLocationToScreen(Point, Screen, true))
+				{
+					continue;
+				}
+				++Projected;
+				MinSX = FMath::Min(MinSX, Screen.X);
+				MinSY = FMath::Min(MinSY, Screen.Y);
+				MaxSX = FMath::Max(MaxSX, Screen.X);
+				MaxSY = FMath::Max(MaxSY, Screen.Y);
+			}
+			bOnScreen = Projected > 0 && SizeX > 0 && SizeY > 0
+				&& MaxSX >= 0.f && MaxSY >= 0.f && MinSX <= static_cast<float>(SizeX) && MinSY <= static_cast<float>(SizeY);
+		}
+	}
+	bCcInFrame = bCcInFrame && Body && !bHiddenActor && bRendered && bOnScreen;
 	float BlipX = 0.f;
 	float BlipY = 0.f;
 	if (bHasViewRect && WorldToMinimap(At.X, At.Y, BlipX, BlipY))
 	{
 		OutRectErrorPx = FVector2D::Distance(FVector2D(BlipX, BlipY), FVector2D(ViewRectCenterX, ViewRectCenterY));
 	}
-	UE_LOG(LogTemp, Log, TEXT("KodShotFrame CC=%.0f,%.0f InFrame=%d RectErrPx=%.1f Limit=%.1f Rect=%.1f,%.1f"),
+	UE_LOG(LogTemp, Log, TEXT("KodShotFrame CC=%.0f,%.0f InFrame=%d Mesh=%s Hidden=%d Rendered=%d Screen=%d RectErrPx=%.1f Limit=%.1f Rect=%.1f,%.1f"),
 		At.X,
 		At.Y,
 		bCcInFrame ? 1 : 0,
+		*MeshPath,
+		bHiddenActor ? 1 : 0,
+		bRendered ? 1 : 0,
+		bOnScreen ? 1 : 0,
 		OutRectErrorPx,
 		MaxBlipPx,
 		ViewRectCenterX,
@@ -1105,6 +1187,7 @@ void AKodHUD::PollShotAfter()
 	static bool bGateVoice = false;
 	static bool bGateRite = false;
 	static bool bGateBunker = false;
+	static bool bGateShadow = false;
 	static int32 GatePanStep = 0;
 	static int32 GateRiteStep = 0;
 	static int32 GateRiteId = 0;
@@ -1125,6 +1208,7 @@ void AKodHUD::PollShotAfter()
 		int32 VoiceFlag = 0;
 		int32 RiteFlag = 0;
 		int32 BunkerShotFlag = 0;
+		int32 ShadowFlag = 0;
 		const TCHAR* CommandLine = FCommandLine::Get();
 		bGateSelectMove = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotSelectMove="), SelectFlag) && SelectFlag != 0;
 		bGateZoom = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotZoom="), ZoomFlag) && ZoomFlag != 0;
@@ -1133,8 +1217,9 @@ void AKodHUD::PollShotAfter()
 		bGateVoice = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotVoiceSpam="), VoiceFlag) && VoiceFlag != 0;
 		bGateRite = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotRiteWell="), RiteFlag) && RiteFlag != 0;
 		bGateBunker = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotBunker="), BunkerShotFlag) && BunkerShotFlag != 0;
+		bGateShadow = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotShadowSquads="), ShadowFlag) && ShadowFlag != 0;
 	}
-	if ((bGateSelectMove || bGateZoom || bGateBuildings || bGatePan || bGateVoice || bGateRite || bGateBunker) && World)
+	if ((bGateSelectMove || bGateZoom || bGateBuildings || bGatePan || bGateVoice || bGateRite || bGateBunker || bGateShadow) && World)
 	{
 		const float Now = World->GetTimeSeconds();
 		AKodPlayerController* GatePC = Cast<AKodPlayerController>(GetOwningPlayerController());
@@ -1233,6 +1318,19 @@ void AKodHUD::PollShotAfter()
 				}
 				UE_LOG(LogTemp, Log, TEXT("KodShotBunker Focus=%.0f,%.0f,%.0f"), Focus.X, Focus.Y, Focus.Z);
 			}
+			if (bGateShadow)
+			{
+				FVector Focus = FVector::ZeroVector;
+				if (AKodGameMode* GateMode = World->GetAuthGameMode<AKodGameMode>())
+				{
+					GateMode->PlaceShotShadowSquads(Focus);
+				}
+				if (CameraPawn)
+				{
+					CameraPawn->JumpTo(Focus);
+				}
+				UE_LOG(LogTemp, Log, TEXT("KodShotShadowSquads Focus=%.0f,%.0f,%.0f"), Focus.X, Focus.Y, Focus.Z);
+			}
 			if ((bGateRite || bGateBuildings || bGateBunker) && !bGpuDumped)
 			{
 				bGpuDumped = true;
@@ -1326,6 +1424,7 @@ void AKodHUD::PollShotAfter()
 				GateRiteStep,
 				Fractions[GateRiteStep],
 				GateRiteId);
+			RequestKodGpuDump(World);
 			GetHighResScreenshotConfig().SetResolution(1920, 1080);
 			if (GEngine)
 			{

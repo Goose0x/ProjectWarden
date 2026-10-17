@@ -40,6 +40,9 @@ public:
 	/** -kod.ShotBunker=1. Place a bunker beside the player base and frame it. */
 	virtual bool PlaceShotBunker(FVector& OutFocus);
 
+	/** -kod.ShotShadowSquads=1. Two squads in the wall shadow, plus a lit control of each colour. */
+	virtual bool PlaceShotShadowSquads(FVector& OutFocus);
+
 	/** Drive every KodShotLabel building through a construction fraction. 1 completes it. */
 	virtual void SetShotBuildFraction(float Fraction);
 

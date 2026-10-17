@@ -95,6 +95,11 @@ namespace
 		Mesh->SetWorldScale3D(FVector(Footprint / Diameter, Footprint / Diameter, 20.f / Height));
 		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Mesh->SetCanEverAffectNavigation(false);
+		// The cylinder is a socket marker. Its default material reads as a yellow disc.
+		Pad->SetActorHiddenInGame(true);
+		Mesh->SetHiddenInGame(true);
+		Mesh->SetVisibility(false);
+		UE_LOG(LogTemp, Log, TEXT("KodFaultline OctagonHidden Loc=%.0f,%.0f"), Center.X, Center.Y);
 	}
 
 	void PlaceResources(UWorld* World, UKodSimSubsystem* Sim)

@@ -185,6 +185,12 @@ bool AKodGameMode::PlaceShotBunker(FVector& OutFocus)
 	return false;
 }
 
+bool AKodGameMode::PlaceShotShadowSquads(FVector& OutFocus)
+{
+	OutFocus = FVector::ZeroVector;
+	return false;
+}
+
 void AKodGameMode::SetShotBuildFraction(float Fraction)
 {
 	(void)Fraction;
