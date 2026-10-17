@@ -455,6 +455,7 @@ void AKodHUD::DrawMinimap()
 		DrawRect(TeamInk(State.TeamId, LocalTeam), X - Dot * 0.5f, Y - Dot * 0.5f, Dot, Dot);
 	}
 
+	bHasViewRect = false;
 	if (const AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetOwningPawn()))
 	{
 		FVector NearLeft;
@@ -483,6 +484,9 @@ void AKodHUD::DrawMinimap()
 				MapMaxY);
 			if (View.bValid)
 			{
+				bHasViewRect = true;
+				ViewRectCenterX = (View.MinX + View.MaxX) * 0.5f;
+				ViewRectCenterY = (View.MinY + View.MaxY) * 0.5f;
 				const FLinearColor White(1.f, 1.f, 1.f, 0.95f);
 				DrawLine(View.MinX, View.MinY, View.MaxX, View.MinY, White, 1.5f);
 				DrawLine(View.MaxX, View.MinY, View.MaxX, View.MaxY, White, 1.5f);

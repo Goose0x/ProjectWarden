@@ -323,6 +323,8 @@ void AKodRTSCameraPawn::Tick(float DeltaSeconds)
 
 	UpdateTerrain(Dt, false);
 	ClampToPlayable();
+	MaintainBoom();
+	AlignScreenCenterToFocus();
 	if (ShakeAmp > 0.5f)
 	{
 		const float Time = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
@@ -397,6 +399,7 @@ void AKodRTSCameraPawn::SnapToStartView(FVector WorldLocation)
 	JumpTo(WorldLocation);
 	LoggedZoomArm = TargetArmLength;
 	bStartViewSnapped = true;
+	bScreenAligned = false;
 	StartViewFrame = GFrameCounter;
 }
 
@@ -526,7 +529,19 @@ void AKodRTSCameraPawn::SnapToPlayerStart()
 	{
 		return;
 	}
-	const FVector At = Anchor->GetActorLocation();
+	FVector At = Anchor->GetActorLocation();
+	UWorld* World = GetWorld();
+	if (UKodSimSubsystem* Sim = World ? World->GetSubsystem<UKodSimSubsystem>() : nullptr)
+	{
+		FKodStructureState Structure;
+		if (Sim->TryGetStructure(Sim->FindIdForActor(Anchor), Structure)
+			&& FVector::Dist2D(Structure.Position, At) > 300.f
+			&& (FMath::Abs(Structure.Position.X) > 50.f || FMath::Abs(Structure.Position.Y) > 50.f))
+		{
+			At = Structure.Position;
+			Anchor->SetActorLocation(At, false, nullptr, ETeleportType::TeleportPhysics);
+		}
+	}
 	if (FMath::Abs(At.X) < 50.f && FMath::Abs(At.Y) < 50.f)
 	{
 		return;
@@ -539,6 +554,7 @@ void AKodRTSCameraPawn::SnapToPlayerStart()
 void AKodRTSCameraPawn::JumpTo(FVector WorldLocation)
 {
 	bPendingPlayerFocus = false;
+	bScreenAligned = false;
 	FVector Loc = GetActorLocation();
 	Loc.X = WorldLocation.X;
 	Loc.Y = WorldLocation.Y;
@@ -620,30 +636,58 @@ bool AKodRTSCameraPawn::GetActiveAlert(FVector& OutLocation) const
 
 bool AKodRTSCameraPawn::GetGroundViewCorners(FVector& OutNearLeft, FVector& OutNearRight, FVector& OutFarRight, FVector& OutFarLeft) const
 {
-	if (!Camera)
-	{
-		return false;
-	}
 	const float GroundZ = GetActorLocation().Z;
-	const FVector CamLoc = Camera->GetComponentLocation();
-	const FRotator CamRot = Camera->GetComponentRotation();
-	float Aspect = 16.f / 9.f;
-	if (const APlayerController* PC = Cast<APlayerController>(GetController()))
+	int32 SizeX = 0;
+	int32 SizeY = 0;
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (PC)
 	{
-		int32 SizeX = 0;
-		int32 SizeY = 0;
 		PC->GetViewportSize(SizeX, SizeY);
-		if (SizeX > 0 && SizeY > 0)
-		{
-			Aspect = static_cast<float>(SizeX) / static_cast<float>(SizeY);
-		}
 	}
-	const float HalfHorizontal = FMath::DegreesToRadians(FMath::Max(1.f, Camera->FieldOfView) * 0.5f);
-	const float HalfVertical = FMath::Atan(FMath::Tan(HalfHorizontal) / FMath::Max(0.1f, Aspect));
+	auto HitScreen = [PC, GroundZ](float ScreenX, float ScreenY, FVector& OutHit) -> bool
+	{
+		FVector Origin = FVector::ZeroVector;
+		FVector Direction = FVector::ZeroVector;
+		if (!PC || !PC->DeprojectScreenPositionToWorld(ScreenX, ScreenY, Origin, Direction))
+		{
+			return false;
+		}
+		return KodCameraSettings::RayHitsHorizontalPlane(Origin, Direction, GroundZ, OutHit);
+	};
+	FVector Center = FVector::ZeroVector;
+	FVector CornerA = FVector::ZeroVector;
+	FVector CornerB = FVector::ZeroVector;
+	FVector CornerC = FVector::ZeroVector;
+	FVector CornerD = FVector::ZeroVector;
+	if (SizeX > 1 && SizeY > 1
+		&& HitScreen(static_cast<float>(SizeX) * 0.5f, static_cast<float>(SizeY) * 0.5f, Center)
+		&& HitScreen(0.f, static_cast<float>(SizeY), CornerA)
+		&& HitScreen(static_cast<float>(SizeX), static_cast<float>(SizeY), CornerB)
+		&& HitScreen(static_cast<float>(SizeX), 0.f, CornerC)
+		&& HitScreen(0.f, 0.f, CornerD))
+	{
+		OutNearLeft = CornerA;
+		OutNearRight = CornerB;
+		OutFarRight = CornerC;
+		OutFarLeft = CornerD;
+		return true;
+	}
+
+	const FVector Focus(GetActorLocation().X, GetActorLocation().Y, GroundZ);
+	const float Arm = FMath::Max(100.f, CurrentArmLength);
+	const FVector CamLoc = Focus + KodCameraSettings::RtsCameraOffset(PitchDegrees, YawDegrees, Arm);
+	const FRotator CamRot(PitchDegrees, YawDegrees, 0.f);
+	float Aspect = 16.f / 9.f;
+	if (SizeX > 0 && SizeY > 0)
+	{
+		Aspect = static_cast<float>(SizeX) / static_cast<float>(SizeY);
+	}
+	const float HalfVertical = FMath::DegreesToRadians(FMath::Clamp(VerticalFovDegrees, 10.f, 80.f) * 0.5f);
+	const float HalfHorizontal = FMath::Atan(FMath::Tan(HalfVertical) * Aspect);
 	const FVector Forward = CamRot.Vector();
 	const FVector Right = FRotationMatrix(CamRot).GetScaledAxis(EAxis::Y);
 	const FVector Up = FRotationMatrix(CamRot).GetScaledAxis(EAxis::Z);
-	const float Corners[4][2] = {
+	const float CornerSign[4][2] = {
 		{-1.f, -1.f},
 		{1.f, -1.f},
 		{1.f, 1.f},
@@ -652,25 +696,60 @@ bool AKodRTSCameraPawn::GetGroundViewCorners(FVector& OutNearLeft, FVector& OutN
 	FVector Hits[4];
 	for (int32 Index = 0; Index < 4; ++Index)
 	{
-		FVector Dir = Forward
-			+ Right * (Corners[Index][0] * FMath::Tan(HalfHorizontal))
-			+ Up * (Corners[Index][1] * FMath::Tan(HalfVertical));
-		if (!Dir.Normalize() || FMath::IsNearlyZero(Dir.Z))
+		const FVector Dir = Forward
+			+ Right * (CornerSign[Index][0] * FMath::Tan(HalfHorizontal))
+			+ Up * (CornerSign[Index][1] * FMath::Tan(HalfVertical));
+		if (!KodCameraSettings::RayHitsHorizontalPlane(CamLoc, Dir, GroundZ, Hits[Index]))
 		{
 			return false;
 		}
-		const float T = (GroundZ - CamLoc.Z) / Dir.Z;
-		if (T <= 0.f)
-		{
-			return false;
-		}
-		Hits[Index] = CamLoc + Dir * T;
 	}
 	OutNearLeft = Hits[0];
 	OutNearRight = Hits[1];
 	OutFarRight = Hits[2];
 	OutFarLeft = Hits[3];
 	return true;
+}
+
+void AKodRTSCameraPawn::AlignScreenCenterToFocus()
+{
+	if (bScreenAligned || bGrabbing || bPendingPlayerFocus || !HasStartViewSettled())
+	{
+		return;
+	}
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+	int32 SizeX = 0;
+	int32 SizeY = 0;
+	PC->GetViewportSize(SizeX, SizeY);
+	if (SizeX < 2 || SizeY < 2)
+	{
+		return;
+	}
+	FVector Origin = FVector::ZeroVector;
+	FVector Direction = FVector::ZeroVector;
+	if (!PC->DeprojectScreenPositionToWorld(static_cast<float>(SizeX) * 0.5f, static_cast<float>(SizeY) * 0.5f, Origin, Direction))
+	{
+		return;
+	}
+	FVector Hit = FVector::ZeroVector;
+	if (!KodCameraSettings::RayHitsHorizontalPlane(Origin, Direction, GetActorLocation().Z, Hit))
+	{
+		return;
+	}
+	const FVector Delta(GetActorLocation().X - Hit.X, GetActorLocation().Y - Hit.Y, 0.f);
+	const float Error = Delta.Size2D();
+	if (Error <= 12000.f)
+	{
+		if (Error >= 80.f)
+		{
+			AddActorWorldOffset(Delta, false, nullptr, ETeleportType::TeleportPhysics);
+		}
+		bScreenAligned = true;
+	}
 }
 
 void AKodRTSCameraPawn::CopyViewFrom(const AKodRTSCameraPawn* Other)

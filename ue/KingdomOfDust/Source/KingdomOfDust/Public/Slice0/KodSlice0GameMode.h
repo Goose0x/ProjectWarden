@@ -29,6 +29,8 @@ public:
 	virtual void ApplyStartFaction(int32 FactionIndex) override;
 	virtual bool PlaceShotBuildings(FVector& OutFocus) override;
 	virtual bool PlaceShotRiteWell(FVector& OutFocus, int32& OutStructureId) override;
+	virtual bool PlaceShotBunker(FVector& OutFocus) override;
+	virtual void SetShotBuildFraction(float Fraction) override;
 
 	/** Level PROXY_CC even while it is still at the origin. Seating moves this actor. */
 	static AActor* FindBaseToSeat(UWorld* World);

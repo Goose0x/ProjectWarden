@@ -75,6 +75,9 @@ public:
 	/** Four ground corners of the view, near-left, near-right, far-right, far-left. */
 	bool GetGroundViewCorners(FVector& OutNearLeft, FVector& OutNearRight, FVector& OutFarRight, FVector& OutFarLeft) const;
 
+	/** Slide the pawn so the viewport centre lands on the current focus. */
+	void AlignScreenCenterToFocus();
+
 	/** Match location, yaw, and zoom. Used when entering spectator. */
 	void CopyViewFrom(const AKodRTSCameraPawn* Other);
 
@@ -239,6 +242,7 @@ protected:
 	float LoggedZoomArm = -1.f;
 	bool bLoggedCamStart = false;
 	bool bStartViewSnapped = false;
+	bool bScreenAligned = false;
 	uint64 StartViewFrame = 0;
 	FVector PanVelocity = FVector::ZeroVector;
 	bool bGrabbing = false;

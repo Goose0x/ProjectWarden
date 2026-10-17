@@ -37,6 +37,12 @@ public:
 	 */
 	virtual bool PlaceShotRiteWell(FVector& OutFocus, int32& OutStructureId);
 
+	/** -kod.ShotBunker=1. Place a bunker beside the player base and frame it. */
+	virtual bool PlaceShotBunker(FVector& OutFocus);
+
+	/** Drive every KodShotLabel building through a construction fraction. 1 completes it. */
+	virtual void SetShotBuildFraction(float Fraction);
+
 	/** Drop a faction-select camera fade so the view is not held black or tinted. */
 	void ClearMatchCameraFade();
 

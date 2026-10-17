@@ -981,6 +981,9 @@ void AKodBuilding::UpdatePoolSurface(float DeltaSeconds, int32 Stage)
 			PoolSurface->SetupAttachment(Body, bHasSocket ? Socket : NAME_None);
 			PoolSurface->SetStaticMesh(SurfaceMesh);
 			PoolSurface->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			PoolSurface->SetCastShadow(false);
+			PoolSurface->bCastDynamicShadow = false;
+			PoolSurface->bCastStaticShadow = false;
 			PoolSurface->SetRelativeLocation(FVector(0.f, 0.f, TargetZ));
 			PoolSurface->RegisterComponent();
 			if (UMaterialInstanceDynamic* SurfaceMat = PoolSurface->CreateDynamicMaterialInstance(0))

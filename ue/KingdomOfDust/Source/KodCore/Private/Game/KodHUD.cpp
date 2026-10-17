@@ -1034,6 +1034,66 @@ void AKodHUD::LogRenderDiag()
 	}
 }
 
+namespace
+{
+	void RequestKodGpuDump(UWorld* World)
+	{
+		if (!GEngine || !World)
+		{
+			return;
+		}
+		GEngine->Exec(World, TEXT("r.GPUStatsEnabled 1"));
+		GEngine->Exec(World, TEXT("r.GPUCsvStatsEnabled 1"));
+		GEngine->Exec(World, TEXT("profilegpu"));
+		UE_LOG(LogTemp, Log, TEXT("KodGPU ProfileGPU requested"));
+	}
+}
+
+bool AKodHUD::MeasureOpeningFrame(float MaxBlipPx, float& OutRectErrorPx, bool& bCcInFrame) const
+{
+	OutRectErrorPx = -1.f;
+	bCcInFrame = false;
+	const AKodRTSCameraPawn* CameraPawn = Cast<AKodRTSCameraPawn>(GetOwningPawn());
+	if (!CameraPawn)
+	{
+		return false;
+	}
+	const AActor* CommandCenter = CameraPawn->FindCommandCenter();
+	if (!CommandCenter)
+	{
+		return false;
+	}
+	const FVector At = CommandCenter->GetActorLocation();
+	FVector NearLeft = FVector::ZeroVector;
+	FVector NearRight = FVector::ZeroVector;
+	FVector FarRight = FVector::ZeroVector;
+	FVector FarLeft = FVector::ZeroVector;
+	if (!CameraPawn->GetGroundViewCorners(NearLeft, NearRight, FarRight, FarLeft))
+	{
+		return false;
+	}
+	const float MinX = FMath::Min(FMath::Min(NearLeft.X, NearRight.X), FMath::Min(FarRight.X, FarLeft.X)) - 400.f;
+	const float MaxX = FMath::Max(FMath::Max(NearLeft.X, NearRight.X), FMath::Max(FarRight.X, FarLeft.X)) + 400.f;
+	const float MinY = FMath::Min(FMath::Min(NearLeft.Y, NearRight.Y), FMath::Min(FarRight.Y, FarLeft.Y)) - 400.f;
+	const float MaxY = FMath::Max(FMath::Max(NearLeft.Y, NearRight.Y), FMath::Max(FarRight.Y, FarLeft.Y)) + 400.f;
+	bCcInFrame = At.X >= MinX && At.X <= MaxX && At.Y >= MinY && At.Y <= MaxY;
+	float BlipX = 0.f;
+	float BlipY = 0.f;
+	if (bHasViewRect && WorldToMinimap(At.X, At.Y, BlipX, BlipY))
+	{
+		OutRectErrorPx = FVector2D::Distance(FVector2D(BlipX, BlipY), FVector2D(ViewRectCenterX, ViewRectCenterY));
+	}
+	UE_LOG(LogTemp, Log, TEXT("KodShotFrame CC=%.0f,%.0f InFrame=%d RectErrPx=%.1f Limit=%.1f Rect=%.1f,%.1f"),
+		At.X,
+		At.Y,
+		bCcInFrame ? 1 : 0,
+		OutRectErrorPx,
+		MaxBlipPx,
+		ViewRectCenterX,
+		ViewRectCenterY);
+	return bCcInFrame && OutRectErrorPx >= 0.f && OutRectErrorPx <= MaxBlipPx;
+}
+
 void AKodHUD::PollShotAfter()
 {
 	UWorld* World = GetWorld();
@@ -1044,9 +1104,12 @@ void AKodHUD::PollShotAfter()
 	static bool bGatePan = false;
 	static bool bGateVoice = false;
 	static bool bGateRite = false;
+	static bool bGateBunker = false;
 	static int32 GatePanStep = 0;
 	static int32 GateRiteStep = 0;
 	static int32 GateRiteId = 0;
+	static int32 GateBuildStep = 0;
+	static bool bGpuDumped = false;
 	static bool bGateActed = false;
 	static bool bGatePrepared = false;
 	static bool bGateQueued = false;
@@ -1061,6 +1124,7 @@ void AKodHUD::PollShotAfter()
 		int32 PanFlag = 0;
 		int32 VoiceFlag = 0;
 		int32 RiteFlag = 0;
+		int32 BunkerShotFlag = 0;
 		const TCHAR* CommandLine = FCommandLine::Get();
 		bGateSelectMove = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotSelectMove="), SelectFlag) && SelectFlag != 0;
 		bGateZoom = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotZoom="), ZoomFlag) && ZoomFlag != 0;
@@ -1068,8 +1132,9 @@ void AKodHUD::PollShotAfter()
 		bGatePan = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotPan="), PanFlag) && PanFlag != 0;
 		bGateVoice = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotVoiceSpam="), VoiceFlag) && VoiceFlag != 0;
 		bGateRite = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotRiteWell="), RiteFlag) && RiteFlag != 0;
+		bGateBunker = CommandLine && FParse::Value(CommandLine, TEXT("-kod.ShotBunker="), BunkerShotFlag) && BunkerShotFlag != 0;
 	}
-	if ((bGateSelectMove || bGateZoom || bGateBuildings || bGatePan || bGateVoice || bGateRite) && World)
+	if ((bGateSelectMove || bGateZoom || bGateBuildings || bGatePan || bGateVoice || bGateRite || bGateBunker) && World)
 	{
 		const float Now = World->GetTimeSeconds();
 		AKodPlayerController* GatePC = Cast<AKodPlayerController>(GetOwningPlayerController());
@@ -1082,7 +1147,7 @@ void AKodHUD::PollShotAfter()
 		{
 			const AKodGameMode* MatchMode = World->GetAuthGameMode<AKodGameMode>();
 			const bool bFactionReady = !MatchMode || !MatchMode->IsAwaitingFactionPrompt();
-			const bool bCameraReady = (!bGateZoom && !bGateBuildings && !bGatePan && !bGateRite) || (CameraPawn && CameraPawn->HasStartViewSettled());
+			const bool bCameraReady = (!bGateZoom && !bGateBuildings && !bGatePan && !bGateRite && !bGateBunker) || (CameraPawn && CameraPawn->HasStartViewSettled());
 			int32 WorkerId = MAX_int32;
 			if (bGateSelectMove)
 			{
@@ -1146,12 +1211,32 @@ void AKodHUD::PollShotAfter()
 				if (AKodGameMode* GateMode = World->GetAuthGameMode<AKodGameMode>())
 				{
 					GateMode->PlaceShotBuildings(Focus);
+					GateMode->SetShotBuildFraction(0.10f);
 				}
 				if (CameraPawn)
 				{
 					CameraPawn->JumpTo(Focus);
 				}
 				UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Focus=%.0f,%.0f,%.0f"), Focus.X, Focus.Y, Focus.Z);
+			}
+			if (bGateBunker)
+			{
+				FVector Focus = FVector::ZeroVector;
+				if (AKodGameMode* GateMode = World->GetAuthGameMode<AKodGameMode>())
+				{
+					GateMode->PlaceShotBunker(Focus);
+					GateMode->SetShotBuildFraction(0.10f);
+				}
+				if (CameraPawn)
+				{
+					CameraPawn->JumpTo(Focus);
+				}
+				UE_LOG(LogTemp, Log, TEXT("KodShotBunker Focus=%.0f,%.0f,%.0f"), Focus.X, Focus.Y, Focus.Z);
+			}
+			if ((bGateRite || bGateBuildings || bGateBunker) && !bGpuDumped)
+			{
+				bGpuDumped = true;
+				RequestKodGpuDump(World);
 			}
 			if (bGateVoice)
 			{
@@ -1205,7 +1290,31 @@ void AKodHUD::PollShotAfter()
 				UE_LOG(LogTemp, Log, TEXT("KodShotRiteWell Focus=%.0f,%.0f,%.0f Id=%d"), Focus.X, Focus.Y, Focus.Z, GateRiteId);
 			}
 		}
-		const float Wait = (bGateZoom || bGateBuildings || bGatePan || bGateRite) ? 3.f : 2.f;
+		const float Wait = (bGateZoom || bGateBuildings || bGatePan || bGateRite || bGateBunker) ? 3.f : 2.f;
+		if ((bGateBuildings || bGateBunker) && GateBuildStep < 4)
+		{
+			const float Fractions[] = { 0.10f, 0.40f, 0.75f, 1.f };
+			const TCHAR* StageNames[] = { TEXT("Build01"), TEXT("Build02"), TEXT("Build03"), TEXT("Final") };
+			if ((Now - GateArmSeconds) < static_cast<float>(GateBuildStep + 1) * 0.8f)
+			{
+				return;
+			}
+			UE_LOG(LogTemp, Log, TEXT("KodShotBuildings Stage=%s Fraction=%.2f"), StageNames[GateBuildStep], Fractions[GateBuildStep]);
+			GetHighResScreenshotConfig().SetResolution(1920, 1080);
+			if (GEngine)
+			{
+				GEngine->Exec(World, TEXT("HighResShot 1920x1080"));
+			}
+			++GateBuildStep;
+			if (GateBuildStep < 4)
+			{
+				if (AKodGameMode* GateMode = World->GetAuthGameMode<AKodGameMode>())
+				{
+					GateMode->SetShotBuildFraction(Fractions[GateBuildStep]);
+				}
+				return;
+			}
+		}
 		if (bGateRite && GateRiteStep < 4)
 		{
 			const float Fractions[] = { 0.f, 0.33f, 0.66f, 1.f };
@@ -1256,6 +1365,13 @@ void AKodHUD::PollShotAfter()
 			}
 			UE_LOG(LogTemp, Log, TEXT("KodShotPan Step=%d Focus=%.0f,%.0f InFrame=%d"), GatePanStep, Center.X, Center.Y, InFrame);
 			checkf(InFrame > 0, TEXT("KodShotPan Step=%d has no unit in frame at %.0f,%.0f"), GatePanStep, Center.X, Center.Y);
+			if (GatePanStep == 0)
+			{
+				float RectError = -1.f;
+				bool bCcInFrame = false;
+				const bool bFramed = MeasureOpeningFrame(80.f, RectError, bCcInFrame);
+				checkf(bFramed, TEXT("KodShotPan opening frame CC InFrame=%d RectErrPx=%.1f"), bCcInFrame ? 1 : 0, RectError);
+			}
 			GetHighResScreenshotConfig().SetResolution(1920, 1080);
 			if (GEngine)
 			{
@@ -1338,12 +1454,18 @@ void AKodHUD::PollShotAfter()
 			return;
 		}
 		bShotQueued = true;
+		float RectError = -1.f;
+		bool bCcInFrame = false;
+		const bool bFramed = MeasureOpeningFrame(80.f, RectError, bCcInFrame);
+		checkf(bFramed, TEXT("KodShotAfter opening frame CC InFrame=%d RectErrPx=%.1f"), bCcInFrame ? 1 : 0, RectError);
 		GetHighResScreenshotConfig().SetResolution(1920, 1080);
 		if (GEngine)
 		{
 			GEngine->Exec(World, TEXT("HighResShot 1920x1080"));
+			GEngine->Exec(World, TEXT("profilegpu"));
 		}
 		UE_LOG(LogTemp, Log, TEXT("KodShotAfter HighResShot 1920x1080 scene+ui"));
+		UE_LOG(LogTemp, Log, TEXT("KodGPU ProfileGPU requested"));
 		return;
 	}
 	if (!bShotExitArmed)
@@ -2161,7 +2283,9 @@ void AKodHUD::SyncFogSheet(const UKodSimSubsystem* Sim, int32 LocalTeam)
 		FogSheetTexture->AddressX = TA_Clamp;
 		FogSheetTexture->AddressY = TA_Clamp;
 		FogSheetTexture->NeverStream = true;
+#if WITH_EDITORONLY_DATA
 		FogSheetTexture->MipGenSettings = TMGS_NoMipmaps;
+#endif
 		FogSheetTexture->UpdateResource();
 		FogCellsX = GridW;
 		FogCellsY = GridH;
