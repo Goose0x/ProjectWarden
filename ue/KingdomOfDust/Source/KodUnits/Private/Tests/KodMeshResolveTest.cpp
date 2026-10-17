@@ -16,8 +16,8 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("15 percent fits"), FKodMeshCatalog::SpanWithin(1150.f, 1000.f));
 	TestFalse(TEXT("20 percent does not fit"), FKodMeshCatalog::SpanWithin(1200.f, 1000.f));
 	TestTrue(TEXT("fit scale lands on the footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FittedSpanCm(100.f, 1.f, 1000.f), 1000.f));
-	TestTrue(TEXT("barracks footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(KodWardenPaths::Id_Barracks)), 800.f));
-	TestTrue(TEXT("depot footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(KodWardenPaths::Id_SupplyDepot)), 450.f));
+	TestTrue(TEXT("barracks footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(KodWardenPaths::Id_Barracks)), 600.f));
+	TestTrue(TEXT("depot footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(KodWardenPaths::Id_SupplyDepot)), 400.f));
 	TestTrue(TEXT("rite well footprint"), FMath::IsNearlyEqual(FKodMeshCatalog::FootprintCm(FName(TEXT("RiteWell"))), 450.f));
 	FKodMeshRow RiteWellRow;
 	if (KodMeshCatalogFindRow(FName(TEXT("RiteWell")), RiteWellRow))
@@ -129,7 +129,7 @@ bool FKodMeshResolveTest::RunTest(const FString& Parameters)
 		if (Id == FName(KodWardenPaths::Id_Barracks))
 		{
 			TestTrue(TEXT("barracks footprint fit"), Row->Fit == EKodMeshFit::Footprint);
-			TestTrue(TEXT("barracks 800 cm"), FMath::IsNearlyEqual(Row->FitCm, 800.f));
+			TestTrue(TEXT("barracks 600 cm"), FMath::IsNearlyEqual(Row->FitCm, 600.f));
 			TestTrue(TEXT("barracks v9i primary"), Row->Primary.Contains(TEXT("Barracks_v9i")));
 			TestTrue(TEXT("barracks v8g fallback"), Row->Fallback.Contains(TEXT("v8g")));
 		}

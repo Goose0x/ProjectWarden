@@ -203,8 +203,8 @@ FKodEntityId UKodSimSubsystem::RegisterStructure(AActor* Actor, const FKodStruct
 			Structure.PaidLuminene = FMath::Max(0, Build->Cost.Luminene);
 		}
 	}
-	Structure.CellX = KodBuildGrid::CellOf(Structure.Position.X) - (Structure.FootprintX - 1) / 2;
-	Structure.CellY = KodBuildGrid::CellOf(Structure.Position.Y) - (Structure.FootprintY - 1) / 2;
+	Structure.CellX = KodBuildGrid::OriginCell(Structure.Position.X, Structure.FootprintX);
+	Structure.CellY = KodBuildGrid::OriginCell(Structure.Position.Y, Structure.FootprintY);
 	Structure.Trains = Spec.Trains;
 	// Half the footprint plus one cell. A 5×5 CC exits at ~700 uu, outside the blocked cells.
 	const int32 HalfSpan = (FMath::Max(Structure.FootprintX, Structure.FootprintY) * KodBuildGrid::CellUU) / 2;

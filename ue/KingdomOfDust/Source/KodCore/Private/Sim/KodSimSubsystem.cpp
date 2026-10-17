@@ -1221,8 +1221,8 @@ void UKodSimSubsystem::SetEntityGroundPosition(FKodEntityId Id, const FVector& P
 		Structure->Position = State->Position;
 		const int32 FootX = FMath::Max(1, Structure->FootprintX);
 		const int32 FootY = FMath::Max(1, Structure->FootprintY);
-		Structure->CellX = KodBuildGrid::CellOf(State->Position.X) - (FootX - 1) / 2;
-		Structure->CellY = KodBuildGrid::CellOf(State->Position.Y) - (FootY - 1) / 2;
+		Structure->CellX = KodBuildGrid::OriginCell(State->Position.X, FootX);
+		Structure->CellY = KodBuildGrid::OriginCell(State->Position.Y, FootY);
 	}
 }
 

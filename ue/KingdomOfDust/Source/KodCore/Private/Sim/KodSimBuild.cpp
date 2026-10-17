@@ -128,9 +128,8 @@ bool UKodSimSubsystem::IsCellBlocked(int32 CellX, int32 CellY, int32 TeamId, boo
 		{
 			continue;
 		}
-		const int32 MaxX = Structure->CellX + FMath::Max(1, Structure->FootprintX);
-		const int32 MaxY = Structure->CellY + FMath::Max(1, Structure->FootprintY);
-		if (CellX < Structure->CellX || CellX >= MaxX || CellY < Structure->CellY || CellY >= MaxY)
+		if (!KodBuildGrid::CoversCell(CellX, Structure->CellX, Structure->FootprintX)
+			|| !KodBuildGrid::CoversCell(CellY, Structure->CellY, Structure->FootprintY))
 		{
 			continue;
 		}
@@ -323,19 +322,13 @@ void UKodSimSubsystem::ClearBuildAssignment(FKodSimEntityState& State)
 
 namespace
 {
-	void FootprintOrigin(int32 CursorX, int32 CursorY, int32 SizeX, int32 SizeY, int32& OutX, int32& OutY)
+	void FootprintFromCursor(float WorldX, float WorldY, int32 SizeX, int32 SizeY, int32& OutX, int32& OutY, FVector& OutPivot, float Z)
 	{
-		OutX = CursorX - (FMath::Max(1, SizeX) - 1) / 2;
-		OutY = CursorY - (FMath::Max(1, SizeY) - 1) / 2;
-	}
-
-	FVector FootprintCenter(int32 OriginX, int32 OriginY, int32 SizeX, int32 SizeY, float Z)
-	{
-		const float MinX = static_cast<float>(OriginX) * static_cast<float>(KodBuildGrid::CellUU);
-		const float MinY = static_cast<float>(OriginY) * static_cast<float>(KodBuildGrid::CellUU);
-		const float SpanX = static_cast<float>(FMath::Max(1, SizeX)) * static_cast<float>(KodBuildGrid::CellUU);
-		const float SpanY = static_cast<float>(FMath::Max(1, SizeY)) * static_cast<float>(KodBuildGrid::CellUU);
-		return FVector(MinX + SpanX * 0.5f, MinY + SpanY * 0.5f, Z);
+		const float PivotX = KodBuildGrid::SnapPivot(WorldX, SizeX);
+		const float PivotY = KodBuildGrid::SnapPivot(WorldY, SizeY);
+		OutX = KodBuildGrid::OriginCell(PivotX, SizeX);
+		OutY = KodBuildGrid::OriginCell(PivotY, SizeY);
+		OutPivot = FVector(KodBuildGrid::PivotForOrigin(OutX, SizeX), KodBuildGrid::PivotForOrigin(OutY, SizeY), Z);
 	}
 
 	bool FootprintInside(int32 OriginX, int32 OriginY, int32 SizeX, int32 SizeY, int32 MinX, int32 MinY, int32 MaxX, int32 MaxY)
@@ -365,10 +358,11 @@ FKodPlacementResult UKodSimSubsystem::QueryPlacement(int32 TeamId, FName TypeId,
 	const int32 SizeY = FMath::Max(1, Spec->FootprintY);
 	int32 OriginX = 0;
 	int32 OriginY = 0;
-	FootprintOrigin(CursorX, CursorY, SizeX, SizeY, OriginX, OriginY);
+	FVector Pivot = FVector::ZeroVector;
+	FootprintFromCursor(CursorWorld.X, CursorWorld.Y, SizeX, SizeY, OriginX, OriginY, Pivot, CursorWorld.Z);
 	Result.CellX = OriginX;
 	Result.CellY = OriginY;
-	Result.WorldCenter = FootprintCenter(OriginX, OriginY, SizeX, SizeY, CursorWorld.Z);
+	Result.WorldCenter = Pivot;
 	Result.CellOk.SetNum(SizeX * SizeY);
 
 	if (!Spec->RequiresId.IsNone() && !HasCompletedStructure(TeamId, Spec->RequiresId))
@@ -1130,21 +1124,16 @@ void UKodSimSubsystem::StepLiftoff()
 		const float Speed = static_cast<float>(FMath::Max(1, Structure->LiftSpeedUU)) / 16.f;
 		const int32 FootX = FMath::Max(1, Structure->FootprintX);
 		const int32 FootY = FMath::Max(1, Structure->FootprintY);
-		const float Cell = static_cast<float>(KodBuildGrid::CellUU);
-		const int32 OriginX = FMath::RoundToInt((static_cast<float>(Structure->LiftGoalX) - static_cast<float>(FootX) * Cell * 0.5f) / Cell);
-		const int32 OriginY = FMath::RoundToInt((static_cast<float>(Structure->LiftGoalY) - static_cast<float>(FootY) * Cell * 0.5f) / Cell);
+		const int32 OriginX = KodBuildGrid::OriginCell(static_cast<float>(Structure->LiftGoalX), FootX);
+		const int32 OriginY = KodBuildGrid::OriginCell(static_cast<float>(Structure->LiftGoalY), FootY);
 		const FVector Goal(static_cast<float>(Structure->LiftGoalX), static_cast<float>(Structure->LiftGoalY), Structure->Position.Z);
 		FVector Delta = Goal - Structure->Position;
 		Delta.Z = 0.f;
 		const float Dist = Delta.Size2D();
 		if (Dist <= Speed)
 		{
-			// Probe the cell that maps back to this origin. The footprint center is on a
-			// boundary for even sizes, and querying there would slide the building one cell.
-			const FVector Probe(
-				KodBuildGrid::CellCenter(OriginX + (FootX - 1) / 2),
-				KodBuildGrid::CellCenter(OriginY + (FootY - 1) / 2),
-				Structure->Position.Z);
+			// Probe the snapped pivot. Even pivots sit on a grid line, where CellOf would step into the next cell.
+			const FVector Probe = Goal;
 			const FKodPlacementResult Placement = QueryPlacement(Structure->TeamId, Structure->DefinitionId, Probe);
 			if (!Placement.bValid || Placement.CellX != OriginX || Placement.CellY != OriginY)
 			{

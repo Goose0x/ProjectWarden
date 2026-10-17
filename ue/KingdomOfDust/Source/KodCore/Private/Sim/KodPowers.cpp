@@ -585,9 +585,8 @@ bool UKodSimSubsystem::IsRampWalled(int32 CellX, int32 CellY, int32 ForTeam) con
 		{
 			continue;
 		}
-		const int32 MaxX = Structure->CellX + FMath::Max(1, Structure->FootprintX);
-		const int32 MaxY = Structure->CellY + FMath::Max(1, Structure->FootprintY);
-		if (CellX < Structure->CellX || CellX >= MaxX || CellY < Structure->CellY || CellY >= MaxY)
+		if (!KodBuildGrid::CoversCell(CellX, Structure->CellX, Structure->FootprintX)
+			|| !KodBuildGrid::CoversCell(CellY, Structure->CellY, Structure->FootprintY))
 		{
 			continue;
 		}

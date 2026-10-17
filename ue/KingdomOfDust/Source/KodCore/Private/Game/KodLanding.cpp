@@ -54,11 +54,7 @@ FRotator KodLanding::CanonicalRotation()
 
 FVector KodLanding::FootprintCenter(int32 CellX, int32 CellY, int32 FootX, int32 FootY, float GroundZ)
 {
-	const float SpanX = static_cast<float>(FMath::Max(1, FootX)) * static_cast<float>(KodBuildGrid::CellUU);
-	const float SpanY = static_cast<float>(FMath::Max(1, FootY)) * static_cast<float>(KodBuildGrid::CellUU);
-	const float MinX = static_cast<float>(CellX) * static_cast<float>(KodBuildGrid::CellUU);
-	const float MinY = static_cast<float>(CellY) * static_cast<float>(KodBuildGrid::CellUU);
-	return FVector(MinX + SpanX * 0.5f, MinY + SpanY * 0.5f, GroundZ);
+	return FVector(KodBuildGrid::PivotForOrigin(CellX, FootX), KodBuildGrid::PivotForOrigin(CellY, FootY), GroundZ);
 }
 
 FKodLandingPose KodLanding::MakePose(int32 CellX, int32 CellY, int32 FootX, int32 FootY, float GroundZ)

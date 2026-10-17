@@ -637,21 +637,10 @@ const TArray<FKodMeshRow>& FKodMeshCatalog::Rows()
 
 float FKodMeshCatalog::FootprintCm(FName Id)
 {
-	if (Id == FName(KodWardenPaths::Id_CommandCenter) || Id == FName(TEXT("ScinderHQ")))
+	FKodMeshRow Row;
+	if (KodMeshCatalogFindRow(Id, Row) && Row.Fit == EKodMeshFit::Footprint && Row.FitCm > 0.f)
 	{
-		return 1000.f;
-	}
-	if (Id == FName(KodWardenPaths::Id_Barracks))
-	{
-		return 800.f;
-	}
-	if (Id == FName(KodWardenPaths::Id_SupplyDepot) || Id == FName(TEXT("RiteWell")))
-	{
-		return 450.f;
-	}
-	if (Id == FName(KodWardenPaths::Id_Bunker) || Id == FName(TEXT("Bunker")))
-	{
-		return 600.f;
+		return Row.FitCm;
 	}
 	return 0.f;
 }
