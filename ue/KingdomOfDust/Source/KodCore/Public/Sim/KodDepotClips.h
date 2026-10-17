@@ -60,13 +60,16 @@ struct KODCORE_API FKodDepotClip
 {
 	FName Id;
 	int32 Frames = 1;
+	/** Authoring rate. 30 unless the clip JSON sets fps. */
+	int32 Fps = 30;
 	bool bLoop = false;
 	TArray<FKodDepotNotify> Notifies;
 
-	/** 30 fps authoring clock, converted onto the 16 Hz sim. */
+	/** frames/fps converted onto the 16 Hz sim. */
 	int32 Ticks() const
 	{
-		const float Seconds = static_cast<float>(FMath::Max(1, Frames)) / 30.f;
+		const float Rate = static_cast<float>(FMath::Max(1, Fps));
+		const float Seconds = static_cast<float>(FMath::Max(1, Frames)) / Rate;
 		return FMath::Max(1, KodBuildTicks::SecondsToBuildTicks(Seconds));
 	}
 };
@@ -97,16 +100,23 @@ public:
 	const FKodDepotNotify* FindNotify(FName ClipId, FName NotifyName) const;
 	const FKodDepotFxSlot* FindFx(FName NotifyName) const;
 	int32 ClipTicks(FName ClipId) const;
-	/** AN_Depot_NavWalkable on Lower. 16 ticks (1.0 s) when the notify is missing. */
+	/**
+	 * Nav opens at AN_Depot_NavWalkable time_s when that notify is on Lower.
+	 * With no such notify, the fallback is the Lower clip length (frames/fps).
+	 */
 	int32 WalkableTick() const;
-	/** AN_Depot_RaiseStart. 0 when the notify is missing, so a raise blocks on the command. */
+	/** AN_Depot_RaiseStart time_s. 0 when that notify is missing, so a raise blocks on the command. */
 	int32 RaiseBlockTick() const;
+	/** Defaults, then a JSON overlay. Used to try a timing file without touching the live table. */
+	static FKodDepotClipTable Parse(const FString& JsonText);
 
 private:
 	FKodDepotClipTable();
 	void AddDefaults();
 	void LoadJson();
+	bool ApplyJson(const FString& Text);
 	void LoadFxIni();
+	void EnsureNotifySlots();
 	void UpsertClip(FKodDepotClip&& Clip);
 	FKodDepotFxSlot& FxSlot(FName NotifyName);
 

@@ -1,5 +1,6 @@
 {
-  "note": "Anim-team notify table for SK_Vanguard_SupplyDepot. 30 fps, in place. Empty fx slots are no-ops. Death_Lowered mirrors Death (45 frames) until its own cut is filled in.",
+  "note": "Anim-team notify table for SK_Vanguard_SupplyDepot. fps is the authoring rate. A missing NavWalkable notify opens the footprint at the Lower clip length (frames/fps). A missing RaiseStart blocks at 0. Any notify name is routed to the fx map. Empty fx slots are no-ops. Death_Lowered mirrors Death (45 frames) until its own cut is filled in.",
+  "fps": 30,
   "clips": {
     "A_SupplyDepot_Idle": {
       "frames": 60,

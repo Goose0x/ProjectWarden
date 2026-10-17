@@ -41,7 +41,7 @@ namespace
 		}
 	}
 
-	bool ReadNotify(const TSharedPtr<FJsonObject>& NotifyObj, FKodDepotNotify& OutNotify)
+	bool ReadNotify(const TSharedPtr<FJsonObject>& NotifyObj, FKodDepotNotify& OutNotify, int32 Fps)
 	{
 		if (!NotifyObj.IsValid())
 		{
@@ -56,6 +56,7 @@ namespace
 		double Frame = 0.0;
 		double TimeSeconds = 0.0;
 		double Chance = 1.0;
+		const float Rate = static_cast<float>(FMath::Max(1, Fps));
 		if (NotifyObj->TryGetNumberField(TEXT("frame"), Frame))
 		{
 			OutNotify.Frame = FMath::RoundToInt(Frame);
@@ -66,7 +67,7 @@ namespace
 		}
 		else
 		{
-			OutNotify.TimeSeconds = static_cast<float>(OutNotify.Frame) / 30.f;
+			OutNotify.TimeSeconds = static_cast<float>(OutNotify.Frame) / Rate;
 		}
 		if (NotifyObj->TryGetNumberField(TEXT("chance"), Chance))
 		{
@@ -185,22 +186,27 @@ FKodDepotFxSlot& FKodDepotClipTable::FxSlot(FName NotifyName)
 	return Added;
 }
 
-void FKodDepotClipTable::LoadJson()
+void FKodDepotClipTable::EnsureNotifySlots()
 {
-	const FString Path = FPaths::Combine(FPaths::ProjectConfigDir(), TEXT("SupplyDepotClips.json"));
-	FString Text;
-	if (!FFileHelper::LoadFileToString(Text, *Path))
+	for (const FKodDepotClip& Clip : ClipList)
 	{
-		UE_LOG(LogTemp, Log, TEXT("KodDepot Clips Source=builtin Path=%s"), *Path);
-		return;
+		for (const FKodDepotNotify& Notify : Clip.Notifies)
+		{
+			FxSlot(Notify.Name);
+		}
 	}
+}
+
+bool FKodDepotClipTable::ApplyJson(const FString& Text)
+{
 	TSharedPtr<FJsonObject> Root;
 	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Text);
 	if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("KodDepot Clips parse failed %s"), *Path);
-		return;
+		return false;
 	}
+	double RootFps = 30.0;
+	const bool bRootFps = Root->TryGetNumberField(TEXT("fps"), RootFps);
 	const TSharedPtr<FJsonObject>* Clips = nullptr;
 	if (Root->TryGetObjectField(TEXT("clips"), Clips) && Clips && Clips->IsValid())
 	{
@@ -213,10 +219,16 @@ void FKodDepotClipTable::LoadJson()
 			}
 			FKodDepotClip Clip;
 			Clip.Id = FName(*Pair.Key);
+			Clip.Fps = bRootFps ? FMath::Max(1, FMath::RoundToInt(RootFps)) : 30;
 			double Frames = static_cast<double>(Clip.Frames);
+			double ClipFps = static_cast<double>(Clip.Fps);
 			if (ClipObj->TryGetNumberField(TEXT("frames"), Frames))
 			{
 				Clip.Frames = FMath::Max(1, FMath::RoundToInt(Frames));
+			}
+			if (ClipObj->TryGetNumberField(TEXT("fps"), ClipFps))
+			{
+				Clip.Fps = FMath::Max(1, FMath::RoundToInt(ClipFps));
 			}
 			ClipObj->TryGetBoolField(TEXT("loop"), Clip.bLoop);
 			const TArray<TSharedPtr<FJsonValue>>* NotifyValues = nullptr;
@@ -225,7 +237,7 @@ void FKodDepotClipTable::LoadJson()
 				for (const TSharedPtr<FJsonValue>& NotifyValue : *NotifyValues)
 				{
 					FKodDepotNotify Notify;
-					if (ReadNotify(NotifyValue.IsValid() ? NotifyValue->AsObject() : nullptr, Notify))
+					if (ReadNotify(NotifyValue.IsValid() ? NotifyValue->AsObject() : nullptr, Notify, Clip.Fps))
 					{
 						Clip.Notifies.Add(Notify);
 					}
@@ -256,6 +268,23 @@ void FKodDepotClipTable::LoadJson()
 				Slot.Sound = Sound;
 			}
 		}
+	}
+	return true;
+}
+
+void FKodDepotClipTable::LoadJson()
+{
+	const FString Path = FPaths::Combine(FPaths::ProjectConfigDir(), TEXT("SupplyDepotClips.json"));
+	FString Text;
+	if (!FFileHelper::LoadFileToString(Text, *Path))
+	{
+		UE_LOG(LogTemp, Log, TEXT("KodDepot Clips Source=builtin Path=%s"), *Path);
+		return;
+	}
+	if (!ApplyJson(Text))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("KodDepot Clips parse failed %s"), *Path);
+		return;
 	}
 	UE_LOG(LogTemp, Log, TEXT("KodDepot Clips Source=json Path=%s Count=%d"), *Path, ClipList.Num());
 }
@@ -320,15 +349,19 @@ void FKodDepotClipTable::LoadFxIni()
 FKodDepotClipTable::FKodDepotClipTable()
 {
 	AddDefaults();
-	for (const FKodDepotClip& Clip : ClipList)
-	{
-		for (const FKodDepotNotify& Notify : Clip.Notifies)
-		{
-			FxSlot(Notify.Name);
-		}
-	}
+	EnsureNotifySlots();
 	LoadJson();
+	EnsureNotifySlots();
 	LoadFxIni();
+}
+
+FKodDepotClipTable FKodDepotClipTable::Parse(const FString& JsonText)
+{
+	FKodDepotClipTable Table;
+	Table.AddDefaults();
+	Table.ApplyJson(JsonText);
+	Table.EnsureNotifySlots();
+	return Table;
 }
 
 const FKodDepotClipTable& FKodDepotClipTable::Get()
@@ -393,7 +426,11 @@ int32 FKodDepotClipTable::WalkableTick() const
 	{
 		return Notify->Tick();
 	}
-	return KodBuildTicks::SecondsToBuildTicks(1.f);
+	if (const FKodDepotClip* LowerClip = FindClip(FName(KodDepotClipId::Lower)))
+	{
+		return LowerClip->Ticks();
+	}
+	return 0;
 }
 
 int32 FKodDepotClipTable::RaiseBlockTick() const

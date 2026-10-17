@@ -354,6 +354,7 @@ FVector AKodBuilding::DepotSocketLocation(FName SocketName) const
 
 void AKodBuilding::HandleDepotNotify(const FKodDepotNotify& Notify, int32 AtTick)
 {
+	// Every notify name on the clip is eligible. AN_Depot_Slam and the rest need no special case.
 	if (Notify.Chance < 0.999f)
 	{
 		const int32 Gate = FMath::Clamp(FMath::RoundToInt(Notify.Chance * 100.f), 0, 100);

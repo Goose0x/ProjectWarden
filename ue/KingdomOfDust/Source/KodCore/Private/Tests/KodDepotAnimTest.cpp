@@ -105,10 +105,52 @@ bool FKodDepotAnimTest::RunTest(const FString& Parameters)
 {
 	(void)Parameters;
 	const FKodDepotClipTable& Clips = FKodDepotClipTable::Get();
-	TestEqual(TEXT("lower walkable tick"), Clips.WalkableTick(), 16);
-	TestEqual(TEXT("raise blocks at frame 0"), Clips.RaiseBlockTick(), 0);
-	TestEqual(TEXT("death length"), Clips.ClipTicks(FName(KodDepotClipId::Death)), 24);
-	TestEqual(TEXT("lowered death length"), Clips.ClipTicks(FName(KodDepotClipId::DeathLowered)), 24);
+	const FName LowerId = FName(KodDepotClipId::Lower);
+	const FName RaiseId = FName(KodDepotClipId::Raise);
+	const FKodDepotNotify* Nav = Clips.FindNotify(LowerId, FName(KodDepotClipId::NavWalkable));
+	const int32 LowerTicks = Clips.ClipTicks(LowerId);
+	const int32 RaiseTicks = Clips.ClipTicks(RaiseId);
+	const int32 OpenAt = Nav ? Nav->Tick() : LowerTicks;
+	TestEqual(TEXT("walkable follows the notify or the lower clip"), Clips.WalkableTick(), OpenAt);
+	const FKodDepotNotify* RaiseStart = Clips.FindNotify(RaiseId, FName(KodDepotClipId::RaiseStart));
+	TestEqual(TEXT("raise blocks at the notify or at 0"), Clips.RaiseBlockTick(), RaiseStart ? RaiseStart->Tick() : 0);
+	const FKodDepotClip* DeathClip = Clips.FindClip(FName(KodDepotClipId::Death));
+	const FKodDepotClip* LoweredDeathClip = Clips.FindClip(FName(KodDepotClipId::DeathLowered));
+	TestNotNull(TEXT("death clip"), DeathClip);
+	TestNotNull(TEXT("lowered death clip"), LoweredDeathClip);
+	const int32 DeathTicks = DeathClip ? DeathClip->Ticks() : 0;
+	TestEqual(TEXT("death length"), Clips.ClipTicks(FName(KodDepotClipId::Death)), DeathTicks);
+	TestEqual(TEXT("lowered death length"), Clips.ClipTicks(FName(KodDepotClipId::DeathLowered)), LoweredDeathClip ? LoweredDeathClip->Ticks() : 0);
+
+	const FString AnimV4 = TEXT("{\"fps\":30,\"clips\":{\"A_SupplyDepot_Lower\":{\"frames\":26,\"loop\":false,\"notifies\":[{\"name\":\"AN_Depot_Slam\",\"frame\":8,\"time_s\":0.266667,\"sockets\":[\"SOCKET_Dust_Ground\"]},{\"name\":\"AN_Depot_Lock\",\"frame\":16,\"time_s\":0.533333,\"sockets\":[]},{\"name\":\"AN_Depot_Latch\",\"frame\":26,\"time_s\":0.866667,\"sockets\":[\"SOCKET_Door\"]}]},\"A_SupplyDepot_Raise\":{\"frames\":25,\"loop\":false,\"notifies\":[]}}}");
+	const FKodDepotClipTable V4 = FKodDepotClipTable::Parse(AnimV4);
+	const int32 V4LowerTicks = KodBuildTicks::SecondsToBuildTicks(26.f / 30.f);
+	const int32 V4RaiseTicks = KodBuildTicks::SecondsToBuildTicks(25.f / 30.f);
+	TestEqual(TEXT("v4 lower length"), V4.ClipTicks(LowerId), V4LowerTicks);
+	TestEqual(TEXT("v4 raise length"), V4.ClipTicks(RaiseId), V4RaiseTicks);
+	TestEqual(TEXT("v4 walkable fallback is the lower clip"), V4.WalkableTick(), V4LowerTicks);
+	TestEqual(TEXT("v4 raise blocks at 0"), V4.RaiseBlockTick(), 0);
+	const FName UnknownNames[] = {FName(TEXT("AN_Depot_Slam")), FName(TEXT("AN_Depot_Lock")), FName(TEXT("AN_Depot_Latch"))};
+	for (const FName& UnknownName : UnknownNames)
+	{
+		TestNotNull(*FString::Printf(TEXT("%s accepted"), *UnknownName.ToString()), V4.FindNotify(LowerId, UnknownName));
+		const FKodDepotFxSlot* Slot = V4.FindFx(UnknownName);
+		TestNotNull(*FString::Printf(TEXT("%s fx slot"), *UnknownName.ToString()), Slot);
+		if (Slot)
+		{
+			TestTrue(*FString::Printf(TEXT("%s empty slot is a no-op"), *UnknownName.ToString()), Slot->IsEmpty());
+		}
+	}
+	const FString AnimV4Nav = TEXT("{\"fps\":30,\"clips\":{\"A_SupplyDepot_Lower\":{\"frames\":26,\"loop\":false,\"notifies\":[{\"name\":\"AN_Depot_NavWalkable\",\"frame\":26,\"time_s\":0.866667,\"sockets\":[]}]}}}");
+	const FKodDepotClipTable V4Nav = FKodDepotClipTable::Parse(AnimV4Nav);
+	TestEqual(TEXT("v4 walkable uses the notify time"), V4Nav.WalkableTick(), KodBuildTicks::SecondsToBuildTicks(26.f / 30.f));
+
+	const int32 OpenSteps = FMath::Max(Clips.WalkableTick(), 1);
+	const int32 LowerSteps = FMath::Max(LowerTicks, 1);
+	const int32 RaiseSteps = FMath::Max(RaiseTicks, 1);
+	const int32 DeathSteps = FMath::Max(DeathTicks, 1);
+	const int32 MidSteps = OpenSteps > 2 ? OpenSteps / 2 : 1;
+	const int32 RaiseMid = RaiseSteps > 2 ? RaiseSteps / 2 : 1;
 	const FKodDepotNotify* Vent = Clips.FindNotify(FName(KodDepotClipId::Idle), FName(KodDepotClipId::VentTick));
 	TestNotNull(TEXT("vent tick"), Vent);
 	if (Vent)
@@ -177,14 +219,21 @@ bool FKodDepotAnimTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("lowering"), static_cast<int32>(Depot.DepotPose), static_cast<int32>(EKodDepotPose::Lowering));
 	TestTrue(TEXT("lower clip"), KodDepotActiveClip(Depot) == FName(KodDepotClipId::Lower));
 	TestTrue(TEXT("still blocked on the lower command"), FootBlocked(Sim, Depot));
-	Sim->AdvanceSimTicks(15);
-	Sim->TryGetStructure(DepotId, Depot);
-	TestEqual(TEXT("fifteen ticks still lowering"), static_cast<int32>(Depot.DepotPose), static_cast<int32>(EKodDepotPose::Lowering));
-	TestTrue(TEXT("blocked before the walkable notify"), FootBlocked(Sim, Depot));
+	if (OpenSteps > 1)
+	{
+		Sim->AdvanceSimTicks(OpenSteps - 1);
+		Sim->TryGetStructure(DepotId, Depot);
+		TestEqual(TEXT("still lowering before the notify"), static_cast<int32>(Depot.DepotPose), static_cast<int32>(EKodDepotPose::Lowering));
+		TestTrue(TEXT("blocked before the walkable notify"), FootBlocked(Sim, Depot));
+	}
 	Sim->AdvanceSimTicks(1);
+	if (LowerSteps > OpenSteps)
+	{
+		Sim->AdvanceSimTicks(LowerSteps - OpenSteps);
+	}
 	Sim->TryGetStructure(DepotId, Depot);
 	TestEqual(TEXT("lowered idle"), static_cast<int32>(Depot.DepotPose), static_cast<int32>(EKodDepotPose::Lowered));
-	TestTrue(TEXT("walkable after one second"), Depot.bDepotWalkable);
+	TestTrue(TEXT("walkable at the notify"), Depot.bDepotWalkable);
 	TestTrue(TEXT("footprint is open"), FootOpen(Sim, Depot));
 	TestTrue(TEXT("placement still sees the building"), Sim->IsCellBlocked(Depot.CellX, Depot.CellY, 0, false));
 
@@ -195,41 +244,48 @@ bool FKodDepotAnimTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("raise blocks on frame 0"), Depot.bDepotWalkable);
 	TestTrue(TEXT("blocked on the raise command"), FootBlocked(Sim, Depot));
 	TestTrue(TEXT("raise clip"), KodDepotActiveClip(Depot) == FName(KodDepotClipId::Raise));
-	Sim->AdvanceSimTicks(16);
+	Sim->AdvanceSimTicks(RaiseSteps);
 	Sim->TryGetStructure(DepotId, Depot);
 	TestEqual(TEXT("back to raised idle"), static_cast<int32>(Depot.DepotPose), static_cast<int32>(EKodDepotPose::Raised));
 	TestTrue(TEXT("stays blocked when raised"), FootBlocked(Sim, Depot));
 
 	TestTrue(TEXT("lower again"), Sim->ToggleDepot(DepotId));
-	Sim->AdvanceSimTicks(8);
+	Sim->AdvanceSimTicks(MidSteps);
 	TestTrue(TEXT("reverse mid-lower"), Sim->ToggleDepot(DepotId));
 	Sim->TryGetStructure(DepotId, Depot);
 	TestEqual(TEXT("mid-lower becomes raise"), static_cast<int32>(Depot.DepotPose), static_cast<int32>(EKodDepotPose::Raising));
 	TestEqual(TEXT("raise starts over"), Depot.DepotPoseTicks, 0);
 	TestFalse(TEXT("mid-lower never opened"), Depot.bDepotWalkable);
 	TestTrue(TEXT("mid-lower reverse stays blocked"), FootBlocked(Sim, Depot));
-	Sim->AdvanceSimTicks(16);
+	Sim->AdvanceSimTicks(RaiseSteps);
 	Sim->TryGetStructure(DepotId, Depot);
 	TestEqual(TEXT("reversed raise finishes raised"), static_cast<int32>(Depot.DepotPose), static_cast<int32>(EKodDepotPose::Raised));
 
 	TestTrue(TEXT("lower for the raise reverse"), Sim->ToggleDepot(DepotId));
-	Sim->AdvanceSimTicks(16);
+	Sim->AdvanceSimTicks(LowerSteps);
 	Sim->TryGetStructure(DepotId, Depot);
 	TestTrue(TEXT("open before the mid-raise reverse"), Depot.bDepotWalkable);
 	TestTrue(TEXT("start raise"), Sim->ToggleDepot(DepotId));
-	Sim->AdvanceSimTicks(8);
+	Sim->AdvanceSimTicks(RaiseMid);
 	TestTrue(TEXT("reverse mid-raise"), Sim->ToggleDepot(DepotId));
 	Sim->TryGetStructure(DepotId, Depot);
 	TestEqual(TEXT("mid-raise becomes lower"), static_cast<int32>(Depot.DepotPose), static_cast<int32>(EKodDepotPose::Lowering));
 	TestEqual(TEXT("lower starts over"), Depot.DepotPoseTicks, 0);
 	TestFalse(TEXT("fresh lower is not walkable yet"), Depot.bDepotWalkable);
-	Sim->AdvanceSimTicks(15);
-	Sim->TryGetStructure(DepotId, Depot);
-	TestTrue(TEXT("still blocked 15 ticks into the fresh lower"), FootBlocked(Sim, Depot));
+	if (OpenSteps > 1)
+	{
+		Sim->AdvanceSimTicks(OpenSteps - 1);
+		Sim->TryGetStructure(DepotId, Depot);
+		TestTrue(TEXT("still blocked before the fresh notify"), FootBlocked(Sim, Depot));
+	}
 	Sim->AdvanceSimTicks(1);
+	if (LowerSteps > OpenSteps)
+	{
+		Sim->AdvanceSimTicks(LowerSteps - OpenSteps);
+	}
 	Sim->TryGetStructure(DepotId, Depot);
-	TestTrue(TEXT("walkable only after a fresh second"), Depot.bDepotWalkable);
-	TestEqual(TEXT("lowered after the fresh second"), static_cast<int32>(Depot.DepotPose), static_cast<int32>(EKodDepotPose::Lowered));
+	TestTrue(TEXT("walkable only after a fresh lower"), Depot.bDepotWalkable);
+	TestEqual(TEXT("lowered after the fresh lower"), static_cast<int32>(Depot.DepotPose), static_cast<int32>(EKodDepotPose::Lowered));
 
 	const FVector OnDepot(KodBuildGrid::CellCenter(Depot.CellX), KodBuildGrid::CellCenter(Depot.CellY), 0.f);
 	const FKodEntityId Occupant = SpawnUnit(World, Sim, OnDepot, 0, 0.f);
@@ -254,14 +310,17 @@ bool FKodDepotAnimTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("death frame 0"), Raised.DepotPoseTicks, 0);
 	TestFalse(TEXT("no toggle during death"), Sim->ToggleDepot(RaisedId));
 	TestTrue(TEXT("structure remains on death frame 0"), Sim->IsStructure(RaisedId));
-	Sim->AdvanceSimTicks(23);
+	if (DeathSteps > 1)
+	{
+		Sim->AdvanceSimTicks(DeathSteps - 1);
+	}
 	TestTrue(TEXT("present until the clip ends"), Sim->IsStructure(RaisedId));
 	Sim->AdvanceSimTicks(1);
 	TestFalse(TEXT("wreck handoff"), Sim->IsStructure(RaisedId));
 
 	const FKodEntityId LoweredId = SpawnDepot(World, Sim, 40, 10);
 	TestTrue(TEXT("lower before death"), Sim->ToggleDepot(LoweredId));
-	Sim->AdvanceSimTicks(16);
+	Sim->AdvanceSimTicks(LowerSteps);
 	const FVector LoweredAt(KodBuildGrid::CellCenter(40), KodBuildGrid::CellCenter(10), 0.f);
 	TestTrue(TEXT("kill lowered"), KillDepot(Sim, World, LoweredId, LoweredAt));
 	FKodStructureState LoweredDead;
@@ -270,7 +329,7 @@ bool FKodDepotAnimTest::RunTest(const FString& Parameters)
 
 	const FKodEntityId LoweringId = SpawnDepot(World, Sim, 50, 10);
 	TestTrue(TEXT("start lower"), Sim->ToggleDepot(LoweringId));
-	Sim->AdvanceSimTicks(4);
+	Sim->AdvanceSimTicks(MidSteps);
 	const FVector LoweringAt(KodBuildGrid::CellCenter(50), KodBuildGrid::CellCenter(10), 0.f);
 	TestTrue(TEXT("kill while lowering"), KillDepot(Sim, World, LoweringId, LoweringAt));
 	FKodStructureState LoweringDead;
@@ -279,9 +338,9 @@ bool FKodDepotAnimTest::RunTest(const FString& Parameters)
 
 	const FKodEntityId RaisingId = SpawnDepot(World, Sim, 60, 10);
 	TestTrue(TEXT("lower before raise-death"), Sim->ToggleDepot(RaisingId));
-	Sim->AdvanceSimTicks(16);
+	Sim->AdvanceSimTicks(LowerSteps);
 	TestTrue(TEXT("raise before death"), Sim->ToggleDepot(RaisingId));
-	Sim->AdvanceSimTicks(4);
+	Sim->AdvanceSimTicks(RaiseMid);
 	const FVector RaisingAt(KodBuildGrid::CellCenter(60), KodBuildGrid::CellCenter(10), 0.f);
 	TestTrue(TEXT("kill while raising"), KillDepot(Sim, World, RaisingId, RaisingAt));
 	FKodStructureState RaisingDead;
@@ -306,10 +365,17 @@ bool FKodDepotAnimTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("raised depot walls the ramp"), Sim->IsRampWalled(WallDepot.CellX, WallDepot.CellY, 0));
 	TestTrue(TEXT("barracks walls the ramp"), Sim->IsRampWalled(Barracks.CellX, Barracks.CellY, 0));
 	TestTrue(TEXT("lower the wall depots"), Sim->ToggleDepot(WallA) && Sim->ToggleDepot(WallB));
-	Sim->AdvanceSimTicks(15);
-	TestTrue(TEXT("wall holds until the notify"), Sim->IsRampWalled(WallDepot.CellX, WallDepot.CellY, 0));
-	TestTrue(TEXT("depot cells blocked during the drop"), FootBlocked(Sim, WallDepot));
+	if (OpenSteps > 1)
+	{
+		Sim->AdvanceSimTicks(OpenSteps - 1);
+		TestTrue(TEXT("wall holds until the notify"), Sim->IsRampWalled(WallDepot.CellX, WallDepot.CellY, 0));
+		TestTrue(TEXT("depot cells blocked during the drop"), FootBlocked(Sim, WallDepot));
+	}
 	Sim->AdvanceSimTicks(1);
+	if (LowerSteps > OpenSteps)
+	{
+		Sim->AdvanceSimTicks(LowerSteps - OpenSteps);
+	}
 	Sim->TryGetStructure(WallA, WallDepot);
 	FKodStructureState WallBState;
 	Sim->TryGetStructure(WallB, WallBState);
@@ -320,13 +386,13 @@ bool FKodDepotAnimTest::RunTest(const FString& Parameters)
 
 	const FKodEntityId SaveId = SpawnDepot(World, Sim, 70, 10);
 	TestTrue(TEXT("save lower"), Sim->ToggleDepot(SaveId));
-	Sim->AdvanceSimTicks(4);
+	Sim->AdvanceSimTicks(MidSteps);
 	const TArray<uint8> Mid = Sim->ExportSimBlob();
 	Sim->ApplySimBlob(Mid);
 	FKodStructureState Saved;
 	TestTrue(TEXT("v15 reloaded"), Sim->TryGetStructure(SaveId, Saved));
 	TestEqual(TEXT("v15 keeps lowering"), static_cast<int32>(Saved.DepotPose), static_cast<int32>(EKodDepotPose::Lowering));
-	TestEqual(TEXT("v15 keeps the clock"), Saved.DepotPoseTicks, 4);
+	TestEqual(TEXT("v15 keeps the clock"), Saved.DepotPoseTicks, MidSteps);
 	TestFalse(TEXT("v15 still blocked"), Saved.bDepotWalkable);
 
 	World->DestroyWorld(false);
