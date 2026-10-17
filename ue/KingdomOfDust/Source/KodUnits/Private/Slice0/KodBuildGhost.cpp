@@ -72,8 +72,8 @@ void AKodBuildGhost::SetCells(int32 CellsX, int32 CellsY, const TArray<uint8>& C
 		}
 		const int32 X = Index % SizeX;
 		const int32 Y = Index / SizeX;
-		const float LocalX = (static_cast<float>(X) + 0.5f - static_cast<float>(SizeX) * 0.5f) * static_cast<float>(KodBuildGrid::CellUU);
-		const float LocalY = (static_cast<float>(Y) + 0.5f - static_cast<float>(SizeY) * 0.5f) * static_cast<float>(KodBuildGrid::CellUU);
+		const float LocalX = KodBuildGrid::CellLocalOffset(X, SizeX);
+		const float LocalY = KodBuildGrid::CellLocalOffset(Y, SizeY);
 		Cell->SetVisibility(true);
 		Cell->SetRelativeLocation(FVector(LocalX, LocalY, 20.f));
 		Cell->SetRelativeScale3D(FVector(1.8f, 1.8f, 0.15f));

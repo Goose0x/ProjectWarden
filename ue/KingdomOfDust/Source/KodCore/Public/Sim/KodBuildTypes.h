@@ -18,6 +18,59 @@ namespace KodBuildGrid
 	{
 		return (static_cast<float>(Cell) + 0.5f) * static_cast<float>(CellUU);
 	}
+
+	/** Even footprints sit on a grid line. Odd footprints sit on a cell centre, 100 uu off that line. */
+	inline bool IsEvenFootprint(int32 Cells)
+	{
+		return (FMath::Max(1, Cells) & 1) == 0;
+	}
+
+	/** Nearest legal pivot on one axis. Even N lands on a multiple of 200. Odd N lands on a cell centre. */
+	inline float SnapPivot(float World, int32 Cells)
+	{
+		const float Cell = static_cast<float>(CellUU);
+		if (IsEvenFootprint(Cells))
+		{
+			return static_cast<float>(FMath::RoundToInt(World / Cell)) * Cell;
+		}
+		return CellCenter(CellOf(World));
+	}
+
+	/**
+	 * Min cell of the N cells under a pivot-centred box.
+	 * The box is half-open, so the far edge is not an extra cell.
+	 * Even: the pivot is the shared edge, and half the cells sit on each side.
+	 */
+	inline int32 OriginCell(float Pivot, int32 Cells)
+	{
+		const int32 Size = FMath::Max(1, Cells);
+		if (IsEvenFootprint(Size))
+		{
+			const int32 Line = FMath::RoundToInt(Pivot / static_cast<float>(CellUU));
+			return Line - Size / 2;
+		}
+		return CellOf(Pivot) - Size / 2;
+	}
+
+	/** Actor origin for a footprint whose min cell is Origin. Matches SnapPivot for that footprint. */
+	inline float PivotForOrigin(int32 Origin, int32 Cells)
+	{
+		const int32 Size = FMath::Max(1, Cells);
+		return (static_cast<float>(Origin) + static_cast<float>(Size) * 0.5f) * static_cast<float>(CellUU);
+	}
+
+	/** Local offset from the pivot to the centre of cell Index inside the footprint. */
+	inline float CellLocalOffset(int32 Index, int32 Cells)
+	{
+		const int32 Size = FMath::Max(1, Cells);
+		return (static_cast<float>(Index) + 0.5f - static_cast<float>(Size) * 0.5f) * static_cast<float>(CellUU);
+	}
+
+	inline bool CoversCell(int32 Cell, int32 Origin, int32 Cells)
+	{
+		const int32 Size = FMath::Max(1, Cells);
+		return Cell >= Origin && Cell < Origin + Size;
+	}
 }
 
 /** Placeable archetype. Filled from a building DataAsset. The sim does not load it. */
